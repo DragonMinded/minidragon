@@ -1,0 +1,7 @@
+.hg/
+.hgignore
+*.pyc
+*.pyo
+*.swp
+*.swo
+.mypy_cache/
