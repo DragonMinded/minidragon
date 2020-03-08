@@ -162,7 +162,7 @@ def verifymultiply(full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/multiply.S", "r") as fp:
+    with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
 
     cycles = 0
@@ -200,7 +200,7 @@ def verifyadd16(full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/add16.S", "r") as fp:
+    with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
 
     cycles = 0
@@ -225,7 +225,7 @@ def verifyadd16(full: bool) -> None:
             _assert(
                 real == calculated,
                 f"Failed to add16 {x} and {y}, "
-                + "got {calculated} instead of {real}!",
+                + f"got {calculated} instead of {real}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
@@ -234,6 +234,57 @@ def verifyadd16(full: bool) -> None:
         print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for add16: {int(cycles/count)}")
     print(f"Average instructions for add16: {int(instructions/count)}")
+
+
+def verifyadd32(full: bool) -> None:
+    print("Verifying add32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 2**32, 80904192 if full else 809041923):
+        for y in range(0, 2**32, 61472769 if full else 122945537):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"PUSHI {(x >> 16) & 0xFF}",
+                f"PUSHI {(x >> 24) & 0xFF}",
+                f"PUSHI {y & 0xFF}",
+                f"PUSHI {(y >> 8) & 0xFF}",
+                f"PUSHI {(y >> 16) & 0xFF}",
+                f"PUSHI {(y >> 24) & 0xFF}",
+                f"CALL add32",
+                f"HALT",
+                *addlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            calculated = (
+                (cpu.ram[cpu.pc[0]] << 24) +
+                (cpu.ram[cpu.pc[0] + 1] << 16) +
+                (cpu.ram[cpu.pc[0] + 2] << 8) +
+                cpu.ram[cpu.pc[0] + 3]
+            )
+            real = (x + y) & 0xFFFFFFFF
+            _assert(
+                real == calculated,
+                f"Failed to add32 {x} and {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / (2**32))}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for add32: {int(cycles/count)}")
+    print(f"Average instructions for add32: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -260,3 +311,4 @@ if __name__ == "__main__":
     # Function library verification
     verifymultiply(args.full)
     verifyadd16(args.full)
+    verifyadd32(args.full)
