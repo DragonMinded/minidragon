@@ -375,9 +375,6 @@ def verifyabs(only: Optional[str], full: bool) -> None:
     with open("lib/math/abs.S", "r") as fp:
         addlines = fp.readlines()
 
-    cycles = 0
-    instructions = 0
-    count = 0
     for x in range(-127, 128):
         memory = getmemory(os.linesep.join([
             *initlines,
@@ -435,6 +432,56 @@ def verifystrlen(only: Optional[str], full: bool) -> None:
         )
 
 
+def verifyitoa(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "itoa":
+        return
+
+    print("Verifying itoa...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/conversion/itoa.S", "r") as fp:
+        itoalines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(-128, 128, 1 if full else 7):
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI 0x00",
+            f"PUSHI 0x10",
+            f"SETA {x}",
+            f"CALL itoa",
+            f"HALT",
+            *itoalines,
+            *dividelines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        pc = 0x1000
+        string = ""
+        while cpu.ram[pc] != 0x00:
+            string = string + chr(cpu.ram[pc])
+            pc += 1
+
+        _assert(
+            string == str(x),
+            f"Failed to itoa({x}), got {string} instead of {str(x)}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+        print(f"{CLEAR_LINE}{int(((x + 128) * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for itoa: {int(cycles/count)}")
+    print(f"Average instructions for itoa: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -464,11 +511,15 @@ if __name__ == "__main__":
     verifyaddpc(only, args.full)
     verifysubpc(only, args.full)
 
-    # Function library verification
+    # Math library verification
     verifyadd16(only, args.full)
     verifyadd32(only, args.full)
     verifymultiply(only, args.full)
     verifydivide(only, args.full)
     verifyabs(only, args.full)
 
+    # String library verification
     verifystrlen(only, args.full)
+
+    # Conversion library verification
+    verifyitoa(only, args.full)
