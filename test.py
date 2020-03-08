@@ -8,6 +8,10 @@ CLEAR_LINE = "\033[F\033[K"
 BACK_AND_CLEAR_LINE = "\033[F\033[K\033[F"
 
 
+def _assert(statement: bool, msg: str) -> None:
+    assert statement, msg
+
+
 def getlines(instr: str) -> List[str]:
     lines: List[str] = []
 
@@ -43,7 +47,7 @@ def verifyloadi(full: bool) -> None:
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        assert bintoint(cpu.a) == i, f"Failed to load {i} into A register!"
+        _assert(bintoint(cpu.a) == i, f"Failed to load {i} into A register!")
 
 
 def verifyaddi(full: bool) -> None:
@@ -56,7 +60,10 @@ def verifyaddi(full: bool) -> None:
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        assert bintoint(cpu.a) == (i + 5), f"Failed to add {i} to A register!"
+        _assert(
+            bintoint(cpu.a) == (i + 5),
+            f"Failed to add {i} to A register!"
+        )
 
 
 def verifyseta(full: bool) -> None:
@@ -68,7 +75,7 @@ def verifyseta(full: bool) -> None:
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        assert cpu.a == i, f"Failed to set A to {i}!"
+        _assert(cpu.a == i, f"Failed to set A to {i}!")
 
     for i in range(-128, 128):
         memory = getmemory(f"""
@@ -77,7 +84,7 @@ def verifyseta(full: bool) -> None:
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        assert bintoint(cpu.a) == i, f"Failed to set A to {i}!"
+        _assert(bintoint(cpu.a) == i, f"Failed to set A to {i}!")
 
 
 def verifysetpc(full: bool) -> None:
@@ -90,8 +97,8 @@ def verifysetpc(full: bool) -> None:
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        assert cpu.p[0] == (i >> 8) & 0xFF, f"Failed to set PC to {i}!"
-        assert cpu.c[0] == i & 0xFF, f"Failed to set PC to {i}!"
+        _assert(cpu.p[0] == (i >> 8) & 0xFF, f"Failed to set PC to {i}!")
+        _assert(cpu.c[0] == i & 0xFF, f"Failed to set PC to {i}!")
 
         if i & 0xFF == 0:
             print(f"{CLEAR_LINE}{int((i * 100) / 0xFFFF)}% complete...")
@@ -108,7 +115,7 @@ def verifyneg(full: bool) -> None:
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        assert bintoint(cpu.a) == -i, f"Failed to negate A!"
+        _assert(bintoint(cpu.a) == -i, f"Failed to negate A!")
 
 
 def verifyaddpc(full: bool) -> None:
@@ -122,8 +129,11 @@ def verifyaddpc(full: bool) -> None:
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        assert cpu.p[0] == ((0x01FA + i) >> 8) & 0xFF, f"Failed to ADDPC {i}!"
-        assert cpu.c[0] == (0x01FA + i) & 0xFF, f"Failed to ADDPC {i}!"
+        _assert(
+            cpu.p[0] == ((0x01FA + i) >> 8) & 0xFF,
+            f"Failed to ADDPC {i}!",
+        )
+        _assert(cpu.c[0] == (0x01FA + i) & 0xFF, f"Failed to ADDPC {i}!")
     print(BACK_AND_CLEAR_LINE)
 
 
@@ -138,8 +148,11 @@ def verifysubpc(full: bool) -> None:
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        assert cpu.p[0] == ((0x0204 - i) >> 8) & 0xFF, f"Failed to SUBPC {i}!"
-        assert cpu.c[0] == (0x0204 - i) & 0xFF, f"Failed to SUBPC {i}!"
+        _assert(
+            cpu.p[0] == ((0x0204 - i) >> 8) & 0xFF,
+            f"Failed to SUBPC {i}!",
+        )
+        _assert(cpu.c[0] == (0x0204 - i) & 0xFF, f"Failed to SUBPC {i}!")
     print(BACK_AND_CLEAR_LINE)
 
 
@@ -167,7 +180,11 @@ def verifymultiply(full: bool) -> None:
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
-            assert cpu.a == x * y, f"Failed to multiply {x} by {y}, got {cpu.a} instead of {x * y}!"
+            _assert(
+                cpu.a == x * y,
+                f"Failed to multiply {x} by {y}, "
+                + "got {cpu.a} instead of {x * y}!",
+            )
             cycles += cpu.cycles
             instructions += cpu.ticks
             count += 1
@@ -189,8 +206,8 @@ def verifyadd16(full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(0, 65536, 1 if full else 100):
-        for y in range(0, 65536, 1 if full else 95):
+    for x in range(0, 65536, 1234 if full else 12345):
+        for y in range(0, 65536, 987 if full else 1876):
             memory = getmemory(os.linesep.join([
                 *initlines,
                 f"PUSHI {x & 0xFF}",
@@ -203,14 +220,18 @@ def verifyadd16(full: bool) -> None:
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
-            cpu.dump()
-            answer = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
-            assert answer == x + y, f"Failed to add16 {x} and {y}, got {answer} instead of {x + y}!"
+            calculated = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+            real = (x + y) & 0xFFFF
+            _assert(
+                real == calculated,
+                f"Failed to add16 {x} and {y}, "
+                + "got {calculated} instead of {real}!",
+            )
             cycles += cpu.cycles
             instructions += cpu.ticks
             count += 1
 
-        print(f"{CLEAR_LINE}{int((x * 100) / 16)}% complete...")
+        print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for add16: {int(cycles/count)}")
     print(f"Average instructions for add16: {int(instructions/count)}")
 
@@ -238,4 +259,4 @@ if __name__ == "__main__":
 
     # Function library verification
     verifymultiply(args.full)
-    #verifyadd16(args.full)
+    verifyadd16(args.full)

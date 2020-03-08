@@ -1,4 +1,5 @@
 #! /usr/bin/python3
+import copy
 import struct
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, List, Optional, Set, Tuple
@@ -152,6 +153,7 @@ def assemble(
     global instructions
 
     org = 0
+    labels = copy.deepcopy(labels)
     data: Dict[int, int] = {}
     seen: Set[int] = set()
 
@@ -2676,7 +2678,10 @@ class CPUCore:
                 self.c[which_pc] = self.data & 0xFF
             if self.last_instruction.sram_input:
                 if self.address >= len(self.ram) or self.address < 0:
-                    raise Exception(f"Address {self.address} outside of bounds of given memory!")
+                    raise Exception(
+                        f"Address {self.address} outside of bounds of "
+                        + "given memory!"
+                    )
                 self.ram = (
                     self.ram[:self.address] +
                     [self.data & 0xFF] +
@@ -2735,7 +2740,10 @@ class CPUCore:
             # The following write to only 8 bits of the bus.
             if instruction.sram_output:
                 if self.address >= len(self.ram) or self.address < 0:
-                    raise Exception(f"Address {self.address} outside of bounds of given memory!")
+                    raise Exception(
+                        f"Address {self.address} outside of bounds of "
+                        + "given memory!"
+                    )
                 self.data = (
                     (self.data & 0xFF00) +
                     (self.ram[self.address] & 0xFF)
