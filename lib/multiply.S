@@ -14,8 +14,8 @@ multiply:
     ; PC + 0 - SP
     ; PC + 1 - SC
     ; PC + 2 - Accumulated result
-    ; PC + 3 - return
-    ; PC + 4 - return
+    ; PC + 3 - return address
+    ; PC + 4 - return address
     ; PC + 5 - first operand
     ; PC + 6 - second operand
 

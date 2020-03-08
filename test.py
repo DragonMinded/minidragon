@@ -111,8 +111,40 @@ def verifyneg(full: bool) -> None:
         assert bintoint(cpu.a) == -i, f"Failed to negate A!"
 
 
+def verifyaddpc(full: bool) -> None:
+    print("Verifying ADDPC...")
+    print("0% complete...")
+    for i in range(1, 9):
+        memory = getmemory(f"""
+            SETPC 0x01FA
+            ADDPC {i}
+            HALT
+        """)
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        assert cpu.p[0] == ((0x01FA + i) >> 8) & 0xFF, f"Failed to ADDPC {i}!"
+        assert cpu.c[0] == (0x01FA + i) & 0xFF, f"Failed to ADDPC {i}!"
+    print(BACK_AND_CLEAR_LINE)
+
+
+def verifysubpc(full: bool) -> None:
+    print("Verifying SUBPC...")
+    print("0% complete...")
+    for i in range(1, 9):
+        memory = getmemory(f"""
+            SETPC 0x0204
+            SUBPC {i}
+            HALT
+        """)
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        assert cpu.p[0] == ((0x0204 - i) >> 8) & 0xFF, f"Failed to SUBPC {i}!"
+        assert cpu.c[0] == (0x0204 - i) & 0xFF, f"Failed to SUBPC {i}!"
+    print(BACK_AND_CLEAR_LINE)
+
+
 def verifymultiply(full: bool) -> None:
-    print("Verifying MULTIPLY...")
+    print("Verifying multiply...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -122,6 +154,7 @@ def verifymultiply(full: bool) -> None:
 
     cycles = 0
     instructions = 0
+    count = 0
     for x in range(0, 16):
         for y in range(0, 16):
             memory = getmemory(os.linesep.join([
@@ -134,13 +167,52 @@ def verifymultiply(full: bool) -> None:
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
-            assert cpu.a == x * y, f"Failed to mulyiply {x} by {y}!"
+            assert cpu.a == x * y, f"Failed to multiply {x} by {y}, got {cpu.a} instead of {x * y}!"
             cycles += cpu.cycles
             instructions += cpu.ticks
+            count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 16)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for multiply: {int(cycles/(16 * 16))}")
-    print(f"Average instructions for multiply: {int(instructions/(16 * 16))}")
+    print(f"{CLEAR_LINE}Average cycles for multiply: {int(cycles/count)}")
+    print(f"Average instructions for multiply: {int(instructions/count)}")
+
+
+def verifyadd16(full: bool) -> None:
+    print("Verifying add16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/add16.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 65536, 1 if full else 100):
+        for y in range(0, 65536, 1 if full else 95):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"PUSHI {y & 0xFF}",
+                f"PUSHI {(y >> 8) & 0xFF}",
+                f"CALL add16",
+                f"HALT",
+                *addlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            cpu.dump()
+            answer = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+            assert answer == x + y, f"Failed to add16 {x} and {y}, got {answer} instead of {x + y}!"
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 16)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for add16: {int(cycles/count)}")
+    print(f"Average instructions for add16: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -161,6 +233,9 @@ if __name__ == "__main__":
     verifyseta(args.full)
     verifysetpc(args.full)
     verifyneg(args.full)
+    verifyaddpc(args.full)
+    verifysubpc(args.full)
 
     # Function library verification
     verifymultiply(args.full)
+    #verifyadd16(args.full)

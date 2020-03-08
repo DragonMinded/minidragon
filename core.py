@@ -563,8 +563,8 @@ class ADDPC(BaseInstruction):
         return instruction & 0b11111000 == 0b11001000
 
     def mnemonic(self, instruction: int) -> str:
-        integer = instruction & 0b111
-        if integer == 0:
+        integer = (instruction & 0b111) + 1
+        if integer == 1:
             return "INCPC"
         else:
             return f"ADDPC {integer}"
@@ -615,7 +615,7 @@ class ADDPC(BaseInstruction):
                 raise Exception("INCPC takes no parameters!")
             return [0b11001000]
 
-        location = getint(parameter, 3) - 1
+        location = getint(parameter, 4) - 1
         if location > 7:
             raise Exception("Parameter out of range for INCPC!")
         return [0b11001000 + location]
@@ -629,8 +629,8 @@ class SUBPC(BaseInstruction):
         return instruction & 0b11111000 == 0b11010000
 
     def mnemonic(self, instruction: int) -> str:
-        integer = instruction & 0b111
-        if integer == 0:
+        integer = (instruction & 0b111) + 1
+        if integer == 1:
             return "DECPC"
         else:
             return f"SUBPC {integer}"
@@ -684,7 +684,7 @@ class SUBPC(BaseInstruction):
                 raise Exception("DECPC takes no parameters!")
             return [0b11010000]
 
-        location = getint(parameter, 3) - 1
+        location = getint(parameter, 4) - 1
         if location > 7:
             raise Exception("Parameter out of range for DECPC!")
         return [0b11010000 + location]
@@ -2448,7 +2448,7 @@ class ALU:
         # operations.
         if self.op == self.OPERATION_ADD:
             return (
-                self.a + self.b + (1 if self.carryin else 0)
+                (self.a & 0xFF) + (self.b & 0xFF) + (1 if self.carryin else 0)
             ) & 0x100 != 0
         if self.op == self.OPERATION_SHL:
             return (self.a << 1) & 0x100 != 0
@@ -2469,7 +2469,7 @@ class ALU:
         # operations.
         if self.op == self.OPERATION_ADD:
             return (
-                self.a + self.b + (1 if self.carryin else 0)
+                (self.a & 0xFF) + (self.b & 0xFF) + (1 if self.carryin else 0)
             ) & 0xFF == 0
         if self.op == self.OPERATION_SHL:
             return (self.a << 1) & 0xFF == 0
@@ -2530,6 +2530,10 @@ class CPUCore:
 
         # Control signals
         self.last_instruction = ControlSignals()
+
+    @property
+    def pc(self) -> List[int]:
+        return [(self.p[0] << 8) + self.c[0], (self.p[1] << 8) + self.c[1]]
 
     def print(self) -> None:
         # Look up the current bus values if we're about to store on this
@@ -2671,6 +2675,8 @@ class CPUCore:
             if self.last_instruction.c_input:
                 self.c[which_pc] = self.data & 0xFF
             if self.last_instruction.sram_input:
+                if self.address >= len(self.ram) or self.address < 0:
+                    raise Exception(f"Address {self.address} outside of bounds of given memory!")
                 self.ram = (
                     self.ram[:self.address] +
                     [self.data & 0xFF] +
@@ -2728,6 +2734,8 @@ class CPUCore:
 
             # The following write to only 8 bits of the bus.
             if instruction.sram_output:
+                if self.address >= len(self.ram) or self.address < 0:
+                    raise Exception(f"Address {self.address} outside of bounds of given memory!")
                 self.data = (
                     (self.data & 0xFF00) +
                     (self.ram[self.address] & 0xFF)
