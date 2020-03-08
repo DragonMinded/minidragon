@@ -3,6 +3,7 @@ _multiply_locals:
 
 multiply:
     ; Multiply two 8-bit numbers on the stack, returning value in A.
+    ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; Call this similar to:

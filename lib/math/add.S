@@ -1,6 +1,7 @@
 add16:
     ; Add two 16-bit numbers on the stack, returning the value on the stack.
     ; Numbers are stored on the stack as big-endian.
+    ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; To add 0x1234 to 0x5678, call like so:
@@ -49,6 +50,7 @@ add16:
 add32:
     ; Add two 32-bit numbers on the stack, returning the value on the stack.
     ; Numbers are stored on the stack as big-endian.
+    ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; To add 0x12345678 to 0x55555555, call like so:

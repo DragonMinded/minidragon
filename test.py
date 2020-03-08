@@ -317,6 +317,36 @@ def verifyadd32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for add32: {int(instructions/count)}")
 
 
+def verifyabs(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "abs":
+        return
+
+    print("Verifying abs...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/abs.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(-127, 128):
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"SETA {x}",
+            f"CALL abs",
+            f"HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        _assert(
+            cpu.a == abs(x),
+            f"Failed to abs({x}), got {cpu.a} instead of {x}!",
+        )
+
+
 def verifystrlen(only: Optional[str], full: bool) -> None:
     if only is not None and only != "strlen":
         return
@@ -391,5 +421,6 @@ if __name__ == "__main__":
     verifymultiply(only, args.full)
     verifyadd16(only, args.full)
     verifyadd32(only, args.full)
+    verifyabs(only, args.full)
 
     verifystrlen(only, args.full)

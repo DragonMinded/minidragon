@@ -1,7 +1,9 @@
 strlen:
     ; Given a stack holding a pointer to a string, return the
     ; length of the string in the A register.
-
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
     ; If you have a string at offset 0x1234, call like this:
     ;     PUSH 0x34
     ;     PUSH 0x12
