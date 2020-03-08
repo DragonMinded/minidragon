@@ -63,16 +63,16 @@ add32:
     ;   CALL add32
     ;
     ; Stack layout
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - first operand
-    ; PC + ? - first operand
-    ; PC + ? - first operand
-    ; PC + ? - first operand
-    ; PC + ? - second operand
-    ; PC + ? - second operand
-    ; PC + ? - second operand
-    ; PC + ? - second operand
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - first operand
+    ; PC + 3 - first operand
+    ; PC + 4 - first operand
+    ; PC + 5 - first operand
+    ; PC + 6 - second operand
+    ; PC + 7 - second operand
+    ; PC + 8 - second operand
+    ; PC + 9 - second operand
 
     ; First, add the low bytes together, possibly setting the carry
     ADDPC 5

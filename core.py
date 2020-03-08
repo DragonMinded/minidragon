@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 import copy
 import struct
+from ast import literal_eval
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
@@ -181,6 +182,11 @@ def assemble(
             val = getint(mnemonic[6:], 8)
             data[org] = val
             org += 1
+        elif mnemonic.startswith(".char "):
+            # Data directive
+            val = getint(str(ord(literal_eval(mnemonic[6:]))), 8)
+            data[org] = val
+            org += 1
 
         # Labels.
         elif mnemonic.endswith(":"):
@@ -221,6 +227,8 @@ def assemble(
         if mnemonic.startswith(".org "):
             org = getint(mnemonic[5:], 16)
         elif mnemonic.startswith(".byte "):
+            org += 1
+        elif mnemonic.startswith(".char "):
             org += 1
         # Labels.
         elif mnemonic.endswith(":"):

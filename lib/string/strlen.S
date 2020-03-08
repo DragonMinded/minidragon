@@ -1,70 +1,3 @@
-    .org 0x8000
-
-stack:
-    ; Top of stack for algorithm.
-
-    .org 0x0000
-
-init:
-    ; Set up the call stack
-    SETPC stack
-    LNGJUMP play
-
-string:
-    .char "t"
-    .char "h"
-    .char "e"
-    .char " "
-    .char "q"
-    .char "u"
-    .char "i"
-    .char "c"
-    .char "k"
-    .char " "
-    .char "b"
-    .char "r"
-    .char "o"
-    .char "w"
-    .char "n"
-    .char " "
-    .char "f"
-    .char "o"
-    .char "x"
-    .char " "
-    .char "j"
-    .char "u"
-    .char "m"
-    .char "p"
-    .char "s"
-    .char " "
-    .char "o"
-    .char "v"
-    .char "e"
-    .char "r"
-    .char " "
-    .char "t"
-    .char "h"
-    .char "e"
-    .char " "
-    .char "l"
-    .char "a"
-    .char "z"
-    .char "y"
-    .char " "
-    .char "d"
-    .char "o"
-    .char "g"
-    .char "."
-    .byte 0x00
-
-play:
-    SWAP
-    SETPC string
-    SWAP
-    PUSHSPC
-    CALL strlen
-    HALT
-
 strlen:
     ; Given a stack holding a pointer to a string, return the
     ; length of the string in the A register.
@@ -99,9 +32,9 @@ _strlen_loop:
     JRIZ _strlen_done
 
     SWAP
-    POP
+    LOAD
     INC
-    PUSH
+    STORE
     SWAP
     INCPC
 

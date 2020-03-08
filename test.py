@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 import argparse
 import os
-from typing import List
+from typing import List, Optional
 from core import CPUCore, assemble, bintoint
 
 CLEAR_LINE = "\033[F\033[K"
@@ -38,7 +38,10 @@ def rununtilhalt(cpu: CPUCore) -> None:
         cpu.tick()
 
 
-def verifyloadi(full: bool) -> None:
+def verifyloadi(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "loadi":
+        return
+
     print("Verifying LOADI...")
     for i in range(-32, 32):
         memory = getmemory(f"""
@@ -50,7 +53,10 @@ def verifyloadi(full: bool) -> None:
         _assert(bintoint(cpu.a) == i, f"Failed to load {i} into A register!")
 
 
-def verifyaddi(full: bool) -> None:
+def verifyaddi(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "addi":
+        return
+
     print("Verifying ADDI...")
     for i in range(-32, 32):
         memory = getmemory(f"""
@@ -66,7 +72,10 @@ def verifyaddi(full: bool) -> None:
         )
 
 
-def verifyseta(full: bool) -> None:
+def verifyseta(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "seta":
+        return
+
     print("Verifying SETA...")
     for i in range(0, 256):
         memory = getmemory(f"""
@@ -87,7 +96,10 @@ def verifyseta(full: bool) -> None:
         _assert(bintoint(cpu.a) == i, f"Failed to set A to {i}!")
 
 
-def verifysetpc(full: bool) -> None:
+def verifysetpc(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "setpc":
+        return
+
     print("Verifying SETPC...")
     print("0% complete...")
     for i in range(0, 0xFFFF, 1 if full else 29):
@@ -105,7 +117,10 @@ def verifysetpc(full: bool) -> None:
     print(BACK_AND_CLEAR_LINE)
 
 
-def verifyneg(full: bool) -> None:
+def verifyneg(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "neg":
+        return
+
     print("Verifying NEG...")
     for i in range(-127, 128):
         memory = getmemory(f"""
@@ -118,7 +133,10 @@ def verifyneg(full: bool) -> None:
         _assert(bintoint(cpu.a) == -i, f"Failed to negate A!")
 
 
-def verifyaddpc(full: bool) -> None:
+def verifyaddpc(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "addpc":
+        return
+
     print("Verifying ADDPC...")
     print("0% complete...")
     for i in range(1, 9):
@@ -137,7 +155,10 @@ def verifyaddpc(full: bool) -> None:
     print(BACK_AND_CLEAR_LINE)
 
 
-def verifysubpc(full: bool) -> None:
+def verifysubpc(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "subpc":
+        return
+
     print("Verifying SUBPC...")
     print("0% complete...")
     for i in range(1, 9):
@@ -156,7 +177,10 @@ def verifysubpc(full: bool) -> None:
     print(BACK_AND_CLEAR_LINE)
 
 
-def verifymultiply(full: bool) -> None:
+def verifymultiply(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "multiply":
+        return
+
     print("Verifying multiply...")
     print("0% complete...")
 
@@ -194,7 +218,10 @@ def verifymultiply(full: bool) -> None:
     print(f"Average instructions for multiply: {int(instructions/count)}")
 
 
-def verifyadd16(full: bool) -> None:
+def verifyadd16(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "add16":
+        return
+
     print("Verifying add16...")
     print("0% complete...")
 
@@ -236,7 +263,10 @@ def verifyadd16(full: bool) -> None:
     print(f"Average instructions for add16: {int(instructions/count)}")
 
 
-def verifyadd32(full: bool) -> None:
+def verifyadd32(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "add32":
+        return
+
     print("Verifying add32...")
     print("0% complete...")
 
@@ -287,6 +317,47 @@ def verifyadd32(full: bool) -> None:
     print(f"Average instructions for add32: {int(instructions/count)}")
 
 
+def verifystrlen(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "strlen":
+        return
+
+    print("Verifying strlen...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/string/strlen.S", "r") as fp:
+        liblines = fp.readlines()
+
+    for string in [
+        "a test",
+        "the quick brown fox jumps over the lazy dog",
+        "",
+        "whatever this is",
+    ]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            "string:",
+            *[f".char {c!r}" for c in string],
+            ".byte 0x00",
+            "code:",
+            "SWAP",
+            "SETPC string",
+            "SWAP",
+            "PUSHSPC",
+            "CALL strlen",
+            "HALT",
+            *liblines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        _assert(
+            cpu.a == len(string),
+            f"Failed to strlen({string!r}), "
+            + f"got {cpu.a} instead of {len(string)}",
+        )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -297,18 +368,28 @@ if __name__ == "__main__":
         help="Verify full suite.",
         action="store_true",
     )
+    parser.add_argument(
+        "-o",
+        "--only",
+        help="Only run this test.",
+        type=str,
+        default=None,
+    )
     args = parser.parse_args()
+    only = args.only.lower() if args.only else None
 
     # Raw instruction verification
-    verifyloadi(args.full)
-    verifyaddi(args.full)
-    verifyseta(args.full)
-    verifysetpc(args.full)
-    verifyneg(args.full)
-    verifyaddpc(args.full)
-    verifysubpc(args.full)
+    verifyloadi(only, args.full)
+    verifyaddi(only, args.full)
+    verifyseta(only, args.full)
+    verifysetpc(only, args.full)
+    verifyneg(only, args.full)
+    verifyaddpc(only, args.full)
+    verifysubpc(only, args.full)
 
     # Function library verification
-    verifymultiply(args.full)
-    verifyadd16(args.full)
-    verifyadd32(args.full)
+    verifymultiply(only, args.full)
+    verifyadd16(only, args.full)
+    verifyadd32(only, args.full)
+
+    verifystrlen(only, args.full)
