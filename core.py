@@ -2479,7 +2479,7 @@ class ALU:
         # operations.
         if self.op == self.OPERATION_ADD:
             return (
-                (self.a & 0xFF) + (self.b & 0xFF) + (1 if self.carryin else 0)
+                self.a + self.b + (1 if self.carryin else 0)
             ) & 0xFF == 0
         if self.op == self.OPERATION_SHL:
             return (self.a << 1) & 0xFF == 0

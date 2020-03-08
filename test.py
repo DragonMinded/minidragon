@@ -207,7 +207,7 @@ def verifymultiply(only: Optional[str], full: bool) -> None:
             _assert(
                 cpu.a == x * y,
                 f"Failed to multiply {x} by {y}, "
-                + "got {cpu.a} instead of {x * y}!",
+                + f"got {cpu.a} instead of {x * y}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
@@ -216,6 +216,53 @@ def verifymultiply(only: Optional[str], full: bool) -> None:
         print(f"{CLEAR_LINE}{int((x * 100) / 16)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for multiply: {int(cycles/count)}")
     print(f"Average instructions for multiply: {int(instructions/count)}")
+
+
+def verifydivide(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "divide":
+        return
+
+    print("Verifying divide...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 128, 1 if full else 7):
+        for y in range(1, 128, 1 if full else 5):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {y}",
+                f"PUSHI {x}",
+                f"CALL divide",
+                f"HALT",
+                *dividelines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == x // y,
+                f"Failed to divide {x} by {y}, "
+                + f"got {cpu.a} instead of {x // y}!",
+            )
+            remainder = cpu.ram[cpu.pc[0]]
+            _assert(
+                remainder == x % y,
+                f"Failed to divide {x} by {y}, "
+                + f"got {remainder} instead of {x // y}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 128)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for divide: {int(cycles/count)}")
+    print(f"Average instructions for divide: {int(instructions/count)}")
 
 
 def verifyadd16(only: Optional[str], full: bool) -> None:
@@ -418,9 +465,10 @@ if __name__ == "__main__":
     verifysubpc(only, args.full)
 
     # Function library verification
-    verifymultiply(only, args.full)
     verifyadd16(only, args.full)
     verifyadd32(only, args.full)
+    verifymultiply(only, args.full)
+    verifydivide(only, args.full)
     verifyabs(only, args.full)
 
     verifystrlen(only, args.full)
