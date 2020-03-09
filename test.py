@@ -38,6 +38,14 @@ def rununtilhalt(cpu: CPUCore) -> None:
         cpu.tick()
 
 
+def getstring(cpu: CPUCore, location: int) -> str:
+    string = ""
+    while cpu.ram[location] != 0x00:
+        string = string + chr(cpu.ram[location])
+        location += 1
+    return string
+
+
 def verifyloadi(only: Optional[str], full: bool) -> None:
     if only is not None and only != "loadi":
         return
@@ -288,6 +296,7 @@ def verifyadd16(only: Optional[str], full: bool) -> None:
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {y & 0xFF}",
                 f"PUSHI {(y >> 8) & 0xFF}",
+                f"SETA 123",
                 f"CALL add16",
                 f"HALT",
                 *addlines,
@@ -296,6 +305,10 @@ def verifyadd16(only: Optional[str], full: bool) -> None:
             rununtilhalt(cpu)
             calculated = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
             real = (x + y) & 0xFFFF
+            _assert(
+                cpu.a == 123,
+                f"add16 changed A register from 123 to {cpu.a}!",
+            )
             _assert(
                 real == calculated,
                 f"Failed to add16 {x} and {y}, "
@@ -337,6 +350,7 @@ def verifyadd32(only: Optional[str], full: bool) -> None:
                 f"PUSHI {(y >> 8) & 0xFF}",
                 f"PUSHI {(y >> 16) & 0xFF}",
                 f"PUSHI {(y >> 24) & 0xFF}",
+                f"SETA 123",
                 f"CALL add32",
                 f"HALT",
                 *addlines,
@@ -350,6 +364,10 @@ def verifyadd32(only: Optional[str], full: bool) -> None:
                 cpu.ram[cpu.pc[0] + 3]
             )
             real = (x + y) & 0xFFFFFFFF
+            _assert(
+                cpu.a == 123,
+                f"add32 changed A register from 123 to {cpu.a}!",
+            )
             _assert(
                 real == calculated,
                 f"Failed to add32 {x} and {y}, "
@@ -432,6 +450,54 @@ def verifystrlen(only: Optional[str], full: bool) -> None:
         )
 
 
+def verifystrcpy(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "strcpy":
+        return
+
+    print("Verifying strcpy...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        liblines = fp.readlines()
+
+    for string in [
+        "a test",
+        "the quick brown fox jumps over the lazy dog",
+        "",
+        "whatever this is",
+    ]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            "string:",
+            *[f".char {c!r}" for c in string],
+            ".byte 0x00",
+            "code:",
+            "SWAP",
+            "SETPC string",
+            "SWAP",
+            "PUSHSPC",
+            "PUSHI 0x00",
+            "PUSHI 0x10",
+            "SETA 123",
+            "CALL strcpy",
+            "HALT",
+            *liblines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        _assert(
+            cpu.a == 123,
+            f"strcpy changed A register from 123 to {cpu.a}!",
+        )
+        _assert(
+            getstring(cpu, 0x1000) == string,
+            f"Failed to strcpy(&{string}, 0x1000), "
+            + f"got {getstring(cpu, 0x1000)} instead of {string}!",
+        )
+
+
 def verifyitoa(only: Optional[str], full: bool) -> None:
     if only is not None and only != "itoa":
         return
@@ -463,15 +529,14 @@ def verifyitoa(only: Optional[str], full: bool) -> None:
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
 
-        pc = 0x1000
-        string = ""
-        while cpu.ram[pc] != 0x00:
-            string = string + chr(cpu.ram[pc])
-            pc += 1
-
         _assert(
-            string == str(x),
-            f"Failed to itoa({x}), got {string} instead of {str(x)}!",
+            bintoint(cpu.a) == x,
+            f"strcpy changed A register from {x} to {cpu.a}!",
+        )
+        _assert(
+            getstring(cpu, 0x1000) == str(x),
+            f"Failed to itoa({x}), "
+            + f"got {getstring(cpu, 0x1000)} instead of {str(x)}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -520,6 +585,7 @@ if __name__ == "__main__":
 
     # String library verification
     verifystrlen(only, args.full)
+    verifystrcpy(only, args.full)
 
     # Conversion library verification
     verifyitoa(only, args.full)

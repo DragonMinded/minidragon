@@ -5,7 +5,8 @@ _itoa_locals:
 itoa:
     ; Given an integer in the A register and a pointer on the stack
     ; to output a string to, converts the value in the A register to
-    ; a string. Works on signed 8 bit integers only.
+    ; a string. Works on signed 8 bit integers only. Does not change
+    ; the A register.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -173,8 +174,7 @@ _itoa_copy:
 
     ; See if we copied a null
     ADDI 0
-    JRIZ _itoa_done
-    JRI _itoa_copy
+    JRINZ _itoa_copy
 
 _itoa_done:
     ; Finally, we need to restore the A register and stack and return.
