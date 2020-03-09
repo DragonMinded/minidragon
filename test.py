@@ -552,7 +552,12 @@ def verifyitoa(only: Optional[str], full: bool) -> None:
 
         _assert(
             bintoint(cpu.a) == x,
-            f"strcpy changed A register from {x} to {cpu.a}!",
+            f"itoa changed A register from {x} to {cpu.a}!",
+        )
+        stack_input = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+        _assert(
+            stack_input == 0x1000,
+            f"itoa changed stack input from {0x1000} to {stack_input}!",
         )
         _assert(
             getstring(cpu, 0x1000) == str(x),

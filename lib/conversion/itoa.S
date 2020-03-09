@@ -6,7 +6,7 @@ itoa:
     ; Given an integer in the A register and a pointer on the stack
     ; to output a string to, converts the value in the A register to
     ; a string. Works on signed 8 bit integers only. Does not change
-    ; the A register.
+    ; the A register or the string pointer input.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -29,6 +29,7 @@ itoa:
     ; PC + ? - Saved C to safe buffer area.
     ; PC + ? - Saved SP
     ; PC + ? - Saved SC
+    ; PC + ? - Length of output.
     ; PC + ? - Original A register value.
     ; PC + ? - return address
     ; PC + ? - return address
@@ -37,6 +38,9 @@ itoa:
 
     ; Save the A register.
     PUSH
+
+    ; Save the output length (starts with 1, due to always having a null).
+    PUSHI 1
 
     ; Now, save the calling function's local stack.
     PUSHSPC
@@ -62,10 +66,10 @@ itoa:
     PUSHSPC
 
     ; Retrieve the original A value, skip past our buffer.
-    ADDPCI 4
+    ADDPCI 5
     LOAD
     SUBPCI 8
-    SUBPCI 3
+    SUBPCI 4
 
     ; Assume the integer is positive.
     PUSH
@@ -78,6 +82,7 @@ itoa:
     ADDPCI 2
     STOREI 0
     SUBPCI 2
+
     JRI _itoa_loop
 
 _itoa_neg:
@@ -89,7 +94,14 @@ _itoa_neg:
     ; Store that it is negative
     ADDPCI 2
     STOREI 1
-    SUBPCI 2
+
+    ; Also, update our output characters to reflect a negative sign.
+    ADDPCI 8
+    ADDPCI 2
+    STOREI 2
+
+    SUBPCI 8
+    SUBPCI 4
 
 _itoa_loop:
     ; Divide A by 10
@@ -120,6 +132,13 @@ _itoa_loop:
     PUSH
     SWAP
     PUSHSPC
+
+    ; Count how many output bytes so we can rewind the pointer.
+    ADDPCI 4
+    LOAD
+    INC
+    STORE
+    SUBPCI 4
 
     ; Now, see if we're finished (the quotient is zero).
     SUBPCI 8
@@ -163,21 +182,34 @@ _itoa_copy:
     SWAP
     PUSHSPC
 
-    ADDPCI 7
+    ADDPCI 8
     POPSPC
     SWAP
     STORE
     INCPC
     SWAP
     PUSHSPC
-    SUBPCI 7
+    SUBPCI 8
 
     ; See if we copied a null
     ADDI 0
     JRINZ _itoa_copy
 
 _itoa_done:
+    ; Now, restore the pointer on the stack, by loading how many
+    ; bytes we output and advancing backwards that much.
+    ADDPCI 8
+    POPSPC
+    SUBPCI 6
+    LOAD
+    ADDPCI 6
+    SWAP
+    NEG
+    ADDPC
+    SWAP
+    PUSHSPC
+
     ; Finally, we need to restore the A register and stack and return.
-    ADDPCI 4
+    SUBPCI 3
     POP
     RET
