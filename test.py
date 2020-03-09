@@ -450,6 +450,7 @@ def verifystrlen(only: Optional[str], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
+            ".org 0x1000",
             "string:",
             *[f".char {c!r}" for c in string],
             ".byte 0x00",
@@ -464,6 +465,11 @@ def verifystrlen(only: Optional[str], full: bool) -> None:
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
+        stack_input = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+        _assert(
+            stack_input == 0x1000,
+            f"strlen changed stack input from {0x1000} to {stack_input}!",
+        )
         _assert(
             cpu.a == len(string),
             f"Failed to strlen({string!r}), "
@@ -491,6 +497,7 @@ def verifystrcpy(only: Optional[str], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
+            ".org 0x1000",
             "string:",
             *[f".char {c!r}" for c in string],
             ".byte 0x00",
@@ -500,7 +507,7 @@ def verifystrcpy(only: Optional[str], full: bool) -> None:
             "SWAP",
             "PUSHSPC",
             "PUSHI 0x00",
-            "PUSHI 0x10",
+            "PUSHI 0x20",
             "SETA 123",
             "CALL strcpy",
             "HALT",
@@ -512,10 +519,20 @@ def verifystrcpy(only: Optional[str], full: bool) -> None:
             cpu.a == 123,
             f"strcpy changed A register from 123 to {cpu.a}!",
         )
+        stack_dest = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+        stack_source = (cpu.ram[cpu.pc[0] + 2] << 8) + cpu.ram[cpu.pc[0] + 3]
         _assert(
-            getstring(cpu, 0x1000) == string,
-            f"Failed to strcpy(&{string}, 0x1000), "
-            + f"got {getstring(cpu, 0x1000)} instead of {string}!",
+            stack_source == 0x1000,
+            f"strlen changed stack source from {0x1000} to {stack_source}!",
+        )
+        _assert(
+            stack_dest == 0x2000,
+            f"strlen changed stack source from {0x2000} to {stack_dest}!",
+        )
+        _assert(
+            getstring(cpu, 0x2000) == string,
+            f"Failed to strcpy(&{string}, 0x2000), "
+            + f"got {getstring(cpu, 0x2000)} instead of {string}!",
         )
 
 
