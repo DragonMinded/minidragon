@@ -27,7 +27,7 @@ multiply:
     PUSHSPC
 
     ; Skip to first operand
-    ADDPC 5
+    ADDPCI 5
 
     ; Initialize our own local stack
     SWAP
@@ -53,10 +53,10 @@ _multiply_loop:
     DECPC
 
     ; Add it to the accumulated result in our local stack.
-    SUBPC 3
+    SUBPCI 3
     ADD
     STORE
-    ADDPC 3
+    ADDPCI 3
 
 _multiply_shift:
     ; First operand >>= 1
@@ -76,7 +76,7 @@ _multiply_shift:
 
 _multiply_finished:
     ; Restore stack
-    SUBPC 5
+    SUBPCI 5
 
     ; Restore locals pointer.
     POPSPC

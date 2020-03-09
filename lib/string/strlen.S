@@ -19,9 +19,9 @@ strlen:
     PUSHSPC
 
     ; Now, move past the saved stack and set SPC to point at the string.
-    ADDPC 4
+    ADDPCI 4
     POPSPC
-    SUBPC 6
+    SUBPCI 6
 
     ; Set up the count, then point at the string.
     PUSHI 0

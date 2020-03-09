@@ -25,34 +25,34 @@ add16:
     PUSH
 
     ; First, add the low bytes together, possibly setting the carry
-    ADDPC 4
+    ADDPCI 4
     LOAD
-    ADDPC 2
+    ADDPCI 2
     ADD
     STORE
 
     ; Now, add the high bytes together, including the carry
-    SUBPC 3
+    SUBPCI 3
     LOAD
-    ADDPC 2
+    ADDPCI 2
     ADC
     STORE
 
     ; Now, copy the return up two in the stack so we can pop and ret
     ; while leaving the return value on the stack. First two are for
     ; the return address, next is for the A register.
-    SUBPC 3
+    SUBPCI 3
     LOAD
-    ADDPC 2
+    ADDPCI 2
     STORE
-    SUBPC 3
+    SUBPCI 3
     LOAD
-    ADDPC 2
+    ADDPCI 2
     STORE
 
-    SUBPC 3
+    SUBPCI 3
     LOAD
-    ADDPC 2
+    ADDPCI 2
     STORE
 
     ; Finally, return to caller
@@ -94,46 +94,46 @@ add32:
     PUSH
 
     ; First, add the low bytes together, possibly setting the carry
-    ADDPC 6
+    ADDPCI 6
     LOAD
-    ADDPC 4
+    ADDPCI 4
     ADD
     STORE
 
     ; Now, add the next three byte sequenes together, adding in the carry
-    SUBPC 5
+    SUBPCI 5
     LOAD
-    ADDPC 4
+    ADDPCI 4
     ADC
     STORE
 
-    SUBPC 5
+    SUBPCI 5
     LOAD
-    ADDPC 4
+    ADDPCI 4
     ADC
     STORE
 
-    SUBPC 5
+    SUBPCI 5
     LOAD
-    ADDPC 4
+    ADDPCI 4
     ADC
     STORE
 
     ; Now, copy the return up two in the stack so we can pop and ret
     ; while leaving the return value on the stack. First two are for
     ; the return address, next is for the A register.
-    SUBPC 5
+    SUBPCI 5
     LOAD
-    ADDPC 4
+    ADDPCI 4
     STORE
-    SUBPC 5
+    SUBPCI 5
     LOAD
-    ADDPC 4
+    ADDPCI 4
     STORE
 
-    SUBPC 5
+    SUBPCI 5
     LOAD
-    ADDPC 4
+    ADDPCI 4
     STORE
 
     ; Finally, return to caller

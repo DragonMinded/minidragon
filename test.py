@@ -125,6 +125,27 @@ def verifysetpc(only: Optional[str], full: bool) -> None:
     print(BACK_AND_CLEAR_LINE)
 
 
+def verifyaddpc(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "addpc":
+        return
+
+    print("Verifying ADDPC...")
+    for i in range(-128, 128):
+        memory = getmemory(f"""
+            SETPC 12345
+            SETA {i}
+            ADDPC
+            HALT
+        """)
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        _assert(
+            cpu.pc[0] == 12345 + i,
+            f"Failed to ADDPC against {i}, "
+            + f"got {cpu.pc[0]} instead of {12345 + i}",
+        )
+
+
 def verifyneg(only: Optional[str], full: bool) -> None:
     if only is not None and only != "neg":
         return
@@ -141,47 +162,47 @@ def verifyneg(only: Optional[str], full: bool) -> None:
         _assert(bintoint(cpu.a) == -i, f"Failed to negate A!")
 
 
-def verifyaddpc(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "addpc":
+def verifyaddpci(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "addpci":
         return
 
-    print("Verifying ADDPC...")
+    print("Verifying ADDPCI...")
     print("0% complete...")
     for i in range(1, 9):
         memory = getmemory(f"""
             SETPC 0x01FA
-            ADDPC {i}
+            ADDPCI {i}
             HALT
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
         _assert(
             cpu.p[0] == ((0x01FA + i) >> 8) & 0xFF,
-            f"Failed to ADDPC {i}!",
+            f"Failed to ADDPCI {i}!",
         )
-        _assert(cpu.c[0] == (0x01FA + i) & 0xFF, f"Failed to ADDPC {i}!")
+        _assert(cpu.c[0] == (0x01FA + i) & 0xFF, f"Failed to ADDPCI {i}!")
     print(BACK_AND_CLEAR_LINE)
 
 
-def verifysubpc(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "subpc":
+def verifysubpci(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "subpci":
         return
 
-    print("Verifying SUBPC...")
+    print("Verifying SUBPCI...")
     print("0% complete...")
     for i in range(1, 9):
         memory = getmemory(f"""
             SETPC 0x0204
-            SUBPC {i}
+            SUBPCI {i}
             HALT
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
         _assert(
             cpu.p[0] == ((0x0204 - i) >> 8) & 0xFF,
-            f"Failed to SUBPC {i}!",
+            f"Failed to SUBPCI {i}!",
         )
-        _assert(cpu.c[0] == (0x0204 - i) & 0xFF, f"Failed to SUBPC {i}!")
+        _assert(cpu.c[0] == (0x0204 - i) & 0xFF, f"Failed to SUBPCI {i}!")
     print(BACK_AND_CLEAR_LINE)
 
 
@@ -572,9 +593,10 @@ if __name__ == "__main__":
     verifyaddi(only, args.full)
     verifyseta(only, args.full)
     verifysetpc(only, args.full)
-    verifyneg(only, args.full)
     verifyaddpc(only, args.full)
-    verifysubpc(only, args.full)
+    verifyneg(only, args.full)
+    verifyaddpci(only, args.full)
+    verifysubpci(only, args.full)
 
     # Math library verification
     verifyadd16(only, args.full)

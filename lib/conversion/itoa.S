@@ -44,7 +44,7 @@ itoa:
     ; Save a few spaces for our temporary storage, get the
     ; address of our current stack position. We pre-fill
     ; a null byte in the first position.
-    SUBPC 2
+    SUBPCI 2
     PUSHI 0
 
     ; Do the actual dance to copy our PC pointer to SPC.
@@ -58,14 +58,14 @@ itoa:
     SWAP
 
     ; SPC = PC now, save that address.
-    ADDPC 3
+    ADDPCI 3
     PUSHSPC
 
     ; Retrieve the original A value, skip past our buffer.
-    ADDPC 4
+    ADDPCI 4
     LOAD
-    SUBPC 8
-    SUBPC 3
+    SUBPCI 8
+    SUBPCI 3
 
     ; Assume the integer is positive.
     PUSH
@@ -75,9 +75,9 @@ itoa:
     JRIC _itoa_neg
 
     ; Its already positive, we don't need to fix anything.
-    ADDPC 2
+    ADDPCI 2
     STOREI 0
-    SUBPC 2
+    SUBPCI 2
     JRI _itoa_loop
 
 _itoa_neg:
@@ -87,9 +87,9 @@ _itoa_neg:
     PUSH
 
     ; Store that it is negative
-    ADDPC 2
+    ADDPCI 2
     STOREI 1
-    SUBPC 2
+    SUBPCI 2
 
 _itoa_loop:
     ; Divide A by 10
@@ -114,7 +114,7 @@ _itoa_loop:
     STORE
 
     ; Now, grab where we're going to output this from the stack.
-    ADDPC 7
+    ADDPCI 7
     POPSPC
     SWAP
     PUSH
@@ -122,7 +122,7 @@ _itoa_loop:
     PUSHSPC
 
     ; Now, see if we're finished (the quotient is zero).
-    SUBPC 8
+    SUBPCI 8
     LOAD
     ADDI 0
     JRIZ _itoa_negative_check
@@ -132,9 +132,9 @@ _itoa_loop:
 
 _itoa_negative_check:
     ; See if the number was negative.
-    ADDPC 2
+    ADDPCI 2
     LOAD
-    ADDPC 6
+    ADDPCI 6
     ADDI 0
     JRIZ _itoa_copy
 
@@ -163,14 +163,14 @@ _itoa_copy:
     SWAP
     PUSHSPC
 
-    ADDPC 7
+    ADDPCI 7
     POPSPC
     SWAP
     STORE
     INCPC
     SWAP
     PUSHSPC
-    SUBPC 7
+    SUBPCI 7
 
     ; See if we copied a null
     ADDI 0
@@ -178,6 +178,6 @@ _itoa_copy:
 
 _itoa_done:
     ; Finally, we need to restore the A register and stack and return.
-    ADDPC 4
+    ADDPCI 4
     POP
     RET

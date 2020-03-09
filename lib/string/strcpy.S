@@ -23,7 +23,7 @@ strcpy:
     PUSHSPC
 
     ; Now, move to the source register
-    ADDPC 7
+    ADDPCI 7
 
 _strcpy_loop:
     ; Grab a byte from the source
@@ -34,14 +34,14 @@ _strcpy_loop:
     PUSHSPC
 
     ; Store that byte in the destination
-    SUBPC 2
+    SUBPCI 2
     POPSPC
     SWAP
     STORE
     INCPC
     SWAP
     PUSHSPC
-    ADDPC 2
+    ADDPCI 2
 
     ; See if we copied the null termination
     ADDI 0
@@ -49,7 +49,7 @@ _strcpy_loop:
 
 _strcpy_done:
     ; Restore the shadow stack and A register
-    SUBPC 7
+    SUBPCI 7
     POPSPC
     POP
 

@@ -25,29 +25,29 @@ divide:
 
     ; Swap dividend/divisor so we can accumulate the remainder in
     ; the right spot.
-    ADDPC 2
+    ADDPCI 2
     LOAD
-    SUBPC 2
+    SUBPCI 2
     PUSH
 
-    ADDPC 4
+    ADDPCI 4
     LOAD
     DECPC
     STORE
 
-    SUBPC 3
+    SUBPCI 3
     LOAD
-    ADDPC 4
+    ADDPCI 4
     STORE
 
     ; Now, zero out the quotient
-    SUBPC 4
+    SUBPCI 4
     SETA 0
     STORE
 
 _div_loop:
     ; Attempt to subtract the divisor from the dividend
-    ADDPC 3
+    ADDPCI 3
     LOAD
     NEG
     INCPC
@@ -55,18 +55,18 @@ _div_loop:
 
     ; If we went negative, then the dividend is the remainder
     ; and we've finished. The accumulated result is the quotient.
-    SUBPC 4
+    SUBPCI 4
     PUSH
     SHL
     POP
-    ADDPC 4
+    ADDPCI 4
     JRIC _div_finished
 
     ; Save the last value as the new dividend.
     STORE
 
     ; Increment the quotient.
-    SUBPC 4
+    SUBPCI 4
     LOAD
     INC
     STORE
@@ -76,17 +76,17 @@ _div_loop:
 
 _div_finished:
     ; Move the return address to the right spot on the stack
-    SUBPC 2
+    SUBPCI 2
     LOAD
     INCPC
     STORE
-    SUBPC 2
+    SUBPCI 2
     LOAD
     INCPC
     STORE
 
     ; Now, restore the quotient
-    SUBPC 2
+    SUBPCI 2
     POP
     INCPC
 

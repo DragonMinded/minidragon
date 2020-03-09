@@ -566,7 +566,7 @@ class PUSHIP(BaseInstruction):
 
 
 @instruction
-class ADDPC(BaseInstruction):
+class ADDPCI(BaseInstruction):
     # Add immediate to the P+C virtual register.
 
     def handles(self, instruction: int) -> bool:
@@ -577,7 +577,7 @@ class ADDPC(BaseInstruction):
         if integer == 1:
             return "INCPC"
         else:
-            return f"ADDPC {integer}"
+            return f"ADDPCI {integer}"
 
     def signals(self, instruction: int) -> List["ControlSignals"]:
         signals = [
@@ -611,7 +611,7 @@ class ADDPC(BaseInstruction):
         return signals
 
     def assembles(self, mnemonic: str) -> bool:
-        return mnemonic in {"INCPC", "ADDPC"}
+        return mnemonic in {"INCPC", "ADDPCI"}
 
     def vals(
         self,
@@ -632,7 +632,7 @@ class ADDPC(BaseInstruction):
 
 
 @instruction
-class SUBPC(BaseInstruction):
+class SUBPCI(BaseInstruction):
     # Add immediate to the P+C virtual register.
 
     def handles(self, instruction: int) -> bool:
@@ -643,7 +643,7 @@ class SUBPC(BaseInstruction):
         if integer == 1:
             return "DECPC"
         else:
-            return f"SUBPC {integer}"
+            return f"SUBPCI {integer}"
 
     def signals(self, instruction: int) -> List["ControlSignals"]:
         signals = [
@@ -680,7 +680,7 @@ class SUBPC(BaseInstruction):
         return signals
 
     def assembles(self, mnemonic: str) -> bool:
-        return mnemonic in {"DECPC", "SUBPC"}
+        return mnemonic in {"DECPC", "SUBPCI"}
 
     def vals(
         self,
@@ -1386,6 +1386,40 @@ class SWAP(BaseStackInstruction):
                 alu_output=True,
                 ip_input=True,
             ),
+        ]
+
+
+@instruction
+class ADDPC(BaseStackInstruction):
+    # Add contents of A register sign extended to 16 bits to the P+C
+    # virtual register.
+    opcode = 0b010
+
+    def signals(self, instruction: int) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                a_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_PC,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                p_input=True,
+                c_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            )
         ]
 
 

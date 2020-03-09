@@ -45,10 +45,11 @@ The layout is separated into logical components:
  * XOR - XOR contents of memory location PC against A register. Affects ZF and CF.
  * SHL - Shift A left by 1, set carry to top bit shifted out. Affects ZF and CF.
  * SHR - Shift A right by 1, set carry to bottom bit shifted out. Affects ZF and CF.
- * INCPC - Add 1 to PC. This is an alternate mnemonic for "ADDPC 1".
- * ADDPC - Add immediate to PC. Can add any value between 1 and 8 inclusive.
- * DECPC - Subtract 1 from PC. This is an alternate mnemonic for "SUBPC 1".
- * SUBPC - Subtract immediate from PC. Can subtract any value between 1 and 8 inclusive.
+ * INCPC - Add 1 to PC. This is an alternate mnemonic for "ADDPCI 1".
+ * ADDPCI - Add immediate to PC. Can add any value between 1 and 8 inclusive.
+ * DECPC - Subtract 1 from PC. This is an alternate mnemonic for "SUBPCI 1".
+ * SUBPCI - Subtract immediate from PC. Can subtract any value between 1 and 8 inclusive.
+ * ADDPC - Add A register sign-extended from 8 to 16 bits to the PC register.
  * ATOP - Load contents of A register to P.
  * ATOC - Load contents of A register to C.
  * PTOA - Load contents of P register to A.
