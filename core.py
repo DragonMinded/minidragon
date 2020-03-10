@@ -1,5 +1,4 @@
 #! /usr/bin/python3
-import copy
 import struct
 from ast import literal_eval
 from abc import ABC, abstractmethod
@@ -149,12 +148,12 @@ def getint(val: str, bits: int) -> int:
 
 def assemble(
     mnemonics: List[str],
-    labels: Dict[str, int] = {},
+    existing_labels: Optional[Dict[str, int]] = None,
 ) -> List[Tuple[int, int]]:
     global instructions
 
     org = 0
-    labels = copy.deepcopy(labels)
+    labels: Dict[str, int] = existing_labels if existing_labels is not None else {}
     data: Dict[int, int] = {}
     seen: Set[int] = set()
 
