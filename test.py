@@ -523,17 +523,91 @@ def verifystrcpy(only: Optional[str], full: bool) -> None:
         stack_source = (cpu.ram[cpu.pc[0] + 2] << 8) + cpu.ram[cpu.pc[0] + 3]
         _assert(
             stack_source == 0x1000,
-            f"strlen changed stack source from {0x1000} to {stack_source}!",
+            f"strcpy changed stack source from {0x1000} to {stack_source}!",
         )
         _assert(
             stack_dest == 0x2000,
-            f"strlen changed stack source from {0x2000} to {stack_dest}!",
+            f"strcpy changed stack source from {0x2000} to {stack_dest}!",
         )
         _assert(
             getstring(cpu, 0x2000) == string,
-            f"Failed to strcpy(&{string}, 0x2000), "
-            + f"got {getstring(cpu, 0x2000)} instead of {string}!",
+            f"Failed to strcpy(&{string!r}, 0x2000), "
+            + f"got {getstring(cpu, 0x2000)!r} instead of {string!r}!",
         )
+
+
+def verifystrcat(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "strcat":
+        return
+
+    print("Verifying strcat...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/string/strcat.S", "r") as fp:
+        liblines = fp.readlines()
+
+    for concatenation in [
+        " and more",
+        "",
+    ]:
+        for string in [
+            "a test",
+            "the quick brown fox jumps over the lazy dog",
+            "",
+            "whatever this is",
+        ]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                ".org 0x1000",
+                "concatenation:",
+                *[f".char {c!r}" for c in concatenation],
+                ".byte 0x00",
+                ".org 0x2000",
+                "string:",
+                *[f".char {c!r}" for c in string],
+                ".byte 0x00",
+                ".org 0x3000",
+                "code:",
+                "SWAP",
+                "SETPC concatenation",
+                "SWAP",
+                "PUSHSPC",
+                "SWAP",
+                "SETPC string",
+                "SWAP",
+                "PUSHSPC",
+                "SETA 123",
+                "CALL strcat",
+                "HALT",
+                *liblines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == 123,
+                f"strcat changed A register from 123 to {cpu.a}!",
+            )
+            stack_dest = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+            stack_source = (
+                (cpu.ram[cpu.pc[0] + 2] << 8) + cpu.ram[cpu.pc[0] + 3]
+            )
+            _assert(
+                stack_source == 0x1000,
+                f"strcat changed stack source from {0x1000} "
+                + f"to {stack_source}!",
+            )
+            _assert(
+                stack_dest == 0x2000,
+                f"strcat changed stack source from {0x2000} to {stack_dest}!",
+            )
+            _assert(
+                getstring(cpu, 0x2000) == (string + concatenation),
+                f"Failed to strcat(&{concatenation!r}, &{string!r}), "
+                + f"got {getstring(cpu, 0x2000)!r} "
+                + f"instead of {(string + concatenation)!r}!",
+            )
 
 
 def verifyitoa(only: Optional[str], full: bool) -> None:
@@ -630,6 +704,7 @@ if __name__ == "__main__":
     # String library verification
     verifystrlen(only, args.full)
     verifystrcpy(only, args.full)
+    verifystrcat(only, args.full)
 
     # Conversion library verification
     verifyitoa(only, args.full)
