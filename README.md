@@ -152,7 +152,7 @@ The 8-bit space for a single opcode is split up in order to make it possible to 
 <b>1 1 1 1 1 y y y   stack op</b>
 1 1 1 1 1 0 0 0   jump to immediate                   [IP + 1] > IP
 1 1 1 1 1 0 0 1   swap PC                             PC <> SPC
-1 1 1 1 1 0 1 0
+1 1 1 1 1 0 1 0   add to PC                           PC + A > PC
 1 1 1 1 1 0 1 1   pop IP                              [PC] > IP, PC + 2 > PC
 1 1 1 1 1 1 0 0   push SPC                            PC - 2 > PC, SPC > [PC]
 1 1 1 1 1 1 0 1   pop SPC                             [PC] > SPC, PC + 2 > PC
