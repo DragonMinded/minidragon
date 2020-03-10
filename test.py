@@ -430,6 +430,62 @@ def verifyabs(only: Optional[str], full: bool) -> None:
         )
 
 
+def verifycmp(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "cmp":
+        return
+
+    print("Verifying cmp...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(0, 256, 5 if full else 11):
+        for b in range(0, 256, 3 if full else 7):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {a}",
+                f"PUSHI {b}",
+                f"CALL cmp",
+                f"HALT",
+                *addlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            if a < b:
+                answer = -1
+            elif a == b:
+                answer = 0
+            elif a > b:
+                answer = 1
+            _assert(
+                cpu.ram[cpu.pc[0] + 1] == a,
+                f"cmp changed stack value from {a} "
+                + f"to {cpu.ram[cpu.pc[0] + 1]}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc[0]] == b,
+                f"cmp changed stack value from {b} to {cpu.ram[cpu.pc[0]]}!",
+            )
+            _assert(
+                bintoint(cpu.a) == answer,
+                f"Failed to cmp({a}, {b}), "
+                + f"got {bintoint(cpu.a)} instead of {answer}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((a * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for cmp: {int(cycles/count)}")
+    print(f"Average instructions for cmp: {int(instructions/count)}")
+
+
 def verifystrlen(only: Optional[str], full: bool) -> None:
     if only is not None and only != "strlen":
         return
@@ -610,6 +666,86 @@ def verifystrcat(only: Optional[str], full: bool) -> None:
             )
 
 
+def verifystrcmp(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "strcmp":
+        return
+
+    print("Verifying strcmp...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/string/strcmp.S", "r") as fp:
+        liblines = fp.readlines()
+
+    for source in [
+        "a test",
+        "the quick brown fox jumps over the lazy dog",
+        "",
+        "whatever this is",
+    ]:
+        for destination in [
+            "a test",
+            "the quick brown fox jumps over the lazy dog",
+            "",
+            "whatever this is",
+        ]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                ".org 0x1000",
+                "source:",
+                *[f".char {c!r}" for c in source],
+                ".byte 0x00",
+                ".org 0x2000",
+                "destination:",
+                *[f".char {c!r}" for c in destination],
+                ".byte 0x00",
+                ".org 0x3000",
+                "code:",
+                "SWAP",
+                "SETPC source",
+                "SWAP",
+                "PUSHSPC",
+                "SWAP",
+                "SETPC destination",
+                "SWAP",
+                "PUSHSPC",
+                "CALL strcmp",
+                "HALT",
+                *liblines,
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            if source < destination:
+                answer = -1
+            elif source == destination:
+                answer = 0
+            elif source > destination:
+                answer = 1
+            stack_dest = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+            stack_source = (
+                (cpu.ram[cpu.pc[0] + 2] << 8) + cpu.ram[cpu.pc[0] + 3]
+            )
+            _assert(
+                stack_source == 0x1000,
+                f"strcat changed stack source from {0x1000} "
+                + f"to {stack_source}!",
+            )
+            _assert(
+                stack_dest == 0x2000,
+                f"strcat changed stack source from {0x2000} to {stack_dest}!",
+            )
+            _assert(
+                bintoint(cpu.a) == answer,
+                f"Failed to strcmp(&{source!r}, &{destination!r}), "
+                + f"got {bintoint(cpu.a)} instead of {answer}!",
+            )
+
+
 def verifyitoa(only: Optional[str], full: bool) -> None:
     if only is not None and only != "itoa":
         return
@@ -700,11 +836,13 @@ if __name__ == "__main__":
     verifymultiply(only, args.full)
     verifydivide(only, args.full)
     verifyabs(only, args.full)
+    verifycmp(only, args.full)
 
     # String library verification
     verifystrlen(only, args.full)
     verifystrcpy(only, args.full)
     verifystrcat(only, args.full)
+    verifystrcmp(only, args.full)
 
     # Conversion library verification
     verifyitoa(only, args.full)
