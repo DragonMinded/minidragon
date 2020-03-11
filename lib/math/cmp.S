@@ -32,7 +32,7 @@ ucmp:
     LOADI 0
     RET
 
- _ucmp_ne:
+_ucmp_ne:
     ; Make copies so we can mess with the numbers
     LOAD
     SUBPCI 4
@@ -138,7 +138,7 @@ ucmp16:
     LOADI 0
     RET
 
- _ucmp16_high_ne:
+_ucmp16_high_ne:
     ; Make copies so we can mess with the numbers
     LOAD
     SUBPCI 4
@@ -152,7 +152,7 @@ ucmp16:
     ; know the bytes don't equal and we are just shifting out of stack.
     LNGJUMP _ucmp_loop
 
- _ucmp16_low_ne:
+_ucmp16_low_ne:
     ; Make copies so we can mess with the numbers
     LOAD
     SUBPCI 5
@@ -234,7 +234,7 @@ ucmp32:
     LOADI 0
     RET
 
- _ucmp32_1st_ne:
+_ucmp32_1st_ne:
     ; Make copies so we can mess with the numbers
     LOAD
     SUBPCI 4
@@ -248,7 +248,7 @@ ucmp32:
     ; know the bytes don't equal and we are just shifting out of stack.
     LNGJUMP _ucmp_loop
 
- _ucmp32_2nd_ne:
+_ucmp32_2nd_ne:
     ; Make copies so we can mess with the numbers
     LOAD
     SUBPCI 5
@@ -263,7 +263,7 @@ ucmp32:
     ; know the bytes don't equal and we are just shifting out of stack.
     LNGJUMP _ucmp_loop
 
- _ucmp32_3rd_ne:
+_ucmp32_3rd_ne:
     ; Make copies so we can mess with the numbers
     LOAD
     SUBPCI 6
@@ -279,7 +279,7 @@ ucmp32:
     ; know the bytes don't equal and we are just shifting out of stack.
     LNGJUMP _ucmp_loop
 
- _ucmp32_4th_ne:
+_ucmp32_4th_ne:
     ; Make copies so we can mess with the numbers
     LOAD
     SUBPCI 7
@@ -336,10 +336,270 @@ umin:
     INCPC
     RET
 
- _umin_ge:
+_umin_ge:
     ; First number is >= second number, return second number.
     LOAD
     ADDPCI 2
+    RET
+
+umin16:
+    ; Given two unsigned 16-bit integers on the stack, return the smaller
+    ; of the two on the stack. Does not mess with the A register.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to get the min of 0x1234 and 0x5678, call this like:
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     CALL umin16
+    ;
+    ; Stack layout:
+    ; PC + 0 - temporary second number storage
+    ; PC + 1 - temporary second number storage
+    ; PC + 2 - temporary first number storage
+    ; PC + 3 - temporary first number storage
+    ; PC + 4 - contents of A register preserved
+    ; PC + 4 - return address
+    ; PC + 5 - return address
+    ; PC + 6 - second number
+    ; PC + 7 - second number
+    ; PC + 8 - first number
+    ; PC + 9 - first number
+
+    ; First, save the A register
+    PUSH
+
+    ; Now, copy the first and second number so we can call ucmp.
+    ADDPCI 3
+    LOAD
+    SUBPCI 7
+    STORE
+    ADDPCI 8
+    LOAD
+    SUBPCI 7
+    STORE
+    ADDPCI 8
+    LOAD
+    SUBPCI 7
+    STORE
+    ADDPCI 8
+    LOAD
+    SUBPCI 7
+    STORE
+    SUBPCI 3
+
+    ; Now, figure out which is less
+    CALL ucmp16
+
+    ; Return the first number if 1st < 2nd, otherwise return second.
+    SHL
+    JRINC _umin16_ge
+
+    ; First number is already in the right spot, so just move the return
+    ; and let's get out of here.
+    ADDPCI 6
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+
+    ; Finally, restore the A register.
+    LOAD
+    ADDPCI 3
+
+    ; Now, return!
+    RET
+
+_umin16_ge:
+    ; First number is >= second number, return second number. We do this
+    ; by copying the whole stack from the saved A register through the
+    ; second number, up by two, and then returning.
+    ADDPCI 8
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+
+    ; Now, restore the A register
+    LOAD
+    ADDPCI 3
+
+    ; Now, return!
+    RET
+
+umin32:
+    ; Given two unsigned 32-bit integers on the stack, return the smaller
+    ; of the two on the stack. Does not mess with the A register.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to get the min of 0x12345678 and 0x56789101, call this
+    ; similar to:
+    ;     PUSHI 0x01
+    ;     PUSHI 0x91
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     CALL umin32
+    ;
+    ; Stack layout:
+    ; PC + 0  - temporary second number storage
+    ; PC + 1  - temporary second number storage
+    ; PC + 2  - temporary second number storage
+    ; PC + 3  - temporary second number storage
+    ; PC + 4  - temporary first number storage
+    ; PC + 5  - temporary first number storage
+    ; PC + 6  - temporary first number storage
+    ; PC + 7  - temporary first number storage
+    ; PC + 8  - contents of A register preserved
+    ; PC + 9  - return address
+    ; PC + 10 - return address
+    ; PC + 11 - second number
+    ; PC + 12 - second number
+    ; PC + 13 - second number
+    ; PC + 14 - second number
+    ; PC + 15 - first number
+    ; PC + 16 - first number
+    ; PC + 17 - first number
+    ; PC + 18 - first number
+
+    ; First, save the A register
+    PUSH
+
+    ; Now, copy the first and second number so we can call ucmp.
+    ADDPCI 3
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    SUBPCI 7
+
+    ; Now, figure out which is less
+    CALL ucmp32
+
+    ; Return the first number if 1st < 2nd, otherwise return second.
+    SHL
+    JRINC _umin32_ge
+
+    ; First number is already in the right spot, so just move the return
+    ; and let's get out of here.
+    ADDPCI 8
+    ADDPCI 2
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+
+    ; Finally, restore the A register.
+    LOAD
+    ADDPCI 5
+
+    ; Now, return!
+    RET
+
+_umin32_ge:
+    ; First number is >= second number, return second number. We do this
+    ; by copying the whole stack from the saved A register through the
+    ; second number, up by two, and then returning.
+    ADDPCI 8
+    ADDPCI 6
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+
+    ; Now, restore the A register
+    LOAD
+    ADDPCI 5
+
+    ; Now, return!
     RET
 
 umax:
@@ -383,8 +643,268 @@ umax:
     INCPC
     RET
 
- _umax_le:
+_umax_le:
     ; First number is >= second number, return second number.
     LOAD
     ADDPCI 2
+    RET
+
+umax16:
+    ; Given two unsigned 16-bit integers on the stack, return the larger
+    ; of the two on the stack. Does not mess with the A register.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to get the max of 0x1234 and 0x5678, call this like:
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     CALL umax16
+    ;
+    ; Stack layout:
+    ; PC + 0 - temporary second number storage
+    ; PC + 1 - temporary second number storage
+    ; PC + 2 - temporary first number storage
+    ; PC + 3 - temporary first number storage
+    ; PC + 4 - contents of A register preserved
+    ; PC + 4 - return address
+    ; PC + 5 - return address
+    ; PC + 6 - second number
+    ; PC + 7 - second number
+    ; PC + 8 - first number
+    ; PC + 9 - first number
+
+    ; First, save the A register
+    PUSH
+
+    ; Now, copy the first and second number so we can call ucmp.
+    ADDPCI 3
+    LOAD
+    SUBPCI 7
+    STORE
+    ADDPCI 8
+    LOAD
+    SUBPCI 7
+    STORE
+    ADDPCI 8
+    LOAD
+    SUBPCI 7
+    STORE
+    ADDPCI 8
+    LOAD
+    SUBPCI 7
+    STORE
+    SUBPCI 3
+
+    ; Now, figure out which is less
+    CALL ucmp16
+
+    ; Return the second number if 1st < 2nd, otherwise return 1st.
+    SHL
+    JRIC _umax16_le
+
+    ; First number is already in the right spot, so just move the return
+    ; and let's get out of here.
+    ADDPCI 6
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+
+    ; Finally, restore the A register.
+    LOAD
+    ADDPCI 3
+
+    ; Now, return!
+    RET
+
+_umax16_le:
+    ; First number is >= second number, return second number. We do this
+    ; by copying the whole stack from the saved A register through the
+    ; second number, up by two, and then returning.
+    ADDPCI 8
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+    LOAD
+    ADDPCI 2
+    STORE
+    SUBPCI 3
+
+    ; Now, restore the A register
+    LOAD
+    ADDPCI 3
+
+    ; Now, return!
+    RET
+
+umax32:
+    ; Given two unsigned 32-bit integers on the stack, return the larger
+    ; of the two on the stack. Does not mess with the A register.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to get the max of 0x12345678 and 0x56789101, call this
+    ; similar to:
+    ;     PUSHI 0x01
+    ;     PUSHI 0x91
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     CALL umax32
+    ;
+    ; Stack layout:
+    ; PC + 0  - temporary second number storage
+    ; PC + 1  - temporary second number storage
+    ; PC + 2  - temporary second number storage
+    ; PC + 3  - temporary second number storage
+    ; PC + 4  - temporary first number storage
+    ; PC + 5  - temporary first number storage
+    ; PC + 6  - temporary first number storage
+    ; PC + 7  - temporary first number storage
+    ; PC + 8  - contents of A register preserved
+    ; PC + 9  - return address
+    ; PC + 10 - return address
+    ; PC + 11 - second number
+    ; PC + 12 - second number
+    ; PC + 13 - second number
+    ; PC + 14 - second number
+    ; PC + 15 - first number
+    ; PC + 16 - first number
+    ; PC + 17 - first number
+    ; PC + 18 - first number
+
+    ; First, save the A register
+    PUSH
+
+    ; Now, copy the first and second number so we can call ucmp.
+    ADDPCI 3
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    ADDPCI 8
+    ADDPCI 4
+    LOAD
+    SUBPCI 8
+    SUBPCI 3
+    STORE
+    SUBPCI 7
+
+    ; Now, figure out which is less
+    CALL ucmp32
+
+    ; Return the second number if 1st < 2nd, otherwise return first.
+    SHL
+    JRIC _umax32_le
+
+    ; First number is already in the right spot, so just move the return
+    ; and let's get out of here.
+    ADDPCI 8
+    ADDPCI 2
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+
+    ; Finally, restore the A register.
+    LOAD
+    ADDPCI 5
+
+    ; Now, return!
+    RET
+
+_umax32_le:
+    ; First number is >= second number, return second number. We do this
+    ; by copying the whole stack from the saved A register through the
+    ; second number, up by two, and then returning.
+    ADDPCI 8
+    ADDPCI 6
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+    LOAD
+    ADDPCI 4
+    STORE
+    SUBPCI 5
+
+    ; Now, restore the A register
+    LOAD
+    ADDPCI 5
+
+    ; Now, return!
     RET
