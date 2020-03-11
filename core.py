@@ -153,7 +153,9 @@ def assemble(
     global instructions
 
     org = 0
-    labels: Dict[str, int] = existing_labels if existing_labels is not None else {}
+    labels: Dict[str, int] = (
+        existing_labels if existing_labels is not None else {}
+    )
     data: Dict[int, int] = {}
     seen: Set[int] = set()
 

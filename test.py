@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 import argparse
 import os
+import struct
 from typing import List, Optional
 from core import CPUCore, assemble, bintoint
 
@@ -36,6 +37,14 @@ def rununtilhalt(cpu: CPUCore) -> None:
         if cpu.ir == 0b00111111:
             return
         cpu.tick()
+
+
+def bintoint16(binary: int) -> int:
+    return struct.unpack("h", struct.pack("H", binary))[0]
+
+
+def bintoint32(binary: int) -> int:
+    return struct.unpack("i", struct.pack("I", binary))[0]
 
 
 def getstring(cpu: CPUCore, location: int) -> str:
@@ -294,6 +303,54 @@ def verifydivide(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for divide: {int(instructions/count)}")
 
 
+def verifymathadd(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "mathadd":
+        return
+
+    print("Verifying add...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 256, 5 if full else 11):
+        for y in range(0, 256, 3 if full else 7):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {x}",
+                f"PUSHI {y}",
+                f"SETA 123",
+                f"CALL add",
+                f"HALT",
+                *addlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            calculated = cpu.ram[cpu.pc[0]]
+            real = (x + y) & 0xFF
+            _assert(
+                cpu.a == 123,
+                f"add changed A register from 123 to {cpu.a}!",
+            )
+            _assert(
+                real == calculated,
+                f"Failed to add {x} and {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for add: {int(cycles/count)}")
+    print(f"Average instructions for add: {int(instructions/count)}")
+
+
 def verifyadd16(only: Optional[str], full: bool) -> None:
     if only is not None and only != "add16":
         return
@@ -484,6 +541,52 @@ def verifycmp(only: Optional[str], full: bool) -> None:
         print(f"{CLEAR_LINE}{int((a * 100) / 256)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for cmp: {int(cycles/count)}")
     print(f"Average instructions for cmp: {int(instructions/count)}")
+
+
+def verifymathneg(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "mathneg":
+        return
+
+    print("Verifying neg...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(-127, 128):
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI {x}",
+            f"SETA 123",
+            f"CALL neg",
+            f"HALT",
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        calculated = bintoint(cpu.ram[cpu.pc[0]])
+        real = -x
+        _assert(
+            cpu.a == 123,
+            f"neg changed A register from 123 to {cpu.a}!",
+        )
+        _assert(
+            real == calculated,
+            f"Failed to neg {x}, "
+            + f"got {calculated} instead of {real}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+        print(f"{CLEAR_LINE}{int(((x + 127) * 100) / 256)}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for neg: {int(cycles/count)}")
+    print(f"Average instructions for neg: {int(instructions/count)}")
 
 
 def verifystrlen(only: Optional[str], full: bool) -> None:
@@ -831,12 +934,14 @@ if __name__ == "__main__":
     verifysubpci(only, args.full)
 
     # Math library verification
+    verifymathadd(only, args.full)
     verifyadd16(only, args.full)
     verifyadd32(only, args.full)
     verifymultiply(only, args.full)
     verifydivide(only, args.full)
     verifyabs(only, args.full)
     verifycmp(only, args.full)
+    verifymathneg(only, args.full)
 
     # String library verification
     verifystrlen(only, args.full)

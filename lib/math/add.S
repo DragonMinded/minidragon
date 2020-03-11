@@ -1,3 +1,53 @@
+add:
+    ; Add two 8-bit numbers on the stack, returning the value on the stack.
+    ; This is somewhat useless as we already have add, but it keeps the
+    ; stdlib orthogonal. Does not mess with the A register.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; To add 0x12 to 0x32, call like so:
+    ;   PUSHI 0x34
+    ;   PUSHI 0x12
+    ;   CALL add
+    ;
+    ; Stack layout
+    ; PC + 0 - saved A register
+    ; PC + 1 - return address
+    ; PC + 2 - return address
+    ; PC + 3 - first operand
+    ; PC + 4 - second operand
+
+    ; Save the A register
+    PUSH
+
+    ; Add two numbers together
+    ADDPCI 3
+    LOAD
+    INCPC
+    ADD
+    STORE
+
+    ; Now, copy the return up two in the stack so we can pop and ret
+    ; while leaving the return value on the stack. First two are for
+    ; the return address, next is for the A register.
+    SUBPCI 2
+    LOAD
+    ADDPCI 1
+    STORE
+    SUBPCI 2
+    LOAD
+    ADDPCI 1
+    STORE
+
+    SUBPCI 2
+    LOAD
+    ADDPCI 1
+    STORE
+
+    ; Finally, return to caller
+    POP
+    RET
+
 add16:
     ; Add two 16-bit numbers on the stack, returning the value on the stack.
     ; Numbers are stored on the stack as big-endian. Does not mess with the
