@@ -223,11 +223,11 @@ def verifysubpci(only: Optional[str], full: bool) -> None:
     print(BACK_AND_CLEAR_LINE)
 
 
-def verifymultiply(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "multiply":
+def verifyumult(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "umult":
         return
 
-    print("Verifying multiply...")
+    print("Verifying umult...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -244,7 +244,7 @@ def verifymultiply(only: Optional[str], full: bool) -> None:
                 *initlines,
                 f"PUSHI {x}",
                 f"PUSHI {y}",
-                f"CALL multiply",
+                f"CALL umult",
                 f"HALT",
                 *multiplylines,
             ]))
@@ -252,7 +252,7 @@ def verifymultiply(only: Optional[str], full: bool) -> None:
             rununtilhalt(cpu)
             _assert(
                 cpu.a == x * y,
-                f"Failed to multiply {x} by {y}, "
+                f"Failed to umult {x} by {y}, "
                 + f"got {cpu.a} instead of {x * y}!",
             )
             cycles += cpu.cycles
@@ -260,15 +260,15 @@ def verifymultiply(only: Optional[str], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 16)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for multiply: {int(cycles/count)}")
-    print(f"Average instructions for multiply: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for umult: {int(cycles/count)}")
+    print(f"Average instructions for umult: {int(instructions/count)}")
 
 
-def verifydivide(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "divide":
+def verifyudiv(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "udiv":
         return
 
-    print("Verifying divide...")
+    print("Verifying udiv...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -285,7 +285,7 @@ def verifydivide(only: Optional[str], full: bool) -> None:
                 *initlines,
                 f"PUSHI {y}",
                 f"PUSHI {x}",
-                f"CALL divide",
+                f"CALL udiv",
                 f"HALT",
                 *dividelines,
             ]))
@@ -293,13 +293,13 @@ def verifydivide(only: Optional[str], full: bool) -> None:
             rununtilhalt(cpu)
             _assert(
                 cpu.a == x // y,
-                f"Failed to divide {x} by {y}, "
+                f"Failed to udiv {x} by {y}, "
                 + f"got {cpu.a} instead of {x // y}!",
             )
             remainder = cpu.ram[cpu.pc[0]]
             _assert(
                 remainder == x % y,
-                f"Failed to divide {x} by {y}, "
+                f"Failed to udiv {x} by {y}, "
                 + f"got {remainder} instead of {x // y}!",
             )
             cycles += cpu.cycles
@@ -307,8 +307,8 @@ def verifydivide(only: Optional[str], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 128)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for divide: {int(cycles/count)}")
-    print(f"Average instructions for divide: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for udiv: {int(cycles/count)}")
+    print(f"Average instructions for udiv: {int(instructions/count)}")
 
 
 def verifymathadd(only: Optional[str], full: bool) -> None:
@@ -612,17 +612,17 @@ def verifyabs32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for abs32: {int(instructions/count)}")
 
 
-def verifycmp(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "cmp":
+def verifyucmp(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "ucmp":
         return
 
-    print("Verifying cmp...")
+    print("Verifying ucmp...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
-        addlines = fp.readlines()
+        cmplines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -633,9 +633,9 @@ def verifycmp(only: Optional[str], full: bool) -> None:
                 *initlines,
                 f"PUSHI {a}",
                 f"PUSHI {b}",
-                f"CALL cmp",
+                f"CALL ucmp",
                 f"HALT",
-                *addlines,
+                *cmplines,
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
@@ -647,16 +647,16 @@ def verifycmp(only: Optional[str], full: bool) -> None:
                 answer = 1
             _assert(
                 cpu.ram[cpu.pc[0] + 1] == a,
-                f"cmp changed stack value from {a} "
+                f"ucmp changed stack value from {a} "
                 + f"to {cpu.ram[cpu.pc[0] + 1]}!",
             )
             _assert(
                 cpu.ram[cpu.pc[0]] == b,
-                f"cmp changed stack value from {b} to {cpu.ram[cpu.pc[0]]}!",
+                f"ucmp changed stack value from {b} to {cpu.ram[cpu.pc[0]]}!",
             )
             _assert(
                 bintoint(cpu.a) == answer,
-                f"Failed to cmp({a}, {b}), "
+                f"Failed to ucmp({a}, {b}), "
                 + f"got {bintoint(cpu.a)} instead of {answer}!",
             )
             cycles += cpu.cycles
@@ -664,8 +664,152 @@ def verifycmp(only: Optional[str], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((a * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for cmp: {int(cycles/count)}")
-    print(f"Average instructions for cmp: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for ucmp: {int(cycles/count)}")
+    print(f"Average instructions for ucmp: {int(instructions/count)}")
+
+
+def verifyucmp16(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "ucmp16":
+        return
+
+    print("Verifying ucmp16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(0, 65536, 1281 if full else 2817):
+        for b in range(0, 65536, 767 if full else 1791):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {a & 0xFF}",
+                f"PUSHI {(a >> 8) & 0xFF}",
+                f"PUSHI {b & 0xFF}",
+                f"PUSHI {(b >> 8) & 0xFF}",
+                f"CALL ucmp16",
+                f"HALT",
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            if a < b:
+                answer = -1
+            elif a == b:
+                answer = 0
+            elif a > b:
+                answer = 1
+            astack = ((cpu.ram[cpu.pc[0] + 2] << 8) + cpu.ram[cpu.pc[0] + 3])
+            _assert(
+                astack == a,
+                f"ucmp16 changed stack value from {a} to {astack}!",
+            )
+            bstack = ((cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1])
+            _assert(
+                bstack == b,
+                f"ucmp16 changed stack value from {b} to {bstack}!",
+            )
+            _assert(
+                bintoint(cpu.a) == answer,
+                f"Failed to ucmp16({a}, {b}), "
+                + f"got {bintoint(cpu.a)} instead of {answer}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((a * 100) / 65536)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for ucmp16: {int(cycles/count)}")
+    print(f"Average instructions for ucmp16: {int(instructions/count)}")
+
+
+def verifyucmp32(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "ucmp32":
+        return
+
+    print("Verifying ucmp32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    def _verify_ucmp32(a: int, b: int) -> CPUCore:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI {a & 0xFF}",
+            f"PUSHI {(a >> 8) & 0xFF}",
+            f"PUSHI {(a >> 16) & 0xFF}",
+            f"PUSHI {(a >> 24) & 0xFF}",
+            f"PUSHI {b & 0xFF}",
+            f"PUSHI {(b >> 8) & 0xFF}",
+            f"PUSHI {(b >> 16) & 0xFF}",
+            f"PUSHI {(b >> 24) & 0xFF}",
+            f"CALL ucmp32",
+            f"HALT",
+            *cmplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        if a < b:
+            answer = -1
+        elif a == b:
+            answer = 0
+        elif a > b:
+            answer = 1
+        astack = (
+            (cpu.ram[cpu.pc[0] + 4] << 24) +
+            (cpu.ram[cpu.pc[0] + 5] << 16) +
+            (cpu.ram[cpu.pc[0] + 6] << 8) +
+            cpu.ram[cpu.pc[0] + 7]
+        )
+        _assert(
+            astack == a,
+            f"ucmp32 changed stack value from {a} to {astack}!",
+        )
+        bstack = (
+            (cpu.ram[cpu.pc[0]] << 24) +
+            (cpu.ram[cpu.pc[0] + 1] << 16) +
+            (cpu.ram[cpu.pc[0] + 2] << 8) +
+            cpu.ram[cpu.pc[0] + 3]
+        )
+        _assert(
+            bstack == b,
+            f"ucmp32 changed stack value from {b} to {bstack}!",
+        )
+        _assert(
+            bintoint(cpu.a) == answer,
+            f"Failed to ucmp32({a}, {b}), "
+            + f"got {bintoint(cpu.a)} instead of {answer}!",
+        )
+        return cpu
+
+    for a in [0, 2**6, 2**13, 2**21, 2**29]:
+        for b in [0, 2**6, 2**13, 2**21, 2**29]:
+            _verify_ucmp32(a, b)
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(0, 2**32, 2**26 + 2**13 + 19):
+        for b in range(
+            0, 2**32, (2**26 + 2**13 + 7)
+            if full
+            else (2**28 + 2**13 + 11)
+        ):
+            cpu = _verify_ucmp32(a, b)
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((a * 100) / (2**32))}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for ucmp32: {int(cycles/count)}")
+    print(f"Average instructions for ucmp32: {int(instructions/count)}")
 
 
 def verifymathneg(only: Optional[str], full: bool) -> None:
@@ -1173,12 +1317,14 @@ if __name__ == "__main__":
     verifymathadd(only, args.full)
     verifyadd16(only, args.full)
     verifyadd32(only, args.full)
-    verifymultiply(only, args.full)
-    verifydivide(only, args.full)
+    verifyumult(only, args.full)
+    verifyudiv(only, args.full)
     verifyabs(only, args.full)
     verifyabs16(only, args.full)
     verifyabs32(only, args.full)
-    verifycmp(only, args.full)
+    verifyucmp(only, args.full)
+    verifyucmp16(only, args.full)
+    verifyucmp32(only, args.full)
     verifymathneg(only, args.full)
     verifyneg16(only, args.full)
     verifyneg32(only, args.full)

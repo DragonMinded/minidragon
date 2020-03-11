@@ -6,16 +6,16 @@ add:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; To add 0x12 to 0x32, call like so:
-    ;   PUSHI 0x34
     ;   PUSHI 0x12
+    ;   PUSHI 0x34
     ;   CALL add
     ;
     ; Stack layout
     ; PC + 0 - saved A register
     ; PC + 1 - return address
     ; PC + 2 - return address
-    ; PC + 3 - first operand
-    ; PC + 4 - second operand
+    ; PC + 3 - second operand
+    ; PC + 4 - first operand
 
     ; Save the A register
     PUSH
@@ -56,20 +56,20 @@ add16:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; To add 0x1234 to 0x5678, call like so:
-    ;   PUSHI 0x78
-    ;   PUSHI 0x56
     ;   PUSHI 0x34
     ;   PUSHI 0x12
+    ;   PUSHI 0x78
+    ;   PUSHI 0x56
     ;   CALL add16
     ;
     ; Stack layout
     ; PC + 0 - saved A register
     ; PC + 1 - return address
     ; PC + 2 - return address
-    ; PC + 3 - first operand high byte
-    ; PC + 4 - first operand low byte
-    ; PC + 5 - second operand high byte
-    ; PC + 6 - second operand low byte
+    ; PC + 3 - second operand high byte
+    ; PC + 4 - second operand low byte
+    ; PC + 5 - first operand high byte
+    ; PC + 6 - first operand low byte
 
     ; Save the A register
     PUSH
@@ -117,28 +117,28 @@ add32:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; To add 0x12345678 to 0x55555555, call like so:
+    ;   PUSHI 0x55
+    ;   PUSHI 0x55
+    ;   PUSHI 0x55
+    ;   PUSHI 0x55
     ;   PUSHI 0x78
     ;   PUSHI 0x56
     ;   PUSHI 0x34
     ;   PUSHI 0x12
-    ;   PUSHI 0x55
-    ;   PUSHI 0x55
-    ;   PUSHI 0x55
-    ;   PUSHI 0x55
     ;   CALL add32
     ;
     ; Stack layout
     ; PC + 0  - saved A register
     ; PC + 1  - return address
     ; PC + 2  - return address
-    ; PC + 3  - first operand
-    ; PC + 4  - first operand
-    ; PC + 5  - first operand
-    ; PC + 6  - first operand
-    ; PC + 7  - second operand
-    ; PC + 8  - second operand
-    ; PC + 9  - second operand
-    ; PC + 10 - second operand
+    ; PC + 3  - second operand
+    ; PC + 4  - second operand
+    ; PC + 5  - second operand
+    ; PC + 6  - second operand
+    ; PC + 7  - first operand
+    ; PC + 8  - first operand
+    ; PC + 9  - first operand
+    ; PC + 10 - first operand
 
     ; Save the A register
     PUSH

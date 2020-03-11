@@ -76,7 +76,7 @@ _strcmp_loop:
     STORE
 
     ; Compare the two bytes for equality.
-    CALL cmp
+    CALL ucmp
 
     ; See if the two bytes equal, if not, then we have our answer!
     ADDI 0

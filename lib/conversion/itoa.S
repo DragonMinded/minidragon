@@ -108,7 +108,7 @@ _itoa_loop:
     INCPC
     STOREI 10
     DECPC
-    CALL divide
+    CALL udiv
 
     ; Quotient is in A, remainder is on stack. Save the quotient.
     PUSH

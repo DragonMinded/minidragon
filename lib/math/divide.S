@@ -1,14 +1,14 @@
-divide:
-    ; Divide a number by another number, returning the quotient in A and
-    ; the remainder on the stack. Works on unsigned numbers in the range
-    ; of 0-127 inclusive.
+udiv:
+    ; Divide an unsigned number by another unsigned number, returning the
+    ; quotient in A and the remainder on the stack. Works on unsigned
+    ; numbers in the range of 0-127 inclusive.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; If you want to divide 15 by 3, call this similar to:
     ;   PUSHI 3
     ;   PUSHI 15
-    ;   CALL divide
+    ;   CALL udiv
     ;
     ; Stack layout at call time
     ; PC + 0 - return address
@@ -45,7 +45,7 @@ divide:
     SETA 0
     STORE
 
-_div_loop:
+_udiv_loop:
     ; Attempt to subtract the divisor from the dividend
     ADDPCI 3
     LOAD
@@ -60,7 +60,7 @@ _div_loop:
     SHL
     POP
     ADDPCI 4
-    JRIC _div_finished
+    JRIC _udiv_finished
 
     ; Save the last value as the new dividend.
     STORE
@@ -72,9 +72,9 @@ _div_loop:
     STORE
 
     ; Finally, do it all over again!
-    JRI _div_loop
+    JRI _udiv_loop
 
-_div_finished:
+_udiv_finished:
     ; Move the return address to the right spot on the stack
     SUBPCI 2
     LOAD

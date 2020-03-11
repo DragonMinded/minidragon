@@ -1,15 +1,16 @@
-_multiply_locals:
+_mult_locals:
     .byte 0x01  ; Bottom bit set constant
 
-multiply:
-    ; Multiply two 8-bit numbers on the stack, returning value in A.
+umult:
+    ; Multiply two unsigned 8-bit numbers on the stack, returning value
+    ; in A.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; Call this similar to:
     ;   PUSHI 5
     ;   PUSHI 7
-    ;   CALL multiply
+    ;   CALL umult
     ;
     ; Stack layout
     ; PC + 0 - SP
@@ -17,8 +18,8 @@ multiply:
     ; PC + 2 - Accumulated result
     ; PC + 3 - return address
     ; PC + 4 - return address
-    ; PC + 5 - first operand
-    ; PC + 6 - second operand
+    ; PC + 5 - second operand
+    ; PC + 6 - first operand
 
     ; Make room on the stack for the accumulated result
     PUSHI 0
@@ -31,20 +32,20 @@ multiply:
 
     ; Initialize our own local stack
     SWAP
-    SETPC _multiply_locals
+    SETPC _mult_locals
     SWAP
 
-_multiply_loop:
+_umult_loop:
     ; See if first operand is zero
     ZERO
     ADD
-    LNGJUMPZ _multiply_finished
+    LNGJUMPZ _umult_finished
 
     ; See if bottom bit set
     SWAP
     AND
     SWAP
-    JRIZ _multiply_shift
+    JRIZ _umult_shift
 
     ; Grab the second operand so we can add it to the
     ; accumulated result.
@@ -58,7 +59,7 @@ _multiply_loop:
     STORE
     ADDPCI 3
 
-_multiply_shift:
+_umult_shift:
     ; First operand >>= 1
     LOAD
     SHR
@@ -72,9 +73,9 @@ _multiply_shift:
     DECPC
 
     ; Back to loop
-    LNGJUMP _multiply_loop
+    LNGJUMP _umult_loop
 
-_multiply_finished:
+_umult_finished:
     ; Restore stack
     SUBPCI 5
 
