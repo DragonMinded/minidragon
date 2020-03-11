@@ -47,6 +47,14 @@ def bintoint32(binary: int) -> int:
     return struct.unpack("i", struct.pack("I", binary))[0]
 
 
+def inttobin16(binary: int) -> int:
+    return struct.unpack("H", struct.pack("h", binary))[0]
+
+
+def inttobin32(binary: int) -> int:
+    return struct.unpack("I", struct.pack("i", binary))[0]
+
+
 def getstring(cpu: CPUCore, location: int) -> str:
     string = ""
     while cpu.ram[location] != 0x00:
@@ -589,6 +597,117 @@ def verifymathneg(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for neg: {int(instructions/count)}")
 
 
+def verifyneg16(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "neg16":
+        return
+
+    print("Verifying neg16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(-32767, 32768, 79 if full else 763):
+        xbin = inttobin16(x)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI {xbin & 0xFF}",
+            f"PUSHI {(xbin >> 8) & 0xFF}",
+            f"SETA 123",
+            f"CALL neg16",
+            f"HALT",
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        calculated = bintoint16(
+            (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+        )
+        real = -x
+        _assert(
+            cpu.a == 123,
+            f"neg16 changed A register from 123 to {cpu.a}!",
+        )
+        _assert(
+            real == calculated,
+            f"Failed to neg16 {x}, "
+            + f"got {calculated} instead of {real}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+        print(f"{CLEAR_LINE}{int(((x + 32767) * 100) / 65536)}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for neg16: {int(cycles/count)}")
+    print(f"Average instructions for neg16: {int(instructions/count)}")
+
+
+def verifyneg32(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "neg32":
+        return
+
+    print("Verifying neg32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(
+        -(2**31 - 1),
+        (2**31),
+        (2**22 + 3) if full else (2**25 + 3)
+    ):
+        xbin = inttobin32(x)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI {xbin & 0xFF}",
+            f"PUSHI {(xbin >> 8) & 0xFF}",
+            f"PUSHI {(xbin >> 16) & 0xFF}",
+            f"PUSHI {(xbin >> 24) & 0xFF}",
+            f"SETA 123",
+            f"CALL neg32",
+            f"HALT",
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        calculated = bintoint32(
+            (cpu.ram[cpu.pc[0]] << 24) +
+            (cpu.ram[cpu.pc[0] + 1] << 16) +
+            (cpu.ram[cpu.pc[0] + 2] << 8) +
+            cpu.ram[cpu.pc[0] + 3]
+        )
+        real = -x
+        _assert(
+            cpu.a == 123,
+            f"neg32 changed A register from 123 to {cpu.a}!",
+        )
+        _assert(
+            real == calculated,
+            f"Failed to neg32 {x}, "
+            + f"got {calculated} instead of {real}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+        print(
+            f"{CLEAR_LINE}{int(((x + (2 **31)) * 100) / (2**32))}% complete..."
+        )
+
+    print(f"{CLEAR_LINE}Average cycles for neg32: {int(cycles/count)}")
+    print(f"Average instructions for neg32: {int(instructions/count)}")
+
+
 def verifystrlen(only: Optional[str], full: bool) -> None:
     if only is not None and only != "strlen":
         return
@@ -942,6 +1061,8 @@ if __name__ == "__main__":
     verifyabs(only, args.full)
     verifycmp(only, args.full)
     verifymathneg(only, args.full)
+    verifyneg16(only, args.full)
+    verifyneg32(only, args.full)
 
     # String library verification
     verifystrlen(only, args.full)
