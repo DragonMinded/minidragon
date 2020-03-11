@@ -477,7 +477,7 @@ def verifyabs(only: Optional[str], full: bool) -> None:
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
     with open("lib/math/abs.S", "r") as fp:
-        addlines = fp.readlines()
+        abslines = fp.readlines()
 
     for x in range(-127, 128):
         memory = getmemory(os.linesep.join([
@@ -485,7 +485,7 @@ def verifyabs(only: Optional[str], full: bool) -> None:
             f"SETA {x}",
             f"CALL abs",
             f"HALT",
-            *addlines,
+            *abslines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -493,6 +493,123 @@ def verifyabs(only: Optional[str], full: bool) -> None:
             cpu.a == abs(x),
             f"Failed to abs({x}), got {cpu.a} instead of {x}!",
         )
+
+
+def verifyabs16(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "abs16":
+        return
+
+    print("Verifying abs16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+    with open("lib/math/abs.S", "r") as fp:
+        abslines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(-32767, 32768, 79 if full else 763):
+        xbin = inttobin16(x)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI {xbin & 0xFF}",
+            f"PUSHI {(xbin >> 8) & 0xFF}",
+            f"SETA 123",
+            f"CALL abs16",
+            f"HALT",
+            *neglines,
+            *abslines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        calculated = bintoint16(
+            (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+        )
+        real = abs(x)
+        _assert(
+            cpu.a == 123,
+            f"abs16 changed A register from 123 to {cpu.a}!",
+        )
+        _assert(
+            real == calculated,
+            f"Failed to abs16 {x}, "
+            + f"got {calculated} instead of {real}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+        print(f"{CLEAR_LINE}{int(((x + 32767) * 100) / 65536)}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for abs16: {int(cycles/count)}")
+    print(f"Average instructions for abs16: {int(instructions/count)}")
+
+
+def verifyabs32(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "abs32":
+        return
+
+    print("Verifying abs32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+    with open("lib/math/abs.S", "r") as fp:
+        abslines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(
+        -(2**31 - 1),
+        (2**31),
+        (2**22 + 3) if full else (2**25 + 3)
+    ):
+        xbin = inttobin32(x)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI {xbin & 0xFF}",
+            f"PUSHI {(xbin >> 8) & 0xFF}",
+            f"PUSHI {(xbin >> 16) & 0xFF}",
+            f"PUSHI {(xbin >> 24) & 0xFF}",
+            f"SETA 123",
+            f"CALL abs32",
+            f"HALT",
+            *neglines,
+            *abslines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        calculated = bintoint32(
+            (cpu.ram[cpu.pc[0]] << 24) +
+            (cpu.ram[cpu.pc[0] + 1] << 16) +
+            (cpu.ram[cpu.pc[0] + 2] << 8) +
+            cpu.ram[cpu.pc[0] + 3]
+        )
+        real = abs(x)
+        _assert(
+            cpu.a == 123,
+            f"abs32 changed A register from 123 to {cpu.a}!",
+        )
+        _assert(
+            real == calculated,
+            f"Failed to abs32 {x}, "
+            + f"got {calculated} instead of {real}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+        print(
+            f"{CLEAR_LINE}{int(((x + (2 **31)) * 100) / (2**32))}% complete..."
+        )
+
+    print(f"{CLEAR_LINE}Average cycles for abs32: {int(cycles/count)}")
+    print(f"Average instructions for abs32: {int(instructions/count)}")
 
 
 def verifycmp(only: Optional[str], full: bool) -> None:
@@ -1059,6 +1176,8 @@ if __name__ == "__main__":
     verifymultiply(only, args.full)
     verifydivide(only, args.full)
     verifyabs(only, args.full)
+    verifyabs16(only, args.full)
+    verifyabs32(only, args.full)
     verifycmp(only, args.full)
     verifymathneg(only, args.full)
     verifyneg16(only, args.full)
