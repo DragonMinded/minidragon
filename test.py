@@ -812,6 +812,108 @@ def verifyucmp32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for ucmp32: {int(instructions/count)}")
 
 
+def verifyumin(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "umin":
+        return
+
+    print("Verifying umin...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(0, 256, 5 if full else 11):
+        for b in range(0, 256, 3 if full else 7):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {a}",
+                f"PUSHI {b}",
+                f"CALL umin",
+                f"HALT",
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            answer = min(a, b)
+            _assert(
+                cpu.ram[cpu.pc[0] + 1] == a,
+                f"umin changed stack value from {a} "
+                + f"to {cpu.ram[cpu.pc[0] + 1]}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc[0]] == b,
+                f"umin changed stack value from {b} to {cpu.ram[cpu.pc[0]]}!",
+            )
+            _assert(
+                cpu.a == answer,
+                f"Failed to umin({a}, {b}), "
+                + f"got {cpu.a} instead of {answer}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((a * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for umin: {int(cycles/count)}")
+    print(f"Average instructions for umin: {int(instructions/count)}")
+
+
+def verifyumax(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "umax":
+        return
+
+    print("Verifying umax...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(0, 256, 5 if full else 11):
+        for b in range(0, 256, 3 if full else 7):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {a}",
+                f"PUSHI {b}",
+                f"CALL umax",
+                f"HALT",
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            answer = max(a, b)
+            _assert(
+                cpu.ram[cpu.pc[0] + 1] == a,
+                f"umax changed stack value from {a} "
+                + f"to {cpu.ram[cpu.pc[0] + 1]}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc[0]] == b,
+                f"umax changed stack value from {b} to {cpu.ram[cpu.pc[0]]}!",
+            )
+            _assert(
+                cpu.a == answer,
+                f"Failed to umax({a}, {b}), "
+                + f"got {cpu.a} instead of {answer}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((a * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for umax: {int(cycles/count)}")
+    print(f"Average instructions for umax: {int(instructions/count)}")
+
+
 def verifymathneg(only: Optional[str], full: bool) -> None:
     if only is not None and only != "mathneg":
         return
@@ -1325,6 +1427,8 @@ if __name__ == "__main__":
     verifyucmp(only, args.full)
     verifyucmp16(only, args.full)
     verifyucmp32(only, args.full)
+    verifyumin(only, args.full)
+    verifyumax(only, args.full)
     verifymathneg(only, args.full)
     verifyneg16(only, args.full)
     verifyneg32(only, args.full)

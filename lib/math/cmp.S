@@ -294,3 +294,97 @@ ucmp32:
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
     LNGJUMP _ucmp_loop
+
+umin:
+    ; Given two unsigned integers on the stack, return the smaller of the
+    ; two in the A register. Does not mess with the numbers on the stack.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; To get the min of 5 and 7, call it like so:
+    ;     PUSH 5
+    ;     PUSH 7
+    ;     CALL umin
+    ;
+    ; Stack layout:
+    ; PC + 0 - temporary second number storage
+    ; PC + 1 - temporary first number storage
+    ; PC + 2 - return address
+    ; PC + 3 - return address
+    ; PC + 4 - second number
+    ; PC + 5 - first number
+
+    ; First, copy the first and second number so we can call ucmp.
+    ADDPCI 3
+    LOAD
+    SUBPCI 4
+    STORE
+    ADDPCI 3
+    LOAD
+    SUBPCI 4
+    STORE
+
+    ; Now, figure out which is less
+    CALL ucmp
+
+    ; Return the first number if 1st < 2nd, otherwise return second.
+    SHL
+    JRINC _umin_ge
+
+    INCPC
+    LOAD
+    INCPC
+    RET
+
+ _umin_ge:
+    ; First number is >= second number, return second number.
+    LOAD
+    ADDPCI 2
+    RET
+
+umax:
+    ; Given two unsigned integers on the stack, return the larger of the
+    ; two in the A register. Does not mess with the numbers on the stack.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; To get the max of 5 and 7, call it like so:
+    ;     PUSH 5
+    ;     PUSH 7
+    ;     CALL umax
+    ;
+    ; Stack layout:
+    ; PC + 0 - temporary second number storage
+    ; PC + 1 - temporary first number storage
+    ; PC + 2 - return address
+    ; PC + 3 - return address
+    ; PC + 4 - second number
+    ; PC + 5 - first number
+
+    ; First, copy the first and second number so we can call ucmp.
+    ADDPCI 3
+    LOAD
+    SUBPCI 4
+    STORE
+    ADDPCI 3
+    LOAD
+    SUBPCI 4
+    STORE
+
+    ; Now, figure out which is less
+    CALL ucmp
+
+    ; Return the first number if 1st > 2nd, otherwise return second.
+    SHL
+    JRIC _umax_le
+
+    INCPC
+    LOAD
+    INCPC
+    RET
+
+ _umax_le:
+    ; First number is >= second number, return second number.
+    LOAD
+    ADDPCI 2
+    RET
