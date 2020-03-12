@@ -613,6 +613,8 @@ def verifyabs(only: Optional[str], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
     with open("lib/math/abs.S", "r") as fp:
         abslines = fp.readlines()
 
@@ -622,6 +624,7 @@ def verifyabs(only: Optional[str], full: bool) -> None:
             f"SETA {x}",
             f"CALL abs",
             f"HALT",
+            *neglines,
             *abslines,
         ]))
         cpu = CPUCore(memory)
