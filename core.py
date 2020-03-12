@@ -171,7 +171,7 @@ def getint(
     allow_unsigned: bool = False,
     hint: Optional[str] = None,
 ) -> int:
-    intval = _getint(val)
+    intval = _getint(val, hint=hint)
 
     # Bounds check the integer.
     if intval > ((2 ** (bits - (1 if not allow_unsigned else 0))) - 1):
@@ -609,12 +609,12 @@ class PUSHIP(BaseInstruction):
     ) -> List[int]:
         try:
             # Try to grab the offset as a raw integer.
-            location = getint(parameter, 5)
+            location = getint(parameter, 5, hint=f"{mnemonic} {parameter}")
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter] - origin)
-                location = getint(parameter, 5)
+                location = getint(parameter, 5, hint=f"{mnemonic} {parameter}")
             else:
                 # We don't care about this value right now, fill it in as
                 # whatever. We'll get to it on the second pass.
@@ -695,7 +695,12 @@ class ADDPCI(BaseInstruction):
             _checkempty(mnemonic, parameter)
             return [0b11001000]
 
-        location = getint(parameter, 4, allow_unsigned=True) - 1
+        location = getint(
+            parameter,
+            4,
+            allow_unsigned=True,
+            hint=f"{mnemonic} {parameter}"
+        ) - 1
         if location > 7 or location < 0:
             raise ParameterOutOfRangeException(
                 f"Parameter out of range for "
@@ -767,7 +772,12 @@ class SUBPCI(BaseInstruction):
             _checkempty(mnemonic, parameter)
             return [0b11010000]
 
-        location = getint(parameter, 4, allow_unsigned=True) - 1
+        location = getint(
+            parameter,
+            4,
+            allow_unsigned=True,
+            hint=f"{mnemonic} {parameter}"
+        ) - 1
         if location > 7 or location < 0:
             raise ParameterOutOfRangeException(
                 f"Parameter out of range for "
@@ -1428,12 +1438,22 @@ class LNGJUMP(BaseStackInstruction):
 
         # Assume the user wanted to jump to an immediate or a label.
         try:
-            location = getint(parameter, 16)
+            location = getint(
+                parameter,
+                16,
+                allow_unsigned=True,
+                hint=f"{mnemonic} {parameter}",
+            )
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
-                location = getint(parameter, 16)
+                location = getint(
+                    parameter,
+                    16,
+                    allow_unsigned=True,
+                    hint=f"{mnemonic} {parameter}",
+                )
             else:
                 # We don't care about this value right now, fill it in as
                 # whatever.
@@ -1824,7 +1844,12 @@ class SETPC(BaseMacro):
         # Load immediate value into PC.
         # First, try to get this as an integer.
         try:
-            location = getint(parameter, 16, allow_unsigned=True)
+            location = getint(
+                parameter,
+                16,
+                allow_unsigned=True,
+                hint=f"{mnemonic} {parameter}",
+            )
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
@@ -1832,6 +1857,7 @@ class SETPC(BaseMacro):
                     str(labels[parameter]),
                     16,
                     allow_unsigned=True,
+                    hint=f"{mnemonic} {parameter}",
                 )
             else:
                 # Unfortunately this macro takes a variable number of
@@ -1876,7 +1902,7 @@ class JRIZ(BaseMacro):
     ) -> List[int]:
         try:
             # First, try as an integer.
-            location = getint(parameter, 6)
+            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -1916,7 +1942,7 @@ class JRINZ(BaseMacro):
     ) -> List[int]:
         try:
             # First, try as an integer.
-            location = getint(parameter, 6)
+            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -1956,7 +1982,7 @@ class JRIC(BaseMacro):
     ) -> List[int]:
         try:
             # First, try as an integer.
-            location = getint(parameter, 6)
+            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -1996,7 +2022,7 @@ class JRINC(BaseMacro):
     ) -> List[int]:
         try:
             # First, try as an integer.
-            location = getint(parameter, 6)
+            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -2036,12 +2062,22 @@ class LNGJUMPZ(BaseMacro):
     ) -> List[int]:
         try:
             # First, try as an integer.
-            location = getint(parameter, 16)
+            location = getint(
+                parameter,
+                16,
+                allow_unsigned=True,
+                hint=f"{mnemonic} {parameter}",
+            )
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
-                location = getint(parameter, 16)
+                location = getint(
+                    parameter,
+                    16,
+                    allow_unsigned=True,
+                    hint=f"{mnemonic} {parameter}",
+                )
             else:
                 # Assume nothing for now, will be filled in later
                 _checklabel(mnemonic, parameter, loose)
@@ -2074,12 +2110,22 @@ class LNGJUMPNZ(BaseMacro):
     ) -> List[int]:
         try:
             # First, try as an integer.
-            location = getint(parameter, 16)
+            location = getint(
+                parameter,
+                16,
+                allow_unsigned=True,
+                hint=f"{mnemonic} {parameter}",
+            )
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
-                location = getint(parameter, 16)
+                location = getint(
+                    parameter,
+                    16,
+                    allow_unsigned=True,
+                    hint=f"{mnemonic} {parameter}",
+                )
             else:
                 # Assume nothing for now, will be filled in later
                 _checklabel(mnemonic, parameter, loose)
@@ -2112,12 +2158,22 @@ class LNGJUMPC(BaseMacro):
     ) -> List[int]:
         try:
             # First, try as an integer.
-            location = getint(parameter, 16)
+            location = getint(
+                parameter,
+                16,
+                allow_unsigned=True,
+                hint=f"{mnemonic} {parameter}",
+            )
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
-                location = getint(parameter, 16)
+                location = getint(
+                    parameter,
+                    16,
+                    allow_unsigned=True,
+                    hint=f"{mnemonic} {parameter}",
+                )
             else:
                 # Assume nothing for now, will be filled in later
                 _checklabel(mnemonic, parameter, loose)
@@ -2150,12 +2206,22 @@ class LNGJUMPNC(BaseMacro):
     ) -> List[int]:
         try:
             # First, try as an integer.
-            location = getint(parameter, 16)
+            location = getint(
+                parameter,
+                16,
+                allow_unsigned=True,
+                hint=f"{mnemonic} {parameter}",
+            )
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
-                location = getint(parameter, 16)
+                location = getint(
+                    parameter,
+                    16,
+                    allow_unsigned=True,
+                    hint=f"{mnemonic} {parameter}",
+                )
             else:
                 # Assume nothing for now, will be filled in later
                 _checklabel(mnemonic, parameter, loose)
@@ -2209,11 +2275,21 @@ class CALL(BaseMacro):
         # Load immediate value into PC.
         # First, try to get this as an integer.
         try:
-            location = getint(parameter, 16)
+            location = getint(
+                parameter,
+                16,
+                allow_unsigned=True,
+                hint=f"{mnemonic} {parameter}",
+            )
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
-                location = getint(str(labels[parameter]), 16)
+                location = getint(
+                    str(labels[parameter]),
+                    16,
+                    allow_unsigned=True,
+                    hint=f"{mnemonic} {parameter}",
+                )
             else:
                 # We will fill this in later.
                 _checklabel(mnemonic, parameter, loose)
@@ -2247,7 +2323,11 @@ class CALLRI(BaseMacro):
     ) -> List[int]:
         try:
             # First, try as an integer.
-            location = getint(parameter, 6)
+            location = getint(
+                parameter,
+                6,
+                hint=f"{mnemonic} {parameter}",
+            )
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -2260,7 +2340,11 @@ class CALLRI(BaseMacro):
                 # Adjust backwards 2 so we can skip past our skip
                 # instruction.
                 relative_location = absolute_location - origin - 2
-                location = getint(str(relative_location), 6)
+                location = getint(
+                    str(relative_location),
+                    6,
+                    hint=f"{mnemonic} {parameter}",
+                )
             else:
                 # Assume nothing for now, will be filled in later
                 _checklabel(mnemonic, parameter, loose)
