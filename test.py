@@ -3,7 +3,14 @@ import argparse
 import os
 import struct
 from typing import List, Optional
-from core import CPUCore, assemble, bintoint
+from core import (
+    InvalidInstructionException,
+    ParameterOutOfRangeException,
+    CodeOutOfRangeException,
+    CPUCore,
+    assemble,
+    bintoint,
+)
 
 CLEAR_LINE = "\033[F\033[K"
 BACK_AND_CLEAR_LINE = "\033[F\033[K\033[F"
@@ -61,6 +68,136 @@ def getstring(cpu: CPUCore, location: int) -> str:
         string = string + chr(cpu.ram[location])
         location += 1
     return string
+
+
+def checkerror(fname: str, error: Exception) -> None:
+    try:
+        with open(fname, "r") as fp:
+            assemble(getlines(fp.read()))
+    except Exception as e:
+        exception = e
+    else:
+        _assert(False, f"Expected a {type(error).__name__} exception!")
+
+    _assert(
+        type(exception) == type(error),
+        f"Expected an exception {type(error).__name__} "
+        + f"but got {type(exception).__name__}!",
+    )
+    _assert(
+        exception.args[0] == error.args[0],
+        f"Expected a message {error.args[0]!r} but got {exception.args[0]!r}!",
+    )
+
+
+def verifyassembler(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "assembler":
+        return
+
+    print("Verifying assembler...")
+    checkerror(
+        "errors/invalidinstruction1.S",
+        InvalidInstructionException(
+            "Unrecognized instruction SHITPOST 5"
+        ),
+    )
+    checkerror(
+        "errors/invalidinstruction2.S",
+        InvalidInstructionException(
+            "Cannot have more than one parameter for instruction ADDI A, 1"),
+    )
+    checkerror(
+        "errors/overlap1.S",
+        CodeOutOfRangeException(
+            "Cannot place code/data ADDI 1 into section 0x0100, "
+            + "already occupied"
+        ),
+    )
+    checkerror(
+        "errors/oob1.S",
+        ParameterOutOfRangeException(
+            "Out of range integer 32 on instruction LOADI 32"
+        )
+    )
+    checkerror(
+        "errors/oob2.S",
+        ParameterOutOfRangeException(
+            "Out of range integer -33 on instruction LOADI -33"
+        )
+    )
+    checkerror(
+        "errors/oob3.S",
+        ParameterOutOfRangeException(
+            "Out of range integer 32 on instruction JRI 32"
+        )
+    )
+    checkerror(
+        "errors/oob4.S",
+        ParameterOutOfRangeException(
+            "Out of range integer -33 on instruction JRI -33")
+    )
+    checkerror(
+        "errors/oob5.S",
+        ParameterOutOfRangeException(
+            "Out of range integer 32 on instruction JRI 32")
+    )
+    checkerror(
+        "errors/oob6.S",
+        ParameterOutOfRangeException(
+            "Out of range integer -33 on instruction JRI -33")
+    )
+    checkerror(
+        "errors/oob7.S",
+        ParameterOutOfRangeException(
+            "Out of range integer 32 on instruction ADDI 32")
+    )
+    checkerror(
+        "errors/oob8.S",
+        ParameterOutOfRangeException(
+            "Out of range integer -33 on instruction ADDI -33")
+    )
+    checkerror(
+        "errors/missinglabel1.S",
+        ParameterOutOfRangeException(
+            "Missing label invalid_label for instruction JRI invalid_label"
+        )
+    )
+    checkerror(
+        "errors/invalidparameter1.S",
+        ParameterOutOfRangeException(
+            "Invalid parameter 123 for instruction NOP 123"
+        )
+    )
+    checkerror(
+        "errors/invalidparameter2.S",
+        ParameterOutOfRangeException(
+            "Invalid parameter 123 for instruction HALT 123"
+        )
+    )
+    checkerror(
+        "errors/invalidparameter3.S",
+        ParameterOutOfRangeException(
+            "Invalid parameter 123 for instruction ZERO 123"
+        )
+    )
+    checkerror(
+        "errors/invalidparameter4.S",
+        ParameterOutOfRangeException(
+            "Invalid parameter 123 for instruction INC 123"
+        )
+    )
+    checkerror(
+        "errors/invalidparameter5.S",
+        ParameterOutOfRangeException(
+            "Invalid parameter 123 for instruction DEC 123"
+        )
+    )
+    checkerror(
+        "errors/invalidparameter3.S",
+        ParameterOutOfRangeException(
+            "Invalid parameter 123 for instruction ZERO 123"
+        )
+    )
 
 
 def verifyloadi(only: Optional[str], full: bool) -> None:
@@ -1646,6 +1783,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     only = args.only.lower() if args.only else None
+
+    # Verify assembler errors
+    verifyassembler(only, args.full)
 
     # Raw instruction verification
     verifyloadi(only, args.full)

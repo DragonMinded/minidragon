@@ -44,6 +44,21 @@ def bintoint(binary: int) -> int:
     return struct.unpack("b", struct.pack("B", binary))[0]
 
 
+def _checkempty(mnemonic: str, parameter: str) -> None:
+    if parameter != "":
+        raise ParameterOutOfRangeException(
+            f"Invalid parameter {parameter} for instruction "
+            + f"{mnemonic} {parameter}"
+        ) from None
+
+
+def _checklabel(mnemonic: str, parameter: str, loose: bool) -> None:
+    if not loose:
+        raise ParameterOutOfRangeException(
+            f"Missing label {parameter} for instruction {mnemonic} {parameter}"
+        ) from None
+
+
 class BaseInstruction(ABC):
     # Whether this class handles opcodes represented by instruction.
     @abstractmethod
@@ -73,6 +88,7 @@ class BaseInstruction(ABC):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         ...
 
@@ -83,6 +99,18 @@ def instruction(obj: Callable) -> Callable:
 
 
 instructions: List[BaseInstruction] = []
+
+
+class InvalidInstructionException(Exception):
+    pass
+
+
+class ParameterOutOfRangeException(Exception):
+    pass
+
+
+class CodeOutOfRangeException(Exception):
+    pass
 
 
 def disassemble(instruction: int) -> str:
@@ -101,13 +129,15 @@ def decode(instruction: int) -> List["ControlSignals"]:
         if inst.handles(instruction):
             signals = inst.signals(instruction)
             if len(signals) > 15:
-                raise Exception("Instruction contains too many microcodes")
+                raise InvalidInstructionException(
+                    "Instruction contains too many microcodes"
+                )
             return signals
     else:
-        raise Exception("Instruction not implemented")
+        raise InvalidInstructionException("Instruction not implemented")
 
 
-def _getint(val: str) -> int:
+def _getint(val: str, allow_unsigned: bool = False, hint: Optional[str] = None) -> int:
     if val.strip()[:2] in {"0x", "0X"}:
         try:
             return int(val.strip(), 16)
@@ -125,18 +155,27 @@ def _getint(val: str) -> int:
     except ValueError:
         pass
 
-    raise Exception(f"Invalid integer {val}")
+    raise InvalidInstructionException(
+        f"Invalid integer {val}"
+        + f"{'' if hint is None else ' on instruction ' + hint}"
+    )
 
 
-def getint(val: str, bits: int) -> int:
+def getint(val: str, bits: int, allow_unsigned: bool = False, hint: Optional[str] = None) -> int:
     intval = _getint(val)
 
     # Bounds check the integer.
-    if intval > ((2 ** bits) - 1):
-        raise Exception(f"Out of range integer {val}")
+    if intval > ((2 ** (bits - (1 if not allow_unsigned else 0))) - 1):
+        raise ParameterOutOfRangeException(
+            f"Out of range integer {val}"
+            + f"{'' if hint is None else ' on instruction ' + hint}"
+        )
 
     if intval < 0 and abs(intval) > (2 ** (bits - 1)):
-        raise Exception(f"Out of range integer {val}")
+        raise ParameterOutOfRangeException(
+            f"Out of range integer {val}"
+            + f"{'' if hint is None else ' on instruction ' + hint}"
+        )
 
     if intval < 0:
         # Get unsigned representation.
@@ -164,29 +203,26 @@ def assemble(
     for mnemonic in mnemonics:
         # Verify that it isn't full already.
         if org in seen:
-            raise Exception(
-                f"Cannot place code/data into section " +
-                f"{hexstr(org, 4)}, already occupied!"
+            raise CodeOutOfRangeException(
+                f"Cannot place code/data {mnemonic} into section " +
+                f"0x{hexstr(org, 4)}, already occupied"
             )
 
         # Preprocessor directives.
         if mnemonic.startswith(".org "):
             # Origin directive
-            org = getint(mnemonic[5:], 16)
-            if org in seen:
-                raise Exception(
-                    f"Cannot place code into section {hexstr(org, 4)}, " +
-                    f"already occupied!"
-                )
+            org = getint(mnemonic[5:], 16, allow_unsigned=True)
         elif mnemonic.startswith(".byte "):
             # Data directive
-            val = getint(mnemonic[6:], 8)
+            val = getint(mnemonic[6:], 8, allow_unsigned=True)
             data[org] = val
+            seen.add(org)
             org += 1
         elif mnemonic.startswith(".char "):
             # Data directive
-            val = getint(str(ord(literal_eval(mnemonic[6:]))), 8)
+            val = getint(str(ord(literal_eval(mnemonic[6:]))), 8, allow_unsigned=True)
             data[org] = val
+            seen.add(org)
             org += 1
 
         # Labels.
@@ -200,8 +236,9 @@ def assemble(
             if " " in mnemonic:
                 mnemonic, param = mnemonic.split(" ", 1)
                 if " " in param:
-                    raise Exception(
-                        f"Cannot have more than one parameter for {mnemonic}!"
+                    raise InvalidInstructionException(
+                        f"Cannot have more than one parameter for instruction "
+                        + f"{mnemonic} {param}"
                     )
             else:
                 param = ""
@@ -213,12 +250,17 @@ def assemble(
                 if inst.assembles(mnemonic):
                     # Assemble without labels, telling the instruction to
                     # substitute whatever.
-                    for val in inst.vals(mnemonic, param, org, labels):
+                    for val in inst.vals(
+                        mnemonic, param, org, labels, loose=True
+                    ):
                         data[org] = val
+                        seen.add(org)
                         org += 1
                     break
             else:
-                raise Exception(f"Unrecognized instruction {mnemonic}!")
+                raise InvalidInstructionException(
+                    f"Unrecognized instruction {mnemonic} {param}"
+                )
 
     # Now, do the whole thing again, ignoring seen state and non-instructions
     # and let the instructions re-generate themselves with correct labels.
@@ -226,7 +268,7 @@ def assemble(
     for mnemonic in mnemonics:
         # Preprocessor directives.
         if mnemonic.startswith(".org "):
-            org = getint(mnemonic[5:], 16)
+            org = getint(mnemonic[5:], 16, allow_unsigned=True)
         elif mnemonic.startswith(".byte "):
             org += 1
         elif mnemonic.startswith(".char "):
@@ -240,8 +282,9 @@ def assemble(
             if " " in mnemonic:
                 mnemonic, param = mnemonic.split(" ", 1)
                 if " " in param:
-                    raise Exception(
-                        f"Cannot have more than one parameter for {mnemonic}!"
+                    raise InvalidInstructionException(
+                        f"Cannot have more than one parameter on instruction "
+                        + f"{mnemonic} {param}"
                     )
             else:
                 param = ""
@@ -253,12 +296,16 @@ def assemble(
                 if inst.assembles(mnemonic):
                     # Assemble without labels, telling the instruction to
                     # substitute whatever.
-                    for val in inst.vals(mnemonic, param, org, labels):
+                    for val in inst.vals(
+                        mnemonic, param, org, labels, loose=False
+                    ):
                         data[org] = val
                         org += 1
                     break
             else:
-                raise Exception(f"Unrecognized instruction {mnemonic}!")
+                raise InvalidInstructionException(
+                    f"Unrecognized instruction {mnemonic} {param}"
+                )
 
     # Finally, reformat as a list of tuples of memory address, memory value.
     return list(data.items())
@@ -304,26 +351,28 @@ class JRI(BaseInstruction):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         if mnemonic == "NOP":
-            if parameter != "":
-                raise Exception(f"Invalid parameter {parameter} for NOP!")
+            _checkempty(mnemonic, parameter)
             return [0b00000000]
         if mnemonic == "HALT":
-            if parameter != "":
-                raise Exception(f"Invalid parameter {parameter} for HALT!")
+            _checkempty(mnemonic, parameter)
             return [0b00111111]
 
         # A jump, relative to instruction. We need to handle labels.
         # First, try to get this as an integer.
         try:
-            location = getint(parameter, 6)
-        except Exception:
+            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter] - origin - 1)
-                location = getint(parameter, 6)
+                location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
             else:
+                # Verify that we do or don't need labels.
+                _checklabel(mnemonic, parameter, loose)
+
                 # We don't care about this value right now, fill it in as
                 # whatever.
                 location = 0b00111111
@@ -373,13 +422,13 @@ class LOADI(BaseInstruction):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         if mnemonic == "ZERO":
-            if parameter != "":
-                raise Exception(f"Invalid parameter {parameter} for ZERO!")
+            _checkempty(mnemonic, parameter)
             loadval = 0
         else:
-            loadval = getint(parameter, 6)
+            loadval = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
         return [0b01000000 | loadval]
 
 
@@ -435,17 +484,16 @@ class ADDI(BaseInstruction):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         if mnemonic == "INC":
-            if parameter != "":
-                raise Exception("No parameter required for INC mnemonic")
+            _checkempty(mnemonic, parameter)
             addval = 1
         elif mnemonic == "DEC":
-            if parameter != "":
-                raise Exception("No parameter required for DEC mnemonic")
+            _checkempty(mnemonic, parameter)
             addval = 0b00111111
         else:
-            addval = getint(parameter, 6)
+            addval = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
         return [0b10000000 | addval]
 
 
@@ -544,11 +592,12 @@ class PUSHIP(BaseInstruction):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # Try to grab the offset as a raw integer.
             location = getint(parameter, 5)
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter] - origin)
@@ -620,14 +669,15 @@ class ADDPCI(BaseInstruction):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         if mnemonic == "INCPC":
             if parameter != "":
                 raise Exception("INCPC takes no parameters!")
             return [0b11001000]
 
-        location = getint(parameter, 4) - 1
-        if location > 7:
+        location = getint(parameter, 4, allow_unsigned=True) - 1
+        if location > 7 or location < 0:
             raise Exception("Parameter out of range for INCPC!")
         return [0b11001000 + location]
 
@@ -689,14 +739,15 @@ class SUBPCI(BaseInstruction):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         if mnemonic == "DECPC":
             if parameter != "":
                 raise Exception("DECPC takes no parameters!")
             return [0b11010000]
 
-        location = getint(parameter, 4) - 1
-        if location > 7:
+        location = getint(parameter, 4, allow_unsigned=True) - 1
+        if location > 7 or location < 0:
             raise Exception("Parameter out of range for DECPC!")
         return [0b11010000 + location]
 
@@ -722,6 +773,7 @@ class BaseALUInstruction(BaseInstruction, ABC):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         if parameter != "":
             raise Exception(
@@ -1013,6 +1065,7 @@ class BaseMemoryInstruction(BaseInstruction, ABC):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         if parameter != "":
             raise Exception(
@@ -1242,6 +1295,7 @@ class SKIPIF(BaseInstruction):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         base = 0b11110000
 
@@ -1283,6 +1337,7 @@ class BaseStackInstruction(BaseInstruction, ABC):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         if parameter != "":
             raise Exception(
@@ -1343,6 +1398,7 @@ class LNGJUMP(BaseStackInstruction):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # We override the base because we technically take an immediate for
         # this opcode, its just stored in memory after the opcode itself.
@@ -1355,7 +1411,7 @@ class LNGJUMP(BaseStackInstruction):
         # Assume the user wanted to jump to an immediate or a label.
         try:
             location = getint(parameter, 16)
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
@@ -1689,9 +1745,10 @@ class SETA(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Load immediate 8-bit value into A.
-        aval = getint(parameter, 8)
+        aval = getint(parameter, 8, allow_unsigned=True, hint="{mnemonic} {parameter}")
 
         # Now, assemble the load and return that value
         return self.compile(origin, self._immtoa(aval))
@@ -1715,7 +1772,11 @@ class SETA(BaseMacro):
             # that it doesn't get extended, or the top bit is set, in
             # which case it will, but we'll override that by shifting
             # left twice anyway.
-            instructions.append(f"LOADI {val >> 2}")
+            if val & 0x80 != 0:
+                newval = bintoint((val >> 2) | 0xC0)
+            else:
+                newval = val >> 2
+            instructions.append(f"LOADI {newval}")
             instructions.append("SHL")
             instructions.append("SHL")
             if val & 0b00000011 != 0:
@@ -1734,15 +1795,16 @@ class SETPC(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Load immediate value into PC.
         # First, try to get this as an integer.
         try:
-            location = getint(parameter, 16)
-        except Exception:
+            location = getint(parameter, 16, allow_unsigned=True)
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
-                location = getint(str(labels[parameter]), 16)
+                location = getint(str(labels[parameter]), 16, allow_unsigned=True)
             else:
                 # Unfortunately this macro takes a variable number of
                 # instructions, due to us needing to potentially shift
@@ -1781,6 +1843,7 @@ class JRIZ(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # First, try as an integer.
@@ -1790,14 +1853,13 @@ class JRIZ(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]
                 # Adjust backwards 2 so we can skip past our skip
                 # instruction.
-                relative_location = absolute_location - origin - 2
-                location = getint(str(relative_location), 6)
+                location = absolute_location - origin - 2
             else:
                 # Assume nothing for now, will be filled in later
                 location = 0
@@ -1820,6 +1882,7 @@ class JRINZ(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # First, try as an integer.
@@ -1829,14 +1892,13 @@ class JRINZ(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]
                 # Adjust backwards 2 so we can skip past our skip
                 # instruction.
-                relative_location = absolute_location - origin - 2
-                location = getint(str(relative_location), 6)
+                location = absolute_location - origin - 2
             else:
                 # Assume nothing for now, will be filled in later
                 location = 0
@@ -1859,6 +1921,7 @@ class JRIC(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # First, try as an integer.
@@ -1868,14 +1931,13 @@ class JRIC(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]
                 # Adjust backwards 2 so we can skip past our skip
                 # instruction.
-                relative_location = absolute_location - origin - 2
-                location = getint(str(relative_location), 6)
+                location = absolute_location - origin - 2
             else:
                 # Assume nothing for now, will be filled in later
                 location = 0
@@ -1898,6 +1960,7 @@ class JRINC(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # First, try as an integer.
@@ -1907,14 +1970,13 @@ class JRINC(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]
                 # Adjust backwards 2 so we can skip past our skip
                 # instruction.
-                relative_location = absolute_location - origin - 2
-                location = getint(str(relative_location), 6)
+                location = absolute_location - origin - 2
             else:
                 # Assume nothing for now, will be filled in later
                 location = 0
@@ -1937,11 +1999,12 @@ class LNGJUMPZ(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # First, try as an integer.
             location = getint(parameter, 16)
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
@@ -1973,11 +2036,12 @@ class LNGJUMPNZ(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # First, try as an integer.
             location = getint(parameter, 16)
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
@@ -2009,11 +2073,12 @@ class LNGJUMPC(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # First, try as an integer.
             location = getint(parameter, 16)
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
@@ -2045,11 +2110,12 @@ class LNGJUMPNC(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # First, try as an integer.
             location = getint(parameter, 16)
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 parameter = str(labels[parameter])
@@ -2081,6 +2147,7 @@ class NEG(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         if parameter != "":
             raise Exception(f"Invalid parameter {parameter} for NEG!")
@@ -2101,12 +2168,13 @@ class CALL(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Load immediate value into PC.
         # First, try to get this as an integer.
         try:
             location = getint(parameter, 16)
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 location = getint(str(labels[parameter]), 16)
@@ -2138,6 +2206,7 @@ class CALLRI(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         try:
             # First, try as an integer.
@@ -2147,7 +2216,7 @@ class CALLRI(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except Exception:
+        except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]
@@ -2183,6 +2252,7 @@ class PUSH(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
         if parameter != "":
@@ -2203,6 +2273,7 @@ class STOREI(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
         return self.compile(origin, [f"SETA {parameter}", "STORE"])
@@ -2221,6 +2292,7 @@ class PUSHI(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
         return self.compile(origin, ["DECPC", f"SETA {parameter}", "STORE"])
@@ -2239,6 +2311,7 @@ class POP(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
         if parameter != "":
@@ -2259,6 +2332,7 @@ class POPADD(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
         if parameter != "":
@@ -2279,6 +2353,7 @@ class POPADC(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
         if parameter != "":
@@ -2299,6 +2374,7 @@ class POPAND(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
         if parameter != "":
@@ -2319,6 +2395,7 @@ class POPOR(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
         if parameter != "":
@@ -2339,6 +2416,7 @@ class POPXOR(BaseMacro):
         parameter: str,
         origin: int,
         labels: Dict[str, int],
+        loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
         if parameter != "":
