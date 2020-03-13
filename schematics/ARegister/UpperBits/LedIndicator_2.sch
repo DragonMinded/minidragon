@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 5 126
+Sheet 5 372
 Title ""
 Date ""
 Rev ""
@@ -15,15 +15,16 @@ Comment4 ""
 $EndDescr
 $Comp
 L Device:R R?
-U 1 1 5E29E938
+U 1 1 5E73FEB9
 P 1300 1300
-AR Path="/5E29E938" Ref="R?"  Part="1" 
-AR Path="/5E2D242B/5E29E938" Ref="R?"  Part="1" 
-AR Path="/5E309F18/5E29E938" Ref="R?"  Part="1" 
-AR Path="/5E30A748/5E29E938" Ref="R?"  Part="1" 
-AR Path="/5E30A74F/5E29E938" Ref="R?"  Part="1" 
-AR Path="/5E24FEBE/5E29E938" Ref="R?"  Part="1" 
-AR Path="/5E254933/5E29E938" Ref="R33"  Part="1" 
+AR Path="/5E73FEB9" Ref="R?"  Part="1" 
+AR Path="/5E2D242B/5E73FEB9" Ref="R?"  Part="1" 
+AR Path="/5E309F18/5E73FEB9" Ref="R?"  Part="1" 
+AR Path="/5E30A748/5E73FEB9" Ref="R?"  Part="1" 
+AR Path="/5E30A74F/5E73FEB9" Ref="R?"  Part="1" 
+AR Path="/5E24FEBE/5E73FEB9" Ref="R?"  Part="1" 
+AR Path="/5E254933/5E73FEB9" Ref="R33"  Part="1" 
+AR Path="/5E6909EF/5E73FF99/5E73FF6A/5E73FEB9" Ref="R?"  Part="1" 
 F 0 "R?" V 1093 1300 50  0000 C CNN
 F 1 "10K" V 1184 1300 50  0000 C CNN
 F 2 "Resistor_THT:R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal" V 1230 1300 50  0001 C CNN
@@ -33,15 +34,16 @@ F 3 "~" H 1300 1300 50  0001 C CNN
 $EndComp
 $Comp
 L 2n2222:2N2222 Q?
-U 1 1 5E693BF1
+U 1 1 5E73FF78
 P 1700 1300
-AR Path="/5E693BF1" Ref="Q?"  Part="1" 
-AR Path="/5E2D242B/5E693BF1" Ref="Q?"  Part="1" 
-AR Path="/5E309F18/5E693BF1" Ref="Q?"  Part="1" 
-AR Path="/5E30A748/5E693BF1" Ref="Q?"  Part="1" 
-AR Path="/5E30A74F/5E693BF1" Ref="Q?"  Part="1" 
-AR Path="/5E24FEBE/5E693BF1" Ref="Q?"  Part="1" 
-AR Path="/5E254933/5E693BF1" Ref="Q24"  Part="1" 
+AR Path="/5E73FF78" Ref="Q?"  Part="1" 
+AR Path="/5E2D242B/5E73FF78" Ref="Q?"  Part="1" 
+AR Path="/5E309F18/5E73FF78" Ref="Q?"  Part="1" 
+AR Path="/5E30A748/5E73FF78" Ref="Q?"  Part="1" 
+AR Path="/5E30A74F/5E73FF78" Ref="Q?"  Part="1" 
+AR Path="/5E24FEBE/5E73FF78" Ref="Q?"  Part="1" 
+AR Path="/5E254933/5E73FF78" Ref="Q24"  Part="1" 
+AR Path="/5E6909EF/5E73FF99/5E73FF6A/5E73FF78" Ref="Q?"  Part="1" 
 F 0 "Q?" H 1890 1346 50  0000 L CNN
 F 1 "2N2222" H 1890 1255 50  0000 L CNN
 F 2 "Package_TO_SOT_THT:TO-92_Inline" H 1900 1225 50  0001 L CIN
@@ -60,6 +62,7 @@ AR Path="/5E30A748/5E5F7481" Ref="R?"  Part="1"
 AR Path="/5E30A74F/5E5F7481" Ref="R?"  Part="1" 
 AR Path="/5E24FEBE/5E5F7481" Ref="R?"  Part="1" 
 AR Path="/5E254933/5E5F7481" Ref="R34"  Part="1" 
+AR Path="/5E6909EF/5E73FF99/5E73FF6A/5E5F7481" Ref="R?"  Part="1" 
 F 0 "R?" V 1593 2050 50  0000 C CNN
 F 1 "1K" V 1684 2050 50  0000 C CNN
 F 2 "Resistor_THT:R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal" V 1730 2050 50  0001 C CNN
@@ -113,15 +116,16 @@ Wire Wire Line
 	1150 1300 1050 1300
 $Comp
 L Device:LED D?
-U 1 1 5E5F7589
+U 1 1 5E73FF1B
 P 1800 1700
-AR Path="/5E5F7589" Ref="D?"  Part="1" 
-AR Path="/5E2D242B/5E5F7589" Ref="D?"  Part="1" 
-AR Path="/5E309F18/5E5F7589" Ref="D?"  Part="1" 
-AR Path="/5E30A748/5E5F7589" Ref="D?"  Part="1" 
-AR Path="/5E30A74F/5E5F7589" Ref="D?"  Part="1" 
-AR Path="/5E24FEBE/5E5F7589" Ref="D?"  Part="1" 
-AR Path="/5E254933/5E5F7589" Ref="D4"  Part="1" 
+AR Path="/5E73FF1B" Ref="D?"  Part="1" 
+AR Path="/5E2D242B/5E73FF1B" Ref="D?"  Part="1" 
+AR Path="/5E309F18/5E73FF1B" Ref="D?"  Part="1" 
+AR Path="/5E30A748/5E73FF1B" Ref="D?"  Part="1" 
+AR Path="/5E30A74F/5E73FF1B" Ref="D?"  Part="1" 
+AR Path="/5E24FEBE/5E73FF1B" Ref="D?"  Part="1" 
+AR Path="/5E254933/5E73FF1B" Ref="D4"  Part="1" 
+AR Path="/5E6909EF/5E73FF99/5E73FF6A/5E73FF1B" Ref="D?"  Part="1" 
 F 0 "D?" V 1850 1800 50  0000 C CNN
 F 1 "LED" V 1850 1550 50  0000 C CNN
 F 2 "LED_THT:LED_D5.0mm" H 1800 1700 50  0001 C CNN

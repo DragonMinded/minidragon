@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 17 126
+Sheet 17 372
 Title ""
 Date ""
 Rev ""
@@ -54,13 +54,13 @@ Text HLabel 1000 1650 0    50   BiDi ~ 0
 BUS_6
 Text HLabel 1000 1750 0    50   BiDi ~ 0
 BUS_5
-Text HLabel 1000 2950 0    50   Input ~ 0
+Text HLabel 1000 2950 0    50   BiDi ~ 0
 BUS_4
-Text HLabel 1000 3050 0    50   Input ~ 0
+Text HLabel 1000 3050 0    50   BiDi ~ 0
 BUS_3
-Text HLabel 1000 3150 0    50   Input ~ 0
+Text HLabel 1000 3150 0    50   BiDi ~ 0
 BUS_2
-Text HLabel 1000 3250 0    50   Input ~ 0
+Text HLabel 1000 3250 0    50   BiDi ~ 0
 BUS_1
 Wire Wire Line
 	1000 3250 1500 3250

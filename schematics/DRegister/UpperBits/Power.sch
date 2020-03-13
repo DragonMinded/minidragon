@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 2 126
+Sheet 2 372
 Title ""
 Date ""
 Rev ""
@@ -71,11 +71,11 @@ F 3 "" H 2200 1200 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E693CFB
+U 1 1 5EB6F401
 P 2700 1200
-AR Path="/5E693CFB" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E693CFB" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E693CFB" Ref="#PWR011"  Part="1" 
+AR Path="/5EB6F401" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5EB6F401" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F401" Ref="#PWR011"  Part="1" 
 F 0 "#PWR?" H 2700 1050 50  0001 C CNN
 F 1 "VCC" H 2650 1350 50  0000 C CNN
 F 2 "" H 2700 1200 50  0001 C CNN
@@ -99,11 +99,11 @@ F 3 "" H 3200 1200 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E5F7633
+U 1 1 5EB6F376
 P 2300 1200
-AR Path="/5E5F7633" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E5F7633" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E5F7633" Ref="#PWR010"  Part="1" 
+AR Path="/5EB6F376" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5EB6F376" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F376" Ref="#PWR010"  Part="1" 
 F 0 "#PWR?" H 2300 950 50  0001 C CNN
 F 1 "GND" H 2250 1050 50  0000 C CNN
 F 2 "" H 2300 1200 50  0001 C CNN
@@ -153,11 +153,11 @@ Wire Wire Line
 	3300 1200 3300 1350
 $Comp
 L Device:C C?
-U 1 1 5E693BEB
+U 1 1 5EB6F3B8
 P 1550 1100
-AR Path="/5E693BEB" Ref="C?"  Part="1" 
-AR Path="/5E2B237B/5E693BEB" Ref="C?"  Part="1" 
-AR Path="/5E24DAE5/5E693BEB" Ref="C1"  Part="1" 
+AR Path="/5EB6F3B8" Ref="C?"  Part="1" 
+AR Path="/5E2B237B/5EB6F3B8" Ref="C?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F3B8" Ref="C1"  Part="1" 
 F 0 "C?" V 1298 1100 50  0000 C CNN
 F 1 "0.1uF" V 1400 1150 50  0000 C CNN
 F 2 "Capacitor_THT:C_Disc_D4.3mm_W1.9mm_P5.00mm" H 1588 950 50  0001 C CNN
@@ -167,11 +167,11 @@ F 3 "~" H 1550 1100 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E693BEC
+U 1 1 5EB6F3B9
 P 1700 1100
-AR Path="/5E693BEC" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E693BEC" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E693BEC" Ref="#PWR05"  Part="1" 
+AR Path="/5EB6F3B9" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5EB6F3B9" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F3B9" Ref="#PWR05"  Part="1" 
 F 0 "#PWR?" H 1700 850 50  0001 C CNN
 F 1 "GND" H 1750 950 50  0000 C CNN
 F 2 "" H 1700 1100 50  0001 C CNN
@@ -195,11 +195,11 @@ F 3 "" H 1400 1100 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E5F7639
+U 1 1 5EB6F378
 P 1400 1650
-AR Path="/5E5F7639" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E5F7639" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E5F7639" Ref="#PWR02"  Part="1" 
+AR Path="/5EB6F378" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5EB6F378" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F378" Ref="#PWR02"  Part="1" 
 F 0 "#PWR?" H 1400 1500 50  0001 C CNN
 F 1 "VCC" H 1350 1800 50  0000 C CNN
 F 2 "" H 1400 1650 50  0001 C CNN
@@ -223,11 +223,11 @@ F 3 "~" H 1550 1650 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E5E4E03
+U 1 1 5EB6F330
 P 1700 1650
-AR Path="/5E5E4E03" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E5E4E03" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E5E4E03" Ref="#PWR06"  Part="1" 
+AR Path="/5EB6F330" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5EB6F330" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F330" Ref="#PWR06"  Part="1" 
 F 0 "#PWR?" H 1700 1400 50  0001 C CNN
 F 1 "GND" H 1750 1500 50  0000 C CNN
 F 2 "" H 1700 1650 50  0001 C CNN
@@ -237,11 +237,11 @@ F 3 "" H 1700 1650 50  0001 C CNN
 $EndComp
 $Comp
 L Device:C C?
-U 1 1 5E693C9F
+U 1 1 5EB6F3E6
 P 1550 2200
-AR Path="/5E693C9F" Ref="C?"  Part="1" 
-AR Path="/5E2B237B/5E693C9F" Ref="C?"  Part="1" 
-AR Path="/5E24DAE5/5E693C9F" Ref="C3"  Part="1" 
+AR Path="/5EB6F3E6" Ref="C?"  Part="1" 
+AR Path="/5E2B237B/5EB6F3E6" Ref="C?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F3E6" Ref="C3"  Part="1" 
 F 0 "C?" V 1298 2200 50  0000 C CNN
 F 1 "0.1uF" V 1400 2250 50  0000 C CNN
 F 2 "Capacitor_THT:C_Disc_D4.3mm_W1.9mm_P5.00mm" H 1588 2050 50  0001 C CNN
@@ -251,11 +251,11 @@ F 3 "~" H 1550 2200 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E693CA0
+U 1 1 5EB6F3E7
 P 1700 2200
-AR Path="/5E693CA0" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E693CA0" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E693CA0" Ref="#PWR07"  Part="1" 
+AR Path="/5EB6F3E7" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5EB6F3E7" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F3E7" Ref="#PWR07"  Part="1" 
 F 0 "#PWR?" H 1700 1950 50  0001 C CNN
 F 1 "GND" H 1750 2050 50  0000 C CNN
 F 2 "" H 1700 2200 50  0001 C CNN
@@ -265,11 +265,11 @@ F 3 "" H 1700 2200 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E693CA1
+U 1 1 5EB6F3E8
 P 1400 2200
-AR Path="/5E693CA1" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E693CA1" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E693CA1" Ref="#PWR03"  Part="1" 
+AR Path="/5EB6F3E8" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5EB6F3E8" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F3E8" Ref="#PWR03"  Part="1" 
 F 0 "#PWR?" H 1400 2050 50  0001 C CNN
 F 1 "VCC" H 1350 2350 50  0000 C CNN
 F 2 "" H 1400 2200 50  0001 C CNN
@@ -293,11 +293,11 @@ F 3 "" H 1400 2750 50  0001 C CNN
 $EndComp
 $Comp
 L Device:C C?
-U 1 1 5E5F7598
+U 1 1 5EB6F362
 P 1550 2750
-AR Path="/5E5F7598" Ref="C?"  Part="1" 
-AR Path="/5E2B237B/5E5F7598" Ref="C?"  Part="1" 
-AR Path="/5E24DAE5/5E5F7598" Ref="C4"  Part="1" 
+AR Path="/5EB6F362" Ref="C?"  Part="1" 
+AR Path="/5E2B237B/5EB6F362" Ref="C?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F362" Ref="C4"  Part="1" 
 F 0 "C?" V 1298 2750 50  0000 C CNN
 F 1 "0.1uF" V 1400 2800 50  0000 C CNN
 F 2 "Capacitor_THT:C_Disc_D4.3mm_W1.9mm_P5.00mm" H 1588 2600 50  0001 C CNN
@@ -307,11 +307,11 @@ F 3 "~" H 1550 2750 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E693BA8
+U 1 1 5EB6F3A6
 P 1700 2750
-AR Path="/5E693BA8" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E693BA8" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E693BA8" Ref="#PWR08"  Part="1" 
+AR Path="/5EB6F3A6" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5EB6F3A6" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5EB6F3A6" Ref="#PWR08"  Part="1" 
 F 0 "#PWR?" H 1700 2500 50  0001 C CNN
 F 1 "GND" H 1750 2600 50  0000 C CNN
 F 2 "" H 1700 2750 50  0001 C CNN

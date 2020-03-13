@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 4 126
+Sheet 4 372
 Title ""
 Date ""
 Rev ""
@@ -33,15 +33,15 @@ F 3 "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf" H 1150 1350 50  000
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E693C71
+U 1 1 5E73DA42
 P 1250 1000
-AR Path="/5E693C71" Ref="#PWR?"  Part="1" 
-AR Path="/5E2DE646/5E693C71" Ref="#PWR?"  Part="1" 
-AR Path="/5E309F1C/5E693C71" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A74C/5E693C71" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A753/5E693C71" Ref="#PWR?"  Part="1" 
-AR Path="/5E24E63C/5E693C71" Ref="#PWR?"  Part="1" 
-AR Path="/5E251FF1/5E693C71" Ref="#PWR040"  Part="1" 
+AR Path="/5E73DA42" Ref="#PWR?"  Part="1" 
+AR Path="/5E2DE646/5E73DA42" Ref="#PWR?"  Part="1" 
+AR Path="/5E309F1C/5E73DA42" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A74C/5E73DA42" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A753/5E73DA42" Ref="#PWR?"  Part="1" 
+AR Path="/5E24E63C/5E73DA42" Ref="#PWR?"  Part="1" 
+AR Path="/5E251FF1/5E73DA42" Ref="#PWR040"  Part="1" 
 F 0 "#PWR?" H 1250 850 50  0001 C CNN
 F 1 "VCC" H 1267 1173 50  0000 C CNN
 F 2 "" H 1250 1000 50  0001 C CNN

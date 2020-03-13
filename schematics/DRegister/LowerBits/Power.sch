@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 2 126
+Sheet 2 372
 Title ""
 Date ""
 Rev ""
@@ -15,11 +15,11 @@ Comment4 ""
 $EndDescr
 $Comp
 L Connector:Conn_01x02_Male J?
-U 1 1 5E5E4DF5
+U 1 1 5E73D995
 P 2200 1550
-AR Path="/5E5E4DF5" Ref="J?"  Part="1" 
-AR Path="/5E2B237B/5E5E4DF5" Ref="J?"  Part="1" 
-AR Path="/5E24DAE5/5E5E4DF5" Ref="J6"  Part="1" 
+AR Path="/5E73D995" Ref="J?"  Part="1" 
+AR Path="/5E2B237B/5E73D995" Ref="J?"  Part="1" 
+AR Path="/5E24DAE5/5E73D995" Ref="J6"  Part="1" 
 F 0 "J?" V 2354 1362 50  0000 R CNN
 F 1 "Power" V 2263 1362 50  0000 R CNN
 F 2 "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical" H 2200 1550 50  0001 C CNN
@@ -57,11 +57,11 @@ F 3 "~" H 3200 1550 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E693C6D
+U 1 1 5E73DA3F
 P 2200 1200
-AR Path="/5E693C6D" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E693C6D" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E693C6D" Ref="#PWR09"  Part="1" 
+AR Path="/5E73DA3F" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5E73DA3F" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5E73DA3F" Ref="#PWR09"  Part="1" 
 F 0 "#PWR?" H 2200 1050 50  0001 C CNN
 F 1 "VCC" H 2150 1350 50  0000 C CNN
 F 2 "" H 2200 1200 50  0001 C CNN
@@ -71,11 +71,11 @@ F 3 "" H 2200 1200 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E693B73
+U 1 1 5E73DA05
 P 2700 1200
-AR Path="/5E693B73" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E693B73" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E693B73" Ref="#PWR011"  Part="1" 
+AR Path="/5E73DA05" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5E73DA05" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5E73DA05" Ref="#PWR011"  Part="1" 
 F 0 "#PWR?" H 2700 1050 50  0001 C CNN
 F 1 "VCC" H 2650 1350 50  0000 C CNN
 F 2 "" H 2700 1200 50  0001 C CNN
@@ -85,11 +85,11 @@ F 3 "" H 2700 1200 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E693C6E
+U 1 1 5E73DA40
 P 3200 1200
-AR Path="/5E693C6E" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E693C6E" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E693C6E" Ref="#PWR013"  Part="1" 
+AR Path="/5E73DA40" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5E73DA40" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5E73DA40" Ref="#PWR013"  Part="1" 
 F 0 "#PWR?" H 3200 1050 50  0001 C CNN
 F 1 "VCC" H 3150 1350 50  0000 C CNN
 F 2 "" H 3200 1200 50  0001 C CNN
@@ -127,11 +127,11 @@ F 3 "" H 2800 1200 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E2C1774
+U 1 1 5E73D975
 P 3300 1200
-AR Path="/5E2C1774" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E2C1774" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E2C1774" Ref="#PWR014"  Part="1" 
+AR Path="/5E73D975" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5E73D975" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5E73D975" Ref="#PWR014"  Part="1" 
 F 0 "#PWR?" H 3300 950 50  0001 C CNN
 F 1 "GND" H 3250 1050 50  0000 C CNN
 F 2 "" H 3300 1200 50  0001 C CNN
@@ -181,11 +181,11 @@ F 3 "" H 1700 1100 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E5F7535
+U 1 1 5E73D9BB
 P 1400 1100
-AR Path="/5E5F7535" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E5F7535" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E5F7535" Ref="#PWR01"  Part="1" 
+AR Path="/5E73D9BB" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5E73D9BB" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5E73D9BB" Ref="#PWR01"  Part="1" 
 F 0 "#PWR?" H 1400 950 50  0001 C CNN
 F 1 "VCC" H 1350 1250 50  0000 C CNN
 F 2 "" H 1400 1100 50  0001 C CNN
@@ -195,11 +195,11 @@ F 3 "" H 1400 1100 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E2C1792
+U 1 1 5E73D978
 P 1400 1650
-AR Path="/5E2C1792" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E2C1792" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E2C1792" Ref="#PWR02"  Part="1" 
+AR Path="/5E73D978" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5E73D978" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5E73D978" Ref="#PWR02"  Part="1" 
 F 0 "#PWR?" H 1400 1500 50  0001 C CNN
 F 1 "VCC" H 1350 1800 50  0000 C CNN
 F 2 "" H 1400 1650 50  0001 C CNN
@@ -209,11 +209,11 @@ F 3 "" H 1400 1650 50  0001 C CNN
 $EndComp
 $Comp
 L Device:C C?
-U 1 1 5E693B79
+U 1 1 5E73DA06
 P 1550 1650
-AR Path="/5E693B79" Ref="C?"  Part="1" 
-AR Path="/5E2B237B/5E693B79" Ref="C?"  Part="1" 
-AR Path="/5E24DAE5/5E693B79" Ref="C2"  Part="1" 
+AR Path="/5E73DA06" Ref="C?"  Part="1" 
+AR Path="/5E2B237B/5E73DA06" Ref="C?"  Part="1" 
+AR Path="/5E24DAE5/5E73DA06" Ref="C2"  Part="1" 
 F 0 "C?" V 1298 1650 50  0000 C CNN
 F 1 "0.1uF" V 1400 1700 50  0000 C CNN
 F 2 "Capacitor_THT:C_Disc_D4.3mm_W1.9mm_P5.00mm" H 1588 1500 50  0001 C CNN
@@ -223,11 +223,11 @@ F 3 "~" H 1550 1650 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E693B7A
+U 1 1 5E73DA07
 P 1700 1650
-AR Path="/5E693B7A" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E693B7A" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E693B7A" Ref="#PWR06"  Part="1" 
+AR Path="/5E73DA07" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5E73DA07" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5E73DA07" Ref="#PWR06"  Part="1" 
 F 0 "#PWR?" H 1700 1400 50  0001 C CNN
 F 1 "GND" H 1750 1500 50  0000 C CNN
 F 2 "" H 1700 1650 50  0001 C CNN
@@ -237,11 +237,11 @@ F 3 "" H 1700 1650 50  0001 C CNN
 $EndComp
 $Comp
 L Device:C C?
-U 1 1 5E693C21
+U 1 1 5E73DA31
 P 1550 2200
-AR Path="/5E693C21" Ref="C?"  Part="1" 
-AR Path="/5E2B237B/5E693C21" Ref="C?"  Part="1" 
-AR Path="/5E24DAE5/5E693C21" Ref="C3"  Part="1" 
+AR Path="/5E73DA31" Ref="C?"  Part="1" 
+AR Path="/5E2B237B/5E73DA31" Ref="C?"  Part="1" 
+AR Path="/5E24DAE5/5E73DA31" Ref="C3"  Part="1" 
 F 0 "C?" V 1298 2200 50  0000 C CNN
 F 1 "0.1uF" V 1400 2250 50  0000 C CNN
 F 2 "Capacitor_THT:C_Disc_D4.3mm_W1.9mm_P5.00mm" H 1588 2050 50  0001 C CNN
@@ -251,11 +251,11 @@ F 3 "~" H 1550 2200 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E258F8E
+U 1 1 5E73D95F
 P 1700 2200
-AR Path="/5E258F8E" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E258F8E" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E258F8E" Ref="#PWR07"  Part="1" 
+AR Path="/5E73D95F" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5E73D95F" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5E73D95F" Ref="#PWR07"  Part="1" 
 F 0 "#PWR?" H 1700 1950 50  0001 C CNN
 F 1 "GND" H 1750 2050 50  0000 C CNN
 F 2 "" H 1700 2200 50  0001 C CNN
@@ -279,11 +279,11 @@ F 3 "" H 1400 2200 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E5F7487
+U 1 1 5E73D9A5
 P 1400 2750
-AR Path="/5E5F7487" Ref="#PWR?"  Part="1" 
-AR Path="/5E2B237B/5E5F7487" Ref="#PWR?"  Part="1" 
-AR Path="/5E24DAE5/5E5F7487" Ref="#PWR04"  Part="1" 
+AR Path="/5E73D9A5" Ref="#PWR?"  Part="1" 
+AR Path="/5E2B237B/5E73D9A5" Ref="#PWR?"  Part="1" 
+AR Path="/5E24DAE5/5E73D9A5" Ref="#PWR04"  Part="1" 
 F 0 "#PWR?" H 1400 2600 50  0001 C CNN
 F 1 "VCC" H 1350 2900 50  0000 C CNN
 F 2 "" H 1400 2750 50  0001 C CNN

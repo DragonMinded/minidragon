@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 14 126
+Sheet 14 372
 Title ""
 Date ""
 Rev ""
@@ -29,7 +29,7 @@ F9 "BUS_8" B L 3000 4100 50
 $EndSheet
 $Sheet
 S 3000 2500 500  1000
-U 5E620860
+U 5E6BD485
 F0 "Data Bus Upper Bits" 50
 F1 "DataBusUpper.sch" 50
 F2 "BUS_1" B L 3000 3300 50 

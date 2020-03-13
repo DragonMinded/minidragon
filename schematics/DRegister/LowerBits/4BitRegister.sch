@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 58 126
+Sheet 58 372
 Title "Transistor 4-Bit Register"
 Date "2020-01-19"
 Rev "1"
@@ -15,13 +15,13 @@ Comment4 ""
 $EndDescr
 $Sheet
 S 1000 3000 500  500 
-U 5E693B9A
+U 5E73DA0F
 F0 "D Lower Power" 50
 F1 "Power.sch" 50
 $EndSheet
 $Sheet
 S 1400 1000 1100 200 
-U 5E24DFB3
+U 5E73D956
 F0 "D Lower Clock Edge Detection" 50
 F1 "ClockDetect.sch" 50
 F2 "ClkIn" I L 1400 1100 50 
@@ -29,14 +29,14 @@ F3 "EdgeOut" O R 2500 1100 50
 $EndSheet
 $Sheet
 S 4000 1000 1000 200 
-U 5E24FEBE
+U 5E73D957
 F0 "D Lower LED Indicator Bit 1" 50
 F1 "LEDIndicator.sch" 50
 F2 "D" I L 4000 1100 50 
 $EndSheet
 $Sheet
 S 3000 1000 700  550 
-U 5E25190F
+U 5E73D958
 F0 "D Lower D Flip Flop Bit 1" 50
 F1 "DFlipFlop.sch" 50
 F2 "EN2" I L 3000 1200 50 
@@ -68,7 +68,7 @@ F3 "D" I L 4000 4600 50
 $EndSheet
 $Sheet
 S 4000 2500 1000 200 
-U 5E5F7576
+U 5E73D9C5
 F0 "D Lower Buffer Out Bit 2" 50
 F1 "Buffer_2.sch" 50
 F2 "BufOut" O R 5000 2600 50 
@@ -176,7 +176,7 @@ Wire Wire Line
 	1200 1100 1400 1100
 $Sheet
 S 3000 3000 700  550 
-U 5E2A6AA1
+U 5E73D963
 F0 "D Lower D Flip Flop Bit 3" 50
 F1 "DFlipFlop_3.sch" 50
 F2 "EN2" I L 3000 3200 50 
@@ -224,7 +224,7 @@ Wire Wire Line
 Connection ~ 2900 2650
 $Sheet
 S 3000 4000 700  600 
-U 5E693BC0
+U 5E73DA1B
 F0 "D Lower D Flip Flop Bit 4" 50
 F1 "DFlipFlop_4.sch" 50
 F2 "EN2" I L 3000 4200 50 
@@ -287,7 +287,7 @@ Text HLabel 5800 2300 2    50   Output ~ 0
 Q4
 $Sheet
 S 4000 3500 1000 200 
-U 5E5F746C
+U 5E73D9A3
 F0 "D Lower Buffer Out Bit 3" 50
 F1 "Buffer_3.sch" 50
 F2 "BufOut" O R 5000 3600 50 
@@ -295,7 +295,7 @@ F3 "D" I L 4000 3600 50
 $EndSheet
 $Sheet
 S 4000 4000 1000 200 
-U 5E693B10
+U 5E73D9EE
 F0 "D Lower LED Indicator Bit 4" 50
 F1 "LEDIndicator_4.sch" 50
 F2 "D" I L 4000 4100 50 
