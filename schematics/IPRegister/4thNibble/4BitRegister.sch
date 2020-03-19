@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 198 372
+Sheet 198 373
 Title "Transistor 4-Bit Register"
 Date "2020-01-19"
 Rev "1"

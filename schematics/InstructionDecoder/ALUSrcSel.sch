@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 370 372
+Sheet 370 373
 Title "Transistor 2-to-4 Selector"
 Date "2020-01-18"
 Rev "1"

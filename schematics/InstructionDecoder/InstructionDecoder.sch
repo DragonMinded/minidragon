@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 368 372
+Sheet 369 373
 Title ""
 Date ""
 Rev ""
@@ -171,4 +171,6 @@ Wire Wire Line
 	9300 5850 9300 5750
 Wire Wire Line
 	9300 5750 9500 5750
+Text HLabel 9500 4100 2    50   Output ~ 0
+MCODE_RST
 $EndSCHEMATC
