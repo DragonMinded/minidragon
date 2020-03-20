@@ -343,7 +343,7 @@ class JRI(BaseInstruction):
     def signals(self, instruction: int) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                imm_output=True,
+                imm_6_output=True,
                 b_input=True,
             ),
             ControlSignals(
@@ -410,7 +410,7 @@ class LOADI(BaseInstruction):
     def signals(self, instruction: int) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                imm_output=True,
+                imm_6_output=True,
                 a_input=True,
             ),
             ControlSignals(
@@ -464,7 +464,7 @@ class ADDI(BaseInstruction):
     def signals(self, instruction: int) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                imm_output=True,
+                imm_6_output=True,
                 b_input=True,
             ),
             ControlSignals(
@@ -519,6 +519,10 @@ class PUSHIP(BaseInstruction):
         return instruction & 0b11111000 == 0b11000000
 
     def mnemonic(self, instruction: int) -> str:
+        # Cleverly, we ensured that the sign-extend portion of the instruction
+        # is zeros by choosing where in our number space to place it. This
+        # means we can only have a positive offset, but we don't need new
+        # hardware to handle just this instruction.
         integer = bintoint(sign_extend(instruction & 0x3F, 5) & 0xFF)
         return f"PUSHIP {integer}"
 
@@ -540,7 +544,7 @@ class PUSHIP(BaseInstruction):
             ),
             # Store the immediate value zero-extended into B.
             ControlSignals(
-                imm_output=True,
+                imm_6_output=True,
                 b_input=True,
             ),
             # Add the immediate value to the current IP, store
@@ -569,7 +573,7 @@ class PUSHIP(BaseInstruction):
             ),
             # Store the immediate value zero-extended into B.
             ControlSignals(
-                imm_output=True,
+                imm_6_output=True,
                 b_input=True,
             ),
             # Add the immediate value to the current IP, store
@@ -640,10 +644,12 @@ class ADDPCI(BaseInstruction):
     # Add immediate to the P+C virtual register.
 
     def handles(self, instruction: int) -> bool:
-        return instruction & 0b11111000 == 0b11001000
+        return instruction & 0b11111000 == 0b11010000
 
     def mnemonic(self, instruction: int) -> str:
-        integer = (instruction & 0b111) + 1
+        # Technically, we look at the bottom 4 bits, and this instruction
+        # is specifically placed to have a zero in the 4th bit position.
+        integer = bintoint(sign_extend(instruction & 0xF, 3) & 0xFF) + 1
         if integer == 1:
             return "INCPC"
         else:
@@ -652,32 +658,29 @@ class ADDPCI(BaseInstruction):
     def signals(self, instruction: int) -> List["ControlSignals"]:
         signals = [
             ControlSignals(
+                imm_4_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_PC,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                p_input=True,
+                c_input=True,
+            ),
+            ControlSignals(
                 z_output=True,
                 b_input=True,
             ),
-        ]
-
-        for _ in range((instruction & 0b111) + 1):
-            signals.append(
-                ControlSignals(
-                    alu_src=ControlSignals.ALU_SRC_PC,
-                    alu_op=ALU.OPERATION_ADD,
-                    carry=ControlSignals.CARRY_SET,
-                    alu_output=True,
-                    p_input=True,
-                    c_input=True,
-                )
-            )
-
-        signals.append(
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ControlSignals.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
-            )
-        )
+            ),
+        ]
         return signals
 
     def assembles(self, mnemonic: str) -> bool:
@@ -693,7 +696,7 @@ class ADDPCI(BaseInstruction):
     ) -> List[int]:
         if mnemonic == "INCPC":
             _checkempty(mnemonic, parameter)
-            return [0b11001000]
+            return [0b11010000]
 
         location = getint(
             parameter,
@@ -706,7 +709,7 @@ class ADDPCI(BaseInstruction):
                 f"Parameter out of range for "
                 + f"instruction {mnemonic} {parameter}"
             )
-        return [0b11001000 + location]
+        return [0b11010000 | (location & 0b111)]
 
 
 @instruction
@@ -714,10 +717,10 @@ class SUBPCI(BaseInstruction):
     # Add immediate to the P+C virtual register.
 
     def handles(self, instruction: int) -> bool:
-        return instruction & 0b11111000 == 0b11010000
+        return instruction & 0b11111000 == 0b11011000
 
     def mnemonic(self, instruction: int) -> str:
-        integer = (instruction & 0b111) + 1
+        integer = -bintoint(sign_extend(instruction & 0xF, 3) & 0xFF)
         if integer == 1:
             return "DECPC"
         else:
@@ -726,23 +729,17 @@ class SUBPCI(BaseInstruction):
     def signals(self, instruction: int) -> List["ControlSignals"]:
         signals = [
             ControlSignals(
+                imm_4_output=True,
                 b_input=True,
             ),
-        ]
-
-        for _ in range((instruction & 0b111) + 1):
-            signals.append(
-                ControlSignals(
-                    alu_src=ControlSignals.ALU_SRC_PC,
-                    alu_op=ALU.OPERATION_ADD,
-                    carry=ControlSignals.CARRY_CLEAR,
-                    alu_output=True,
-                    p_input=True,
-                    c_input=True,
-                )
-            )
-
-        signals.extend([
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_PC,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                p_input=True,
+                c_input=True,
+            ),
             ControlSignals(
                 z_output=True,
                 b_input=True,
@@ -753,8 +750,8 @@ class SUBPCI(BaseInstruction):
                 carry=ControlSignals.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
-            )
-        ])
+            ),
+        ]
         return signals
 
     def assembles(self, mnemonic: str) -> bool:
@@ -770,20 +767,20 @@ class SUBPCI(BaseInstruction):
     ) -> List[int]:
         if mnemonic == "DECPC":
             _checkempty(mnemonic, parameter)
-            return [0b11010000]
+            return [0b11011111]
 
         location = getint(
             parameter,
             4,
             allow_unsigned=True,
             hint=f"{mnemonic} {parameter}"
-        ) - 1
-        if location > 7 or location < 0:
+        )
+        if location > 8 or location < 1:
             raise ParameterOutOfRangeException(
                 f"Parameter out of range for "
                 + f"instruction {mnemonic} {parameter}"
             )
-        return [0b11010000 + location]
+        return [0b11011000 | ((-location) & 0b111)]
 
 
 class BaseALUInstruction(BaseInstruction, ABC):
@@ -2569,7 +2566,9 @@ class ControlSignals:
         # 8 bits, output on low 8 bits of the bus, from high 8 bits of ALU
         alu_low_output: Optional[bool] = None,
         # 6 bits sign-extended to 8, output on low 8 bits of the bus
-        imm_output: Optional[bool] = None,
+        imm_6_output: Optional[bool] = None,
+        # 4 bits sign-extended to 8, output on low 8 bits of the bus
+        imm_4_output: Optional[bool] = None,
         # 8 bits, output on low 8 bits of the bus
         a_output: Optional[bool] = None,
         # 8 bits, output on top 8 bits of the bus
@@ -2612,7 +2611,8 @@ class ControlSignals:
         self.ip_input = ip_input or False
         self.alu_output = alu_output or False
         self.alu_low_output = alu_low_output or False
-        self.imm_output = imm_output or False
+        self.imm_6_output = imm_6_output or False
+        self.imm_4_output = imm_4_output or False
         self.z_output = z_output or False
         self.a_input = a_input or False
         self.a_output = a_output or False
@@ -2997,7 +2997,12 @@ class CPUCore:
                     (self.data & 0xFF00) +
                     ((self.alu.result >> 8) & 0xFF)
                 )
-            if instruction.imm_output:
+            if instruction.imm_4_output:
+                self.data = (
+                    (self.data & 0xFF00) +
+                    (sign_extend(self.ir, 3) & 0xFF)
+                )
+            if instruction.imm_6_output:
                 self.data = (
                     (self.data & 0xFF00) +
                     (sign_extend(self.ir, 5) & 0xFF)

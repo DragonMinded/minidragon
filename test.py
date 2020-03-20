@@ -9,6 +9,7 @@ from core import (
     CodeOutOfRangeException,
     CPUCore,
     assemble,
+    disassemble,
     bintoint,
 )
 
@@ -214,6 +215,20 @@ def verifyloadi(only: Optional[str], full: bool) -> None:
         rununtilhalt(cpu)
         _assert(bintoint(cpu.a) == i, f"Failed to load {i} into A register!")
 
+        memory = getmemory(f"""
+            LOADI {i}
+        """)
+        if i == 0:
+            _assert(
+                disassemble(memory[0]) == f"ZERO",
+                f"Failed to disassemble LOADI {i}!",
+            )
+        else:
+            _assert(
+                disassemble(memory[0]) == f"LOADI {i}",
+                f"Failed to disassemble LOADI {i}!",
+            )
+
 
 def verifyaddi(only: Optional[str], full: bool) -> None:
     if only is not None and only != "addi":
@@ -232,6 +247,25 @@ def verifyaddi(only: Optional[str], full: bool) -> None:
             bintoint(cpu.a) == (i + 5),
             f"Failed to add {i} to A register!"
         )
+
+        memory = getmemory(f"""
+            ADDI {i}
+        """)
+        if i == -1:
+            _assert(
+                disassemble(memory[0]) == f"DEC",
+                f"Failed to disassemble ADDI {i}!",
+            )
+        elif i == 1:
+            _assert(
+                disassemble(memory[0]) == f"INC",
+                f"Failed to disassemble ADDI {i}!",
+            )
+        else:
+            _assert(
+                disassemble(memory[0]) == f"ADDI {i}",
+                f"Failed to disassemble ADDI {i}!",
+            )
 
 
 def verifyseta(only: Optional[str], full: bool) -> None:
@@ -321,7 +355,6 @@ def verifyaddpci(only: Optional[str], full: bool) -> None:
         return
 
     print("Verifying ADDPCI...")
-    print("0% complete...")
     for i in range(1, 9):
         memory = getmemory(f"""
             SETPC 0x01FA
@@ -335,7 +368,20 @@ def verifyaddpci(only: Optional[str], full: bool) -> None:
             f"Failed to ADDPCI {i}!",
         )
         _assert(cpu.c[0] == (0x01FA + i) & 0xFF, f"Failed to ADDPCI {i}!")
-    print(BACK_AND_CLEAR_LINE)
+
+        memory = getmemory(f"""
+            ADDPCI {i}
+        """)
+        if i == 1:
+            _assert(
+                disassemble(memory[0]) == f"INCPC",
+                f"Failed to disassemble ADDPCI {i}!",
+            )
+        else:
+            _assert(
+                disassemble(memory[0]) == f"ADDPCI {i}",
+                f"Failed to disassemble ADDPCI {i}!",
+            )
 
 
 def verifysubpci(only: Optional[str], full: bool) -> None:
@@ -343,7 +389,6 @@ def verifysubpci(only: Optional[str], full: bool) -> None:
         return
 
     print("Verifying SUBPCI...")
-    print("0% complete...")
     for i in range(1, 9):
         memory = getmemory(f"""
             SETPC 0x0204
@@ -357,7 +402,20 @@ def verifysubpci(only: Optional[str], full: bool) -> None:
             f"Failed to SUBPCI {i}!",
         )
         _assert(cpu.c[0] == (0x0204 - i) & 0xFF, f"Failed to SUBPCI {i}!")
-    print(BACK_AND_CLEAR_LINE)
+
+        memory = getmemory(f"""
+            SUBPCI {i}
+        """)
+        if i == 1:
+            _assert(
+                disassemble(memory[0]) == f"DECPC",
+                f"Failed to disassemble SUBPCI {i}!",
+            )
+        else:
+            _assert(
+                disassemble(memory[0]) == f"SUBPCI {i}",
+                f"Failed to disassemble SUBPCI {i}!",
+            )
 
 
 def verifyumult(only: Optional[str], full: bool) -> None:
@@ -618,6 +676,9 @@ def verifyabs(only: Optional[str], full: bool) -> None:
     with open("lib/math/abs.S", "r") as fp:
         abslines = fp.readlines()
 
+    cycles = 0
+    instructions = 0
+    count = 0
     for x in range(-127, 128):
         memory = getmemory(os.linesep.join([
             *initlines,
@@ -633,6 +694,12 @@ def verifyabs(only: Optional[str], full: bool) -> None:
             cpu.a == abs(x),
             f"Failed to abs({x}), got {cpu.a} instead of {x}!",
         )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for abs: {int(cycles/count)}")
+    print(f"Average instructions for abs: {int(instructions/count)}")
 
 
 def verifyabs16(only: Optional[str], full: bool) -> None:
@@ -1464,6 +1531,9 @@ def verifystrlen(only: Optional[str], full: bool) -> None:
     with open("lib/string/strlen.S", "r") as fp:
         liblines = fp.readlines()
 
+    cycles = 0
+    instructions = 0
+    count = 0
     for string in [
         "a test",
         "the quick brown fox jumps over the lazy dog",
@@ -1498,6 +1568,12 @@ def verifystrlen(only: Optional[str], full: bool) -> None:
             f"Failed to strlen({string!r}), "
             + f"got {cpu.a} instead of {len(string)}",
         )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for strlen: {int(cycles/count)}")
+    print(f"Average instructions for strlen: {int(instructions/count)}")
 
 
 def verifystrcpy(only: Optional[str], full: bool) -> None:
@@ -1511,6 +1587,9 @@ def verifystrcpy(only: Optional[str], full: bool) -> None:
     with open("lib/string/strcpy.S", "r") as fp:
         liblines = fp.readlines()
 
+    cycles = 0
+    instructions = 0
+    count = 0
     for string in [
         "a test",
         "the quick brown fox jumps over the lazy dog",
@@ -1557,6 +1636,12 @@ def verifystrcpy(only: Optional[str], full: bool) -> None:
             f"Failed to strcpy(&{string!r}, 0x2000), "
             + f"got {getstring(cpu, 0x2000)!r} instead of {string!r}!",
         )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for strcpy: {int(cycles/count)}")
+    print(f"Average instructions for strcpy: {int(instructions/count)}")
 
 
 def verifystrcat(only: Optional[str], full: bool) -> None:
@@ -1570,6 +1655,9 @@ def verifystrcat(only: Optional[str], full: bool) -> None:
     with open("lib/string/strcat.S", "r") as fp:
         liblines = fp.readlines()
 
+    cycles = 0
+    instructions = 0
+    count = 0
     for concatenation in [
         " and more",
         "",
@@ -1631,6 +1719,12 @@ def verifystrcat(only: Optional[str], full: bool) -> None:
                 + f"got {getstring(cpu, 0x2000)!r} "
                 + f"instead of {(string + concatenation)!r}!",
             )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for strcat: {int(cycles/count)}")
+    print(f"Average instructions for strcat: {int(instructions/count)}")
 
 
 def verifystrcmp(only: Optional[str], full: bool) -> None:
@@ -1646,6 +1740,9 @@ def verifystrcmp(only: Optional[str], full: bool) -> None:
     with open("lib/string/strcmp.S", "r") as fp:
         liblines = fp.readlines()
 
+    cycles = 0
+    instructions = 0
+    count = 0
     for source in [
         "a test",
         "the quick brown fox jumps over the lazy dog",
@@ -1699,18 +1796,24 @@ def verifystrcmp(only: Optional[str], full: bool) -> None:
             )
             _assert(
                 stack_source == 0x1000,
-                f"strcat changed stack source from {0x1000} "
+                f"strcmp changed stack source from {0x1000} "
                 + f"to {stack_source}!",
             )
             _assert(
                 stack_dest == 0x2000,
-                f"strcat changed stack source from {0x2000} to {stack_dest}!",
+                f"strcmp changed stack source from {0x2000} to {stack_dest}!",
             )
             _assert(
                 bintoint(cpu.a) == answer,
                 f"Failed to strcmp(&{source!r}, &{destination!r}), "
                 + f"got {bintoint(cpu.a)} instead of {answer}!",
             )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for strcmp: {int(cycles/count)}")
+    print(f"Average instructions for strcmp: {int(instructions/count)}")
 
 
 def verifyitoa(only: Optional[str], full: bool) -> None:

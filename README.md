@@ -110,14 +110,14 @@ The 8-bit space for a single opcode is split up in order to make it possible to 
 0 1 x x x x x x   LOADI imm                           imm -> A
 1 0 x x x x x x   ADDI imm                            A + imm -> A
 
-<b>y y y y y y y y   stack immediate op</b>
+<b>1 1 0 y y y y y   stack immediate op</b>
 1 1 0 0 0 x x x   push IP + immediate                 PC - 2 > PC, IP + imm > [PC]
 
-<b>1 1 0 0 1 y y y   pc add op</b>
-1 1 0 0 1 x x x   Add immediate to PC                 PC + imm + 1 > PC
+<b>1 1 0 y y y y y   pc add op</b>
+1 1 0 1 0 x x x   Add immediate to PC                 PC + imm + 1 > PC
 
-<b>1 1 0 1 0 y y y   pc subtract op</b>
-1 1 0 1 0 x x x   Subtract immediate from PC          PC - imm - 1 > PC
+<b>1 1 0 y y y y y   pc subtract op</b>
+1 1 0 1 1 x x x   Subtract immediate from PC          PC - imm - 1 > PC
 
 <b>1 1 1 0 0 y y y   arithmetic op</b>
 1 1 1 0 0 0 0 0   invert A                            ~A > A
