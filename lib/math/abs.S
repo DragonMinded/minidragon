@@ -17,15 +17,14 @@ abs:
 
     ; Now, check if it is negative.
     SHL
+    POP
     JRIC _abs_negative
 
     ; Its already positive, so just return it.
-    POP
     RET
 
 _abs_negative:
     ; Gotta two's compliment it.
-    POP
     NEG
     RET
 
