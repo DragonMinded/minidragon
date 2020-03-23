@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 7 374
+Sheet 7 404
 Title "NAND Gate"
 Date "2019-12-22"
 Rev "1"
