@@ -72,7 +72,7 @@ class BaseInstruction(ABC):
 
     # The control signals for a CPU implementing this instruction.
     @abstractmethod
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         ...
 
     # Whether this class handles mnemonics represented by mnemonic.
@@ -127,7 +127,7 @@ def decode(instruction: int) -> List["ControlSignals"]:
 
     for inst in instructions:
         if inst.handles(instruction):
-            signals = inst.signals(instruction)
+            signals = inst.signals()
             if len(signals) > 15:
                 raise InvalidInstructionException(
                     "Instruction contains too many microcodes"
@@ -340,7 +340,7 @@ class JRI(BaseInstruction):
         else:
             return f"JRI {jumppoint}"
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 imm_6_output=True,
@@ -407,7 +407,7 @@ class LOADI(BaseInstruction):
         else:
             return f"LOADI {integer}"
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 imm_6_output=True,
@@ -461,7 +461,7 @@ class ADDI(BaseInstruction):
         else:
             return f"ADDI {integer}"
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 imm_6_output=True,
@@ -526,7 +526,7 @@ class PUSHIP(BaseInstruction):
         integer = bintoint(sign_extend(instruction & 0x3F, 5) & 0xFF)
         return f"PUSHIP {integer}"
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             # First, preload the B register with negative 1 so we can decrement
             # the PC register.
@@ -655,7 +655,7 @@ class ADDPCI(BaseInstruction):
         else:
             return f"ADDPCI {integer}"
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         signals = [
             ControlSignals(
                 imm_4_output=True,
@@ -726,7 +726,7 @@ class SUBPCI(BaseInstruction):
         else:
             return f"SUBPCI {integer}"
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         signals = [
             ControlSignals(
                 imm_4_output=True,
@@ -816,7 +816,7 @@ class INV(BaseALUInstruction):
 
     opcode = 0b000
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
@@ -845,7 +845,7 @@ class ADD(BaseALUInstruction):
 
     opcode = 0b001
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 address_src=ControlSignals.ADDRESS_SRC_PC,
@@ -880,7 +880,7 @@ class ADC(BaseALUInstruction):
 
     opcode = 0b010
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 address_src=ControlSignals.ADDRESS_SRC_PC,
@@ -915,7 +915,7 @@ class AND(BaseALUInstruction):
 
     opcode = 0b011
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 address_src=ControlSignals.ADDRESS_SRC_PC,
@@ -950,7 +950,7 @@ class OR(BaseALUInstruction):
 
     opcode = 0b100
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 address_src=ControlSignals.ADDRESS_SRC_PC,
@@ -985,7 +985,7 @@ class XOR(BaseALUInstruction):
 
     opcode = 0b101
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 address_src=ControlSignals.ADDRESS_SRC_PC,
@@ -1020,7 +1020,7 @@ class SHL(BaseALUInstruction):
 
     opcode = 0b110
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
@@ -1049,7 +1049,7 @@ class SHR(BaseALUInstruction):
 
     opcode = 0b111
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
@@ -1105,7 +1105,7 @@ class ATOP(BaseMemoryInstruction):
 
     opcode = 0b000
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             # We can cheat here to save on microcodes, since both p and
             # b input on different halves of the bus, and both a_high and
@@ -1132,7 +1132,7 @@ class ATOC(BaseMemoryInstruction):
 
     opcode = 0b001
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 c_input=True,
@@ -1158,7 +1158,7 @@ class PTOA(BaseMemoryInstruction):
 
     opcode = 0b010
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             # To save on control signals, we are routing through the ALU.
             # We do this by adding zero to the PC and taking that output.
@@ -1189,7 +1189,7 @@ class CTOA(BaseMemoryInstruction):
 
     opcode = 0b011
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             # To save on control signals, we are routing through the ALU.
             # We do this by adding zero to the PC and taking that output.
@@ -1220,7 +1220,7 @@ class LOAD(BaseMemoryInstruction):
 
     opcode = 0b100
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 address_src=ControlSignals.ADDRESS_SRC_PC,
@@ -1247,7 +1247,7 @@ class STORE(BaseMemoryInstruction):
 
     opcode = 0b101
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 address_src=ControlSignals.ADDRESS_SRC_PC,
@@ -1291,7 +1291,7 @@ class SKIPIF(BaseInstruction):
 
         return f"SKIPIF {flag}"
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         # Skip next instruction if:
         # - 0b010 = CF set
         # - 0b011 = CF clear
@@ -1374,7 +1374,7 @@ class LNGJUMP(BaseStackInstruction):
     # Jump to 16-bit immediate value stored directly after instruction.
     opcode = 0b000
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             # First, increment the IP so we can get the address of
             # the upper byte.
@@ -1465,7 +1465,7 @@ class SWAP(BaseStackInstruction):
     # Swap PC and SPC registers.
     opcode = 0b001
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 z_output=True,
@@ -1488,7 +1488,7 @@ class ADDPC(BaseStackInstruction):
     # virtual register.
     opcode = 0b010
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
                 a_output=True,
@@ -1522,7 +1522,7 @@ class POPIP(BaseStackInstruction):
     # to IP.
     opcode = 0b011
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             # First, preload the B register with zero so we can increment.
             # the PC register.
@@ -1576,7 +1576,7 @@ class PUSHSPC(BaseStackInstruction):
 
     opcode = 0b100
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             # First, preload the B register with negative one so we
             # can decrement the PC register.
@@ -1671,7 +1671,7 @@ class POPSPC(BaseStackInstruction):
     # to SPC.
     opcode = 0b101
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         return [
             # First, preload the B register with zero so we can increment.
             # the PC register.
@@ -1751,7 +1751,7 @@ class BaseMacro(BaseInstruction):
             "a mnemonic!"
         )
 
-    def signals(self, instruction: int) -> List["ControlSignals"]:
+    def signals(self) -> List["ControlSignals"]:
         raise Exception(
             "We don't handle any opcodes so we should never be asked for "
             "signals!"
@@ -2538,16 +2538,16 @@ class POPXOR(BaseMacro):
 
 class ControlSignals:
 
-    ALU_SRC_A = 0
-    ALU_SRC_IP = 2
-    ALU_SRC_PC = 3
+    ALU_SRC_A = 1
+    ALU_SRC_PC = 2
+    ALU_SRC_IP = 3
 
-    CARRY_CLEAR = 0
     CARRY_SET = 1
     CARRY_FROM_FLAGS = 2
+    CARRY_CLEAR = 3
 
-    ADDRESS_SRC_IP = 0
-    ADDRESS_SRC_PC = 1
+    ADDRESS_SRC_PC = 0
+    ADDRESS_SRC_IP = 1
 
     def __init__(
         self,
@@ -2604,10 +2604,12 @@ class ControlSignals:
 
         pc_swap: Optional[bool] = None,
     ) -> None:
-        self.alu_src = alu_src or self.ALU_SRC_A
-        self.carry = carry or self.CARRY_CLEAR
-        self.alu_op = alu_op or ALU.OPERATION_ADD
-        self.address_src = address_src or self.ADDRESS_SRC_IP
+        self.alu_src = alu_src if alu_src is not None else self.ALU_SRC_IP
+        self.carry = carry if carry is not None else self.CARRY_CLEAR
+        self.alu_op = alu_op if alu_op is not None else ALU.OPERATION_NULL
+        self.address_src = (
+            address_src if address_src is not None else self.ADDRESS_SRC_IP
+        )
         self.ip_input = ip_input or False
         self.alu_output = alu_output or False
         self.alu_low_output = alu_low_output or False
@@ -2655,6 +2657,8 @@ class ALU:
     # Exclusive or an 8-bit value in "A" against an 8-bit value in "B".
     # Carry never set. Zero set if result is zero.
     OPERATION_XOR = 6
+    # No operation, output indeterminate.
+    OPERATION_NULL = 7
 
     def __init__(self, op: int, a: int, b: int, carry: bool) -> None:
         self.op = op
@@ -2678,6 +2682,8 @@ class ALU:
             return (self.a | self.b) & 0xFF
         if self.op == self.OPERATION_XOR:
             return (self.a ^ self.b) & 0xFF
+        if self.op == self.OPERATION_NULL:
+            return 0xFF
         raise Exception("Not implemented!")
 
     @property
@@ -2696,7 +2702,8 @@ class ALU:
             self.OPERATION_INV,
             self.OPERATION_AND,
             self.OPERATION_OR,
-            self.OPERATION_XOR
+            self.OPERATION_XOR,
+            self.OPERATION_NULL,
         ]:
             return False
         raise Exception("Not implemented!")
@@ -2721,6 +2728,8 @@ class ALU:
             return ((self.a | self.b) & 0xFF) == 0
         if self.op == self.OPERATION_XOR:
             return ((self.a ^ self.b) & 0xFF) == 0
+        if self.op == self.OPERATION_NULL:
+            return False
         raise Exception("Not implemented!")
 
 
