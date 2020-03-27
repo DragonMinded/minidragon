@@ -142,20 +142,32 @@ def _getint(
     allow_unsigned: bool = False,
     hint: Optional[str] = None,
 ) -> int:
-    if val.strip()[:2] in {"0x", "0X"}:
+    val = val.strip()
+
+    if (
+        (val[0] == '"' and val[-1] == '"') or
+        (val[0] == "'" and val[-1] == "'")
+    ):
+        # ascii character
         try:
-            return int(val.strip(), 16)
+            return ord(literal_eval(val))
         except ValueError:
             pass
 
-    if val.strip()[:2] in {"0b", "0B"}:
+    if val[:2] in {"0x", "0X"}:
         try:
-            return int(val.strip(), 2)
+            return int(val, 16)
+        except ValueError:
+            pass
+
+    if val[:2] in {"0b", "0B"}:
+        try:
+            return int(val, 2)
         except ValueError:
             pass
 
     try:
-        return int(val.strip())
+        return int(val)
     except ValueError:
         pass
 
@@ -237,6 +249,17 @@ def assemble(
             data[org] = val
             seen.add(org)
             org += 1
+        elif mnemonic.startswith(".str "):
+            # Data directive
+            for char in literal_eval(mnemonic[6:]):
+                val = getint(
+                    str(ord(char)),
+                    8,
+                    allow_unsigned=True,
+                )
+                data[org] = val
+                seen.add(org)
+                org += 1
 
         # Labels.
         elif mnemonic.endswith(":"):
@@ -286,6 +309,9 @@ def assemble(
             org += 1
         elif mnemonic.startswith(".char "):
             org += 1
+        elif mnemonic.startswith(".str "):
+            for char in literal_eval(mnemonic[6:]):
+                org += 1
         # Labels.
         elif mnemonic.endswith(":"):
             pass

@@ -1,7 +1,3 @@
-_itoa_locals:
-    .char "0"
-    .char "-"
-
 itoa:
     ; Given an integer in the A register and a pointer on the stack
     ; to output a string to, converts the value in the A register to
@@ -116,10 +112,7 @@ _itoa_loop:
 
     ; Now, load the zero character constant so we can change the
     ; raw integer value to a character.
-    SWAP
-    SETPC _itoa_locals
-    LOAD
-    SWAP
+    SETA "0"
 
     ; Update the remainder to be a character.
     ADD
@@ -158,11 +151,7 @@ _itoa_negative_check:
     JRIZ _itoa_copy
 
     ; It is negative, output a '-' sign.
-    SWAP
-    SETPC _itoa_locals
-    INCPC
-    LOAD
-    SWAP
+    SETA "-"
 
     ; We already advanced to our output buffer location above.
     POPSPC
