@@ -61,6 +61,36 @@ if __name__ == "__main__":
         if operation in ["", "c"]:
             cpu.tick()
             cpu.print()
+        elif operation in ["r"]:
+            # Advance past the current RET, if we're on one.
+            cpu.tick()
+            cpu.print()
+            while cpu.mnemonic != "POPIP":
+                cpu.tick()
+                cpu.print()
+        elif operation in ["s"]:
+            # Somewhat complicated, we want to recursively skip
+            # this current function.
+            depth = 0
+            while True:
+                insn, *_ = cpu.mnemonic.split(" ", 1)
+                cpu.tick()
+                cpu.print()
+
+                if insn == "PUSHIP":
+                    depth += 1
+                elif insn == "POPIP":
+                    depth -= 1
+
+                # If we hit the end of our run, exit.
+                if depth == 0:
+                    break
+        elif operation in ["h"]:
+            while True:
+                if cpu.mnemonic == "HALT":
+                    break
+                cpu.tick()
+                cpu.print()
         elif operation in ["p"]:
             cpu.print()
         elif operation in ["m"]:
@@ -76,6 +106,9 @@ if __name__ == "__main__":
 
         elif operation in ["?"]:
             print("c - Continue")
+            print("s - Step over")
+            print("r - Run until RET")
+            print("h - Run until HALT")
             print("p - Print")
             print("m - Memory contents")
             print("d - Disassemble memory")
