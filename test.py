@@ -42,7 +42,7 @@ def getmemory(instr: str) -> List[int]:
 
 def rununtilhalt(cpu: CPUCore) -> None:
     while True:
-        if cpu.ir == 0b00111111:
+        if cpu.mnemonic == "HALT":
             return
         cpu.tick()
 
@@ -1870,6 +1870,74 @@ def verifyitoa(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for itoa: {int(instructions/count)}")
 
 
+def verifyatoi(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "atoi":
+        return
+
+    print("Verifying atoi...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/multiply.S", "r") as fp:
+        multiplylines = fp.readlines()
+    with open("lib/conversion/atoi.S", "r") as fp:
+        atoilines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(-128, 128, 1 if full else 7):
+        if x < 0:
+            prefixes = {"", " ", "  "}
+        else:
+            prefixes = {"", " ", "  ", "+", " +", "  +"}
+
+        for prefix in prefixes:
+            for suffix in {"", " and some", "!"}:
+                numstr = f"{prefix}{x}"
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    "LNGJUMP code",
+                    ".org 0x1000",
+                    "string:",
+                    *[f".char {c!r}" for c in numstr],
+                    *[f".char {c!r}" for c in suffix],
+                    ".byte 0x00",
+                    "code:",
+                    "SWAP",
+                    "SETPC string",
+                    "SWAP",
+                    "PUSHSPC",
+                    "CALL atoi",
+                    "HALT",
+                    *atoilines,
+                    *multiplylines,
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                stack_input = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+                _assert(
+                    stack_input == (0x1000 + len(numstr)),
+                    f"atoi expected stack {hex(0x1000 + len(numstr))} "
+                    + f"but got {hex(stack_input)}!",
+                )
+                _assert(
+                    bintoint(cpu.a) == x,
+                    f"Failed to atoi({numstr}), "
+                    + f"got {bintoint(cpu.a)} instead of {x}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+        print(f"{CLEAR_LINE}{int(((x + 128) * 100) / 256)}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for atoi: {int(cycles/count)}")
+    print(f"Average instructions for atoi: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -1933,3 +2001,4 @@ if __name__ == "__main__":
 
     # Conversion library verification
     verifyitoa(only, args.full)
+    verifyatoi(only, args.full)

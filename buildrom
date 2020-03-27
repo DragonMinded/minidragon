@@ -17,4 +17,5 @@ python3 assembler.py \
     lib/string/strcpy.S \
     lib/string/strlen.S \
     lib/string/strcmp.S \
-    lib/conversion/itoa.S
+    lib/conversion/itoa.S \
+    lib/conversion/atoi.S
