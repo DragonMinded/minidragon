@@ -251,7 +251,7 @@ def assemble(
             org += 1
         elif mnemonic.startswith(".str "):
             # Data directive
-            for char in literal_eval(mnemonic[6:]):
+            for char in literal_eval(mnemonic[5:]):
                 val = getint(
                     str(ord(char)),
                     8,
@@ -314,7 +314,7 @@ def assemble(
         elif mnemonic.startswith(".char "):
             org += 1
         elif mnemonic.startswith(".str "):
-            for char in literal_eval(mnemonic[6:]):
+            for char in literal_eval(mnemonic[5:]):
                 org += 1
         # Labels.
         elif mnemonic.endswith(":"):
@@ -2959,6 +2959,11 @@ class CPUCore:
             f"Flags: {hexstr(flags, 3)} (cf: {cf}, zf: {zf}, pc: {pc})",
             f"NextI: {disassemble(self.ram[ip])} ({binstr(self.ram[ip], 8)})",
         ]))
+
+    @property
+    def mnemonic(self) -> str:
+        ip = self.data if self.last_instruction.ip_input else self.ip
+        return disassemble(self.ram[ip])
 
     def dump(self) -> None:
         # Print the contents of RAM
