@@ -165,3 +165,19 @@ The 8-bit space for a single opcode is split up in order to make it possible to 
 As was the case with many 8-bit CPUs in the last century, this CPU does not have included memory, either volatile or non-volatile. It instead will assume an external chip or set of chips present on its external address and data bus. These chips, in the interest of practicality, will be standard TTL DIP package chips providing 32kb of SRAM, 16KB of ROM and 16KB of IO address space in which I am currently planning to place an 8-bit serial chip. Other plans include an LCD output and PS2 keyboard input and possibly a cartridge space to load external programs.
 
 Due to the sheer number of parts involved in making a register, there are no scratch registers, so all intermediate values must be stored on the stack. Various operations could be sped up or made easier by lifting this limitation. Possibly in some future redesign I will implement some 8-bit scratch registers and some move operations. This would be trivial as there is room in the instruction set as well as on the data bus, but it would require a lot of additional parts and assembly for the physical registers.
+
+Because of the complexity of designing such a system from scratch, there are a lot of inefficiencies in how the various circuits are assembled. In many cases, buffers are not actually necessary and add to propagation delay. In order to make the project manageable by a single human being, I've decided to sacrifice any sort of speed for modularity. This will result in a CPU that can theoretically only operate at a clock cycle of ~100KHz. If I was to be a lot more dilligent I could probably get this up into the several hundered or even megahertz level, but it isn't worth it.
+
+## TODOs
+
+ - The block diagram is far from complete. It is missing the following:
+   - All ALU components.
+   - Instruction decoder components for ALU, Memory and Stack operations.
+   - Any external memory interface.
+ - Several boards that go into various components already represented in the block diagrams are untested. They will need to be verified, and the block diagrams adjusted if there are errors in the boards.
+ - Convenience boards, such as boards which can push a debug value onto a bus, have not been designed yet.
+ - The standard library is far from complete. I still need to decide on what IO to give the finished project before I can code access routines for them.
+ - Several functions are missing from the current standard library:
+   - memcpy, memset and memcmp functions.
+   - 16 bit and 32 bit multiply, divide, atoi and itoa functionality.
+   - signed comparison, multiplication and division functionality.
