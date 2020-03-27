@@ -2910,7 +2910,30 @@ class CPUCore:
 
     @property
     def pc(self) -> List[int]:
-        return [(self.p[0] << 8) + self.c[0], (self.p[1] << 8) + self.c[1]]
+        pc = self.flags & self.FLAGS_PC != 0
+
+        if self.last_instruction.pc_swap:
+            pc = not pc
+        p = (
+            self.data >> 8
+            if self.last_instruction.p_input
+            else self.p[1 if pc else 0]
+        )
+        p = (p << 8) & 0xFF00
+        c = (
+            self.data
+            if self.last_instruction.c_input
+            else self.c[1 if pc else 0]
+        )
+        c = c & 0xFF
+        pandc = p + c
+
+        sp = self.p[0 if pc else 1]
+        sp = (sp << 8) & 0xFF00
+        sc = self.c[0 if pc else 1]
+        sc = sc & 0xFF
+        spandsc = sp + sc
+        return [pandc, spandsc]
 
     def print(self) -> None:
         # Look up the current bus values if we're about to store on this
