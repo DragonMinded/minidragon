@@ -44,8 +44,8 @@ itoa:
     ; Save a few spaces for our temporary storage, get the
     ; address of our current stack position. We pre-fill
     ; a null byte in the first position.
-    SUBPCI 2
-    PUSHI 0
+    SUBPCI 3
+    STOREI 0
 
     ; Do the actual dance to copy our PC pointer to SPC.
     PTOA
@@ -83,9 +83,9 @@ itoa:
 
 _itoa_neg:
     ; Negate it
-    POP
+    LOAD
     NEG
-    PUSH
+    STORE
 
     ; Store that it is negative
     ADDPCI 2

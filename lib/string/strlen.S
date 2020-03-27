@@ -21,10 +21,10 @@ strlen:
     ; Now, move past the saved stack and set SPC to point at the string.
     ADDPCI 4
     POPSPC
-    SUBPCI 6
+    SUBPCI 7
 
     ; Set up the count, then point at the string.
-    PUSHI 0
+    STOREI 0
     SWAP
 
     ; Now, until a null byte is encountered, add to our counter.

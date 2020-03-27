@@ -27,8 +27,8 @@ udiv:
     ; the right spot.
     ADDPCI 2
     LOAD
-    SUBPCI 2
-    PUSH
+    SUBPCI 3
+    STORE
 
     ADDPCI 4
     LOAD
@@ -55,11 +55,11 @@ _udiv_loop:
 
     ; If we went negative, then the dividend is the remainder
     ; and we've finished. The accumulated result is the quotient.
-    SUBPCI 4
-    PUSH
+    SUBPCI 5
+    STORE
     SHL
-    POP
-    ADDPCI 4
+    LOAD
+    ADDPCI 5
     JRIC _udiv_finished
 
     ; Save the last value as the new dividend.
