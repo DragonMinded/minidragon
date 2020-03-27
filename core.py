@@ -271,7 +271,11 @@ def assemble(
             # We must assemble this.
             if " " in mnemonic:
                 mnemonic, param = mnemonic.split(" ", 1)
-                if " " in param:
+                if (
+                    " " in param and
+                    param[0] not in {'"', "'"} and
+                    param[-1] not in {'"', "'"}
+                ):
                     raise InvalidInstructionException(
                         f"Cannot have more than one parameter for instruction "
                         + f"{mnemonic} {param}"
@@ -320,7 +324,11 @@ def assemble(
             # We must assemble this.
             if " " in mnemonic:
                 mnemonic, param = mnemonic.split(" ", 1)
-                if " " in param:
+                if (
+                    " " in param and
+                    param[0] not in {'"', "'"} and
+                    param[-1] not in {'"', "'"}
+                ):
                     raise InvalidInstructionException(
                         f"Cannot have more than one parameter on instruction "
                         + f"{mnemonic} {param}"
@@ -406,8 +414,8 @@ class JRI(BaseInstruction):
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
-                parameter = str(labels[parameter] - origin - 1)
-                location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
+                offset = str(labels[parameter] - origin - 1)
+                location = getint(offset, 6, hint=f"{mnemonic} {parameter}")
             else:
                 # Verify that we do or don't need labels.
                 _checklabel(mnemonic, parameter, loose)
@@ -643,8 +651,8 @@ class PUSHIP(BaseInstruction):
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
-                parameter = str(labels[parameter] - origin)
-                location = getint(parameter, 5, hint=f"{mnemonic} {parameter}")
+                offset = str(labels[parameter] - origin)
+                location = getint(offset, 5, hint=f"{mnemonic} {parameter}")
             else:
                 # We don't care about this value right now, fill it in as
                 # whatever. We'll get to it on the second pass.
@@ -1470,9 +1478,9 @@ class LNGJUMP(BaseStackInstruction):
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
-                parameter = str(labels[parameter])
+                offset = str(labels[parameter])
                 location = getint(
-                    parameter,
+                    offset,
                     16,
                     allow_unsigned=True,
                     hint=f"{mnemonic} {parameter}",
@@ -1783,8 +1791,22 @@ class BaseMacro(BaseInstruction):
             "signals!"
         )
 
-    def compile(self, org: int, instructions: List[str]) -> List[int]:
-        loc_and_assembly = assemble([f".org {org}", *instructions])
+    def compile(
+        self,
+        org: int,
+        instructions: List[str],
+        hint: Optional[str] = None,
+    ) -> List[int]:
+        if hint:
+            try:
+                loc_and_assembly = assemble([f".org {org}", *instructions])
+            except ParameterOutOfRangeException:
+                raise InvalidInstructionException(
+                    f"Couldn't compile macro {hint}",
+                )
+        else:
+            loc_and_assembly = assemble([f".org {org}", *instructions])
+
         opcodes: List[int] = []
         for loc, val in loc_and_assembly:
             if loc != org:
@@ -1814,14 +1836,20 @@ class SETA(BaseMacro):
             parameter,
             8,
             allow_unsigned=True,
-            hint="{mnemonic} {parameter}",
+            hint=f"{mnemonic} {parameter}",
         )
 
         # Now, assemble the load and return that value
-        return self.compile(origin, self._immtoa(aval))
+        return self.compile(
+            origin,
+            self._immtoa(aval),
+            hint=f"{mnemonic} {parameter}",
+        )
 
     def _immtoa(self, val: int) -> List[str]:
         instructions: List[str] = []
+        if val < 0:
+            val = struct.unpack("B", struct.pack("b", val))[0]
         if val < 0b00100000:
             # This is safe to load as an immediate directly, without
             # risking sign extension.
@@ -1905,7 +1933,11 @@ class SETPC(BaseMacro):
         ]
 
         # Now, assemble them and return that value
-        return self.compile(origin, instructions)
+        return self.compile(
+            origin,
+            instructions,
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -1945,7 +1977,11 @@ class JRIZ(BaseMacro):
 
         # If we want to jump on zero flag set, we need to skip the
         # jump if zero flag cleared.
-        return self.compile(origin, ["SKIPIF !ZF", f"JRI {location}"])
+        return self.compile(
+            origin,
+            ["SKIPIF !ZF", f"JRI {location}"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -1985,7 +2021,11 @@ class JRINZ(BaseMacro):
 
         # If we want to jump on zero flag cleared, we need to skip the
         # jump if zero flag set.
-        return self.compile(origin, ["SKIPIF ZF", f"JRI {location}"])
+        return self.compile(
+            origin,
+            ["SKIPIF ZF", f"JRI {location}"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2025,7 +2065,11 @@ class JRIC(BaseMacro):
 
         # If we want to jump on carry flag set, we need to skip the
         # jump if carry flag cleared.
-        return self.compile(origin, ["SKIPIF !CF", f"JRI {location}"])
+        return self.compile(
+            origin,
+            ["SKIPIF !CF", f"JRI {location}"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2065,7 +2109,11 @@ class JRINC(BaseMacro):
 
         # If we want to jump on carry flag cleared, we need to skip the
         # jump if carry flag set.
-        return self.compile(origin, ["SKIPIF CF", f"JRI {location}"])
+        return self.compile(
+            origin,
+            ["SKIPIF CF", f"JRI {location}"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2094,9 +2142,9 @@ class LNGJUMPZ(BaseMacro):
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
-                parameter = str(labels[parameter])
+                offset = str(labels[parameter])
                 location = getint(
-                    parameter,
+                    offset,
                     16,
                     allow_unsigned=True,
                     hint=f"{mnemonic} {parameter}",
@@ -2107,12 +2155,14 @@ class LNGJUMPZ(BaseMacro):
                 location = 0
 
         return self.compile(
-            origin, [
+            origin,
+            [
                 "SKIPIF ZF",
                 "JRI skip_longjump",
                 f"LNGJUMP {location}",
                 "skip_longjump:",
-            ]
+            ],
+            hint=f"{mnemonic} {parameter}",
         )
 
 
@@ -2142,9 +2192,9 @@ class LNGJUMPNZ(BaseMacro):
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
-                parameter = str(labels[parameter])
+                offset = str(labels[parameter])
                 location = getint(
-                    parameter,
+                    offset,
                     16,
                     allow_unsigned=True,
                     hint=f"{mnemonic} {parameter}",
@@ -2155,12 +2205,14 @@ class LNGJUMPNZ(BaseMacro):
                 location = 0
 
         return self.compile(
-            origin, [
+            origin,
+            [
                 "SKIPIF !ZF",
                 "JRI skip_longjump",
                 f"LNGJUMP {location}",
                 "skip_longjump:",
-            ]
+            ],
+            hint=f"{mnemonic} {parameter}",
         )
 
 
@@ -2190,9 +2242,9 @@ class LNGJUMPC(BaseMacro):
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
-                parameter = str(labels[parameter])
+                offset = str(labels[parameter])
                 location = getint(
-                    parameter,
+                    offset,
                     16,
                     allow_unsigned=True,
                     hint=f"{mnemonic} {parameter}",
@@ -2203,12 +2255,14 @@ class LNGJUMPC(BaseMacro):
                 location = 0
 
         return self.compile(
-            origin, [
+            origin,
+            [
                 "SKIPIF CF",
                 "JRI skip_longjump",
                 f"LNGJUMP {location}",
                 "skip_longjump:",
-            ]
+            ],
+            hint=f"{mnemonic} {parameter}",
         )
 
 
@@ -2238,9 +2292,9 @@ class LNGJUMPNC(BaseMacro):
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
-                parameter = str(labels[parameter])
+                offset = str(labels[parameter])
                 location = getint(
-                    parameter,
+                    offset,
                     16,
                     allow_unsigned=True,
                     hint=f"{mnemonic} {parameter}",
@@ -2251,12 +2305,14 @@ class LNGJUMPNC(BaseMacro):
                 location = 0
 
         return self.compile(
-            origin, [
+            origin,
+            [
                 "SKIPIF !CF",
                 "JRI skip_longjump",
                 f"LNGJUMP {location}",
                 "skip_longjump:",
-            ]
+            ],
+            hint=f"{mnemonic} {parameter}",
         )
 
 
@@ -2277,7 +2333,11 @@ class NEG(BaseMacro):
     ) -> List[int]:
         # Super simple, but convenient to use.
         _checkempty(mnemonic, parameter)
-        return self.compile(origin, ["INV", "ADDI 1"])
+        return self.compile(
+            origin,
+            ["INV", "ADDI 1"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2326,7 +2386,11 @@ class CALL(BaseMacro):
         ]
 
         # Now, assemble the springboard and return that value
-        return self.compile(origin, instructions)
+        return self.compile(
+            origin,
+            instructions,
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2381,7 +2445,11 @@ class CALLRI(BaseMacro):
         ]
 
         # Now, assemble the springboard and return that value
-        return self.compile(origin, instructions)
+        return self.compile(
+            origin,
+            instructions,
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2401,7 +2469,11 @@ class PUSH(BaseMacro):
     ) -> List[int]:
         # Super simple, but convenient to use.
         _checkempty(mnemonic, parameter)
-        return self.compile(origin, ["DECPC", "STORE"])
+        return self.compile(
+            origin,
+            ["DECPC", "STORE"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2420,7 +2492,11 @@ class STOREI(BaseMacro):
         loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
-        return self.compile(origin, [f"SETA {parameter}", "STORE"])
+        return self.compile(
+            origin,
+            [f"SETA {parameter}", "STORE"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2439,7 +2515,11 @@ class PUSHI(BaseMacro):
         loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
-        return self.compile(origin, ["DECPC", f"SETA {parameter}", "STORE"])
+        return self.compile(
+            origin,
+            ["DECPC", f"SETA {parameter}", "STORE"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2459,7 +2539,11 @@ class POP(BaseMacro):
     ) -> List[int]:
         # Super simple, but convenient to use.
         _checkempty(mnemonic, parameter)
-        return self.compile(origin, ["LOAD", "INCPC"])
+        return self.compile(
+            origin,
+            ["LOAD", "INCPC"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2479,7 +2563,11 @@ class POPADD(BaseMacro):
     ) -> List[int]:
         # Super simple, but convenient to use.
         _checkempty(mnemonic, parameter)
-        return self.compile(origin, ["ADD", "INCPC"])
+        return self.compile(
+            origin,
+            ["ADD", "INCPC"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2499,7 +2587,11 @@ class POPADC(BaseMacro):
     ) -> List[int]:
         # Super simple, but convenient to use.
         _checkempty(mnemonic, parameter)
-        return self.compile(origin, ["ADC", "INCPC"])
+        return self.compile(
+            origin,
+            ["ADC", "INCPC"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2519,7 +2611,11 @@ class POPAND(BaseMacro):
     ) -> List[int]:
         # Super simple, but convenient to use.
         _checkempty(mnemonic, parameter)
-        return self.compile(origin, ["AND", "INCPC"])
+        return self.compile(
+            origin,
+            ["AND", "INCPC"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2539,7 +2635,11 @@ class POPOR(BaseMacro):
     ) -> List[int]:
         # Super simple, but convenient to use.
         _checkempty(mnemonic, parameter)
-        return self.compile(origin, ["OR", "INCPC"])
+        return self.compile(
+            origin,
+            ["OR", "INCPC"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 @instruction
@@ -2559,7 +2659,11 @@ class POPXOR(BaseMacro):
     ) -> List[int]:
         # Super simple, but convenient to use.
         _checkempty(mnemonic, parameter)
-        return self.compile(origin, ["XOR", "INCPC"])
+        return self.compile(
+            origin,
+            ["XOR", "INCPC"],
+            hint=f"{mnemonic} {parameter}",
+        )
 
 
 class ControlSignals:

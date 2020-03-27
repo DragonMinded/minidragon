@@ -140,12 +140,12 @@ def verifyassembler(only: Optional[str], full: bool) -> None:
     checkerror(
         "errors/oob5.S",
         ParameterOutOfRangeException(
-            "Out of range integer 32 on instruction JRI 32")
+            "Out of range integer 32 on instruction JRI too_far")
     )
     checkerror(
         "errors/oob6.S",
         ParameterOutOfRangeException(
-            "Out of range integer -33 on instruction JRI -33")
+            "Out of range integer -33 on instruction JRI too_far")
     )
     checkerror(
         "errors/oob7.S",
