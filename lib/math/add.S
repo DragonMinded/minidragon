@@ -1,7 +1,8 @@
 add:
-    ; Add two 8-bit numbers on the stack, returning the value on the stack.
-    ; This is somewhat useless as we already have add, but it keeps the
-    ; stdlib orthogonal. Does not clobber the A, U, V or SPC registers.
+    ; Add two 8-bit numbers on the stack, returning the value in the A
+    ; register. This is somewhat useless as we already have add, but it
+    ; keeps the stdlib orthogonal. Does not clobber the U, V or SPC
+    ; registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -11,37 +12,17 @@ add:
     ;   CALL add
     ;
     ; Stack layout
-    ; PC + 0 - saved A register
+    ; PC + 0 - return address
     ; PC + 1 - return address
-    ; PC + 2 - return address
-    ; PC + 3 - second operand
-    ; PC + 4 - first operand
-
-    ; Save the A register
-    PUSH A
+    ; PC + 2 - second operand
+    ; PC + 3 - first operand
 
     ; Add two numbers together
     ADDPCI 3
-    POP A
+    LOAD A
+    DECPC
     ADD
-    STORE A
-
-    ; Now, copy the return up two in the stack so we can pop and ret
-    ; while leaving the return value on the stack. First two are for
-    ; the return address, next is for the A register.
     SUBPCI 2
-    LOAD A
-    ADDPCI 1
-    STORE A
-    SUBPCI 2
-    LOAD A
-    ADDPCI 1
-    STORE A
-
-    ; Now, restore the A register value.
-    SUBPCI 2
-    LOAD A
-    ADDPCI 2
 
     ; Finally, return to caller
     RET

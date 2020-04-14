@@ -1,6 +1,7 @@
 abs:
     ; Given an integer in the A register, assume it is a two's compliment
-    ; number and return the absolute value of the number.
+    ; number and return the absolute value of the number in the A register.
+    ; Does not clobber the U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -30,8 +31,8 @@ _abs_negative:
 
 abs16:
     ; Given a 16-bit integer on the stack, assume it is a two's compliment
-    ; number and return the absolute value of the number. Does not mess with
-    ; the A register.
+    ; number and return the absolute value of the number. Does not clobber
+    ; the A, U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -55,23 +56,21 @@ abs16:
     LOAD A
     SUBPCI 3
     SHL
+    POP A
     JRIC _abs16_negative
 
     ; Its already positive, so just return it.
-    POP A
     RET
 
 _abs16_negative:
     ; Gotta two's compliment it. Lets use the neg16 function, and trick
-    ; it into jumping to our own return. Restore the A register so neg16
-    ; can save it again.
-    POP A
+    ; it into jumping to our own return.
     LNGJUMP neg16
 
 abs32:
     ; Given a 32-bit integer on the stack, assume it is a two's compliment
-    ; number and return the absolute value of the number. Does not mess with
-    ; the A register.
+    ; number and return the absolute value of the number. Does not clobber
+    ; the A, U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -99,15 +98,13 @@ abs32:
     LOAD A
     SUBPCI 3
     SHL
+    POP A
     JRIC _abs32_negative
 
     ; Its already positive, so just return it.
-    POP A
     RET
 
 _abs32_negative:
     ; Gotta two's compliment it. Lets use the neg32 function, and trick
-    ; it into jumping to our own return. Restore the A register so neg32
-    ; can save it again.
-    POP A
+    ; it into jumping to our own return.
     LNGJUMP neg32

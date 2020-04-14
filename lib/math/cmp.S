@@ -2,7 +2,8 @@ ucmp:
     ; Given two unsigned integers on the stack, return -1 if the first is less
     ; than the second, 0 if the first equals the second, and 1 if the
     ; first is greater than the second. Returns the value in the A
-    ; register. Does not mess with the numbers on the stack.
+    ; register. Does not clobber the U, V or SPC registers. Does not clobber
+    ; the numbers on the stack.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -96,7 +97,8 @@ ucmp16:
     ; Given two 16-bit unsigned integers on the stack, return -1 if the first
     ; is less than the second, 0 if the first equals the second, and 1 if the
     ; first is greater than the second. Returns the value in the A
-    ; register. Does not mess with the numbers on the stack.
+    ; register. Does not clobber the U, V or SPC registers. Does not clobber
+    ; the numbers on the stack.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -170,7 +172,8 @@ ucmp32:
     ; Given two 32-bit unsigned integers on the stack, return -1 if the first
     ; is less than the second, 0 if the first equals the second, and 1 if the
     ; first is greater than the second. Returns the value in the A
-    ; register. Does not mess with the numbers on the stack.
+    ; register. Does not clobber the U, V or SPC registers. Does not clobber
+    ; the numbers on the stack.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -297,7 +300,8 @@ _ucmp32_4th_ne:
 
 umin:
     ; Given two unsigned integers on the stack, return the smaller of the
-    ; two in the A register. Does not mess with the numbers on the stack.
+    ; two in the A register. Does not clobber the U, V or SPC registers.
+    ; Does not clobber the numbers on the stack.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -344,7 +348,7 @@ _umin_ge:
 
 umin16:
     ; Given two unsigned 16-bit integers on the stack, return the smaller
-    ; of the two on the stack. Does not mess with the A register.
+    ; of the two on the stack. Does not clobber the U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -447,7 +451,7 @@ _umin16_ge:
 
 umin32:
     ; Given two unsigned 32-bit integers on the stack, return the smaller
-    ; of the two on the stack. Does not mess with the A register.
+    ; of the two on the stack. Does not clobber the U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -604,7 +608,8 @@ _umin32_ge:
 
 umax:
     ; Given two unsigned integers on the stack, return the larger of the
-    ; two in the A register. Does not mess with the numbers on the stack.
+    ; two in the A register. Does not clobber the U, V or SPC registers.
+    ; Does not clobber the numbers on the stack.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -651,7 +656,7 @@ _umax_le:
 
 umax16:
     ; Given two unsigned 16-bit integers on the stack, return the larger
-    ; of the two on the stack. Does not mess with the A register.
+    ; of the two on the stack. Does not clobber the U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -754,7 +759,7 @@ _umax16_le:
 
 umax32:
     ; Given two unsigned 32-bit integers on the stack, return the larger
-    ; of the two on the stack. Does not mess with the A register.
+    ; of the two on the stack. Does not clobber the U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;

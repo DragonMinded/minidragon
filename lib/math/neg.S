@@ -2,7 +2,6 @@ neg:
     ; Given an integer on the stack, assume it is a two's compliment
     ; number and return the negation of it. This function is somewhat useless
     ; as there's an assembler macro for it, but it keeps the stdlib orthogonal.
-    ; Does not mess with the A register.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -11,28 +10,23 @@ neg:
     ;     CALL neg
     ;
     ; Stack layout:
-    ; PC + 0 - saved A register
     ; PC + 1 - return address
     ; PC + 2 - return address
     ; PC + 3 - number to negate
 
-    ; Save the A register.
-    PUSH A
-
     ; Negate the number on the stack.
-    ADDPCI 3
+    ADDPCI 2
     LOAD A
     NEG
-    STORE A
-    SUBPCI 3
+    SUBPCI 2
 
     ; Restore A, return.
-    POP A
     RET
 
 neg16:
     ; Given a 16-bit integer on the stack, assume it is a two's compliment
-    ; number and return the negation of it. Does not mess with the A register.
+    ; number and return the negation of it. Does not clobber the A, U, V
+    ; or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -73,7 +67,8 @@ neg16:
 
 neg32:
     ; Given a 32-bit integer on the stack, assume it is a two's compliment
-    ; number and return the negation of it. Does not mess with the A register.
+    ; number and return the negation of it. Does not clobber the A, U, V
+    ; or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;

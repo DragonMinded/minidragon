@@ -527,19 +527,14 @@ def verifymathadd(only: Optional[str], full: bool) -> None:
                 *initlines,
                 f"PUSHI {x}",
                 f"PUSHI {y}",
-                f"SETA 123",
                 f"CALL add",
                 f"HALT",
                 *addlines,
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
-            calculated = cpu.ram[cpu.pc]
+            calculated = cpu.a
             real = (x + y) & 0xFF
-            _assert(
-                cpu.a == 123,
-                f"add changed A register from 123 to {cpu.a}!",
-            )
             _assert(
                 real == calculated,
                 f"Failed to add {x} and {y}, "
@@ -1382,19 +1377,14 @@ def verifymathneg(only: Optional[str], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             f"PUSHI {x}",
-            f"SETA 123",
             f"CALL neg",
             f"HALT",
             *neglines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        calculated = bintoint(cpu.ram[cpu.pc])
+        calculated = bintoint(cpu.a)
         real = -x
-        _assert(
-            cpu.a == 123,
-            f"neg changed A register from 123 to {cpu.a}!",
-        )
         _assert(
             real == calculated,
             f"Failed to neg {x}, "
