@@ -57,8 +57,7 @@ _strcat_loop:
     LOAD A
     INC
     STORE A
-    ADDPCI 8
-    ADDPCI 2
+    ADDPCI 10
 
     ; Grab a byte from the source
     POP SPC
@@ -68,8 +67,7 @@ _strcat_loop:
     PUSH SPC
 
     ; Store that byte in the destination
-    SUBPCI 8
-    SUBPCI 1
+    SUBPCI 9
     POP SPC
     SWAP PC, SPC
     STORE A
@@ -86,8 +84,7 @@ _strcat_done:
     ; Restore the source stack pointer
     POP A
     NEG
-    ADDPCI 8
-    ADDPCI 1
+    ADDPCI 9
     POP SPC
     SWAP PC, SPC
     ADDPC

@@ -705,15 +705,427 @@ class PUSHIP(BaseInstruction):
         return [0b10000000 + location]
 
 
-class BaseALUInstruction(BaseInstruction, ABC):
+class BaseALUUInstruction(BaseInstruction, ABC):
     opcode: int
 
     def handles(self, instruction: int) -> bool:
         if instruction & 0b11100000 != 0b10000000:
             # This is not our range.
             return False
-        if instruction & 0b00011000 == 0b00000000:
-            # This is PUSHIP.
+        if instruction & 0b00011000 != 0b00001000:
+            # This is not our register selection.
+            return False
+        return instruction & 0b111 == self.opcode
+
+    def mnemonic(self, instruction: int) -> str:
+        # ALU operations don't take any parameters.
+        return self.__class__.__name__
+
+    def assembles(self, mnemonic: str) -> bool:
+        return self.__class__.__name__ == mnemonic
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checkempty(mnemonic, parameters)
+        return [0b10001000 | self.opcode]
+
+
+@instruction
+class ADDU(BaseALUUInstruction):
+    # Add contents of memory at P+C to A register.
+
+    opcode = 0b001
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                u_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ADCU(BaseALUUInstruction):
+    # Add contents of memory at P+C to A register with carry in.
+
+    opcode = 0b010
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                u_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_FROM_FLAGS,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ANDU(BaseALUUInstruction):
+    # Add contents of memory at P+C with A register.
+
+    opcode = 0b011
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                u_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_AND,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ORU(BaseALUUInstruction):
+    # Or contents of memory at P+C with A register.
+
+    opcode = 0b100
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                u_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_OR,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class XORU(BaseALUUInstruction):
+    # Exclusive or contents of memory at P+C with A register.
+
+    opcode = 0b101
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                u_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_XOR,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+class BaseALUVInstruction(BaseInstruction, ABC):
+    opcode: int
+
+    def handles(self, instruction: int) -> bool:
+        if instruction & 0b11100000 != 0b10000000:
+            # This is not our range.
+            return False
+        if instruction & 0b00011000 != 0b00010000:
+            # This is not our register selection.
+            return False
+        return instruction & 0b111 == self.opcode
+
+    def mnemonic(self, instruction: int) -> str:
+        # ALU operations don't take any parameters.
+        return self.__class__.__name__
+
+    def assembles(self, mnemonic: str) -> bool:
+        return self.__class__.__name__ == mnemonic
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checkempty(mnemonic, parameters)
+        return [0b10010000 | self.opcode]
+
+
+@instruction
+class ADDV(BaseALUVInstruction):
+    # Add contents of memory at P+C to A register.
+
+    opcode = 0b001
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                v_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ADCV(BaseALUVInstruction):
+    # Add contents of memory at P+C to A register with carry in.
+
+    opcode = 0b010
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                v_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_FROM_FLAGS,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ANDV(BaseALUVInstruction):
+    # Add contents of memory at P+C with A register.
+
+    opcode = 0b011
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                v_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_AND,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ORV(BaseALUVInstruction):
+    # Or contents of memory at P+C with A register.
+
+    opcode = 0b100
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                v_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_OR,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class XORV(BaseALUVInstruction):
+    # Exclusive or contents of memory at P+C with A register.
+
+    opcode = 0b101
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                v_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_XOR,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+class BaseALUSRAMInstruction(BaseInstruction, ABC):
+    opcode: int
+
+    def handles(self, instruction: int) -> bool:
+        if instruction & 0b11100000 != 0b10000000:
+            # This is not our range.
+            return False
+        if instruction & 0b00011000 != 0b00011000:
+            # This is not our register selection.
             return False
         return instruction & 0b111 == self.opcode
 
@@ -737,7 +1149,7 @@ class BaseALUInstruction(BaseInstruction, ABC):
 
 
 @instruction
-class INV(BaseALUInstruction):
+class INV(BaseALUSRAMInstruction):
     # Invert contents of A.
 
     opcode = 0b000
@@ -766,7 +1178,7 @@ class INV(BaseALUInstruction):
 
 
 @instruction
-class ADD(BaseALUInstruction):
+class ADD(BaseALUSRAMInstruction):
     # Add contents of memory at P+C to A register.
 
     opcode = 0b001
@@ -801,7 +1213,7 @@ class ADD(BaseALUInstruction):
 
 
 @instruction
-class ADC(BaseALUInstruction):
+class ADC(BaseALUSRAMInstruction):
     # Add contents of memory at P+C to A register with carry in.
 
     opcode = 0b010
@@ -836,7 +1248,7 @@ class ADC(BaseALUInstruction):
 
 
 @instruction
-class AND(BaseALUInstruction):
+class AND(BaseALUSRAMInstruction):
     # Add contents of memory at P+C with A register.
 
     opcode = 0b011
@@ -871,7 +1283,7 @@ class AND(BaseALUInstruction):
 
 
 @instruction
-class OR(BaseALUInstruction):
+class OR(BaseALUSRAMInstruction):
     # Or contents of memory at P+C with A register.
 
     opcode = 0b100
@@ -906,7 +1318,7 @@ class OR(BaseALUInstruction):
 
 
 @instruction
-class XOR(BaseALUInstruction):
+class XOR(BaseALUSRAMInstruction):
     # Exclusive or contents of memory at P+C with A register.
 
     opcode = 0b101
@@ -941,7 +1353,7 @@ class XOR(BaseALUInstruction):
 
 
 @instruction
-class SHL(BaseALUInstruction):
+class SHL(BaseALUSRAMInstruction):
     # Shift contents of A left.
 
     opcode = 0b110
@@ -970,7 +1382,7 @@ class SHL(BaseALUInstruction):
 
 
 @instruction
-class SHR(BaseALUInstruction):
+class SHR(BaseALUSRAMInstruction):
     # Shift contents of A right.
 
     opcode = 0b111

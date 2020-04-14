@@ -31,10 +31,7 @@ umult:
     ; ...and our second operand into the U register.
     DECPC
     LOAD U
-
-    ; Now make room for us to load the contents of the
-    ; U register into memory so we can add it to A later.
-    SUBPCI 5
+    SUBPCI 4
 
 _umult_loop:
     ; See if first operand is zero
@@ -48,10 +45,8 @@ _umult_loop:
     SWAP V, A
     JRINC _umult_shift
 
-    ; Grab the second operand so we can add it to the
-    ; accumulated result. Then, add it.
-    STORE U
-    ADD
+    ; Add the second operand to the accumulated result.
+    ADDU
 
 _umult_shift:
     ; Second operand <<= 1
@@ -68,7 +63,6 @@ _umult_finished:
     MOV V, A
 
     ; Restore temporary registers.
-    INCPC
     POP V
     POP U
 

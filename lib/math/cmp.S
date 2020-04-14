@@ -474,50 +474,35 @@ umin32:
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
     SUBPCI 7
 
@@ -530,8 +515,7 @@ umin32:
 
     ; First number is already in the right spot, so just move the return
     ; and let's get out of here.
-    ADDPCI 8
-    ADDPCI 2
+    ADDPCI 10
     LOAD A
     ADDPCI 4
     STORE A
@@ -552,8 +536,7 @@ _umin32_ge:
     ; First number is >= second number, return second number. We do this
     ; by copying the whole stack from the saved A register through the
     ; second number, up by two, and then returning.
-    ADDPCI 8
-    ADDPCI 6
+    ADDPCI 14
     LOAD A
     ADDPCI 4
     STORE A
@@ -782,50 +765,35 @@ umax32:
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
-    ADDPCI 8
-    ADDPCI 4
+    ADDPCI 12
     LOAD A
-    SUBPCI 8
-    SUBPCI 3
+    SUBPCI 11
     STORE A
     SUBPCI 7
 
@@ -838,8 +806,7 @@ umax32:
 
     ; First number is already in the right spot, so just move the return
     ; and let's get out of here.
-    ADDPCI 8
-    ADDPCI 2
+    ADDPCI 10
     LOAD A
     ADDPCI 4
     STORE A
@@ -860,8 +827,7 @@ _umax32_le:
     ; First number is >= second number, return second number. We do this
     ; by copying the whole stack from the saved A register through the
     ; second number, up by two, and then returning.
-    ADDPCI 8
-    ADDPCI 6
+    ADDPCI 14
     LOAD A
     ADDPCI 4
     STORE A

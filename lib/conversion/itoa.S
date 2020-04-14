@@ -64,8 +64,7 @@ itoa:
     ; Retrieve the original A value, skip past our buffer.
     ADDPCI 5
     LOAD A
-    SUBPCI 8
-    SUBPCI 4
+    SUBPCI 12
 
     ; Assume the integer is positive.
     PUSH A
@@ -92,12 +91,10 @@ _itoa_neg:
     STOREI 1
 
     ; Also, update our output characters to reflect a negative sign.
-    ADDPCI 8
-    ADDPCI 2
+    ADDPCI 10
     STOREI 2
 
-    SUBPCI 8
-    SUBPCI 4
+    SUBPCI 12
 
 _itoa_loop:
     ; Divide A by 10
