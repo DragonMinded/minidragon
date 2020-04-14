@@ -22,7 +22,7 @@ ucmp:
 
     ; First, do the easy thing and see if they are equal.
     ADDPCI 3
-    LOAD
+    LOADA
     DECPC
     XOR
     JRINZ _ucmp_ne
@@ -34,13 +34,13 @@ ucmp:
 
 _ucmp_ne:
     ; Make copies so we can mess with the numbers
-    LOAD
+    LOADA
     SUBPCI 4
-    STORE
+    STOREA
     ADDPCI 5
-    LOAD
+    LOADA
     SUBPCI 4
-    STORE
+    STOREA
 
     ; Technically we should only do this 8 times, for 8 bits,
     ; but given the base case above where they are equal, we
@@ -49,9 +49,9 @@ _ucmp_ne:
 _ucmp_loop:
     ; First, grab the first number, shift it left to check
     ; the top bit, and store it temporarily.
-    LOAD
+    LOADA
     SHL
-    STORE
+    STOREA
 
     ; If the top bit is 1, then A is >= B, so we check for that
     ; in the second if.
@@ -60,9 +60,9 @@ _ucmp_loop:
     ; If the top bit is 0, then A is <= B, so we check for that
     ; here.
     DECPC
-    LOAD
+    LOADA
     SHL
-    STORE
+    STOREA
     INCPC
 
     ; If the top bit is 0, then A == B as far as we know, since both
@@ -78,9 +78,9 @@ _ucmp_loop:
 _ucmp_first_high:
     ; Now, grab the second number.
     DECPC
-    LOAD
+    LOADA
     SHL
-    STORE
+    STOREA
     INCPC
 
     ; If the top bit is 0, then A is > B, since the high bit of A
@@ -121,14 +121,14 @@ ucmp16:
     ; First, do the easy thing and see if they are equal, starting with the
     ; first byte.
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 2
     XOR
     JRINZ _ucmp16_high_ne
 
     ; Now, check the second byte to see if they're equal.
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 2
     XOR
     JRINZ _ucmp16_low_ne
@@ -140,13 +140,13 @@ ucmp16:
 
 _ucmp16_high_ne:
     ; Make copies so we can mess with the numbers
-    LOAD
+    LOADA
     SUBPCI 4
-    STORE
+    STOREA
     ADDPCI 6
-    LOAD
+    LOADA
     SUBPCI 5
-    STORE
+    STOREA
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -154,13 +154,13 @@ _ucmp16_high_ne:
 
 _ucmp16_low_ne:
     ; Make copies so we can mess with the numbers
-    LOAD
+    LOADA
     SUBPCI 5
-    STORE
+    STOREA
     ADDPCI 7
-    LOAD
+    LOADA
     SUBPCI 6
-    STORE
+    STOREA
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -203,28 +203,28 @@ ucmp32:
     ; First, do the easy thing and see if they are equal, starting with the
     ; first byte.
     ADDPCI 6
-    LOAD
+    LOADA
     SUBPCI 4
     XOR
     JRINZ _ucmp32_1st_ne
 
     ; Now, check the second byte to see if they're equal.
     ADDPCI 5
-    LOAD
+    LOADA
     SUBPCI 4
     XOR
     JRINZ _ucmp32_2nd_ne
 
     ; Now, check the third byte to see if they're equal.
     ADDPCI 5
-    LOAD
+    LOADA
     SUBPCI 4
     XOR
     LNGJUMPNZ _ucmp32_3rd_ne
 
     ; Now, check the final byte to see if they're equal.
     ADDPCI 5
-    LOAD
+    LOADA
     SUBPCI 4
     XOR
     LNGJUMPNZ _ucmp32_4th_ne
@@ -236,13 +236,13 @@ ucmp32:
 
 _ucmp32_1st_ne:
     ; Make copies so we can mess with the numbers
-    LOAD
+    LOADA
     SUBPCI 4
-    STORE
+    STOREA
     ADDPCI 8
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -250,14 +250,14 @@ _ucmp32_1st_ne:
 
 _ucmp32_2nd_ne:
     ; Make copies so we can mess with the numbers
-    LOAD
+    LOADA
     SUBPCI 5
-    STORE
+    STOREA
     ADDPCI 8
     INCPC
-    LOAD
+    LOADA
     SUBPCI 8
-    STORE
+    STOREA
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -265,15 +265,15 @@ _ucmp32_2nd_ne:
 
 _ucmp32_3rd_ne:
     ; Make copies so we can mess with the numbers
-    LOAD
+    LOADA
     SUBPCI 6
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 2
-    LOAD
+    LOADA
     SUBPCI 8
     DECPC
-    STORE
+    STOREA
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -281,15 +281,15 @@ _ucmp32_3rd_ne:
 
 _ucmp32_4th_ne:
     ; Make copies so we can mess with the numbers
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 2
-    STORE
+    STOREA
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -316,13 +316,13 @@ umin:
 
     ; First, copy the first and second number so we can call ucmp.
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 4
-    STORE
+    STOREA
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 4
-    STORE
+    STOREA
 
     ; Now, figure out which is less
     CALL ucmp
@@ -332,13 +332,13 @@ umin:
     JRINC _umin_ge
 
     INCPC
-    LOAD
+    LOADA
     INCPC
     RET
 
 _umin_ge:
     ; First number is >= second number, return second number.
-    LOAD
+    LOADA
     ADDPCI 2
     RET
 
@@ -373,21 +373,21 @@ umin16:
 
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
     ADDPCI 8
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
     ADDPCI 8
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
     ADDPCI 8
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
     SUBPCI 3
 
     ; Now, figure out which is less
@@ -400,17 +400,17 @@ umin16:
     ; First number is already in the right spot, so just move the return
     ; and let's get out of here.
     ADDPCI 6
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
 
     ; Finally, restore the A register.
-    LOAD
+    LOADA
     ADDPCI 3
 
     ; Now, return!
@@ -421,25 +421,25 @@ _umin16_ge:
     ; by copying the whole stack from the saved A register through the
     ; second number, up by two, and then returning.
     ADDPCI 8
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
 
     ; Now, restore the A register
-    LOAD
+    LOADA
     ADDPCI 3
 
     ; Now, return!
@@ -489,52 +489,52 @@ umin32:
 
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     SUBPCI 7
 
     ; Now, figure out which is less
@@ -548,17 +548,17 @@ umin32:
     ; and let's get out of here.
     ADDPCI 8
     ADDPCI 2
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
 
     ; Finally, restore the A register.
-    LOAD
+    LOADA
     ADDPCI 5
 
     ; Now, return!
@@ -570,33 +570,33 @@ _umin32_ge:
     ; second number, up by two, and then returning.
     ADDPCI 8
     ADDPCI 6
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
 
     ; Now, restore the A register
-    LOAD
+    LOADA
     ADDPCI 5
 
     ; Now, return!
@@ -623,13 +623,13 @@ umax:
 
     ; First, copy the first and second number so we can call ucmp.
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 4
-    STORE
+    STOREA
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 4
-    STORE
+    STOREA
 
     ; Now, figure out which is less
     CALL ucmp
@@ -639,13 +639,13 @@ umax:
     JRIC _umax_le
 
     INCPC
-    LOAD
+    LOADA
     INCPC
     RET
 
 _umax_le:
     ; First number is >= second number, return second number.
-    LOAD
+    LOADA
     ADDPCI 2
     RET
 
@@ -680,21 +680,21 @@ umax16:
 
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
     ADDPCI 8
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
     ADDPCI 8
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
     ADDPCI 8
-    LOAD
+    LOADA
     SUBPCI 7
-    STORE
+    STOREA
     SUBPCI 3
 
     ; Now, figure out which is less
@@ -707,17 +707,17 @@ umax16:
     ; First number is already in the right spot, so just move the return
     ; and let's get out of here.
     ADDPCI 6
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
 
     ; Finally, restore the A register.
-    LOAD
+    LOADA
     ADDPCI 3
 
     ; Now, return!
@@ -728,25 +728,25 @@ _umax16_le:
     ; by copying the whole stack from the saved A register through the
     ; second number, up by two, and then returning.
     ADDPCI 8
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
-    LOAD
+    LOADA
     ADDPCI 2
-    STORE
+    STOREA
     SUBPCI 3
 
     ; Now, restore the A register
-    LOAD
+    LOADA
     ADDPCI 3
 
     ; Now, return!
@@ -796,52 +796,52 @@ umax32:
 
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 4
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 3
-    STORE
+    STOREA
     SUBPCI 7
 
     ; Now, figure out which is less
@@ -855,17 +855,17 @@ umax32:
     ; and let's get out of here.
     ADDPCI 8
     ADDPCI 2
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
 
     ; Finally, restore the A register.
-    LOAD
+    LOADA
     ADDPCI 5
 
     ; Now, return!
@@ -877,33 +877,33 @@ _umax32_le:
     ; second number, up by two, and then returning.
     ADDPCI 8
     ADDPCI 6
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
-    LOAD
+    LOADA
     ADDPCI 4
-    STORE
+    STOREA
     SUBPCI 5
 
     ; Now, restore the A register
-    LOAD
+    LOADA
     ADDPCI 5
 
     ; Now, return!

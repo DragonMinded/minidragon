@@ -32,25 +32,25 @@ strcpy:
 
 _strcpy_loop:
     ; Keep track of number of bytes copied
-    LOAD
+    LOADA
     INC
-    STORE
+    STOREA
     ADDPCI 8
 
     ; Grab a byte from the source
     POPSPC
-    SWAP
+    SWAPPC
     POP
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Store that byte in the destination
     SUBPCI 2
     POPSPC
-    SWAP
-    STORE
+    SWAPPC
+    STOREA
     INCPC
-    SWAP
+    SWAPPC
     PUSHSPC
     SUBPCI 6
 
@@ -64,15 +64,15 @@ _strcpy_done:
     NEG
     ADDPCI 5
     POPSPC
-    SWAP
+    SWAPPC
     ADDPC
-    SWAP
+    SWAPPC
     PUSHSPC
     ADDPCI 2
     POPSPC
-    SWAP
+    SWAPPC
     ADDPC
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Restore the shadow stack and A register

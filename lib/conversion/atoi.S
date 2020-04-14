@@ -51,7 +51,7 @@ _atoi_skip_whitespace:
 
     ; Set the SPC to point at our string.
     POPSPC
-    SWAP
+    SWAPPC
 
     ; XOR the byte in the string against the space to check if they equal.
     XOR
@@ -68,7 +68,7 @@ _atoi_skip_whitespace:
 _atoi_skip_ws_inc:
     ; Increment our string pointer to skip the character.
     INCPC
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Do it again!
@@ -87,7 +87,7 @@ _atoi_check_positive:
 
     ; Increment our string pointer to skip the character.
     INCPC
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Remember that this was negative.
@@ -98,14 +98,14 @@ _atoi_check_positive:
 
 _atoi_no_prefix:
     ; Reset our stack pointer.
-    SWAP
+    SWAPPC
     SUBPCI 2
     JRI _atoi_number_loop
 
 _atoi_skip_plus_inc:
     ; Increment our string pointer to skip the character.
     INCPC
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Now, start consuming digit characters and adding them to our accumulator.
@@ -125,7 +125,7 @@ _atoi_number_loop:
 
     ; Perform the math (ascii digit) - "0"
     POPSPC
-    SWAP
+    SWAPPC
     ADD
 
     ; See if it is negative (meaning a value < "0")
@@ -142,7 +142,7 @@ _atoi_number_loop:
 
     ; We know the digit is between "0" and "9" inclusive, so let's multiply our
     ; current accumulated result and add the digit value in.
-    SWAP
+    SWAPPC
     SUBPCI 8
 
     ; Multiply by 10, getting the result in A.
@@ -155,11 +155,12 @@ _atoi_number_loop:
 
     ; Now, load up the digit, subtract it from "0", add it to the current result.
     SETA -48
-    SWAP
-    POPADD
-    SWAP
+    SWAPPC
     ADD
-    STORE
+    INCPC
+    SWAPPC
+    ADD
+    STOREA
 
     ; Update our pointer.
     ADDPCI 8
@@ -172,11 +173,11 @@ _atoi_number_end:
     ; The stack now points at the end of the string, whether that's a null byte
     ; or the beginning of a non-integer.
 
-    SWAP
+    SWAPPC
 
     ; See if we need to negate the number.
     SUBPCI 7
-    LOAD
+    LOADA
     ADDI 0
     JRIZ _atoi_return_positive
 

@@ -54,11 +54,11 @@ The layout is separated into logical components:
  * ATOC - Load contents of A register to C.
  * PTOA - Load contents of P register to A.
  * CTOA - Load contents of C register to A.
- * LOAD - Load contents of memory location pointed at by PC to A register.
- * STORE - Store contents of A register to memory location pointed at by PC.
+ * LOADA - Load contents of memory location pointed at by PC to A register.
+ * STOREA - Store contents of A register to memory location pointed at by PC.
  * SKIPIF - Skip next instruction if carry/zero flag set/cleared.
  * LNGJUMP - Jumps to address stored in memory location IP + 1 and IP + 2, stored in big-endian.
- * SWAP - Swap PC and SPC registers, making the current PC into the shadow PC and vice versa.
+ * SWAPPC - Swap PC and SPC registers, making the current PC into the shadow PC and vice versa.
  * PUSHIP - Subtracts two from PC, stores IP + immediate into location PC and PC + 1 big endian. Immediate can be a positive integer between 0 and 7 inclusive.
  * POPIP - Jumps to data stored in memory location PC and PC + 1 big endian, adds 2 to PC.
  * PUSHSPC - Subtracts two from PC, stores SPC into location PC and PC + 1 big endian.
@@ -90,11 +90,6 @@ For convenience of programming without too much hassle, several assembler macros
 * PUSH - Subtracts 1 from PC, stores the value of A into the memory location PC.
 * PUSHI - Subtracts 1 from PC, stores immediate to memory location PC, clobbering A register.
 * POP - Loads the value of memory location PC into A, adds 1 to PC.
-* POPADD - Adds the value of memory location PC to A, adds 1 to PC.
-* POPADC - Adds the value of memory location PC to A with carry from flags, adds 1 to PC.
-* POPAND - Ands the value of memory with A, adds 1 to PC.
-* POPOR - Ors the value of memory with A, adds 1 to PC.
-* POPXOR - Xors the value of memory with A, adds 1 to PC.
 
 ### Opcode Layout
 

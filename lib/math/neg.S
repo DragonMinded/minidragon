@@ -21,9 +21,9 @@ neg:
 
     ; Negate the number on the stack.
     ADDPCI 3
-    LOAD
+    LOADA
     NEG
-    STORE
+    STOREA
     SUBPCI 3
 
     ; Restore A, return.
@@ -53,18 +53,18 @@ neg16:
     ADDPCI 3
 
     ; Negate the number on the stack.
-    LOAD
+    LOADA
     INV
-    STORE
+    STOREA
     INCPC
-    LOAD
+    LOADA
     INV
     ADDI 1
-    STORE
+    STOREA
     DECPC
     ZERO
     ADC
-    STORE
+    STOREA
 
     ; Restore A, return.
     SUBPCI 3
@@ -98,36 +98,36 @@ neg32:
     ADDPCI 3
 
     ; Negate the number on the stack.
-    LOAD
+    LOADA
     INV
-    STORE
+    STOREA
     INCPC
-    LOAD
+    LOADA
     INV
-    STORE
+    STOREA
     INCPC
-    LOAD
+    LOADA
     INV
-    STORE
+    STOREA
     INCPC
 
-    LOAD
+    LOADA
     INV
     ADDI 1
-    STORE
+    STOREA
 
     DECPC
     ZERO
     ADC
-    STORE
+    STOREA
     DECPC
     ZERO
     ADC
-    STORE
+    STOREA
     DECPC
     ZERO
     ADC
-    STORE
+    STOREA
 
     ; Restore A, return.
     SUBPCI 3

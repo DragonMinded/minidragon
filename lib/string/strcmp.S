@@ -47,33 +47,33 @@ strcmp:
 _strcmp_loop:
     ; Keep track of number of bytes compared
     ADDPCI 2
-    LOAD
+    LOADA
     INC
-    STORE
+    STOREA
     ADDPCI 7
 
     ; Grab a byte from the source
     POPSPC
-    SWAP
+    SWAPPC
     POP
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Store that byte in our temp buffer
     SUBPCI 8
-    STORE
+    STOREA
     ADDPCI 6
 
     ; Grab a byte from the destination
     POPSPC
-    SWAP
+    SWAPPC
     POP
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Store that byte in our second temp buffer
     SUBPCI 7
-    STORE
+    STOREA
 
     ; Compare the two bytes for equality.
     CALL ucmp
@@ -84,7 +84,7 @@ _strcmp_loop:
 
     ; They equal, see if we should bail (null hit, strings equal)
     ; or keep going (null not hit).
-    LOAD
+    LOADA
     ADDI 0
     LNGJUMPNZ _strcmp_loop
 
@@ -92,24 +92,24 @@ _strcmp_save_answer:
     ; A holds the comparison value at this point, so save it to
     ; the stack.
     INCPC
-    STORE
+    STOREA
 
 _strcmp_done:
     ; Restore the stack pointers
     INCPC
-    LOAD
+    LOADA
     NEG
     ADDPCI 5
     POPSPC
-    SWAP
+    SWAPPC
     ADDPC
-    SWAP
+    SWAPPC
     PUSHSPC
     ADDPCI 2
     POPSPC
-    SWAP
+    SWAPPC
     ADDPC
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Restore the A register to the answer we calculated.

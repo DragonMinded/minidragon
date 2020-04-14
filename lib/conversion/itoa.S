@@ -49,13 +49,13 @@ itoa:
 
     ; Do the actual dance to copy our PC pointer to SPC.
     PTOA
-    SWAP
+    SWAPPC
     ATOP
-    SWAP
+    SWAPPC
     CTOA
-    SWAP
+    SWAPPC
     ATOC
-    SWAP
+    SWAPPC
 
     ; SPC = PC now, save that address.
     ADDPCI 3
@@ -63,7 +63,7 @@ itoa:
 
     ; Retrieve the original A value, skip past our buffer.
     ADDPCI 5
-    LOAD
+    LOADA
     SUBPCI 8
     SUBPCI 4
 
@@ -83,9 +83,9 @@ itoa:
 
 _itoa_neg:
     ; Negate it
-    LOAD
+    LOADA
     NEG
-    STORE
+    STOREA
 
     ; Store that it is negative
     ADDPCI 2
@@ -116,26 +116,26 @@ _itoa_loop:
 
     ; Update the remainder to be a character.
     ADD
-    STORE
+    STOREA
 
     ; Now, grab where we're going to output this from the stack.
     ADDPCI 7
     POPSPC
-    SWAP
+    SWAPPC
     PUSH
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Count how many output bytes so we can rewind the pointer.
     ADDPCI 4
-    LOAD
+    LOADA
     INC
-    STORE
+    STOREA
     SUBPCI 4
 
     ; Now, see if we're finished (the quotient is zero).
     SUBPCI 8
-    LOAD
+    LOADA
     ADDI 0
     JRIZ _itoa_negative_check
 
@@ -145,7 +145,7 @@ _itoa_loop:
 _itoa_negative_check:
     ; See if the number was negative.
     ADDPCI 2
-    LOAD
+    LOADA
     ADDPCI 6
     ADDI 0
     JRIZ _itoa_copy
@@ -155,9 +155,9 @@ _itoa_negative_check:
 
     ; We already advanced to our output buffer location above.
     POPSPC
-    SWAP
+    SWAPPC
     PUSH
-    SWAP
+    SWAPPC
     PUSHSPC
 
 _itoa_copy:
@@ -166,17 +166,17 @@ _itoa_copy:
     ; digits first, so we can now copy until we hit the null
     ; byte and the integer will be forward.
     POPSPC
-    SWAP
+    SWAPPC
     POP
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ADDPCI 8
     POPSPC
-    SWAP
-    STORE
+    SWAPPC
+    STOREA
     INCPC
-    SWAP
+    SWAPPC
     PUSHSPC
     SUBPCI 8
 
@@ -190,12 +190,12 @@ _itoa_done:
     ADDPCI 8
     POPSPC
     SUBPCI 6
-    LOAD
+    LOADA
     ADDPCI 6
-    SWAP
+    SWAPPC
     NEG
     ADDPC
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Finally, we need to restore the A register and stack and return.

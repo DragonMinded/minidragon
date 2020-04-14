@@ -1249,7 +1249,7 @@ class CTOA(BaseMemoryInstruction):
 
 
 @instruction
-class LOAD(BaseMemoryInstruction):
+class LOADA(BaseMemoryInstruction):
     # Load the contents of memory at P+C to A register.
 
     opcode = 0b100
@@ -1276,7 +1276,7 @@ class LOAD(BaseMemoryInstruction):
 
 
 @instruction
-class STORE(BaseMemoryInstruction):
+class STOREA(BaseMemoryInstruction):
     # Store the contents of the A register to memory at P+C.
 
     opcode = 0b101
@@ -1495,7 +1495,7 @@ class LNGJUMP(BaseStackInstruction):
 
 
 @instruction
-class SWAP(BaseStackInstruction):
+class SWAPPC(BaseStackInstruction):
     # Swap PC and SPC registers.
     opcode = 0b001
 
@@ -2471,7 +2471,7 @@ class PUSH(BaseMacro):
         _checkempty(mnemonic, parameter)
         return self.compile(
             origin,
-            ["DECPC", "STORE"],
+            ["DECPC", "STOREA"],
             hint=f"{mnemonic} {parameter}",
         )
 
@@ -2494,7 +2494,7 @@ class STOREI(BaseMacro):
         # Super simple, but convenient to use.
         return self.compile(
             origin,
-            [f"SETA {parameter}", "STORE"],
+            [f"SETA {parameter}", "STOREA"],
             hint=f"{mnemonic} {parameter}",
         )
 
@@ -2517,7 +2517,7 @@ class PUSHI(BaseMacro):
         # Super simple, but convenient to use.
         return self.compile(
             origin,
-            ["DECPC", f"SETA {parameter}", "STORE"],
+            ["DECPC", f"SETA {parameter}", "STOREA"],
             hint=f"{mnemonic} {parameter}",
         )
 
@@ -2541,127 +2541,7 @@ class POP(BaseMacro):
         _checkempty(mnemonic, parameter)
         return self.compile(
             origin,
-            ["LOAD", "INCPC"],
-            hint=f"{mnemonic} {parameter}",
-        )
-
-
-@instruction
-class POPADD(BaseMacro):
-    # Add PC to A, increment PC.
-
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic == "POPADD"
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameter: str,
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameter)
-        return self.compile(
-            origin,
-            ["ADD", "INCPC"],
-            hint=f"{mnemonic} {parameter}",
-        )
-
-
-@instruction
-class POPADC(BaseMacro):
-    # Add PC to A with carry from flags, increment PC.
-
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic == "POPADC"
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameter: str,
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameter)
-        return self.compile(
-            origin,
-            ["ADC", "INCPC"],
-            hint=f"{mnemonic} {parameter}",
-        )
-
-
-@instruction
-class POPAND(BaseMacro):
-    # And PC to A, increment PC.
-
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic == "POPAND"
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameter: str,
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameter)
-        return self.compile(
-            origin,
-            ["AND", "INCPC"],
-            hint=f"{mnemonic} {parameter}",
-        )
-
-
-@instruction
-class POPOR(BaseMacro):
-    # Or PC to A, increment PC.
-
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic == "POPOR"
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameter: str,
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameter)
-        return self.compile(
-            origin,
-            ["OR", "INCPC"],
-            hint=f"{mnemonic} {parameter}",
-        )
-
-
-@instruction
-class POPXOR(BaseMacro):
-    # Xor PC to A, increment PC.
-
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic == "POPXOR"
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameter: str,
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameter)
-        return self.compile(
-            origin,
-            ["XOR", "INCPC"],
+            ["LOADA", "INCPC"],
             hint=f"{mnemonic} {parameter}",
         )
 

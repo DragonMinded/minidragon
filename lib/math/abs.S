@@ -52,7 +52,7 @@ abs16:
 
     ; Now, check if it is negative.
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 3
     SHL
     JRIC _abs16_negative
@@ -96,7 +96,7 @@ abs32:
 
     ; Now, check if it is negative.
     ADDPCI 3
-    LOAD
+    LOADA
     SUBPCI 3
     SHL
     JRIC _abs32_negative

@@ -36,45 +36,45 @@ strcat:
     ; terminating null byte.
     ADDPCI 5
     POPSPC
-    SWAP
+    SWAPPC
 
 _strcat_advance:
     ; Loop until we find the pointer to the null byte itself.
-    LOAD
+    LOADA
     ADDI 0
     JRIZ _strcat_update_dest
     INCPC
     JRI _strcat_advance
 
 _strcat_update_dest:
-    SWAP
+    SWAPPC
     SUBPCI 7
     PUSHSPC
     PUSHI 0
 
 _strcat_loop:
     ; Keep track of number of bytes copied
-    LOAD
+    LOADA
     INC
-    STORE
+    STOREA
     ADDPCI 8
     ADDPCI 2
 
     ; Grab a byte from the source
     POPSPC
-    SWAP
+    SWAPPC
     POP
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Store that byte in the destination
     SUBPCI 8
     SUBPCI 1
     POPSPC
-    SWAP
-    STORE
+    SWAPPC
+    STOREA
     INCPC
-    SWAP
+    SWAPPC
     PUSHSPC
     SUBPCI 1
 
@@ -89,9 +89,9 @@ _strcat_done:
     ADDPCI 8
     ADDPCI 1
     POPSPC
-    SWAP
+    SWAPPC
     ADDPC
-    SWAP
+    SWAPPC
     PUSHSPC
 
     ; Restore the shadow stack and A register

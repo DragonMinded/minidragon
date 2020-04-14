@@ -31,9 +31,9 @@ umult:
     ADDPCI 5
 
     ; Initialize our own local stack
-    SWAP
+    SWAPPC
     SETPC _mult_locals
-    SWAP
+    SWAPPC
 
 _umult_loop:
     ; See if first operand is zero
@@ -42,34 +42,34 @@ _umult_loop:
     LNGJUMPZ _umult_finished
 
     ; See if bottom bit set
-    SWAP
+    SWAPPC
     AND
-    SWAP
+    SWAPPC
     JRIZ _umult_shift
 
     ; Grab the second operand so we can add it to the
     ; accumulated result.
     INCPC
-    LOAD
+    LOADA
     DECPC
 
     ; Add it to the accumulated result in our local stack.
     SUBPCI 3
     ADD
-    STORE
+    STOREA
     ADDPCI 3
 
 _umult_shift:
     ; First operand >>= 1
-    LOAD
+    LOADA
     SHR
-    STORE
+    STOREA
 
     ; Second operand <<= 1
     INCPC
-    LOAD
+    LOADA
     SHL
-    STORE
+    STOREA
     DECPC
 
     ; Back to loop
