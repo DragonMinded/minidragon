@@ -108,6 +108,16 @@ The 8-bit space for a single opcode is split up in order to make it possible to 
 <b>1 1 0 y y y y y   stack immediate op</b>
 1 1 0 0 0 x x x   push IP + immediate                 PC - 2 > PC, IP + imm > [PC]
 
+<b>1 1 1 0 1 y y y   register op</b>
+1 1 1 0 1 0 0 0   load from address P + C to U        [P | C] > U
+1 1 1 0 1 0 0 1   store to address P + C from U       U > [P | C]
+1 1 1 0 1 0 1 0   load from address P + C to V        [P | C] > V
+1 1 1 0 1 0 1 1   store to address P + C from V       V > [P | C]
+1 1 1 0 1 1 0 0   swap A and U                        A > U, U > A
+1 1 1 0 1 1 0 1   swap A and V                        A > V, V > A
+1 1 1 0 1 1 1 0   swap U and V                        U > V, V > U
+1 1 1 0 1 1 1 1   swap PC and SPC                     PC > SPC, SPC > PC
+
 <b>1 1 0 y y y y y   pc add op</b>
 1 1 0 1 0 x x x   Add immediate to PC                 PC + imm + 1 > PC
 
@@ -129,10 +139,10 @@ The 8-bit space for a single opcode is split up in order to make it possible to 
 1 1 1 0 1 0 0 1   load cell register from A           A > C
 1 1 1 0 1 0 1 0   store page register to A            P > A
 1 1 1 0 1 0 1 1   store cell register to A            C > A
-1 1 1 0 1 1 0 0   load from address P + C             [P | C] > A
-1 1 1 0 1 1 0 1   store to address P + C              A > [P | C]
-1 1 1 0 1 1 1 0
-1 1 1 0 1 1 1 1
+1 1 1 0 1 1 0 0   load U register from A              A > U
+1 1 1 0 1 1 0 1   load V register from A              A > V
+1 1 1 0 1 1 1 0   store U register to A               U > A
+1 1 1 0 1 1 1 1   store V register to A               V > A
 
 <b>1 1 1 1 0 y y y   status op</b>
 1 1 1 1 0 0 0 0
@@ -146,13 +156,13 @@ The 8-bit space for a single opcode is split up in order to make it possible to 
 
 <b>1 1 1 1 1 y y y   stack op</b>
 1 1 1 1 1 0 0 0   jump to immediate                   [IP + 1] > IP
-1 1 1 1 1 0 0 1   swap PC                             PC <> SPC
+1 1 1 1 1 0 0 1
 1 1 1 1 1 0 1 0   add to PC                           PC + A > PC
 1 1 1 1 1 0 1 1   pop IP                              [PC] > IP, PC + 2 > PC
 1 1 1 1 1 1 0 0   push SPC                            PC - 2 > PC, SPC > [PC]
 1 1 1 1 1 1 0 1   pop SPC                             [PC] > SPC, PC + 2 > PC
-1 1 1 1 1 1 1 0
-1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 0   load from address P + C             [P | C] > A
+1 1 1 1 1 1 1 1   store to address P + C              A > [P | C]
 </pre>
 
 ## Design Concessions
@@ -167,9 +177,8 @@ Because of the complexity of designing such a system from scratch, there are a l
 
  - The block diagram is far from complete. It is missing the following:
    - All ALU components.
-   - Instruction decoder components for ALU, Memory and Stack operations.
-   - Any external memory interface.
- - Several boards that go into various components already represented in the block diagrams are untested. They will need to be verified, and the block diagrams adjusted if there are errors in the boards.
+   - Instruction decoder components for several opcode sections detailed above.
+   - Detailed design of external memory interface.
  - Convenience boards, such as boards which can push a debug value onto a bus, have not been designed yet.
  - The standard library is far from complete. I still need to decide on what IO to give the finished project before I can code access routines for them.
  - Several functions are missing from the current standard library:
