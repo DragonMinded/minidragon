@@ -47,7 +47,7 @@ _atoi_skip_whitespace:
     ; PC + 1  - pointer to string (will be updated).
 
     ; See if the character is a space.
-    SETA " "
+    LOADI " "
 
     ; Set the SPC to point at our string.
     POP SPC
@@ -58,7 +58,7 @@ _atoi_skip_whitespace:
     JRIZ _atoi_skip_ws_inc
 
     ; See if the character is a tab.
-    SETA "\t"
+    LOADI "\t"
     XOR
     JRIZ _atoi_skip_ws_inc
 
@@ -76,12 +76,12 @@ _atoi_skip_ws_inc:
 
 _atoi_check_positive:
     ; Compare current pointed to byte against a "+"
-    SETA "+"
+    LOADI "+"
     XOR
     JRIZ _atoi_skip_plus_inc
 
     ; Check for a - sign, consume it if found.
-    SETA "-"
+    LOADI "-"
     XOR
     JRINZ _atoi_no_prefix
 
@@ -121,7 +121,7 @@ _atoi_number_loop:
     ; PC + 1  - pointer to string advanced past leading space and +/- (will be updated).
 
     ; Load with negative value of ascii "0", to subtract it from the number on the stack.
-    SETA -48
+    LOADI -48
 
     ; Perform the math (ascii digit) - "0"
     POP SPC
@@ -133,7 +133,7 @@ _atoi_number_loop:
     LNGJUMPC _atoi_number_end
 
     ; Do the above again, but checking to make sure it is <= "9"
-    SETA -58
+    LOADI -58
     ADD
     SHL
 
@@ -154,7 +154,7 @@ _atoi_number_loop:
     PUSH A
 
     ; Now, load up the digit, subtract it from "0", add it to the current result.
-    SETA -48
+    LOADI -48
     SWAP PC, SPC
     ADD
     INCPC

@@ -6,7 +6,7 @@ abs:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; Call this similar to:
-    ;     SETA -32
+    ;     LOADI -32
     ;     CALL abs
     ;
     ; Stack layout:

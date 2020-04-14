@@ -9,7 +9,7 @@ itoa:
     ; If you have a string buffer at 0x1234, call this similar to:
     ;   PUSHI 0x34
     ;   PUSHI 0x12
-    ;   SETA 123
+    ;   LOADI 123
     ;   CALL itoa
     ;
     ; Stack layout
@@ -112,7 +112,7 @@ _itoa_loop:
 
     ; Now, load the zero character constant so we can change the
     ; raw integer value to a character.
-    SETA "0"
+    LOADI "0"
 
     ; Update the remainder to be a character.
     ADD
@@ -151,7 +151,7 @@ _itoa_negative_check:
     JRIZ _itoa_copy
 
     ; It is negative, output a '-' sign.
-    SETA "-"
+    LOADI "-"
 
     ; We already advanced to our output buffer location above.
     POP SPC

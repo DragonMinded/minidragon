@@ -117,13 +117,13 @@ def verifyassembler(only: Optional[str], full: bool) -> None:
     checkerror(
         "errors/oob1.S",
         ParameterOutOfRangeException(
-            "Out of range integer 32 on instruction LOADI 32"
+            "Out of range integer 256 on instruction LOADI 256"
         )
     )
     checkerror(
         "errors/oob2.S",
         ParameterOutOfRangeException(
-            "Out of range integer -33 on instruction LOADI -33"
+            "Out of range integer -129 on instruction LOADI -129"
         )
     )
     checkerror(
@@ -201,35 +201,6 @@ def verifyassembler(only: Optional[str], full: bool) -> None:
     )
 
 
-def verifyloadi(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "loadi":
-        return
-
-    print("Verifying LOADI...")
-    for i in range(-32, 32):
-        memory = getmemory(f"""
-            LOADI {i}
-            HALT
-        """)
-        cpu = CPUCore(memory)
-        rununtilhalt(cpu)
-        _assert(bintoint(cpu.a) == i, f"Failed to load {i} into A register!")
-
-        memory = getmemory(f"""
-            LOADI {i}
-        """)
-        if i == 0:
-            _assert(
-                disassemble(memory[0]) == f"ZERO",
-                f"Failed to disassemble LOADI {i}!",
-            )
-        else:
-            _assert(
-                disassemble(memory[0]) == f"LOADI {i}",
-                f"Failed to disassemble LOADI {i}!",
-            )
-
-
 def verifyaddi(only: Optional[str], full: bool) -> None:
     if only is not None and only != "addi":
         return
@@ -268,14 +239,14 @@ def verifyaddi(only: Optional[str], full: bool) -> None:
             )
 
 
-def verifyseta(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "seta":
+def verifyloadi(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "loadi":
         return
 
-    print("Verifying SETA...")
+    print("Verifying LOADI...")
     for i in range(0, 256):
         memory = getmemory(f"""
-            SETA {i}
+            LOADI {i}
             HALT
         """)
         cpu = CPUCore(memory)
@@ -284,7 +255,7 @@ def verifyseta(only: Optional[str], full: bool) -> None:
 
     for i in range(-128, 128):
         memory = getmemory(f"""
-            SETA {i}
+            LOADI {i}
             HALT
         """)
         cpu = CPUCore(memory)
@@ -321,7 +292,7 @@ def verifyaddpc(only: Optional[str], full: bool) -> None:
     for i in range(-128, 128):
         memory = getmemory(f"""
             SETPC 12345
-            SETA {i}
+            LOADI {i}
             ADDPC
             HALT
         """)
@@ -341,7 +312,7 @@ def verifyneg(only: Optional[str], full: bool) -> None:
     print("Verifying NEG...")
     for i in range(-127, 128):
         memory = getmemory(f"""
-            SETA {i}
+            LOADI {i}
             NEG
             HALT
         """)
@@ -574,7 +545,7 @@ def verifyadd16(only: Optional[str], full: bool) -> None:
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {y & 0xFF}",
                 f"PUSHI {(y >> 8) & 0xFF}",
-                f"SETA 123",
+                f"LOADI 123",
                 f"CALL add16",
                 f"HALT",
                 *addlines,
@@ -628,7 +599,7 @@ def verifyadd32(only: Optional[str], full: bool) -> None:
                 f"PUSHI {(y >> 8) & 0xFF}",
                 f"PUSHI {(y >> 16) & 0xFF}",
                 f"PUSHI {(y >> 24) & 0xFF}",
-                f"SETA 123",
+                f"LOADI 123",
                 f"CALL add32",
                 f"HALT",
                 *addlines,
@@ -679,7 +650,7 @@ def verifyabs(only: Optional[str], full: bool) -> None:
     for x in range(-127, 128):
         memory = getmemory(os.linesep.join([
             *initlines,
-            f"SETA {x}",
+            f"LOADI {x}",
             f"CALL abs",
             f"HALT",
             *neglines,
@@ -722,7 +693,7 @@ def verifyabs16(only: Optional[str], full: bool) -> None:
             *initlines,
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
-            f"SETA 123",
+            f"LOADI 123",
             f"CALL abs16",
             f"HALT",
             *neglines,
@@ -781,7 +752,7 @@ def verifyabs32(only: Optional[str], full: bool) -> None:
             f"PUSHI {(xbin >> 8) & 0xFF}",
             f"PUSHI {(xbin >> 16) & 0xFF}",
             f"PUSHI {(xbin >> 24) & 0xFF}",
-            f"SETA 123",
+            f"LOADI 123",
             f"CALL abs32",
             f"HALT",
             *neglines,
@@ -1090,7 +1061,7 @@ def verifyumin16(only: Optional[str], full: bool) -> None:
                 f"PUSHI {(a >> 8) & 0xFF}",
                 f"PUSHI {b & 0xFF}",
                 f"PUSHI {(b >> 8) & 0xFF}",
-                f"SETA 123",
+                f"LOADI 123",
                 f"CALL umin16",
                 f"HALT",
                 *cmplines,
@@ -1140,7 +1111,7 @@ def verifyumin32(only: Optional[str], full: bool) -> None:
             f"PUSHI {(b >> 8) & 0xFF}",
             f"PUSHI {(b >> 16) & 0xFF}",
             f"PUSHI {(b >> 24) & 0xFF}",
-            f"SETA 123",
+            f"LOADI 123",
             f"CALL umin32",
             f"HALT",
             *cmplines,
@@ -1262,7 +1233,7 @@ def verifyumax16(only: Optional[str], full: bool) -> None:
                 f"PUSHI {(a >> 8) & 0xFF}",
                 f"PUSHI {b & 0xFF}",
                 f"PUSHI {(b >> 8) & 0xFF}",
-                f"SETA 123",
+                f"LOADI 123",
                 f"CALL umax16",
                 f"HALT",
                 *cmplines,
@@ -1312,7 +1283,7 @@ def verifyumax32(only: Optional[str], full: bool) -> None:
             f"PUSHI {(b >> 8) & 0xFF}",
             f"PUSHI {(b >> 16) & 0xFF}",
             f"PUSHI {(b >> 24) & 0xFF}",
-            f"SETA 123",
+            f"LOADI 123",
             f"CALL umax32",
             f"HALT",
             *cmplines,
@@ -1422,7 +1393,7 @@ def verifyneg16(only: Optional[str], full: bool) -> None:
             *initlines,
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
-            f"SETA 123",
+            f"LOADI 123",
             f"CALL neg16",
             f"HALT",
             *neglines,
@@ -1478,7 +1449,7 @@ def verifyneg32(only: Optional[str], full: bool) -> None:
             f"PUSHI {(xbin >> 8) & 0xFF}",
             f"PUSHI {(xbin >> 16) & 0xFF}",
             f"PUSHI {(xbin >> 24) & 0xFF}",
-            f"SETA 123",
+            f"LOADI 123",
             f"CALL neg32",
             f"HALT",
             *neglines,
@@ -1602,7 +1573,7 @@ def verifystrcpy(only: Optional[str], full: bool) -> None:
             "PUSH SPC",
             "PUSHI 0x00",
             "PUSHI 0x20",
-            "SETA 123",
+            "LOADI 123",
             "CALL strcpy",
             "HALT",
             *liblines,
@@ -1681,7 +1652,7 @@ def verifystrcat(only: Optional[str], full: bool) -> None:
                 "SETPC string",
                 "SWAP PC, SPC",
                 "PUSH SPC",
-                "SETA 123",
+                "LOADI 123",
                 "CALL strcat",
                 "HALT",
                 *liblines,
@@ -1830,7 +1801,7 @@ def verifyitoa(only: Optional[str], full: bool) -> None:
             *initlines,
             f"PUSHI 0x00",
             f"PUSHI 0x10",
-            f"SETA {x}",
+            f"LOADI {x}",
             f"CALL itoa",
             f"HALT",
             *itoalines,
@@ -1956,9 +1927,8 @@ if __name__ == "__main__":
     verifyassembler(only, args.full)
 
     # Raw instruction verification
-    verifyloadi(only, args.full)
     verifyaddi(only, args.full)
-    verifyseta(only, args.full)
+    verifyloadi(only, args.full)
     verifysetpc(only, args.full)
     verifyaddpc(only, args.full)
     verifyneg(only, args.full)

@@ -34,8 +34,7 @@ The layout is separated into logical components:
 ### Instructions
 
  * JRI - Jump relative to immediate + 1. Assembler also supports labels. Can jump 32 forward or backward.
- * ZERO - Zero the contents of A. This is an alternate mnemonic for "LOADI 0".
- * LOADI - Load immediate sign-extended to A. Can load values between -32 and 31.
+ * LOADI - Load immediate stored in next memory cell to A. Can load any 8-bit value.
  * ADDI - Add immediate sign-extended to A, no carry. Can add values between -32 and 31. Affects ZF and CF.
  * INV - Bitwise invert A. Affects ZF and CF.
  * ADD - Add contents of memory location PC to A register. Affects ZF and CF.
@@ -70,7 +69,7 @@ For convenience of programming without too much hassle, several assembler macros
 
 * NOP - Perform no operation. Implemented as "JRI 0".
 * HALT - Jump to self, loop forever. Implemented as "JRI -1".
-* SETA - Set immediate value to A register. Sets A to full 8-bit value.
+* ZERO - Zero the contents of A.
 * SETPC - Set immediate value to PC register, clobbering A register. Sets PC to full 16-bit value.
 * STOREI - Stores immediate value to memory pointed at by PC register, clobbering A register. Stores full 8-bit value to memory.
 * NEG - Twos compliment negate A register.

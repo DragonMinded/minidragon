@@ -350,6 +350,7 @@ def assemble(
                 mnemonic, param = mnemonic.split(" ", 1)
                 params = _splitparams(param)
             else:
+                param = ""
                 params = ()
 
             mnemonic = mnemonic.upper()
@@ -393,6 +394,7 @@ def assemble(
                 mnemonic, param = mnemonic.split(" ", 1)
                 params = _splitparams(param)
             else:
+                param = ""
                 params = ()
 
             mnemonic = mnemonic.upper()
@@ -495,60 +497,6 @@ class JRI(BaseInstruction):
 
 
 @instruction
-class LOADI(BaseInstruction):
-    # Load immediate sign extended to A.
-
-    def handles(self, instruction: int) -> bool:
-        return instruction & 0b11000000 == 0b01000000
-
-    def mnemonic(self, instruction: int) -> str:
-        integer = bintoint(sign_extend(instruction & 0x3F, 5) & 0xFF)
-        if integer == 0:
-            return f"ZERO"
-        else:
-            return f"LOADI {integer}"
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                imm_6_output=True,
-                a_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic in {"LOADI", "ZERO"}
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameters: Tuple[str, ...],
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        if mnemonic == "ZERO":
-            _checkempty(mnemonic, parameters)
-            loadval = 0
-        else:
-            _checkoneparam(mnemonic, parameters)
-            parameter = parameters[0]
-            loadval = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
-        return [0b01000000 | loadval]
-
-
-@instruction
 class ADDI(BaseInstruction):
     # Add immediate sign extended to A.
 
@@ -628,7 +576,7 @@ class PUSHIP(BaseInstruction):
         # is zeros by choosing where in our number space to place it. This
         # means we can only have a positive offset, but we don't need new
         # hardware to handle just this instruction.
-        integer = bintoint(sign_extend(instruction & 0x3F, 5) & 0xFF)
+        integer = bintoint(sign_extend(instruction & 0x0F, 3) & 0xFF)
         return f"PUSHIP {integer}"
 
     def signals(self) -> List["ControlSignals"]:
@@ -649,7 +597,7 @@ class PUSHIP(BaseInstruction):
             ),
             # Store the immediate value zero-extended into B.
             ControlSignals(
-                imm_6_output=True,
+                imm_4_output=True,
                 b_input=True,
             ),
             # Add the immediate value to the current IP, store
@@ -678,7 +626,7 @@ class PUSHIP(BaseInstruction):
             ),
             # Store the immediate value zero-extended into B.
             ControlSignals(
-                imm_6_output=True,
+                imm_4_output=True,
                 b_input=True,
             ),
             # Add the immediate value to the current IP, store
@@ -1859,13 +1807,6 @@ class LNGJUMP(BaseStackInstruction):
         _checkoneparam(mnemonic, parameters)
         parameter = parameters[0]
 
-        if not parameter:
-            # We could assume that the next two bytes are the value, but that
-            # seems to be in poor form.
-            raise ParameterOutOfRangeException(
-                f"Must give an immediate value for {mnemonic}"
-            )
-
         # Assume the user wanted to jump to an immediate or a label.
         try:
             location = getint(
@@ -1891,6 +1832,62 @@ class LNGJUMP(BaseStackInstruction):
                 location = 0
 
         return [0b11111000, (location >> 8) & 0xFF, location & 0xFF]
+
+
+@instruction
+class LOADI(BaseStackInstruction):
+    # Load immediate stored after instruction to A.
+    opcode = 0b001
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            # First, increment the IP so we can grab the value.
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+            # Store it in A register
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_IP,
+                sram_output=True,
+                a_input=True,
+            ),
+            # Now, increment once more to go to next intstruction.
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        # We override the base because we technically take an immediate for
+        # this opcode, its just stored in memory after the opcode itself.
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+        loadval = getint(
+            parameter,
+            8,
+            allow_unsigned=True,
+            hint=_insnrep(mnemonic, parameters),
+        )
+        return [0b11111001, loadval & 0xFF]
 
 
 @instruction
@@ -2250,70 +2247,6 @@ class BaseMacro(BaseInstruction):
 
 
 @instruction
-class SETA(BaseMacro):
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic == "SETA"
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameters: Tuple[str, ...],
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        _checkoneparam(mnemonic, parameters)
-        parameter = parameters[0]
-
-        # Load immediate 8-bit value into A.
-        aval = getint(
-            parameter,
-            8,
-            allow_unsigned=True,
-            hint=_insnrep(mnemonic, parameters),
-        )
-
-        # Now, assemble the load and return that value
-        return self.compile(
-            origin,
-            self._immtoa(aval),
-            hint=_insnrep(mnemonic, parameters),
-        )
-
-    def _immtoa(self, val: int) -> List[str]:
-        instructions: List[str] = []
-        if val < 0:
-            val = struct.unpack("B", struct.pack("b", val))[0]
-        if val < 0b00100000:
-            # This is safe to load as an immediate directly, without
-            # risking sign extension.
-            instructions.append(f"LOADI {val}")
-        elif val < 0b01000000:
-            # We will need to shift in the value and perhaps add to it
-            instructions.append(f"LOADI {val >> 1}")
-            instructions.append("SHL")
-            if val & 0b00000001 != 0:
-                instructions.append(f"ADDI 1")
-        else:
-            # We will need to shift in the value and perhaps add to it.
-            # Its safe to do this in all cases since we know that either
-            # the top bit is clear so shifting right by two will mean
-            # that it doesn't get extended, or the top bit is set, in
-            # which case it will, but we'll override that by shifting
-            # left twice anyway.
-            if val & 0x80 != 0:
-                newval = bintoint((val >> 2) | 0xC0)
-            else:
-                newval = val >> 2
-            instructions.append(f"LOADI {newval}")
-            instructions.append("SHL")
-            instructions.append("SHL")
-            if val & 0b00000011 != 0:
-                instructions.append(f"ADDI {val & 0b00000011}")
-        return instructions
-
-
-@instruction
 class SETPC(BaseMacro):
     def assembles(self, mnemonic: str) -> bool:
         return mnemonic == "SETPC"
@@ -2363,9 +2296,9 @@ class SETPC(BaseMacro):
 
         # Now, get the instructions themselves
         instructions = [
-            f"SETA {pval}",
+            f"LOADI {pval}",
             "ATOP",
-            f"SETA {cval}",
+            f"LOADI {cval}",
             "ATOC",
         ]
 
@@ -2936,6 +2869,29 @@ class CALLRI(BaseMacro):
 
 
 @instruction
+class ZERO(BaseMacro):
+    # Zero the contents of the A register.
+
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic == "ZERO"
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checkempty(mnemonic, parameters)
+        return self.compile(
+            origin,
+            ["LOADI 0"],
+            hint=_insnrep(mnemonic, parameters),
+        )
+
+
+@instruction
 class PUSH(BaseMacro):
     # Decrement PC, store A/U/V/IP/SPC to PC.
 
@@ -2974,13 +2930,21 @@ class PUSH(BaseMacro):
                 ["DECPC", "STOREV"],
                 hint=_insnrep(mnemonic, parameters),
             )
-        if parameter == "IP":
-            # Super simple, but convenient to use.
-            return self.compile(
-                origin,
-                ["PUSHIP"],
-                hint=_insnrep(mnemonic, parameters),
-            )
+        if parameter[:2] == "IP":
+            # Split the parameter by "+"
+            vals = parameter.split('+', 1)
+            if len(vals) == 1:
+                return self.compile(
+                    origin,
+                    ["PUSHIP 0"],
+                    hint=_insnrep(mnemonic, parameters),
+                )
+            else:
+                return self.compile(
+                    origin,
+                    ["PUSHIP {vals[1].strip()}"],
+                    hint=_insnrep(mnemonic, parameters),
+                )
         if parameter == "SPC":
             # Super simple, but convenient to use.
             return self.compile(
@@ -3013,7 +2977,7 @@ class STOREI(BaseMacro):
         # Super simple, but convenient to use.
         return self.compile(
             origin,
-            [f"SETA {_paramrep(parameters)}", "STOREA"],
+            [f"LOADI {_paramrep(parameters)}", "STOREA"],
             hint=_insnrep(mnemonic, parameters),
         )
 
@@ -3036,7 +3000,7 @@ class PUSHI(BaseMacro):
         # Super simple, but convenient to use.
         return self.compile(
             origin,
-            ["DECPC", f"SETA {_paramrep(parameters)}", "STOREA"],
+            ["DECPC", f"LOADI {_paramrep(parameters)}", "STOREA"],
             hint=_insnrep(mnemonic, parameters),
         )
 

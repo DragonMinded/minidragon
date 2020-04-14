@@ -42,7 +42,7 @@ udiv:
 
     ; Now, zero out the quotient
     SUBPCI 4
-    SETA 0
+    LOADI 0
     STORE A
 
 _udiv_loop:

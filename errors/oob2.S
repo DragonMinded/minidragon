@@ -1,3 +1,3 @@
 ; LOADI takes values from -32 to 31
-LOADI -32
-LOADI -33
+LOADI -128
+LOADI -129
