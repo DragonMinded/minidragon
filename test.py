@@ -433,8 +433,10 @@ def verifyumult(only: Optional[str], full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(0, 16):
-        for y in range(0, 16):
+    for x in range(0, 256):
+        for y in range(0, 256):
+            if x * y > 255:
+                continue
             memory = getmemory(os.linesep.join([
                 *initlines,
                 f"PUSHI {x}",
@@ -454,7 +456,7 @@ def verifyumult(only: Optional[str], full: bool) -> None:
             instructions += cpu.ticks
             count += 1
 
-        print(f"{CLEAR_LINE}{int((x * 100) / 16)}% complete...")
+        print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for umult: {int(cycles/count)}")
     print(f"Average instructions for umult: {int(instructions/count)}")
 
