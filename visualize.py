@@ -45,8 +45,13 @@ if __name__ == "__main__":
     with open(args.file, "r") as fp:
         lines = fp.readlines()
 
-    def _isswap(insn: str) -> bool:
-        return insn.upper() == "SWAP"
+    def _isswap(insn: str, params: str) -> bool:
+        return (
+            insn.upper() == "SWAP" and
+            params.upper().replace(" ", "") in {"PC,SPC", "SPC,PC"}
+        ) or (
+            insn.upper() == "SWAPPC"
+        )
 
     def _islabel(param: str) -> bool:
         if not param:
@@ -64,8 +69,8 @@ if __name__ == "__main__":
         True: args.shadow_adjust,
     }
 
-    def _insncolor(insn: str) -> str:
-        if _isswap(insn):
+    def _insncolor(insn: str, params: str) -> str:
+        if _isswap(insn, params):
             return Color.GRAY
         elif swapped:
             return Color.PURPLE
@@ -78,8 +83,8 @@ if __name__ == "__main__":
         else:
             return Color.RED
 
-    def _stackpos(insn: str) -> str:
-        if _isswap(insn):
+    def _stackpos(insn: str, params: str) -> str:
+        if _isswap(insn, params):
             return "      "
 
         pos = stackpos[swapped]
@@ -104,12 +109,22 @@ if __name__ == "__main__":
             return curpos - 2
         elif insn in {"POPSPC", "POPIP"}:
             return curpos + 2
-        elif insn in {"PUSH", "PUSHI", "DECPC"}:
+        elif insn in {"PUSHI", "DECPC"}:
             return curpos - 1
-        elif insn in {
-            "POP", "INCPC", "POPADD", "POPADC", "POPAND", "POPOR", "POPXOR"
-        }:
+        elif insn == "PUSH":
+            return (
+                (curpos - 2)
+                if param.upper() in {"IP", "SPC"}
+                else (curpos - 1)
+            )
+        elif insn == "INCPC":
             return curpos + 1
+        elif insn == "POP":
+            return (
+                (curpos + 2)
+                if param.upper() in {"IP", "SPC"}
+                else (curpos + 1)
+            )
         elif insn == "ADDPCI":
             return curpos + int(param)
         elif insn == "SUBPCI":
@@ -162,9 +177,9 @@ if __name__ == "__main__":
 
             # First, print the line
             print(
-                f"{_stackpos(insn)}" +
+                f"{_stackpos(insn, param)}" +
                 f"{before}" +
-                f"{_insncolor(insn)}{insn}{Color.END}" +
+                f"{_insncolor(insn, param)}{insn}{Color.END}" +
                 f"{space}" +
                 f"{_paramcolor(param)}{param}{Color.END}" +
                 f"{after}",
@@ -172,7 +187,7 @@ if __name__ == "__main__":
             )
 
             # Now, figure out if we need to swap
-            if _isswap(insn):
+            if _isswap(insn, param):
                 swapped = not swapped
             else:
                 stackpos[swapped] = _adjust_pos(stackpos[swapped], insn, param)
