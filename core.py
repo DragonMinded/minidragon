@@ -3448,6 +3448,14 @@ class ControlSignals:
         self.v_input = v_input or False
 
 
+def InstructionLoadControlSignals() -> ControlSignals:
+    return ControlSignals(
+        address_src=ControlSignals.ADDRESS_SRC_IP,
+        sram_output=True,
+        ir_input=True,
+    )
+
+
 class ALU:
 
     # Add 16-bit value from "A" source to 8-bit value from "B" source,
@@ -3737,13 +3745,9 @@ class CPUCore:
         )
 
     def tick(self) -> None:
-        # Fetch instruction from RAM microcode.
         instructions = [
-            ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_IP,
-                sram_output=True,
-                ir_input=True,
-            ),
+            # Fetch instruction from RAM microcode.
+            InstructionLoadControlSignals(),
             # Dummy signals, since we know we will always
             # move to the next microcode on real HW.
             ControlSignals(),
