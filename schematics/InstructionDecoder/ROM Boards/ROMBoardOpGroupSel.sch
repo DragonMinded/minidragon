@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 393 404
+Sheet 393 478
 Title "Transistor 2-to-4 Selector"
 Date "2020-01-18"
 Rev "1"
@@ -181,7 +181,7 @@ Wire Wire Line
 	2050 7200 2050 7050
 $Comp
 L power:VCC #PWR?
-U 1 1 5E004479
+U 1 1 5EB9D3DA
 P 1000 5750
 F 0 "#PWR?" H 1000 5600 50  0001 C CNN
 F 1 "VCC" H 1017 5923 50  0000 C CNN

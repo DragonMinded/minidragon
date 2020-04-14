@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 73 404
+Sheet 73 478
 Title "Transistor 4-Bit Register"
 Date "2020-01-19"
 Rev "1"
@@ -15,13 +15,13 @@ Comment4 ""
 $EndDescr
 $Sheet
 S 1000 3000 500  500 
-U 5EB6F300
+U 5F531ABE
 F0 "D Upper Power" 50
 F1 "Power.sch" 50
 $EndSheet
 $Sheet
 S 4000 1000 1000 200 
-U 5EB6F359
+U 5F531ADF
 F0 "D Upper LED Indicator Bit 1" 50
 F1 "LEDIndicator.sch" 50
 F2 "D" I L 4000 1100 50 
@@ -60,7 +60,7 @@ F3 "D" I L 4000 4600 50
 $EndSheet
 $Sheet
 S 4000 2500 1000 200 
-U 5E5F7466
+U 5F531960
 F0 "D Upper Buffer Out Bit 2" 50
 F1 "Buffer_2.sch" 50
 F2 "BufOut" O R 5000 2600 50 
@@ -68,7 +68,7 @@ F3 "D" I L 4000 2600 50
 $EndSheet
 $Sheet
 S 4000 3000 1000 200 
-U 5E693C96
+U 5F531A05
 F0 "D Upper LED Indicator Bit 3" 50
 F1 "LEDIndicator_3.sch" 50
 F2 "D" I L 4000 3100 50 
@@ -115,7 +115,7 @@ Wire Wire Line
 	2900 1450 3000 1450
 $Sheet
 S 3000 2000 700  550 
-U 5EB6F3E9
+U 5F531B27
 F0 "D Upper D Flip Flop Bit 2" 50
 F1 "DFlipFlop_2.sch" 50
 F2 "EN2" I L 3000 2200 50 
@@ -261,7 +261,7 @@ Text HLabel 5800 2300 2    50   Output ~ 0
 Q4
 $Sheet
 S 4000 3500 1000 200 
-U 5E5F757C
+U 5F531982
 F0 "D Upper Buffer Out Bit 3" 50
 F1 "Buffer_3.sch" 50
 F2 "BufOut" O R 5000 3600 50 
@@ -269,14 +269,14 @@ F3 "D" I L 4000 3600 50
 $EndSheet
 $Sheet
 S 4000 4000 1000 200 
-U 5E5E4D55
+U 5FA68B81
 F0 "D Upper LED Indicator Bit 4" 50
 F1 "LEDIndicator_4.sch" 50
 F2 "D" I L 4000 4100 50 
 $EndSheet
 $Sheet
 S 1400 1000 1100 200 
-U 5EB6F406
+U 5F531B32
 F0 "D Upper Clock Edge Detection" 50
 F1 "ClockDetect.sch" 50
 F2 "ClkIn" I L 1400 1100 50 
@@ -295,7 +295,7 @@ F6 "RST" I L 3000 3450 50
 $EndSheet
 $Sheet
 S 4000 2000 1000 200 
-U 5EB6F323
+U 5F531ACC
 F0 "D Upper LED Indicator Bit 2" 50
 F1 "LedIndicator_2.sch" 50
 F2 "D" I L 4000 2100 50 

@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A0 46811 33110
 encoding utf-8
-Sheet 382 404
+Sheet 382 478
 Title "Instruction Decoder ROM Board"
 Date "2020-03-19"
 Rev "1"
@@ -118,7 +118,7 @@ F 3 "~" H 1350 7400 50  0001 C CNN
 $EndComp
 $Comp
 L Connector:Conn_01x02_Male J?
-U 1 1 5DFF2E7D
+U 1 1 5EA288BD
 P 1800 7400
 F 0 "J?" V 1954 7212 50  0000 R CNN
 F 1 "Power" V 1863 7212 50  0000 R CNN

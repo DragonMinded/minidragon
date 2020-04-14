@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 58 404
+Sheet 58 478
 Title "Transistor 4-Bit Register"
 Date "2020-01-19"
 Rev "1"
@@ -15,13 +15,13 @@ Comment4 ""
 $EndDescr
 $Sheet
 S 1000 3000 500  500 
-U 5E73DA0F
+U 5F531A92
 F0 "D Lower Power" 50
 F1 "Power.sch" 50
 $EndSheet
 $Sheet
 S 1400 1000 1100 200 
-U 5E73D956
+U 5FA68C6B
 F0 "D Lower Clock Edge Detection" 50
 F1 "ClockDetect.sch" 50
 F2 "ClkIn" I L 1400 1100 50 
@@ -29,14 +29,14 @@ F3 "EdgeOut" O R 2500 1100 50
 $EndSheet
 $Sheet
 S 4000 1000 1000 200 
-U 5E73D957
+U 5FA68C6C
 F0 "D Lower LED Indicator Bit 1" 50
 F1 "LEDIndicator.sch" 50
 F2 "D" I L 4000 1100 50 
 $EndSheet
 $Sheet
 S 3000 1000 700  550 
-U 5E73D958
+U 5FA68C6D
 F0 "D Lower D Flip Flop Bit 1" 50
 F1 "DFlipFlop.sch" 50
 F2 "EN2" I L 3000 1200 50 
@@ -60,7 +60,7 @@ Wire Wire Line
 	2700 1200 3000 1200
 $Sheet
 S 4000 4500 1000 200 
-U 5E693C12
+U 5F5319E4
 F0 "D Lower Buffer Out Bit 4" 50
 F1 "Buffer_4.sch" 50
 F2 "BufOut" O R 5000 4600 50 
@@ -68,7 +68,7 @@ F3 "D" I L 4000 4600 50
 $EndSheet
 $Sheet
 S 4000 2500 1000 200 
-U 5E73D9C5
+U 5F531A6A
 F0 "D Lower Buffer Out Bit 2" 50
 F1 "Buffer_2.sch" 50
 F2 "BufOut" O R 5000 2600 50 
@@ -90,7 +90,7 @@ F2 "D" I L 4000 2100 50
 $EndSheet
 $Sheet
 S 4000 1500 1000 200 
-U 5E693C10
+U 5FA68C20
 F0 "D Lower Buffer Out Bit 1" 50
 F1 "Buffer.sch" 50
 F2 "BufOut" O R 5000 1600 50 
@@ -130,7 +130,7 @@ Wire Wire Line
 	2900 1450 3000 1450
 $Sheet
 S 3000 2000 700  550 
-U 5E693C29
+U 5F5319EA
 F0 "D Lower D Flip Flop Bit 2" 50
 F1 "DFlipFlop_2.sch" 50
 F2 "EN2" I L 3000 2200 50 
@@ -176,7 +176,7 @@ Wire Wire Line
 	1200 1100 1400 1100
 $Sheet
 S 3000 3000 700  550 
-U 5E73D963
+U 5FA68C71
 F0 "D Lower D Flip Flop Bit 3" 50
 F1 "DFlipFlop_3.sch" 50
 F2 "EN2" I L 3000 3200 50 
@@ -224,7 +224,7 @@ Wire Wire Line
 Connection ~ 2900 2650
 $Sheet
 S 3000 4000 700  600 
-U 5E73DA1B
+U 5F531A9B
 F0 "D Lower D Flip Flop Bit 4" 50
 F1 "DFlipFlop_4.sch" 50
 F2 "EN2" I L 3000 4200 50 
@@ -295,7 +295,7 @@ F3 "D" I L 4000 3600 50
 $EndSheet
 $Sheet
 S 4000 4000 1000 200 
-U 5E73D9EE
+U 5F531A7E
 F0 "D Lower LED Indicator Bit 4" 50
 F1 "LEDIndicator_4.sch" 50
 F2 "D" I L 4000 4100 50 

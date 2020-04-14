@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 4 404
+Sheet 4 478
 Title ""
 Date ""
 Rev ""
@@ -15,15 +15,15 @@ Comment4 ""
 $EndDescr
 $Comp
 L 2n2222:2N2222 Q?
-U 1 1 5EB6F3A4
+U 1 1 5F531B01
 P 1150 1350
-AR Path="/5EB6F3A4" Ref="Q?"  Part="1" 
-AR Path="/5E2DE646/5EB6F3A4" Ref="Q?"  Part="1" 
-AR Path="/5E309F1C/5EB6F3A4" Ref="Q?"  Part="1" 
-AR Path="/5E30A74C/5EB6F3A4" Ref="Q?"  Part="1" 
-AR Path="/5E30A753/5EB6F3A4" Ref="Q?"  Part="1" 
-AR Path="/5E24E63C/5EB6F3A4" Ref="Q?"  Part="1" 
-AR Path="/5E251FF1/5EB6F3A4" Ref="Q20"  Part="1" 
+AR Path="/5F531B01" Ref="Q?"  Part="1" 
+AR Path="/5E2DE646/5F531B01" Ref="Q?"  Part="1" 
+AR Path="/5E309F1C/5F531B01" Ref="Q?"  Part="1" 
+AR Path="/5E30A74C/5F531B01" Ref="Q?"  Part="1" 
+AR Path="/5E30A753/5F531B01" Ref="Q?"  Part="1" 
+AR Path="/5E24E63C/5F531B01" Ref="Q?"  Part="1" 
+AR Path="/5E251FF1/5F531B01" Ref="Q20"  Part="1" 
 F 0 "Q?" H 1340 1396 50  0000 L CNN
 F 1 "2N2222" H 1340 1305 50  0000 L CNN
 F 2 "Package_TO_SOT_THT:TO-92_Inline" H 1350 1275 50  0001 L CIN
@@ -33,15 +33,15 @@ F 3 "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf" H 1150 1350 50  000
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E5F763F
+U 1 1 5FA68BD8
 P 1250 1000
-AR Path="/5E5F763F" Ref="#PWR?"  Part="1" 
-AR Path="/5E2DE646/5E5F763F" Ref="#PWR?"  Part="1" 
-AR Path="/5E309F1C/5E5F763F" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A74C/5E5F763F" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A753/5E5F763F" Ref="#PWR?"  Part="1" 
-AR Path="/5E24E63C/5E5F763F" Ref="#PWR?"  Part="1" 
-AR Path="/5E251FF1/5E5F763F" Ref="#PWR040"  Part="1" 
+AR Path="/5FA68BD8" Ref="#PWR?"  Part="1" 
+AR Path="/5E2DE646/5FA68BD8" Ref="#PWR?"  Part="1" 
+AR Path="/5E309F1C/5FA68BD8" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A74C/5FA68BD8" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A753/5FA68BD8" Ref="#PWR?"  Part="1" 
+AR Path="/5E24E63C/5FA68BD8" Ref="#PWR?"  Part="1" 
+AR Path="/5E251FF1/5FA68BD8" Ref="#PWR040"  Part="1" 
 F 0 "#PWR?" H 1250 850 50  0001 C CNN
 F 1 "VCC" H 1267 1173 50  0000 C CNN
 F 2 "" H 1250 1000 50  0001 C CNN
@@ -51,15 +51,15 @@ F 3 "" H 1250 1000 50  0001 C CNN
 $EndComp
 $Comp
 L Device:R R?
-U 1 1 5EB6F39D
+U 1 1 5F531AFE
 P 1250 1850
-AR Path="/5EB6F39D" Ref="R?"  Part="1" 
-AR Path="/5E2DE646/5EB6F39D" Ref="R?"  Part="1" 
-AR Path="/5E309F1C/5EB6F39D" Ref="R?"  Part="1" 
-AR Path="/5E30A74C/5EB6F39D" Ref="R?"  Part="1" 
-AR Path="/5E30A753/5EB6F39D" Ref="R?"  Part="1" 
-AR Path="/5E24E63C/5EB6F39D" Ref="R?"  Part="1" 
-AR Path="/5E251FF1/5EB6F39D" Ref="R27"  Part="1" 
+AR Path="/5F531AFE" Ref="R?"  Part="1" 
+AR Path="/5E2DE646/5F531AFE" Ref="R?"  Part="1" 
+AR Path="/5E309F1C/5F531AFE" Ref="R?"  Part="1" 
+AR Path="/5E30A74C/5F531AFE" Ref="R?"  Part="1" 
+AR Path="/5E30A753/5F531AFE" Ref="R?"  Part="1" 
+AR Path="/5E24E63C/5F531AFE" Ref="R?"  Part="1" 
+AR Path="/5E251FF1/5F531AFE" Ref="R27"  Part="1" 
 F 0 "R?" H 1180 1804 50  0000 R CNN
 F 1 "1K" H 1180 1895 50  0000 R CNN
 F 2 "Resistor_THT:R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal" V 1180 1850 50  0001 C CNN

@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 377 404
+Sheet 379 478
 Title ""
 Date ""
 Rev ""
@@ -15,7 +15,7 @@ Comment4 ""
 $EndDescr
 $Sheet
 S 3000 1000 1000 3500
-U 61194C2A
+U 5E923ED9
 F0 "JRI ROM 1" 50
 F1 "JRIROM1.sch" 50
 F2 "EN" I L 3000 1050 50 

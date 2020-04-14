@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 11 404
+Sheet 11 478
 Title "Clock and Reset Generator"
 Date "2020-01-06"
 Rev "1"
@@ -357,8 +357,6 @@ Wire Wire Line
 	4550 2700 4550 2500
 Wire Wire Line
 	5550 2800 5550 2700
-Wire Wire Line
-	6350 2700 5550 2700
 Connection ~ 5550 2700
 Wire Wire Line
 	5550 2700 5550 2500
@@ -561,7 +559,7 @@ Wire Wire Line
 	4250 4500 4950 4500
 Wire Wire Line
 	5250 3850 5250 3700
-Text GLabel 6350 2700 2    50   Output ~ 0
+Text GLabel 7650 2600 2    50   Output ~ 0
 SYS_CLK
 Wire Wire Line
 	5250 4200 5250 4150
@@ -569,7 +567,31 @@ Wire Wire Line
 	5250 4300 5250 4200
 Connection ~ 5250 4200
 Wire Wire Line
-	5250 4200 7250 4200
-Text GLabel 7250 4200 2    50   Output ~ 0
+	5250 4200 6700 4200
+Text GLabel 7650 2900 2    50   Output ~ 0
 SYS_RST
+$Sheet
+S 7000 2500 500  500 
+U 5E9E3170
+F0 "Clock Mini Buffer" 50
+F1 "ClockMiniBuffer.sch" 50
+F2 "IN1" I L 7000 2600 50 
+F3 "IN2" I L 7000 2900 50 
+F4 "OUT1" O R 7500 2600 50 
+F5 "OUT2" O R 7500 2900 50 
+$EndSheet
+Wire Wire Line
+	7500 2600 7650 2600
+Wire Wire Line
+	7650 2900 7500 2900
+Wire Wire Line
+	6700 2700 6700 2600
+Wire Wire Line
+	6700 2600 7000 2600
+Wire Wire Line
+	5550 2700 6700 2700
+Wire Wire Line
+	7000 2900 6700 2900
+Wire Wire Line
+	6700 2900 6700 4200
 $EndSCHEMATC

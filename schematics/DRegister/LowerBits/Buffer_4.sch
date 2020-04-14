@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 4 404
+Sheet 4 478
 Title ""
 Date ""
 Rev ""
@@ -15,15 +15,15 @@ Comment4 ""
 $EndDescr
 $Comp
 L 2n2222:2N2222 Q?
-U 1 1 5E693C93
+U 1 1 5F531A03
 P 1150 1350
-AR Path="/5E693C93" Ref="Q?"  Part="1" 
-AR Path="/5E2DE646/5E693C93" Ref="Q?"  Part="1" 
-AR Path="/5E309F1C/5E693C93" Ref="Q?"  Part="1" 
-AR Path="/5E30A74C/5E693C93" Ref="Q?"  Part="1" 
-AR Path="/5E30A753/5E693C93" Ref="Q?"  Part="1" 
-AR Path="/5E24E63C/5E693C93" Ref="Q?"  Part="1" 
-AR Path="/5E2520A7/5E693C93" Ref="Q19"  Part="1" 
+AR Path="/5F531A03" Ref="Q?"  Part="1" 
+AR Path="/5E2DE646/5F531A03" Ref="Q?"  Part="1" 
+AR Path="/5E309F1C/5F531A03" Ref="Q?"  Part="1" 
+AR Path="/5E30A74C/5F531A03" Ref="Q?"  Part="1" 
+AR Path="/5E30A753/5F531A03" Ref="Q?"  Part="1" 
+AR Path="/5E24E63C/5F531A03" Ref="Q?"  Part="1" 
+AR Path="/5E2520A7/5F531A03" Ref="Q19"  Part="1" 
 F 0 "Q?" H 1340 1396 50  0000 L CNN
 F 1 "2N2222" H 1340 1305 50  0000 L CNN
 F 2 "Package_TO_SOT_THT:TO-92_Inline" H 1350 1275 50  0001 L CIN
@@ -33,15 +33,15 @@ F 3 "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf" H 1150 1350 50  000
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E5E4D46
+U 1 1 5F531942
 P 1250 1000
-AR Path="/5E5E4D46" Ref="#PWR?"  Part="1" 
-AR Path="/5E2DE646/5E5E4D46" Ref="#PWR?"  Part="1" 
-AR Path="/5E309F1C/5E5E4D46" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A74C/5E5E4D46" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A753/5E5E4D46" Ref="#PWR?"  Part="1" 
-AR Path="/5E24E63C/5E5E4D46" Ref="#PWR?"  Part="1" 
-AR Path="/5E2520A7/5E5E4D46" Ref="#PWR038"  Part="1" 
+AR Path="/5F531942" Ref="#PWR?"  Part="1" 
+AR Path="/5E2DE646/5F531942" Ref="#PWR?"  Part="1" 
+AR Path="/5E309F1C/5F531942" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A74C/5F531942" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A753/5F531942" Ref="#PWR?"  Part="1" 
+AR Path="/5E24E63C/5F531942" Ref="#PWR?"  Part="1" 
+AR Path="/5E2520A7/5F531942" Ref="#PWR038"  Part="1" 
 F 0 "#PWR?" H 1250 850 50  0001 C CNN
 F 1 "VCC" H 1267 1173 50  0000 C CNN
 F 2 "" H 1250 1000 50  0001 C CNN
@@ -69,15 +69,15 @@ F 3 "~" H 1250 1850 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E5E4E08
+U 1 1 5F531956
 P 1250 2150
-AR Path="/5E5E4E08" Ref="#PWR?"  Part="1" 
-AR Path="/5E2DE646/5E5E4E08" Ref="#PWR?"  Part="1" 
-AR Path="/5E309F1C/5E5E4E08" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A74C/5E5E4E08" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A753/5E5E4E08" Ref="#PWR?"  Part="1" 
-AR Path="/5E24E63C/5E5E4E08" Ref="#PWR?"  Part="1" 
-AR Path="/5E2520A7/5E5E4E08" Ref="#PWR039"  Part="1" 
+AR Path="/5F531956" Ref="#PWR?"  Part="1" 
+AR Path="/5E2DE646/5F531956" Ref="#PWR?"  Part="1" 
+AR Path="/5E309F1C/5F531956" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A74C/5F531956" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A753/5F531956" Ref="#PWR?"  Part="1" 
+AR Path="/5E24E63C/5F531956" Ref="#PWR?"  Part="1" 
+AR Path="/5E2520A7/5F531956" Ref="#PWR039"  Part="1" 
 F 0 "#PWR?" H 1250 1900 50  0001 C CNN
 F 1 "GND" H 1255 1977 50  0000 C CNN
 F 2 "" H 1250 2150 50  0001 C CNN

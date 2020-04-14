@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 4 404
+Sheet 4 478
 Title ""
 Date ""
 Rev ""
@@ -33,15 +33,15 @@ F 3 "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf" H 1150 1350 50  000
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5EB6F35D
+U 1 1 5F531AE2
 P 1250 1000
-AR Path="/5EB6F35D" Ref="#PWR?"  Part="1" 
-AR Path="/5E2DE646/5EB6F35D" Ref="#PWR?"  Part="1" 
-AR Path="/5E309F1C/5EB6F35D" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A74C/5EB6F35D" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A753/5EB6F35D" Ref="#PWR?"  Part="1" 
-AR Path="/5E24E63C/5EB6F35D" Ref="#PWR?"  Part="1" 
-AR Path="/5E2527DA/5EB6F35D" Ref="#PWR042"  Part="1" 
+AR Path="/5F531AE2" Ref="#PWR?"  Part="1" 
+AR Path="/5E2DE646/5F531AE2" Ref="#PWR?"  Part="1" 
+AR Path="/5E309F1C/5F531AE2" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A74C/5F531AE2" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A753/5F531AE2" Ref="#PWR?"  Part="1" 
+AR Path="/5E24E63C/5F531AE2" Ref="#PWR?"  Part="1" 
+AR Path="/5E2527DA/5F531AE2" Ref="#PWR042"  Part="1" 
 F 0 "#PWR?" H 1250 850 50  0001 C CNN
 F 1 "VCC" H 1267 1173 50  0000 C CNN
 F 2 "" H 1250 1000 50  0001 C CNN
@@ -51,15 +51,15 @@ F 3 "" H 1250 1000 50  0001 C CNN
 $EndComp
 $Comp
 L Device:R R?
-U 1 1 5E693C94
+U 1 1 5F531A04
 P 1250 1850
-AR Path="/5E693C94" Ref="R?"  Part="1" 
-AR Path="/5E2DE646/5E693C94" Ref="R?"  Part="1" 
-AR Path="/5E309F1C/5E693C94" Ref="R?"  Part="1" 
-AR Path="/5E30A74C/5E693C94" Ref="R?"  Part="1" 
-AR Path="/5E30A753/5E693C94" Ref="R?"  Part="1" 
-AR Path="/5E24E63C/5E693C94" Ref="R?"  Part="1" 
-AR Path="/5E2527DA/5E693C94" Ref="R28"  Part="1" 
+AR Path="/5F531A04" Ref="R?"  Part="1" 
+AR Path="/5E2DE646/5F531A04" Ref="R?"  Part="1" 
+AR Path="/5E309F1C/5F531A04" Ref="R?"  Part="1" 
+AR Path="/5E30A74C/5F531A04" Ref="R?"  Part="1" 
+AR Path="/5E30A753/5F531A04" Ref="R?"  Part="1" 
+AR Path="/5E24E63C/5F531A04" Ref="R?"  Part="1" 
+AR Path="/5E2527DA/5F531A04" Ref="R28"  Part="1" 
 F 0 "R?" H 1180 1804 50  0000 R CNN
 F 1 "1K" H 1180 1895 50  0000 R CNN
 F 2 "Resistor_THT:R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal" V 1180 1850 50  0001 C CNN
@@ -69,15 +69,15 @@ F 3 "~" H 1250 1850 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E5E4D4C
+U 1 1 5F531943
 P 1250 2150
-AR Path="/5E5E4D4C" Ref="#PWR?"  Part="1" 
-AR Path="/5E2DE646/5E5E4D4C" Ref="#PWR?"  Part="1" 
-AR Path="/5E309F1C/5E5E4D4C" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A74C/5E5E4D4C" Ref="#PWR?"  Part="1" 
-AR Path="/5E30A753/5E5E4D4C" Ref="#PWR?"  Part="1" 
-AR Path="/5E24E63C/5E5E4D4C" Ref="#PWR?"  Part="1" 
-AR Path="/5E2527DA/5E5E4D4C" Ref="#PWR043"  Part="1" 
+AR Path="/5F531943" Ref="#PWR?"  Part="1" 
+AR Path="/5E2DE646/5F531943" Ref="#PWR?"  Part="1" 
+AR Path="/5E309F1C/5F531943" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A74C/5F531943" Ref="#PWR?"  Part="1" 
+AR Path="/5E30A753/5F531943" Ref="#PWR?"  Part="1" 
+AR Path="/5E24E63C/5F531943" Ref="#PWR?"  Part="1" 
+AR Path="/5E2527DA/5F531943" Ref="#PWR043"  Part="1" 
 F 0 "#PWR?" H 1250 1900 50  0001 C CNN
 F 1 "GND" H 1255 1977 50  0000 C CNN
 F 2 "" H 1250 2150 50  0001 C CNN

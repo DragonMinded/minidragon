@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 370 404
+Sheet 375 478
 Title "Transistor 2-to-4 Selector"
 Date "2020-01-18"
 Rev "1"
@@ -192,7 +192,7 @@ F 3 "" H 1000 5750 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E004D93
+U 1 1 5EB9D3DB
 P 1000 6250
 F 0 "#PWR?" H 1000 6000 50  0001 C CNN
 F 1 "GND" H 1005 6077 50  0000 C CNN

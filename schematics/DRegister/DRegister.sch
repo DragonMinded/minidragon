@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 58 404
+Sheet 58 478
 Title ""
 Date ""
 Rev ""
@@ -80,7 +80,7 @@ Wire Wire Line
 	2900 2000 2400 2000
 $Sheet
 S 2900 3050 550  1000
-U 5E693D15
+U 5F531A2A
 F0 "D Register Lower Bits" 50
 F1 "LowerBits/4BitRegister.sch" 50
 F2 "CLK" I L 2900 3100 50 
@@ -97,7 +97,7 @@ F12 "Q4" O R 3450 3100 50
 $EndSheet
 $Sheet
 S 2900 1550 500  1000
-U 5E5F7543
+U 5F531978
 F0 "D Register Upper Bits" 50
 F1 "UpperBits/4BitRegister.sch" 50
 F2 "CLK" I L 2900 1600 50 
@@ -114,7 +114,7 @@ F12 "Q4" O R 3400 1600 50
 $EndSheet
 $Sheet
 S 5000 1500 500  950 
-U 5E693F85
+U 5FA63C6F
 F0 "D Register Lower Bus Out" 50
 F1 "DRegisterBusOutputLower.sch" 50
 F2 "EN" I L 5000 2400 50 

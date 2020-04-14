@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A2 23386 16535
 encoding utf-8
-Sheet 386 404
+Sheet 386 478
 Title "Instruction Decoder ROM Mini Board"
 Date "2020-03-23"
 Rev "1"
@@ -15,7 +15,7 @@ Comment4 ""
 $EndDescr
 $Comp
 L Connector:Conn_01x02_Male J?
-U 1 1 5E010D1B
+U 1 1 5F1746C7
 P 5700 1650
 F 0 "J?" V 5854 1462 50  0000 R CNN
 F 1 "Power" V 5763 1462 50  0000 R CNN
@@ -26,7 +26,7 @@ F 3 "~" H 5700 1650 50  0001 C CNN
 $EndComp
 $Comp
 L power:VCC #PWR?
-U 1 1 5E0120BA
+U 1 1 5EA288C8
 P 5700 1300
 F 0 "#PWR?" H 5700 1150 50  0001 C CNN
 F 1 "VCC" H 5650 1450 50  0000 C CNN
@@ -37,7 +37,7 @@ F 3 "" H 5700 1300 50  0001 C CNN
 $EndComp
 $Comp
 L power:GND #PWR?
-U 1 1 5E012766
+U 1 1 5EA288C9
 P 5800 1300
 F 0 "#PWR?" H 5800 1050 50  0001 C CNN
 F 1 "GND" H 5750 1150 50  0000 C CNN
