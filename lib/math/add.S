@@ -18,34 +18,34 @@ add:
     ; PC + 4 - first operand
 
     ; Save the A register
-    PUSH
+    PUSH A
 
     ; Add two numbers together
     ADDPCI 3
-    LOADA
+    LOAD A
     INCPC
     ADD
-    STOREA
+    STORE A
 
     ; Now, copy the return up two in the stack so we can pop and ret
     ; while leaving the return value on the stack. First two are for
     ; the return address, next is for the A register.
     SUBPCI 2
-    LOADA
+    LOAD A
     ADDPCI 1
-    STOREA
+    STORE A
     SUBPCI 2
-    LOADA
+    LOAD A
     ADDPCI 1
-    STOREA
+    STORE A
 
     SUBPCI 2
-    LOADA
+    LOAD A
     ADDPCI 1
-    STOREA
+    STORE A
 
     ; Finally, return to caller
-    POP
+    POP A
     RET
 
 add16:
@@ -72,41 +72,41 @@ add16:
     ; PC + 6 - first operand low byte
 
     ; Save the A register
-    PUSH
+    PUSH A
 
     ; First, add the low bytes together, possibly setting the carry
     ADDPCI 4
-    LOADA
+    LOAD A
     ADDPCI 2
     ADD
-    STOREA
+    STORE A
 
     ; Now, add the high bytes together, including the carry
     SUBPCI 3
-    LOADA
+    LOAD A
     ADDPCI 2
     ADC
-    STOREA
+    STORE A
 
     ; Now, copy the return up two in the stack so we can pop and ret
     ; while leaving the return value on the stack. First two are for
     ; the return address, next is for the A register.
     SUBPCI 3
-    LOADA
+    LOAD A
     ADDPCI 2
-    STOREA
+    STORE A
     SUBPCI 3
-    LOADA
+    LOAD A
     ADDPCI 2
-    STOREA
+    STORE A
 
     SUBPCI 3
-    LOADA
+    LOAD A
     ADDPCI 2
-    STOREA
+    STORE A
 
     ; Finally, return to caller
-    POP
+    POP A
     RET
 
 add32:
@@ -141,51 +141,51 @@ add32:
     ; PC + 10 - first operand
 
     ; Save the A register
-    PUSH
+    PUSH A
 
     ; First, add the low bytes together, possibly setting the carry
     ADDPCI 6
-    LOADA
+    LOAD A
     ADDPCI 4
     ADD
-    STOREA
+    STORE A
 
     ; Now, add the next three byte sequenes together, adding in the carry
     SUBPCI 5
-    LOADA
+    LOAD A
     ADDPCI 4
     ADC
-    STOREA
+    STORE A
 
     SUBPCI 5
-    LOADA
+    LOAD A
     ADDPCI 4
     ADC
-    STOREA
+    STORE A
 
     SUBPCI 5
-    LOADA
+    LOAD A
     ADDPCI 4
     ADC
-    STOREA
+    STORE A
 
     ; Now, copy the return up two in the stack so we can pop and ret
     ; while leaving the return value on the stack. First two are for
     ; the return address, next is for the A register.
     SUBPCI 5
-    LOADA
+    LOAD A
     ADDPCI 4
-    STOREA
+    STORE A
     SUBPCI 5
-    LOADA
+    LOAD A
     ADDPCI 4
-    STOREA
+    STORE A
 
     SUBPCI 5
-    LOADA
+    LOAD A
     ADDPCI 4
-    STOREA
+    STORE A
 
     ; Finally, return to caller
-    POP
+    POP A
     RET

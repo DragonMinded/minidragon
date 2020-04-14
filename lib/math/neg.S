@@ -17,17 +17,17 @@ neg:
     ; PC + 3 - number to negate
 
     ; Save the A register.
-    PUSH
+    PUSH A
 
     ; Negate the number on the stack.
     ADDPCI 3
-    LOADA
+    LOAD A
     NEG
-    STOREA
+    STORE A
     SUBPCI 3
 
     ; Restore A, return.
-    POP
+    POP A
     RET
 
 neg16:
@@ -37,8 +37,8 @@ neg16:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; To negate an integer 12345, call this similar to:
-    ;     PUSH 0x39
-    ;     PUSH 0x30
+    ;     PUSHI 0x39
+    ;     PUSHI 0x30
     ;     CALL neg16
     ;
     ; Stack layout:
@@ -49,26 +49,26 @@ neg16:
     ; PC + 4 - number to negate low byte
 
     ; Save the A register.
-    PUSH
+    PUSH A
     ADDPCI 3
 
     ; Negate the number on the stack.
-    LOADA
+    LOAD A
     INV
-    STOREA
+    STORE A
     INCPC
-    LOADA
+    LOAD A
     INV
     ADDI 1
-    STOREA
+    STORE A
     DECPC
     ZERO
     ADC
-    STOREA
+    STORE A
 
     ; Restore A, return.
     SUBPCI 3
-    POP
+    POP A
     RET
 
 neg32:
@@ -78,10 +78,10 @@ neg32:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; To negate an integer 12345678, call this similar to:
-    ;     PUSH 0x4E
-    ;     PUSH 0x61
-    ;     PUSH 0xBC
-    ;     PUSH 0x00
+    ;     PUSHI 0x4E
+    ;     PUSHI 0x61
+    ;     PUSHI 0xBC
+    ;     PUSHI 0x00
     ;     CALL neg32
     ;
     ; Stack layout:
@@ -94,42 +94,42 @@ neg32:
     ; PC + 6 - number to negate
 
     ; Save the A register.
-    PUSH
+    PUSH A
     ADDPCI 3
 
     ; Negate the number on the stack.
-    LOADA
+    LOAD A
     INV
-    STOREA
+    STORE A
     INCPC
-    LOADA
+    LOAD A
     INV
-    STOREA
+    STORE A
     INCPC
-    LOADA
+    LOAD A
     INV
-    STOREA
+    STORE A
     INCPC
 
-    LOADA
+    LOAD A
     INV
     ADDI 1
-    STOREA
+    STORE A
 
     DECPC
     ZERO
     ADC
-    STOREA
+    STORE A
     DECPC
     ZERO
     ADC
-    STOREA
+    STORE A
     DECPC
     ZERO
     ADC
-    STOREA
+    STORE A
 
     ; Restore A, return.
     SUBPCI 3
-    POP
+    POP A
     RET

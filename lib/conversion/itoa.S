@@ -33,13 +33,13 @@ itoa:
     ; PC + ? - pointer to string
 
     ; Save the A register.
-    PUSH
+    PUSH A
 
     ; Save the output length (starts with 1, due to always having a null).
     PUSHI 1
 
     ; Now, save the calling function's local stack.
-    PUSHSPC
+    PUSH SPC
 
     ; Save a few spaces for our temporary storage, get the
     ; address of our current stack position. We pre-fill
@@ -48,27 +48,27 @@ itoa:
     STOREI 0
 
     ; Do the actual dance to copy our PC pointer to SPC.
-    PTOA
-    SWAPPC
-    ATOP
-    SWAPPC
-    CTOA
-    SWAPPC
-    ATOC
-    SWAPPC
+    MOV P, A
+    SWAP PC, SPC
+    MOV A, P
+    SWAP PC, SPC
+    MOV C, A
+    SWAP PC, SPC
+    MOV A, C
+    SWAP PC, SPC
 
     ; SPC = PC now, save that address.
     ADDPCI 3
-    PUSHSPC
+    PUSH SPC
 
     ; Retrieve the original A value, skip past our buffer.
     ADDPCI 5
-    LOADA
+    LOAD A
     SUBPCI 8
     SUBPCI 4
 
     ; Assume the integer is positive.
-    PUSH
+    PUSH A
 
     ; Now, figure out if A is negative.
     SHL
@@ -83,9 +83,9 @@ itoa:
 
 _itoa_neg:
     ; Negate it
-    LOADA
+    LOAD A
     NEG
-    STOREA
+    STORE A
 
     ; Store that it is negative
     ADDPCI 2
@@ -107,7 +107,7 @@ _itoa_loop:
     CALL udiv
 
     ; Quotient is in A, remainder is on stack. Save the quotient.
-    PUSH
+    PUSH A
     INCPC
 
     ; Now, load the zero character constant so we can change the
@@ -116,26 +116,26 @@ _itoa_loop:
 
     ; Update the remainder to be a character.
     ADD
-    STOREA
+    STORE A
 
     ; Now, grab where we're going to output this from the stack.
     ADDPCI 7
-    POPSPC
-    SWAPPC
-    PUSH
-    SWAPPC
-    PUSHSPC
+    POP SPC
+    SWAP PC, SPC
+    PUSH A
+    SWAP PC, SPC
+    PUSH SPC
 
     ; Count how many output bytes so we can rewind the pointer.
     ADDPCI 4
-    LOADA
+    LOAD A
     INC
-    STOREA
+    STORE A
     SUBPCI 4
 
     ; Now, see if we're finished (the quotient is zero).
     SUBPCI 8
-    LOADA
+    LOAD A
     ADDI 0
     JRIZ _itoa_negative_check
 
@@ -145,7 +145,7 @@ _itoa_loop:
 _itoa_negative_check:
     ; See if the number was negative.
     ADDPCI 2
-    LOADA
+    LOAD A
     ADDPCI 6
     ADDI 0
     JRIZ _itoa_copy
@@ -154,30 +154,30 @@ _itoa_negative_check:
     SETA "-"
 
     ; We already advanced to our output buffer location above.
-    POPSPC
-    SWAPPC
-    PUSH
-    SWAPPC
-    PUSHSPC
+    POP SPC
+    SWAP PC, SPC
+    PUSH A
+    SWAP PC, SPC
+    PUSH SPC
 
 _itoa_copy:
     ; Now, copy bytes one at a time to the output buffer. We
     ; output backwards in this routine because we do the low
     ; digits first, so we can now copy until we hit the null
     ; byte and the integer will be forward.
-    POPSPC
-    SWAPPC
-    POP
-    SWAPPC
-    PUSHSPC
+    POP SPC
+    SWAP PC, SPC
+    POP A
+    SWAP PC, SPC
+    PUSH SPC
 
     ADDPCI 8
-    POPSPC
-    SWAPPC
-    STOREA
+    POP SPC
+    SWAP PC, SPC
+    STORE A
     INCPC
-    SWAPPC
-    PUSHSPC
+    SWAP PC, SPC
+    PUSH SPC
     SUBPCI 8
 
     ; See if we copied a null
@@ -188,17 +188,17 @@ _itoa_done:
     ; Now, restore the pointer on the stack, by loading how many
     ; bytes we output and advancing backwards that much.
     ADDPCI 8
-    POPSPC
+    POP SPC
     SUBPCI 6
-    LOADA
+    LOAD A
     ADDPCI 6
-    SWAPPC
+    SWAP PC, SPC
     NEG
     ADDPC
-    SWAPPC
-    PUSHSPC
+    SWAP PC, SPC
+    PUSH SPC
 
     ; Finally, we need to restore the A register and stack and return.
     SUBPCI 3
-    POP
+    POP A
     RET

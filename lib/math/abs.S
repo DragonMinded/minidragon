@@ -13,11 +13,11 @@ abs:
     ; PC + 1 - return address
 
     ; Save the original value of A
-    PUSH
+    PUSH A
 
     ; Now, check if it is negative.
     SHL
-    POP
+    POP A
     JRIC _abs_negative
 
     ; Its already positive, so just return it.
@@ -36,8 +36,8 @@ abs16:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; To take the abs of an integer 12345, call this similar to:
-    ;     PUSH 0x39
-    ;     PUSH 0x30
+    ;     PUSHI 0x39
+    ;     PUSHI 0x30
     ;     CALL abs16
     ;
     ; Stack layout:
@@ -48,24 +48,24 @@ abs16:
     ; PC + 4 - integer low byte
 
     ; Save the original value of A
-    PUSH
+    PUSH A
 
     ; Now, check if it is negative.
     ADDPCI 3
-    LOADA
+    LOAD A
     SUBPCI 3
     SHL
     JRIC _abs16_negative
 
     ; Its already positive, so just return it.
-    POP
+    POP A
     RET
 
 _abs16_negative:
     ; Gotta two's compliment it. Lets use the neg16 function, and trick
     ; it into jumping to our own return. Restore the A register so neg16
     ; can save it again.
-    POP
+    POP A
     LNGJUMP neg16
 
 abs32:
@@ -76,10 +76,10 @@ abs32:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; To take the abs of an integer 12345678, call this similar to:
-    ;     PUSH 0x4E
-    ;     PUSH 0x61
-    ;     PUSH 0xBC
-    ;     PUSH 0x00
+    ;     PUSHI 0x4E
+    ;     PUSHI 0x61
+    ;     PUSHI 0xBC
+    ;     PUSHI 0x00
     ;     CALL abs32
     ;
     ; Stack layout:
@@ -92,22 +92,22 @@ abs32:
     ; PC + 6 - integer
 
     ; Save the original value of A
-    PUSH
+    PUSH A
 
     ; Now, check if it is negative.
     ADDPCI 3
-    LOADA
+    LOAD A
     SUBPCI 3
     SHL
     JRIC _abs32_negative
 
     ; Its already positive, so just return it.
-    POP
+    POP A
     RET
 
 _abs32_negative:
     ; Gotta two's compliment it. Lets use the neg32 function, and trick
     ; it into jumping to our own return. Restore the A register so neg32
     ; can save it again.
-    POP
+    POP A
     LNGJUMP neg32

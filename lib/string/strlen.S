@@ -5,8 +5,8 @@ strlen:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; If you have a string at offset 0x1234, call like this:
-    ;     PUSH 0x34
-    ;     PUSH 0x12
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
     ;     CALL strlen
     ;
     ; Stack layout
@@ -16,39 +16,39 @@ strlen:
     ; PC + 3 - pointer to string low byte
 
     ; First, save the calling function's local stack
-    PUSHSPC
+    PUSH SPC
 
     ; Now, move past the saved stack and set SPC to point at the string.
     ADDPCI 4
-    POPSPC
+    POP SPC
     SUBPCI 7
 
     ; Set up the count, then point at the string.
     STOREI 0
-    SWAPPC
+    SWAP PC, SPC
 
     ; Now, until a null byte is encountered, add to our counter.
 _strlen_loop:
-    LOADA
+    LOAD A
     ADDI 0
     JRIZ _strlen_done
 
-    SWAPPC
-    LOADA
+    SWAP PC, SPC
+    LOAD A
     INC
-    STOREA
-    SWAPPC
+    STORE A
+    SWAP PC, SPC
     INCPC
 
     JRI _strlen_loop
 
 _strlen_done:
     ; Grab the final count into the A register.
-    SWAPPC
-    POP
+    SWAP PC, SPC
+    POP A
 
     ; Restore the SPC to what it was before we clobbered it.
-    POPSPC
+    POP SPC
 
     ; Finally, return to caller.
     RET

@@ -25,15 +25,15 @@ umult:
     PUSHI 0
 
     ; Save calling function's local stack.
-    PUSHSPC
+    PUSH SPC
 
     ; Skip to first operand
     ADDPCI 5
 
     ; Initialize our own local stack
-    SWAPPC
+    SWAP PC, SPC
     SETPC _mult_locals
-    SWAPPC
+    SWAP PC, SPC
 
 _umult_loop:
     ; See if first operand is zero
@@ -42,34 +42,34 @@ _umult_loop:
     LNGJUMPZ _umult_finished
 
     ; See if bottom bit set
-    SWAPPC
+    SWAP PC, SPC
     AND
-    SWAPPC
+    SWAP PC, SPC
     JRIZ _umult_shift
 
     ; Grab the second operand so we can add it to the
     ; accumulated result.
     INCPC
-    LOADA
+    LOAD A
     DECPC
 
     ; Add it to the accumulated result in our local stack.
     SUBPCI 3
     ADD
-    STOREA
+    STORE A
     ADDPCI 3
 
 _umult_shift:
     ; First operand >>= 1
-    LOADA
+    LOAD A
     SHR
-    STOREA
+    STORE A
 
     ; Second operand <<= 1
     INCPC
-    LOADA
+    LOAD A
     SHL
-    STOREA
+    STORE A
     DECPC
 
     ; Back to loop
@@ -80,10 +80,10 @@ _umult_finished:
     SUBPCI 5
 
     ; Restore locals pointer.
-    POPSPC
+    POP SPC
 
     ; Grab the accumulated value to return it in A.
-    POP
+    POP A
 
     ; And done!
     RET

@@ -106,6 +106,24 @@ def _checkoneparam(mnemonic: str, parameters: Tuple[str, ...]) -> None:
         ) from None
 
 
+def _checktwoparams(mnemonic: str, parameters: Tuple[str, ...]) -> None:
+    if len(parameters) == 0:
+        raise ParameterOutOfRangeException(
+            f"Expected parameters for instruction "
+            + _insnrep(mnemonic, parameters)
+        ) from None
+    if len(parameters) == 1:
+        raise ParameterOutOfRangeException(
+            f"Too few parameters for instruction "
+            + _insnrep(mnemonic, parameters)
+        ) from None
+    if len(parameters) > 2:
+        raise ParameterOutOfRangeException(
+            f"Too many parameters for instruction "
+            + _insnrep(mnemonic, parameters)
+        ) from None
+
+
 def _checklabel(
     mnemonic: str,
     parameters: Tuple[str, ...],
@@ -2919,7 +2937,7 @@ class CALLRI(BaseMacro):
 
 @instruction
 class PUSH(BaseMacro):
-    # Decrement PC, store A to PC.
+    # Decrement PC, store A/U/V/IP/SPC to PC.
 
     def assembles(self, mnemonic: str) -> bool:
         return mnemonic == "PUSH"
@@ -2932,12 +2950,48 @@ class PUSH(BaseMacro):
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
-        # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameters)
-        return self.compile(
-            origin,
-            ["DECPC", "STOREA"],
-            hint=_insnrep(mnemonic, parameters),
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0].upper()
+
+        if parameter == "A":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["DECPC", "STOREA"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "U":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["DECPC", "STOREU"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "V":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["DECPC", "STOREV"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "IP":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["PUSHIP"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "SPC":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["PUSHSPC"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+
+        raise ParameterOutOfRangeException(
+            f"Invalid parameter {_paramrep(parameters)} for instruction "
+            + _insnrep(mnemonic, parameters)
         )
 
 
@@ -2989,7 +3043,7 @@ class PUSHI(BaseMacro):
 
 @instruction
 class POP(BaseMacro):
-    # Load PC to A, increment PC.
+    # Load PC to A/U/V/IP/SPC, increment PC.
 
     def assembles(self, mnemonic: str) -> bool:
         return mnemonic == "POP"
@@ -3002,12 +3056,288 @@ class POP(BaseMacro):
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
-        # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameters)
-        return self.compile(
-            origin,
-            ["LOADA", "INCPC"],
-            hint=_insnrep(mnemonic, parameters),
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0].upper()
+
+        if parameter == "A":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["LOADA", "INCPC"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "U":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["LOADU", "INCPC"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "V":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["LOADV", "INCPC"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "IP":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["POPIP"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "SPC":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["POPSPC"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+
+        raise ParameterOutOfRangeException(
+            f"Invalid parameter {_paramrep(parameters)} for instruction "
+            + _insnrep(mnemonic, parameters)
+        )
+
+
+@instruction
+class LOAD(BaseMacro):
+    # Load PC to A/U/V register.
+
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic == "LOAD"
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0].upper()
+
+        if parameter == "A":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["LOADA"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "U":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["LOADU"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "V":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["LOADV"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+
+        raise ParameterOutOfRangeException(
+            f"Invalid parameter {_paramrep(parameters)} for instruction "
+            + _insnrep(mnemonic, parameters)
+        )
+
+
+@instruction
+class STORE(BaseMacro):
+    # Store A/U/V register to PC.
+
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic == "STORE"
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0].upper()
+
+        if parameter == "A":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["STOREA"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "U":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["STOREU"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if parameter == "V":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["STOREV"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+
+        raise ParameterOutOfRangeException(
+            f"Invalid parameter {_paramrep(parameters)} for instruction "
+            + _insnrep(mnemonic, parameters)
+        )
+
+
+@instruction
+class SWAP(BaseMacro):
+    # Swap contents of A/U/V or PC/SPC registers.
+
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic == "SWAP"
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checktwoparams(mnemonic, parameters)
+        reg1 = parameters[0].upper()
+        reg2 = parameters[1].upper()
+
+        if (
+            (reg1 == "A" and reg2 == "U") or
+            (reg2 == "A" and reg1 == "U")
+        ):
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["SWAPAU"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if (
+            (reg1 == "A" and reg2 == "V") or
+            (reg2 == "A" and reg1 == "V")
+        ):
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["SWAPAV"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if (
+            (reg1 == "U" and reg2 == "V") or
+            (reg2 == "U" and reg1 == "V")
+        ):
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["SWAPUV"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if (
+            (reg1 == "PC" and reg2 == "SPC") or
+            (reg2 == "PC" and reg1 == "SPC")
+        ):
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["SWAPPC"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+
+        raise ParameterOutOfRangeException(
+            f"Invalid parameters {_paramrep(parameters)} for instruction "
+            + _insnrep(mnemonic, parameters)
+        )
+
+
+@instruction
+class MOV(BaseMacro):
+    # Move contents of A/U/V/P/C register to appropriate destination register.
+
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic == "MOV"
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checktwoparams(mnemonic, parameters)
+        reg1 = parameters[0].upper()
+        reg2 = parameters[1].upper()
+
+        if reg1 == "A" and reg2 == "P":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["ATOP"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if reg1 == "A" and reg2 == "C":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["ATOC"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if reg1 == "P" and reg2 == "A":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["PTOA"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if reg1 == "C" and reg2 == "A":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["CTOA"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if reg1 == "A" and reg2 == "U":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["ATOU"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if reg1 == "A" and reg2 == "UV":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["ATOV"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if reg1 == "U" and reg2 == "A":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["UTOA"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+        if reg1 == "V" and reg2 == "A":
+            # Super simple, but convenient to use.
+            return self.compile(
+                origin,
+                ["VTOA"],
+                hint=_insnrep(mnemonic, parameters),
+            )
+
+        raise ParameterOutOfRangeException(
+            f"Invalid parameters {_paramrep(parameters)} for instruction "
+            + _insnrep(mnemonic, parameters)
         )
 
 

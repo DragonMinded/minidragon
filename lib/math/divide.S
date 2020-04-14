@@ -26,29 +26,29 @@ udiv:
     ; Swap dividend/divisor so we can accumulate the remainder in
     ; the right spot.
     ADDPCI 2
-    LOADA
+    LOAD A
     SUBPCI 3
-    STOREA
+    STORE A
 
     ADDPCI 4
-    LOADA
+    LOAD A
     DECPC
-    STOREA
+    STORE A
 
     SUBPCI 3
-    LOADA
+    LOAD A
     ADDPCI 4
-    STOREA
+    STORE A
 
     ; Now, zero out the quotient
     SUBPCI 4
     SETA 0
-    STOREA
+    STORE A
 
 _udiv_loop:
     ; Attempt to subtract the divisor from the dividend
     ADDPCI 3
-    LOADA
+    LOAD A
     NEG
     INCPC
     ADD
@@ -56,20 +56,20 @@ _udiv_loop:
     ; If we went negative, then the dividend is the remainder
     ; and we've finished. The accumulated result is the quotient.
     SUBPCI 5
-    STOREA
+    STORE A
     SHL
-    LOADA
+    LOAD A
     ADDPCI 5
     JRIC _udiv_finished
 
     ; Save the last value as the new dividend.
-    STOREA
+    STORE A
 
     ; Increment the quotient.
     SUBPCI 4
-    LOADA
+    LOAD A
     INC
-    STOREA
+    STORE A
 
     ; Finally, do it all over again!
     JRI _udiv_loop
@@ -77,17 +77,17 @@ _udiv_loop:
 _udiv_finished:
     ; Move the return address to the right spot on the stack
     SUBPCI 2
-    LOADA
+    LOAD A
     INCPC
-    STOREA
+    STORE A
     SUBPCI 2
-    LOADA
+    LOAD A
     INCPC
-    STOREA
+    STORE A
 
     ; Now, restore the quotient
     SUBPCI 2
-    POP
+    POP A
     INCPC
 
     ; Finally, return

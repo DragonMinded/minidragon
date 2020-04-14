@@ -10,10 +10,10 @@ strcmp:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; If you want to compare two strings at 0x1234 and 0x5678, call like so:
-    ;     PUSH 0x78
-    ;     PUSH 0x56
-    ;     PUSH 0x34
-    ;     PUSH 0x12
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
     ;     CALL strmp
     ;
     ; Stack layout
@@ -30,7 +30,7 @@ strcmp:
     ; PC + ? - pointer to source
 
     ; First, save the existing registers.
-    PUSHSPC
+    PUSH SPC
 
     ; Keep track of how many bytes we compared so we can rewind.
     PUSHI 0
@@ -47,33 +47,33 @@ strcmp:
 _strcmp_loop:
     ; Keep track of number of bytes compared
     ADDPCI 2
-    LOADA
+    LOAD A
     INC
-    STOREA
+    STORE A
     ADDPCI 7
 
     ; Grab a byte from the source
-    POPSPC
-    SWAPPC
-    POP
-    SWAPPC
-    PUSHSPC
+    POP SPC
+    SWAP PC, SPC
+    POP A
+    SWAP PC, SPC
+    PUSH SPC
 
     ; Store that byte in our temp buffer
     SUBPCI 8
-    STOREA
+    STORE A
     ADDPCI 6
 
     ; Grab a byte from the destination
-    POPSPC
-    SWAPPC
-    POP
-    SWAPPC
-    PUSHSPC
+    POP SPC
+    SWAP PC, SPC
+    POP A
+    SWAP PC, SPC
+    PUSH SPC
 
     ; Store that byte in our second temp buffer
     SUBPCI 7
-    STOREA
+    STORE A
 
     ; Compare the two bytes for equality.
     CALL ucmp
@@ -84,7 +84,7 @@ _strcmp_loop:
 
     ; They equal, see if we should bail (null hit, strings equal)
     ; or keep going (null not hit).
-    LOADA
+    LOAD A
     ADDI 0
     LNGJUMPNZ _strcmp_loop
 
@@ -92,31 +92,31 @@ _strcmp_save_answer:
     ; A holds the comparison value at this point, so save it to
     ; the stack.
     INCPC
-    STOREA
+    STORE A
 
 _strcmp_done:
     ; Restore the stack pointers
     INCPC
-    LOADA
+    LOAD A
     NEG
     ADDPCI 5
-    POPSPC
-    SWAPPC
+    POP SPC
+    SWAP PC, SPC
     ADDPC
-    SWAPPC
-    PUSHSPC
+    SWAP PC, SPC
+    PUSH SPC
     ADDPCI 2
-    POPSPC
-    SWAPPC
+    POP SPC
+    SWAP PC, SPC
     ADDPC
-    SWAPPC
-    PUSHSPC
+    SWAP PC, SPC
+    PUSH SPC
 
     ; Restore the A register to the answer we calculated.
     SUBPCI 8
-    POP
+    POP A
     INCPC
-    POPSPC
+    POP SPC
 
     ; Now, return to caller
     RET
