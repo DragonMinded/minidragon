@@ -54,6 +54,15 @@ if __name__ == "__main__":
             elif step.z_output:
                 immsrc = 2
 
+            # Calculate the data bus high control signals.
+            dbus: int = 3
+            if step.a_high_output:
+                dbus = 0
+            elif step.d_high_output:
+                dbus = 1
+            elif step.alu_output:
+                dbus = 2
+
             # Bit 0
             microcode += "." if step.ip_input else "X"
             microcode += "." if step.ir_input else "X"
@@ -68,14 +77,14 @@ if __name__ == "__main__":
 
             # Bit 8
             microcode += "." if step.flags_input else "X"
-            microcode += "." if step.alu_output else "X"
+            microcode += "." if (dbus & 0x2) != 0 else "X"
+            microcode += "." if (dbus & 0x1) != 0 else "X"
             microcode += "." if step.alu_low_output else "X"
-            microcode += "." if step.a_output else "X"
 
             # Bit 12
-            microcode += "." if step.a_high_output else "X"
+            microcode += "." if step.a_output else "X"
             microcode += "." if step.d_output else "X"
-            microcode += "." if step.d_high_output else "X"
+            microcode += "."
             microcode += "." if step.sram_output else "X"
 
             # Bit 16
