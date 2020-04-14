@@ -501,7 +501,7 @@ class ADDI(BaseInstruction):
     # Add immediate sign extended to A.
 
     def handles(self, instruction: int) -> bool:
-        return instruction & 0b11000000 == 0b10000000
+        return instruction & 0b11000000 == 0b01000000
 
     def mnemonic(self, instruction: int) -> str:
         integer = bintoint(sign_extend(instruction & 0x3F, 5) & 0xFF)
@@ -560,7 +560,7 @@ class ADDI(BaseInstruction):
             _checkoneparam(mnemonic, parameters)
             parameter = parameters[0]
             addval = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
-        return [0b10000000 | addval]
+        return [0b01000000 | addval]
 
 
 @instruction
@@ -569,7 +569,7 @@ class PUSHIP(BaseInstruction):
     # value to it, and store that at PC.
 
     def handles(self, instruction: int) -> bool:
-        return instruction & 0b11111000 == 0b11000000
+        return instruction & 0b11111000 == 0b10000000
 
     def mnemonic(self, instruction: int) -> str:
         # Cleverly, we ensured that the sign-extend portion of the instruction
@@ -671,7 +671,8 @@ class PUSHIP(BaseInstruction):
             # Try to grab the offset as a raw integer.
             location = getint(
                 parameter,
-                5,
+                3,
+                allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
         except InvalidInstructionException:
@@ -680,7 +681,8 @@ class PUSHIP(BaseInstruction):
                 offset = str(labels[parameter] - origin)
                 location = getint(
                     offset,
-                    5,
+                    3,
+                    allow_unsigned=True,
                     hint=_insnrep(mnemonic, parameters),
                 )
             else:
@@ -700,421 +702,18 @@ class PUSHIP(BaseInstruction):
                 + f"for instruction {_insnrep(mnemonic, parameters)}"
             )
 
-        return [0b11000000 + location]
-
-
-class BaseRegisterInstruction(BaseInstruction, ABC):
-    opcode: int
-
-    def handles(self, instruction: int) -> bool:
-        if instruction & 0b11111000 != 0b11001000:
-            return False
-        return instruction & 0b111 == self.opcode
-
-    def mnemonic(self, instruction: int) -> str:
-        # Register operations don't take any parameters.
-        return self.__class__.__name__
-
-    def assembles(self, mnemonic: str) -> bool:
-        return self.__class__.__name__ == mnemonic
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameters: Tuple[str, ...],
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        _checkempty(mnemonic, parameters)
-        return [0b11001000 | self.opcode]
-
-
-@instruction
-class LOADU(BaseRegisterInstruction):
-    # Load the contents of memory at P+C to U register.
-
-    opcode = 0b000
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
-                sram_output=True,
-                u_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
-class STOREU(BaseRegisterInstruction):
-    # Store the contents of the U register to memory at P+C.
-
-    opcode = 0b001
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
-                sram_input=True,
-                u_output=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
-class LOADV(BaseRegisterInstruction):
-    # Load the contents of memory at P+C to V register.
-
-    opcode = 0b010
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
-                sram_output=True,
-                v_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
-class STOREV(BaseRegisterInstruction):
-    # Store the contents of the V register to memory at P+C.
-
-    opcode = 0b011
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
-                sram_input=True,
-                v_output=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
-class SWAPAU(BaseRegisterInstruction):
-    # Swap the contents of the A and U registers.
-
-    opcode = 0b100
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                a_output=True,
-                d_input=True,
-            ),
-            ControlSignals(
-                u_output=True,
-                a_input=True,
-            ),
-            ControlSignals(
-                d_output=True,
-                u_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
-class SWAPAV(BaseRegisterInstruction):
-    # Swap the contents of the A and V registers.
-
-    opcode = 0b101
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                a_output=True,
-                d_input=True,
-            ),
-            ControlSignals(
-                v_output=True,
-                a_input=True,
-            ),
-            ControlSignals(
-                d_output=True,
-                v_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
-class SWAPUV(BaseRegisterInstruction):
-    # Swap the contents of the U and V registers.
-
-    opcode = 0b110
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                u_output=True,
-                d_input=True,
-            ),
-            ControlSignals(
-                v_output=True,
-                u_input=True,
-            ),
-            ControlSignals(
-                d_output=True,
-                v_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
-class SWAPPC(BaseRegisterInstruction):
-    # Swap PC and SPC registers.
-    opcode = 0b111
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-                pc_swap=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
-class ADDPCI(BaseInstruction):
-    # Add immediate to the P+C virtual register.
-
-    def handles(self, instruction: int) -> bool:
-        return instruction & 0b11111000 == 0b11010000
-
-    def mnemonic(self, instruction: int) -> str:
-        # Technically, we look at the bottom 4 bits, and this instruction
-        # is specifically placed to have a zero in the 4th bit position.
-        integer = bintoint(sign_extend(instruction & 0xF, 3) & 0xFF) + 1
-        if integer == 1:
-            return "INCPC"
-        else:
-            return f"ADDPCI {integer}"
-
-    def signals(self) -> List["ControlSignals"]:
-        signals = [
-            ControlSignals(
-                imm_4_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                p_input=True,
-                c_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-        return signals
-
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic in {"INCPC", "ADDPCI"}
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameters: Tuple[str, ...],
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        if mnemonic == "INCPC":
-            _checkempty(mnemonic, parameters)
-            return [0b11010000]
-
-        _checkoneparam(mnemonic, parameters)
-        parameter = parameters[0]
-        location = getint(
-            parameter,
-            4,
-            allow_unsigned=True,
-            hint=_insnrep(mnemonic, parameters)
-        ) - 1
-        if location > 7 or location < 0:
-            raise ParameterOutOfRangeException(
-                f"Parameter out of range for "
-                + f"instruction {_insnrep(mnemonic, parameters)}"
-            )
-        return [0b11010000 | (location & 0b111)]
-
-
-@instruction
-class SUBPCI(BaseInstruction):
-    # Add immediate to the P+C virtual register.
-
-    def handles(self, instruction: int) -> bool:
-        return instruction & 0b11111000 == 0b11011000
-
-    def mnemonic(self, instruction: int) -> str:
-        integer = -bintoint(sign_extend(instruction & 0xF, 3) & 0xFF)
-        if integer == 1:
-            return "DECPC"
-        else:
-            return f"SUBPCI {integer}"
-
-    def signals(self) -> List["ControlSignals"]:
-        signals = [
-            ControlSignals(
-                imm_4_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
-                alu_output=True,
-                p_input=True,
-                c_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-        return signals
-
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic in {"DECPC", "SUBPCI"}
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameters: Tuple[str, ...],
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        if mnemonic == "DECPC":
-            _checkempty(mnemonic, parameters)
-            return [0b11011111]
-
-        _checkoneparam(mnemonic, parameters)
-        parameter = parameters[0]
-        location = getint(
-            parameter,
-            4,
-            allow_unsigned=True,
-            hint=_insnrep(mnemonic, parameters)
-        )
-        if location > 8 or location < 1:
-            raise ParameterOutOfRangeException(
-                f"Parameter out of range for "
-                + f"instruction {_insnrep(mnemonic, parameters)}"
-            )
-        return [0b11011000 | ((-location) & 0b111)]
+        return [0b10000000 + location]
 
 
 class BaseALUInstruction(BaseInstruction, ABC):
     opcode: int
 
     def handles(self, instruction: int) -> bool:
-        if instruction & 0b11111000 != 0b11100000:
+        if instruction & 0b11100000 != 0b10000000:
+            # This is not our range.
+            return False
+        if instruction & 0b00011000 == 0b00000000:
+            # This is PUSHIP.
             return False
         return instruction & 0b111 == self.opcode
 
@@ -1134,7 +733,7 @@ class BaseALUInstruction(BaseInstruction, ABC):
         loose: bool,
     ) -> List[int]:
         _checkempty(mnemonic, parameters)
-        return [0b11100000 | self.opcode]
+        return [0b10011000 | self.opcode]
 
 
 @instruction
@@ -1388,6 +987,413 @@ class SHR(BaseALUInstruction):
             ControlSignals(
                 z_output=True,
                 b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ADDPCI(BaseInstruction):
+    # Add immediate to the P+C virtual register.
+
+    def handles(self, instruction: int) -> bool:
+        return instruction & 0b11100000 == 0b11000000
+
+    def mnemonic(self, instruction: int) -> str:
+        # Technically, we look at the bottom 6 bits, and this instruction
+        # is specifically placed to have a zero in the 6th bit position.
+        integer = bintoint(sign_extend(instruction & 0x3F, 5) & 0xFF) + 1
+        if integer == 1:
+            return "INCPC"
+        else:
+            return f"ADDPCI {integer}"
+
+    def signals(self) -> List["ControlSignals"]:
+        signals = [
+            ControlSignals(
+                imm_6_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_PC,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                p_input=True,
+                c_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+        return signals
+
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic in {"INCPC", "ADDPCI"}
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        if mnemonic == "INCPC":
+            _checkempty(mnemonic, parameters)
+            return [0b11000000]
+
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+        location = getint(
+            parameter,
+            6,
+            allow_unsigned=True,
+            hint=_insnrep(mnemonic, parameters)
+        ) - 1
+        if location > 31 or location < 0:
+            raise ParameterOutOfRangeException(
+                f"Parameter out of range for "
+                + f"instruction {_insnrep(mnemonic, parameters)}"
+            )
+        return [0b11000000 | (location & 0b11111)]
+
+
+@instruction
+class SUBPCI(BaseInstruction):
+    # Add immediate to the P+C virtual register.
+
+    def handles(self, instruction: int) -> bool:
+        return instruction & 0b11100000 == 0b10100000
+
+    def mnemonic(self, instruction: int) -> str:
+        integer = -bintoint(sign_extend(instruction & 0x3F, 5) & 0xFF)
+        if integer == 1:
+            return "DECPC"
+        else:
+            return f"SUBPCI {integer}"
+
+    def signals(self) -> List["ControlSignals"]:
+        signals = [
+            ControlSignals(
+                imm_6_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_PC,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_CLEAR,
+                alu_output=True,
+                p_input=True,
+                c_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+        return signals
+
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic in {"DECPC", "SUBPCI"}
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        if mnemonic == "DECPC":
+            _checkempty(mnemonic, parameters)
+            return [0b10111111]
+
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+        location = getint(
+            parameter,
+            6,
+            allow_unsigned=True,
+            hint=_insnrep(mnemonic, parameters)
+        )
+        if location > 32 or location < 1:
+            raise ParameterOutOfRangeException(
+                f"Parameter out of range for "
+                + f"instruction {_insnrep(mnemonic, parameters)}"
+            )
+        return [0b10100000 | ((-location) & 0b11111)]
+
+
+class BaseRegisterInstruction(BaseInstruction, ABC):
+    opcode: int
+
+    def handles(self, instruction: int) -> bool:
+        if instruction & 0b11111000 != 0b11100000:
+            return False
+        return instruction & 0b111 == self.opcode
+
+    def mnemonic(self, instruction: int) -> str:
+        # Register operations don't take any parameters.
+        return self.__class__.__name__
+
+    def assembles(self, mnemonic: str) -> bool:
+        return self.__class__.__name__ == mnemonic
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checkempty(mnemonic, parameters)
+        return [0b11100000 | self.opcode]
+
+
+@instruction
+class LOADU(BaseRegisterInstruction):
+    # Load the contents of memory at P+C to U register.
+
+    opcode = 0b000
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_output=True,
+                u_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class STOREU(BaseRegisterInstruction):
+    # Store the contents of the U register to memory at P+C.
+
+    opcode = 0b001
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_input=True,
+                u_output=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class LOADV(BaseRegisterInstruction):
+    # Load the contents of memory at P+C to V register.
+
+    opcode = 0b010
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_output=True,
+                v_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class STOREV(BaseRegisterInstruction):
+    # Store the contents of the V register to memory at P+C.
+
+    opcode = 0b011
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_input=True,
+                v_output=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class SWAPAU(BaseRegisterInstruction):
+    # Swap the contents of the A and U registers.
+
+    opcode = 0b100
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                a_output=True,
+                d_input=True,
+            ),
+            ControlSignals(
+                u_output=True,
+                a_input=True,
+            ),
+            ControlSignals(
+                d_output=True,
+                u_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class SWAPAV(BaseRegisterInstruction):
+    # Swap the contents of the A and V registers.
+
+    opcode = 0b101
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                a_output=True,
+                d_input=True,
+            ),
+            ControlSignals(
+                v_output=True,
+                a_input=True,
+            ),
+            ControlSignals(
+                d_output=True,
+                v_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class SWAPUV(BaseRegisterInstruction):
+    # Swap the contents of the U and V registers.
+
+    opcode = 0b110
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                u_output=True,
+                d_input=True,
+            ),
+            ControlSignals(
+                v_output=True,
+                u_input=True,
+            ),
+            ControlSignals(
+                d_output=True,
+                v_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class SWAPPC(BaseRegisterInstruction):
+    # Swap PC and SPC registers.
+    opcode = 0b111
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+                pc_swap=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
