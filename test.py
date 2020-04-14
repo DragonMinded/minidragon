@@ -104,8 +104,8 @@ def verifyassembler(only: Optional[str], full: bool) -> None:
     )
     checkerror(
         "errors/invalidinstruction2.S",
-        InvalidInstructionException(
-            "Cannot have more than one parameter for instruction ADDI A, 1"),
+        ParameterOutOfRangeException(
+            "Too many parameters for instruction ADDI A, 1"),
     )
     checkerror(
         "errors/overlap1.S",
@@ -160,7 +160,7 @@ def verifyassembler(only: Optional[str], full: bool) -> None:
     checkerror(
         "errors/missinglabel1.S",
         ParameterOutOfRangeException(
-            "Missing label invalid_label for instruction JRI invalid_label"
+            "Undefined label invalid_label for instruction JRI invalid_label"
         )
     )
     checkerror(

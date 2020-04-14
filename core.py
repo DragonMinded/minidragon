@@ -44,18 +44,73 @@ def bintoint(binary: int) -> int:
     return struct.unpack("b", struct.pack("B", binary))[0]
 
 
-def _checkempty(mnemonic: str, parameter: str) -> None:
-    if parameter != "":
+def _splitparams(blob: str) -> Tuple[str, ...]:
+    params: List[str] = []
+    curparam: str = ""
+    quote: Optional[str] = None
+
+    for char in blob:
+        if char == quote:
+            # End quote, close it
+            curparam += char
+            quote = None
+        elif quote is None and char in {"'", '"'}:
+            # Start quote, open it
+            curparam += char
+            quote = quote
+        elif quote is None and char == ",":
+            # We aren't quoted, so this is a parameter separator
+            params.append(curparam.strip())
+            curparam = ""
+        else:
+            # Nothing but a regular ol' param piece here.
+            curparam += char
+    # Cap off with any possible accumulated last parameter
+    if curparam:
+        params.append(curparam.strip())
+    return tuple(params)
+
+
+
+def _paramrep(parameters: Tuple[str, ...]) -> str:
+    if len(parameters) > 0:
+        return ", ".join(parameters)
+    else:
+        return ""
+
+def _insnrep(mnemonic: str, parameters: Tuple[str, ...]) -> str:
+    if len(parameters) > 0:
+        return f"{mnemonic} {_paramrep(parameters)}"
+    else:
+        return mnemonic
+
+
+def _checkempty(mnemonic: str, parameters: Tuple[str, ...]) -> None:
+    if len(parameters) > 0:
         raise ParameterOutOfRangeException(
-            f"Invalid parameter {parameter} for instruction "
-            + f"{mnemonic} {parameter}"
+            f"Invalid parameter {_paramrep(parameters)} for instruction "
+            + _insnrep(mnemonic, parameters)
         ) from None
 
 
-def _checklabel(mnemonic: str, parameter: str, loose: bool) -> None:
+def _checkoneparam(mnemonic: str, parameters: Tuple[str, ...]) -> None:
+    if len(parameters) == 0:
+        raise ParameterOutOfRangeException(
+            f"Expected parameter for instruction "
+            + _insnrep(mnemonic, parameters)
+        ) from None
+    if len(parameters) > 1:
+        raise ParameterOutOfRangeException(
+            f"Too many parameters for instruction "
+            + _insnrep(mnemonic, parameters)
+        ) from None
+
+
+def _checklabel(mnemonic: str, parameters: Tuple[str, ...], loose: bool) -> None:
     if not loose:
         raise ParameterOutOfRangeException(
-            f"Missing label {parameter} for instruction {mnemonic} {parameter}"
+            f"Undefined label {_paramrep(parameters)} for instruction "
+            + _insnrep(mnemonic, parameters)
         ) from None
 
 
@@ -85,7 +140,7 @@ class BaseInstruction(ABC):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
@@ -271,27 +326,17 @@ def assemble(
             # We must assemble this.
             if " " in mnemonic:
                 mnemonic, param = mnemonic.split(" ", 1)
-                if (
-                    " " in param and
-                    param[0] not in {'"', "'"} and
-                    param[-1] not in {'"', "'"}
-                ):
-                    raise InvalidInstructionException(
-                        f"Cannot have more than one parameter for instruction "
-                        + f"{mnemonic} {param}"
-                    )
+                params = _splitparams(param)
             else:
-                param = ""
+                params = ()
 
             mnemonic = mnemonic.upper()
-            param = param.lower()
-
             for inst in instructions:
                 if inst.assembles(mnemonic):
                     # Assemble without labels, telling the instruction to
                     # substitute whatever.
                     for val in inst.vals(
-                        mnemonic, param, org, labels, loose=True
+                        mnemonic, params, org, labels, loose=True
                     ):
                         data[org] = val
                         seen.add(org)
@@ -324,27 +369,17 @@ def assemble(
             # We must assemble this.
             if " " in mnemonic:
                 mnemonic, param = mnemonic.split(" ", 1)
-                if (
-                    " " in param and
-                    param[0] not in {'"', "'"} and
-                    param[-1] not in {'"', "'"}
-                ):
-                    raise InvalidInstructionException(
-                        f"Cannot have more than one parameter on instruction "
-                        + f"{mnemonic} {param}"
-                    )
+                params = _splitparams(param)
             else:
-                param = ""
+                params = ()
 
             mnemonic = mnemonic.upper()
-            param = param.lower()
-
             for inst in instructions:
                 if inst.assembles(mnemonic):
                     # Assemble without labels, telling the instruction to
                     # substitute whatever.
                     for val in inst.vals(
-                        mnemonic, param, org, labels, loose=False
+                        mnemonic, params, org, labels, loose=False
                     ):
                         data[org] = val
                         org += 1
@@ -395,30 +430,32 @@ class JRI(BaseInstruction):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
         if mnemonic == "NOP":
-            _checkempty(mnemonic, parameter)
+            _checkempty(mnemonic, parameters)
             return [0b00000000]
         if mnemonic == "HALT":
-            _checkempty(mnemonic, parameter)
+            _checkempty(mnemonic, parameters)
             return [0b00111111]
 
         # A jump, relative to instruction. We need to handle labels.
         # First, try to get this as an integer.
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
         try:
-            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
+            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter] - origin - 1)
-                location = getint(offset, 6, hint=f"{mnemonic} {parameter}")
+                location = getint(offset, 6, hint=_insnrep(mnemonic, parameters))
             else:
                 # Verify that we do or don't need labels.
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
 
                 # We don't care about this value right now, fill it in as
                 # whatever.
@@ -466,16 +503,18 @@ class LOADI(BaseInstruction):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
         if mnemonic == "ZERO":
-            _checkempty(mnemonic, parameter)
+            _checkempty(mnemonic, parameters)
             loadval = 0
         else:
-            loadval = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
+            _checkoneparam(mnemonic, parameters)
+            parameter = parameters[0]
+            loadval = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
         return [0b01000000 | loadval]
 
 
@@ -528,19 +567,21 @@ class ADDI(BaseInstruction):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
         if mnemonic == "INC":
-            _checkempty(mnemonic, parameter)
+            _checkempty(mnemonic, parameters)
             addval = 1
         elif mnemonic == "DEC":
-            _checkempty(mnemonic, parameter)
+            _checkempty(mnemonic, parameters)
             addval = 0b00111111
         else:
-            addval = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
+            _checkoneparam(mnemonic, parameters)
+            parameter = parameters[0]
+            addval = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
         return [0b10000000 | addval]
 
 
@@ -640,34 +681,37 @@ class PUSHIP(BaseInstruction):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # Try to grab the offset as a raw integer.
-            location = getint(parameter, 5, hint=f"{mnemonic} {parameter}")
+            location = getint(parameter, 5, hint=_insnrep(mnemonic, parameters))
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter] - origin)
-                location = getint(offset, 5, hint=f"{mnemonic} {parameter}")
+                location = getint(offset, 5, hint=_insnrep(mnemonic, parameters))
             else:
                 # We don't care about this value right now, fill it in as
                 # whatever. We'll get to it on the second pass.
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         if location < 0:
             raise ParameterOutOfRangeException(
                 f"Can only have a positive offset "
-                + f"for instruction {mnemonic} {parameter}"
+                + f"for instruction {_insnrep(mnemonic, parameters)}"
             )
         if location > 7:
             raise ParameterOutOfRangeException(
                 f"Can only store an offset up to 7 "
-                + f"for instruction {mnemonic} {parameter}"
+                + f"for instruction {_insnrep(mnemonic, parameters)}"
             )
 
         return [0b11000000 + location]
@@ -723,25 +767,27 @@ class ADDPCI(BaseInstruction):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
         if mnemonic == "INCPC":
-            _checkempty(mnemonic, parameter)
+            _checkempty(mnemonic, parameters)
             return [0b11010000]
 
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
         location = getint(
             parameter,
             4,
             allow_unsigned=True,
-            hint=f"{mnemonic} {parameter}"
+            hint=_insnrep(mnemonic, parameters)
         ) - 1
         if location > 7 or location < 0:
             raise ParameterOutOfRangeException(
                 f"Parameter out of range for "
-                + f"instruction {mnemonic} {parameter}"
+                + f"instruction {_insnrep(mnemonic, parameters)}"
             )
         return [0b11010000 | (location & 0b111)]
 
@@ -794,25 +840,27 @@ class SUBPCI(BaseInstruction):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
         if mnemonic == "DECPC":
-            _checkempty(mnemonic, parameter)
+            _checkempty(mnemonic, parameters)
             return [0b11011111]
 
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
         location = getint(
             parameter,
             4,
             allow_unsigned=True,
-            hint=f"{mnemonic} {parameter}"
+            hint=_insnrep(mnemonic, parameters)
         )
         if location > 8 or location < 1:
             raise ParameterOutOfRangeException(
                 f"Parameter out of range for "
-                + f"instruction {mnemonic} {parameter}"
+                + f"instruction {_insnrep(mnemonic, parameters)}"
             )
         return [0b11011000 | ((-location) & 0b111)]
 
@@ -835,12 +883,12 @@ class BaseALUInstruction(BaseInstruction, ABC):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
-        _checkempty(mnemonic, parameter)
+        _checkempty(mnemonic, parameters)
         return [0b11100000 | self.opcode]
 
 
@@ -1124,12 +1172,12 @@ class BaseMemoryInstruction(BaseInstruction, ABC):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
-        _checkempty(mnemonic, parameter)
+        _checkempty(mnemonic, parameters)
         return [0b11101000 | self.opcode]
 
 
@@ -1351,18 +1399,20 @@ class SKIPIF(BaseInstruction):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
         base = 0b11110000
 
         if parameter.startswith("!"):
-            flag = parameter[1:]
+            flag = parameter[1:].lower()
             base |= 0b1
         else:
-            flag = parameter
+            flag = parameter.lower()
 
         if flag == "cf":
             base |= 0b010
@@ -1370,8 +1420,8 @@ class SKIPIF(BaseInstruction):
             base |= 0b100
         else:
             raise ParameterOutOfRangeException(
-                f"Invalid condition {parameter} for "
-                + f"instruction {mnemonic} {parameter}",
+                f"Invalid condition {_paramrep(parameters)} for "
+                + f"instruction {_insnrep(mnemonic, parameters)}",
             )
         return [base]
 
@@ -1394,12 +1444,12 @@ class BaseStackInstruction(BaseInstruction, ABC):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
-        _checkempty(mnemonic, parameter)
+        _checkempty(mnemonic, parameters)
         return [0b11111000 | self.opcode]
 
 
@@ -1452,13 +1502,15 @@ class LNGJUMP(BaseStackInstruction):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
         # We override the base because we technically take an immediate for
         # this opcode, its just stored in memory after the opcode itself.
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
 
         if not parameter:
             # We could assume that the next two bytes are the value, but that
@@ -1473,7 +1525,7 @@ class LNGJUMP(BaseStackInstruction):
                 parameter,
                 16,
                 allow_unsigned=True,
-                hint=f"{mnemonic} {parameter}",
+                hint=_insnrep(mnemonic, parameters),
             )
         except InvalidInstructionException:
             # Now, try as a label.
@@ -1483,12 +1535,12 @@ class LNGJUMP(BaseStackInstruction):
                     offset,
                     16,
                     allow_unsigned=True,
-                    hint=f"{mnemonic} {parameter}",
+                    hint=_insnrep(mnemonic, parameters),
                 )
             else:
                 # We don't care about this value right now, fill it in as
                 # whatever.
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         return [0b11111000, (location >> 8) & 0xFF, location & 0xFF]
@@ -1826,24 +1878,27 @@ class SETA(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         # Load immediate 8-bit value into A.
         aval = getint(
             parameter,
             8,
             allow_unsigned=True,
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
         # Now, assemble the load and return that value
         return self.compile(
             origin,
             self._immtoa(aval),
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
     def _immtoa(self, val: int) -> List[str]:
@@ -1887,11 +1942,14 @@ class SETPC(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         # Load immediate value into PC.
         # First, try to get this as an integer.
         try:
@@ -1899,7 +1957,7 @@ class SETPC(BaseMacro):
                 parameter,
                 16,
                 allow_unsigned=True,
-                hint=f"{mnemonic} {parameter}",
+                hint=_insnrep(mnemonic, parameters),
             )
         except InvalidInstructionException:
             # Now, try as a label.
@@ -1908,7 +1966,7 @@ class SETPC(BaseMacro):
                     str(labels[parameter]),
                     16,
                     allow_unsigned=True,
-                    hint=f"{mnemonic} {parameter}",
+                    hint=_insnrep(mnemonic, parameters),
                 )
             else:
                 # Unfortunately this macro takes a variable number of
@@ -1917,7 +1975,7 @@ class SETPC(BaseMacro):
                 # have already seen a label to use it.
                 raise ParameterOutOfRangeException(
                     f"Cannot SETPC to a label not yet seen for "
-                    + f"instruction {mnemonic} {parameter}"
+                    + f"instruction {_insnrep(mnemonic, parameters)}"
                 )
 
         # Now, split the location into two halves.
@@ -1936,7 +1994,7 @@ class SETPC(BaseMacro):
         return self.compile(
             origin,
             instructions,
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -1950,14 +2008,17 @@ class JRIZ(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # First, try as an integer.
-            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
+            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -1972,7 +2033,7 @@ class JRIZ(BaseMacro):
                 location = absolute_location - origin - 2
             else:
                 # Assume nothing for now, will be filled in later
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         # If we want to jump on zero flag set, we need to skip the
@@ -1980,7 +2041,7 @@ class JRIZ(BaseMacro):
         return self.compile(
             origin,
             ["SKIPIF !ZF", f"JRI {location}"],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -1994,14 +2055,17 @@ class JRINZ(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # First, try as an integer.
-            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
+            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -2016,7 +2080,7 @@ class JRINZ(BaseMacro):
                 location = absolute_location - origin - 2
             else:
                 # Assume nothing for now, will be filled in later
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         # If we want to jump on zero flag cleared, we need to skip the
@@ -2024,7 +2088,7 @@ class JRINZ(BaseMacro):
         return self.compile(
             origin,
             ["SKIPIF ZF", f"JRI {location}"],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2038,14 +2102,17 @@ class JRIC(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # First, try as an integer.
-            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
+            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -2060,7 +2127,7 @@ class JRIC(BaseMacro):
                 location = absolute_location - origin - 2
             else:
                 # Assume nothing for now, will be filled in later
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         # If we want to jump on carry flag set, we need to skip the
@@ -2068,7 +2135,7 @@ class JRIC(BaseMacro):
         return self.compile(
             origin,
             ["SKIPIF !CF", f"JRI {location}"],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2082,14 +2149,17 @@ class JRINC(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # First, try as an integer.
-            location = getint(parameter, 6, hint=f"{mnemonic} {parameter}")
+            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -2104,7 +2174,7 @@ class JRINC(BaseMacro):
                 location = absolute_location - origin - 2
             else:
                 # Assume nothing for now, will be filled in later
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         # If we want to jump on carry flag cleared, we need to skip the
@@ -2112,7 +2182,7 @@ class JRINC(BaseMacro):
         return self.compile(
             origin,
             ["SKIPIF CF", f"JRI {location}"],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2126,18 +2196,21 @@ class LNGJUMPZ(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # First, try as an integer.
             location = getint(
                 parameter,
                 16,
                 allow_unsigned=True,
-                hint=f"{mnemonic} {parameter}",
+                hint=_insnrep(mnemonic, parameters),
             )
         except InvalidInstructionException:
             # Now, try as a label.
@@ -2147,11 +2220,11 @@ class LNGJUMPZ(BaseMacro):
                     offset,
                     16,
                     allow_unsigned=True,
-                    hint=f"{mnemonic} {parameter}",
+                    hint=_insnrep(mnemonic, parameters),
                 )
             else:
                 # Assume nothing for now, will be filled in later
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         return self.compile(
@@ -2162,7 +2235,7 @@ class LNGJUMPZ(BaseMacro):
                 f"LNGJUMP {location}",
                 "skip_longjump:",
             ],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2176,18 +2249,21 @@ class LNGJUMPNZ(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # First, try as an integer.
             location = getint(
                 parameter,
                 16,
                 allow_unsigned=True,
-                hint=f"{mnemonic} {parameter}",
+                hint=_insnrep(mnemonic, parameters),
             )
         except InvalidInstructionException:
             # Now, try as a label.
@@ -2197,11 +2273,11 @@ class LNGJUMPNZ(BaseMacro):
                     offset,
                     16,
                     allow_unsigned=True,
-                    hint=f"{mnemonic} {parameter}",
+                    hint=_insnrep(mnemonic, parameters),
                 )
             else:
                 # Assume nothing for now, will be filled in later
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         return self.compile(
@@ -2212,7 +2288,7 @@ class LNGJUMPNZ(BaseMacro):
                 f"LNGJUMP {location}",
                 "skip_longjump:",
             ],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2226,18 +2302,21 @@ class LNGJUMPC(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # First, try as an integer.
             location = getint(
                 parameter,
                 16,
                 allow_unsigned=True,
-                hint=f"{mnemonic} {parameter}",
+                hint=_insnrep(mnemonic, parameters),
             )
         except InvalidInstructionException:
             # Now, try as a label.
@@ -2247,11 +2326,11 @@ class LNGJUMPC(BaseMacro):
                     offset,
                     16,
                     allow_unsigned=True,
-                    hint=f"{mnemonic} {parameter}",
+                    hint=_insnrep(mnemonic, parameters),
                 )
             else:
                 # Assume nothing for now, will be filled in later
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         return self.compile(
@@ -2262,7 +2341,7 @@ class LNGJUMPC(BaseMacro):
                 f"LNGJUMP {location}",
                 "skip_longjump:",
             ],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2276,18 +2355,21 @@ class LNGJUMPNC(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # First, try as an integer.
             location = getint(
                 parameter,
                 16,
                 allow_unsigned=True,
-                hint=f"{mnemonic} {parameter}",
+                hint=_insnrep(mnemonic, parameters),
             )
         except InvalidInstructionException:
             # Now, try as a label.
@@ -2297,11 +2379,11 @@ class LNGJUMPNC(BaseMacro):
                     offset,
                     16,
                     allow_unsigned=True,
-                    hint=f"{mnemonic} {parameter}",
+                    hint=_insnrep(mnemonic, parameters),
                 )
             else:
                 # Assume nothing for now, will be filled in later
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         return self.compile(
@@ -2312,7 +2394,7 @@ class LNGJUMPNC(BaseMacro):
                 f"LNGJUMP {location}",
                 "skip_longjump:",
             ],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2326,17 +2408,17 @@ class NEG(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameter)
+        _checkempty(mnemonic, parameters)
         return self.compile(
             origin,
             ["INV", "ADDI 1"],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2350,11 +2432,14 @@ class CALL(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         # Load immediate value into PC.
         # First, try to get this as an integer.
         try:
@@ -2362,7 +2447,7 @@ class CALL(BaseMacro):
                 parameter,
                 16,
                 allow_unsigned=True,
-                hint=f"{mnemonic} {parameter}",
+                hint=_insnrep(mnemonic, parameters),
             )
         except InvalidInstructionException:
             # Now, try as a label.
@@ -2371,11 +2456,11 @@ class CALL(BaseMacro):
                     str(labels[parameter]),
                     16,
                     allow_unsigned=True,
-                    hint=f"{mnemonic} {parameter}",
+                    hint=_insnrep(mnemonic, parameters),
                 )
             else:
                 # We will fill this in later.
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         # Create a springboard.
@@ -2389,7 +2474,7 @@ class CALL(BaseMacro):
         return self.compile(
             origin,
             instructions,
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2403,17 +2488,20 @@ class CALLRI(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
+        _checkoneparam(mnemonic, parameters)
+        parameter = parameters[0]
+
         try:
             # First, try as an integer.
             location = getint(
                 parameter,
                 6,
-                hint=f"{mnemonic} {parameter}",
+                hint=_insnrep(mnemonic, parameters),
             )
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
@@ -2430,11 +2518,11 @@ class CALLRI(BaseMacro):
                 location = getint(
                     str(relative_location),
                     6,
-                    hint=f"{mnemonic} {parameter}",
+                    hint=_insnrep(mnemonic, parameters),
                 )
             else:
                 # Assume nothing for now, will be filled in later
-                _checklabel(mnemonic, parameter, loose)
+                _checklabel(mnemonic, parameters, loose)
                 location = 0
 
         # Create a springboard.
@@ -2448,7 +2536,7 @@ class CALLRI(BaseMacro):
         return self.compile(
             origin,
             instructions,
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2462,17 +2550,17 @@ class PUSH(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameter)
+        _checkempty(mnemonic, parameters)
         return self.compile(
             origin,
             ["DECPC", "STOREA"],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2486,7 +2574,7 @@ class STOREI(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
@@ -2494,8 +2582,8 @@ class STOREI(BaseMacro):
         # Super simple, but convenient to use.
         return self.compile(
             origin,
-            [f"SETA {parameter}", "STOREA"],
-            hint=f"{mnemonic} {parameter}",
+            [f"SETA {_paramrep(parameters)}", "STOREA"],
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2509,7 +2597,7 @@ class PUSHI(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
@@ -2517,8 +2605,8 @@ class PUSHI(BaseMacro):
         # Super simple, but convenient to use.
         return self.compile(
             origin,
-            ["DECPC", f"SETA {parameter}", "STOREA"],
-            hint=f"{mnemonic} {parameter}",
+            ["DECPC", f"SETA {_paramrep(parameters)}", "STOREA"],
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
@@ -2532,17 +2620,17 @@ class POP(BaseMacro):
     def vals(
         self,
         mnemonic: str,
-        parameter: str,
+        parameters: Tuple[str, ...],
         origin: int,
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
         # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameter)
+        _checkempty(mnemonic, parameters)
         return self.compile(
             origin,
             ["LOADA", "INCPC"],
-            hint=f"{mnemonic} {parameter}",
+            hint=_insnrep(mnemonic, parameters),
         )
 
 
