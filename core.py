@@ -3313,7 +3313,7 @@ class MOV(BaseMacro):
                 ["ATOU"],
                 hint=_insnrep(mnemonic, parameters),
             )
-        if reg1 == "A" and reg2 == "UV":
+        if reg1 == "A" and reg2 == "V":
             # Super simple, but convenient to use.
             return self.compile(
                 origin,
@@ -3665,12 +3665,18 @@ class CPUCore:
 
         a = self.data if self.last_instruction.a_input else self.a
         a_dec = bintoint(a & 0xFF)
+        u = self.data if self.last_instruction.u_input else self.u
+        u_dec = bintoint(u & 0xFF)
+        v = self.data if self.last_instruction.v_input else self.v
+        v_dec = bintoint(v & 0xFF)
 
         print("\n".join([
             f"IP:    {hexstr(ip, 4)}",
             f"PC:    {hexstr(pandc, 4)}",
             f"SPC:   {hexstr(spandsc, 4)}",
             f"A:     {hexstr(a, 2)} (unsigned: {a}, signed: {a_dec})",
+            f"U:     {hexstr(u, 2)} (unsigned: {u}, signed: {u_dec})",
+            f"V:     {hexstr(v, 2)} (unsigned: {v}, signed: {v_dec})",
             f"Flags: {hexstr(flags, 3)} (cf: {cf}, zf: {zf}, pc: {pc})",
             f"NextI: {disassemble(self.ram[ip])} ({binstr(self.ram[ip], 8)})",
         ]))
