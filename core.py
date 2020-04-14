@@ -737,6 +737,55 @@ class PUSHIP(BaseInstruction):
         return [0b11000000 + location]
 
 
+class BaseRegisterInstruction(BaseInstruction, ABC):
+    opcode: int
+
+    def handles(self, instruction: int) -> bool:
+        if instruction & 0b11111000 != 0b11001000:
+            return False
+        return instruction & 0b111 == self.opcode
+
+    def mnemonic(self, instruction: int) -> str:
+        # Register operations don't take any parameters.
+        return self.__class__.__name__
+
+    def assembles(self, mnemonic: str) -> bool:
+        return self.__class__.__name__ == mnemonic
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checkempty(mnemonic, parameters)
+        return [0b11001000 | self.opcode]
+
+
+@instruction
+class SWAPPC(BaseRegisterInstruction):
+    # Swap PC and SPC registers.
+    opcode = 0b111
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+                pc_swap=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
 @instruction
 class ADDPCI(BaseInstruction):
     # Add immediate to the P+C virtual register.
@@ -1510,28 +1559,6 @@ class LNGJUMP(BaseStackInstruction):
                 location = 0
 
         return [0b11111000, (location >> 8) & 0xFF, location & 0xFF]
-
-
-@instruction
-class SWAPPC(BaseStackInstruction):
-    # Swap PC and SPC registers.
-    opcode = 0b001
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-                pc_swap=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
 
 
 @instruction
