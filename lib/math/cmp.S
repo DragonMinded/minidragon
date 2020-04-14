@@ -14,45 +14,40 @@ ucmp:
     ;     CALL ucmp
     ;
     ; Stack layout:
-    ; PC + 0 - second number shifted
-    ; PC + 1 - first number shifted
+    ; PC + 0 - saved U register
+    ; PC + 1 - return address
     ; PC + 2 - return address
-    ; PC + 3 - return address
-    ; PC + 4 - second number
-    ; PC + 5 - first number
+    ; PC + 3 - second number
+    ; PC + 4 - first number
 
     ; First, do the easy thing and see if they are equal.
     ADDPCI 3
     LOAD A
     DECPC
     XOR
+    SUBPCI 2
     JRINZ _ucmp_ne
 
     ; Its equal, so lets bail.
-    SUBPCI 2
     LOADI 0
     RET
 
 _ucmp_ne:
     ; Make copies so we can mess with the numbers
+    PUSH U
+    ADDPCI 3
+    LOAD U
+    INCPC
     LOAD A
     SUBPCI 4
-    STORE A
-    ADDPCI 5
-    LOAD A
-    SUBPCI 4
-    STORE A
 
     ; Technically we should only do this 8 times, for 8 bits,
     ; but given the base case above where they are equal, we
     ; know for a fact we will find a difference here, so no
     ; limit is applied.
 _ucmp_loop:
-    ; First, grab the first number, shift it left to check
-    ; the top bit, and store it temporarily.
-    LOAD A
+    ; First, shift the first number left.
     SHL
-    STORE A
 
     ; If the top bit is 1, then A is >= B, so we check for that
     ; in the second if.
@@ -60,11 +55,9 @@ _ucmp_loop:
 
     ; If the top bit is 0, then A is <= B, so we check for that
     ; here.
-    DECPC
-    LOAD A
+    SWAP U, A
     SHL
-    STORE A
-    INCPC
+    SWAP A, U
 
     ; If the top bit is 0, then A == B as far as we know, since both
     ; their high bits match.
@@ -72,24 +65,23 @@ _ucmp_loop:
 
     ; If the top bit is 1, then A < B, since the high bit of B is
     ; set and the high bit of A is not set.
-    ADDPCI 1
+    POP U
     LOADI -1
     RET
 
 _ucmp_first_high:
     ; Now, grab the second number.
-    DECPC
-    LOAD A
+    SWAP U, A
     SHL
-    STORE A
-    INCPC
+    SWAP A, U
 
     ; If the top bit is 0, then A is > B, since the high bit of A
     ; is set, and the high bit of B is not set. If the top bit is
     ; 1, then A == B as far as we know.
     JRIC _ucmp_loop
 
-    ADDPCI 1
+    ; We know that A > B here, so lets bail.
+    POP U
     LOADI 1
     RET
 
@@ -111,18 +103,20 @@ ucmp16:
     ;     CALL ucmp16
     ;
     ; Stack layout:
-    ; PC + 0 - second number shifted
-    ; PC + 1 - first number shifted
+    ; PC + 0 - saved U register
+    ; PC + 1 - return address
     ; PC + 2 - return address
-    ; PC + 3 - return address
-    ; PC + 4 - second number high byte
+    ; PC + 3 - second number high byte
     ; PC + 4 - second number low byte
     ; PC + 5 - first number high byte
-    ; PC + 5 - first number low byte
+    ; PC + 6 - first number low byte
+
+    ; To make it easier to save this register with fewer instructions.
+    PUSH U
 
     ; First, do the easy thing and see if they are equal, starting with the
     ; first byte.
-    ADDPCI 4
+    ADDPCI 5
     LOAD A
     SUBPCI 2
     XOR
@@ -142,13 +136,10 @@ ucmp16:
 
 _ucmp16_high_ne:
     ; Make copies so we can mess with the numbers
-    LOAD A
-    SUBPCI 4
-    STORE A
-    ADDPCI 6
+    LOAD U
+    ADDPCI 2
     LOAD A
     SUBPCI 5
-    STORE A
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -156,13 +147,10 @@ _ucmp16_high_ne:
 
 _ucmp16_low_ne:
     ; Make copies so we can mess with the numbers
-    LOAD A
-    SUBPCI 5
-    STORE A
-    ADDPCI 7
+    LOAD U
+    ADDPCI 2
     LOAD A
     SUBPCI 6
-    STORE A
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -190,22 +178,24 @@ ucmp32:
     ;     CALL ucmp32
     ;
     ; Stack layout:
-    ; PC + 0  - second number shifted
-    ; PC + 1  - first number shifted
+    ; PC + 0  - saved U register
+    ; PC + 1  - return address
     ; PC + 2  - return address
-    ; PC + 3  - return address
+    ; PC + 3  - second number first byte
     ; PC + 4  - second number
     ; PC + 5  - second number
-    ; PC + 6  - second number
-    ; PC + 7  - second number
+    ; PC + 6  - second number last byte
+    ; PC + 7  - first number first byte
     ; PC + 8  - first number
     ; PC + 9  - first number
-    ; PC + 10 - first number
-    ; PC + 11 - first number
+    ; PC + 10 - first number last byte
+
+    ; To make it easier to save this register with fewer instructions.
+    PUSH U
 
     ; First, do the easy thing and see if they are equal, starting with the
     ; first byte.
-    ADDPCI 6
+    ADDPCI 7
     LOAD A
     SUBPCI 4
     XOR
@@ -218,34 +208,38 @@ ucmp32:
     XOR
     JRINZ _ucmp32_2nd_ne
 
-    ; Now, check the third byte to see if they're equal.
-    ADDPCI 5
+    ; Now, check the third byte to see if they're equal. We do this backwards
+    ; from the upper two bytes to put us in range of jumping to the saved U
+    ; register from the second number load.
+    INCPC
     LOAD A
-    SUBPCI 4
+    ADDPCI 4
     XOR
     LNGJUMPNZ _ucmp32_3rd_ne
 
-    ; Now, check the final byte to see if they're equal.
-    ADDPCI 5
+    ; Now, check the final byte to see if they're equal. Same rationale as
+    ; above for ordering
+    SUBPCI 3
     LOAD A
-    SUBPCI 4
+    ADDPCI 4
     XOR
     LNGJUMPNZ _ucmp32_4th_ne
 
-    ; Its equal, so lets bail.
-    SUBPCI 5
+    ; Its equal, so lets bail. We unfortunately can't make it back to the
+    ; saved return value in 8 or less positions. This is due to the above
+    ; optimization, assuming that in general, two 32 bit numbers are going
+    ; to be non-equal more than equal.
+    SUBPCI 8
+    DECPC
     LOADI 0
     RET
 
 _ucmp32_1st_ne:
     ; Make copies so we can mess with the numbers
-    LOAD A
-    SUBPCI 4
-    STORE A
-    ADDPCI 8
+    LOAD U
+    ADDPCI 4
     LOAD A
     SUBPCI 7
-    STORE A
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -253,14 +247,10 @@ _ucmp32_1st_ne:
 
 _ucmp32_2nd_ne:
     ; Make copies so we can mess with the numbers
-    LOAD A
-    SUBPCI 5
-    STORE A
-    ADDPCI 8
-    INCPC
+    LOAD U
+    ADDPCI 4
     LOAD A
     SUBPCI 8
-    STORE A
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -269,14 +259,9 @@ _ucmp32_2nd_ne:
 _ucmp32_3rd_ne:
     ; Make copies so we can mess with the numbers
     LOAD A
-    SUBPCI 6
-    STORE A
-    ADDPCI 8
-    ADDPCI 2
-    LOAD A
-    SUBPCI 8
-    DECPC
-    STORE A
+    SUBPCI 4
+    LOAD U
+    SUBPCI 5
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
@@ -285,14 +270,9 @@ _ucmp32_3rd_ne:
 _ucmp32_4th_ne:
     ; Make copies so we can mess with the numbers
     LOAD A
-    SUBPCI 7
-    STORE A
-    ADDPCI 8
-    ADDPCI 3
-    LOAD A
-    SUBPCI 8
-    SUBPCI 2
-    STORE A
+    SUBPCI 4
+    LOAD U
+    SUBPCI 6
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
