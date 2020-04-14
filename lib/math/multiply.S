@@ -1,9 +1,6 @@
-_mult_locals:
-    .byte 0x01  ; Bottom bit set constant
-
 umult:
     ; Multiply two unsigned 8-bit numbers on the stack, returning value
-    ; in A.
+    ; in A. Does not clobber U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -13,77 +10,64 @@ umult:
     ;   CALL umult
     ;
     ; Stack layout
-    ; PC + 0 - SP
-    ; PC + 1 - SC
-    ; PC + 2 - Accumulated result
+    ; PC + 0 - Saved V register
+    ; PC + 1 - Saved U register
+    ; PC + 2 - return address
     ; PC + 3 - return address
-    ; PC + 4 - return address
-    ; PC + 5 - second operand
-    ; PC + 6 - first operand
+    ; PC + 4 - second operand
+    ; PC + 5 - first operand
 
-    ; Make room on the stack for the accumulated result
-    PUSHI 0
+    ; Save temporary registers.
+    PUSH U
+    PUSH V
 
-    ; Save calling function's local stack.
-    PUSH SPC
+    ; Initialize the accumulator.
+    ZERO
 
-    ; Skip to first operand
+    ; Load our first operand into U register...
     ADDPCI 5
+    LOAD U
 
-    ; Initialize our own local stack
-    SWAP PC, SPC
-    SETPC _mult_locals
-    SWAP PC, SPC
+    ; ...and our second operand into the V register.
+    DECPC
+    LOAD V
+    SUBPCI 5
 
 _umult_loop:
     ; See if first operand is zero
-    ZERO
-    ADD
+    SWAP A, U
+    ADDI 0
     LNGJUMPZ _umult_finished
 
-    ; See if bottom bit set
-    SWAP PC, SPC
-    AND
-    SWAP PC, SPC
-    JRIZ _umult_shift
+    ; See if first operand's bottom bit set, also perform
+    ; first operand >>= 1.
+    SHR
+    SWAP U, A
+    JRINC _umult_shift
 
     ; Grab the second operand so we can add it to the
-    ; accumulated result.
-    INCPC
-    LOAD A
-    DECPC
-
-    ; Add it to the accumulated result in our local stack.
-    SUBPCI 3
+    ; accumulated result. Then, add it.
+    STORE V
     ADD
-    STORE A
-    ADDPCI 3
 
 _umult_shift:
-    ; First operand >>= 1
-    LOAD A
-    SHR
-    STORE A
-
     ; Second operand <<= 1
-    INCPC
-    LOAD A
+    SWAP A, V
     SHL
-    STORE A
-    DECPC
+    SWAP V, A
 
     ; Back to loop
     LNGJUMP _umult_loop
 
 _umult_finished:
-    ; Restore stack
-    SUBPCI 5
+    ; Place accumulated result back into A register (MOV faster than SWAP
+    ; in this case.
+    MOV U, A
 
-    ; Restore locals pointer.
-    POP SPC
-
-    ; Grab the accumulated value to return it in A.
-    POP A
+    ; Restore temporary registers.
+    INCPC
+    POP V
+    POP U
 
     ; And done!
     RET

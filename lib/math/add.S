@@ -1,7 +1,7 @@
 add:
     ; Add two 8-bit numbers on the stack, returning the value on the stack.
     ; This is somewhat useless as we already have add, but it keeps the
-    ; stdlib orthogonal. Does not mess with the A register.
+    ; stdlib orthogonal. Does not clobber the A, U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -22,8 +22,7 @@ add:
 
     ; Add two numbers together
     ADDPCI 3
-    LOAD A
-    INCPC
+    POP A
     ADD
     STORE A
 
@@ -39,19 +38,18 @@ add:
     ADDPCI 1
     STORE A
 
+    ; Now, restore the A register value.
     SUBPCI 2
     LOAD A
-    ADDPCI 1
-    STORE A
+    ADDPCI 2
 
     ; Finally, return to caller
-    POP A
     RET
 
 add16:
     ; Add two 16-bit numbers on the stack, returning the value on the stack.
-    ; Numbers are stored on the stack as big-endian. Does not mess with the
-    ; A register.
+    ; Numbers are stored on the stack as big-endian. Does not clobber the
+    ; A, U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -100,19 +98,18 @@ add16:
     ADDPCI 2
     STORE A
 
+    ; Restore the A register.
     SUBPCI 3
     LOAD A
-    ADDPCI 2
-    STORE A
+    ADDPCI 3
 
     ; Finally, return to caller
-    POP A
     RET
 
 add32:
     ; Add two 32-bit numbers on the stack, returning the value on the stack.
-    ; Numbers are stored on the stack as big-endian. Does not mess with the
-    ; A register.
+    ; Numbers are stored on the stack as big-endian. Does not clobber the
+    ; A, U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -181,11 +178,10 @@ add32:
     ADDPCI 4
     STORE A
 
+    ; Restore the A register.
     SUBPCI 5
     LOAD A
-    ADDPCI 4
-    STORE A
+    ADDPCI 5
 
     ; Finally, return to caller
-    POP A
     RET
