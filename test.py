@@ -328,9 +328,9 @@ def verifyaddpc(only: Optional[str], full: bool) -> None:
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
         _assert(
-            cpu.pc[0] == 12345 + i,
+            cpu.pc == 12345 + i,
             f"Failed to ADDPC against {i}, "
-            + f"got {cpu.pc[0]} instead of {12345 + i}",
+            + f"got {cpu.pc} instead of {12345 + i}",
         )
 
 
@@ -491,7 +491,7 @@ def verifyudiv(only: Optional[str], full: bool) -> None:
                 f"Failed to udiv {x} by {y}, "
                 + f"got {cpu.a} instead of {x // y}!",
             )
-            remainder = cpu.ram[cpu.pc[0]]
+            remainder = cpu.ram[cpu.pc]
             _assert(
                 remainder == x % y,
                 f"Failed to udiv {x} by {y}, "
@@ -534,7 +534,7 @@ def verifymathadd(only: Optional[str], full: bool) -> None:
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
-            calculated = cpu.ram[cpu.pc[0]]
+            calculated = cpu.ram[cpu.pc]
             real = (x + y) & 0xFF
             _assert(
                 cpu.a == 123,
@@ -584,7 +584,7 @@ def verifyadd16(only: Optional[str], full: bool) -> None:
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
-            calculated = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+            calculated = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
             real = (x + y) & 0xFFFF
             _assert(
                 cpu.a == 123,
@@ -639,10 +639,10 @@ def verifyadd32(only: Optional[str], full: bool) -> None:
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
             calculated = (
-                (cpu.ram[cpu.pc[0]] << 24) +
-                (cpu.ram[cpu.pc[0] + 1] << 16) +
-                (cpu.ram[cpu.pc[0] + 2] << 8) +
-                cpu.ram[cpu.pc[0] + 3]
+                (cpu.ram[cpu.pc] << 24) +
+                (cpu.ram[cpu.pc + 1] << 16) +
+                (cpu.ram[cpu.pc + 2] << 8) +
+                cpu.ram[cpu.pc + 3]
             )
             real = (x + y) & 0xFFFFFFFF
             _assert(
@@ -734,7 +734,7 @@ def verifyabs16(only: Optional[str], full: bool) -> None:
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
         calculated = bintoint16(
-            (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
         )
         real = abs(x)
         _assert(
@@ -793,10 +793,10 @@ def verifyabs32(only: Optional[str], full: bool) -> None:
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
         calculated = bintoint32(
-            (cpu.ram[cpu.pc[0]] << 24) +
-            (cpu.ram[cpu.pc[0] + 1] << 16) +
-            (cpu.ram[cpu.pc[0] + 2] << 8) +
-            cpu.ram[cpu.pc[0] + 3]
+            (cpu.ram[cpu.pc] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            cpu.ram[cpu.pc + 3]
         )
         real = abs(x)
         _assert(
@@ -853,13 +853,13 @@ def verifyucmp(only: Optional[str], full: bool) -> None:
             elif a > b:
                 answer = 1
             _assert(
-                cpu.ram[cpu.pc[0] + 1] == a,
+                cpu.ram[cpu.pc + 1] == a,
                 f"ucmp changed stack value from {a} "
-                + f"to {cpu.ram[cpu.pc[0] + 1]}!",
+                + f"to {cpu.ram[cpu.pc + 1]}!",
             )
             _assert(
-                cpu.ram[cpu.pc[0]] == b,
-                f"ucmp changed stack value from {b} to {cpu.ram[cpu.pc[0]]}!",
+                cpu.ram[cpu.pc] == b,
+                f"ucmp changed stack value from {b} to {cpu.ram[cpu.pc]}!",
             )
             _assert(
                 bintoint(cpu.a) == answer,
@@ -910,12 +910,12 @@ def verifyucmp16(only: Optional[str], full: bool) -> None:
                 answer = 0
             elif a > b:
                 answer = 1
-            astack = ((cpu.ram[cpu.pc[0] + 2] << 8) + cpu.ram[cpu.pc[0] + 3])
+            astack = ((cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3])
             _assert(
                 astack == a,
                 f"ucmp16 changed stack value from {a} to {astack}!",
             )
-            bstack = ((cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1])
+            bstack = ((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
             _assert(
                 bstack == b,
                 f"ucmp16 changed stack value from {b} to {bstack}!",
@@ -970,20 +970,20 @@ def verifyucmp32(only: Optional[str], full: bool) -> None:
         elif a > b:
             answer = 1
         astack = (
-            (cpu.ram[cpu.pc[0] + 4] << 24) +
-            (cpu.ram[cpu.pc[0] + 5] << 16) +
-            (cpu.ram[cpu.pc[0] + 6] << 8) +
-            cpu.ram[cpu.pc[0] + 7]
+            (cpu.ram[cpu.pc + 4] << 24) +
+            (cpu.ram[cpu.pc + 5] << 16) +
+            (cpu.ram[cpu.pc + 6] << 8) +
+            cpu.ram[cpu.pc + 7]
         )
         _assert(
             astack == a,
             f"ucmp32 changed stack value from {a} to {astack}!",
         )
         bstack = (
-            (cpu.ram[cpu.pc[0]] << 24) +
-            (cpu.ram[cpu.pc[0] + 1] << 16) +
-            (cpu.ram[cpu.pc[0] + 2] << 8) +
-            cpu.ram[cpu.pc[0] + 3]
+            (cpu.ram[cpu.pc] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            cpu.ram[cpu.pc + 3]
         )
         _assert(
             bstack == b,
@@ -1048,13 +1048,13 @@ def verifyumin(only: Optional[str], full: bool) -> None:
             rununtilhalt(cpu)
             answer = min(a, b)
             _assert(
-                cpu.ram[cpu.pc[0] + 1] == a,
+                cpu.ram[cpu.pc + 1] == a,
                 f"umin changed stack value from {a} "
-                + f"to {cpu.ram[cpu.pc[0] + 1]}!",
+                + f"to {cpu.ram[cpu.pc + 1]}!",
             )
             _assert(
-                cpu.ram[cpu.pc[0]] == b,
-                f"umin changed stack value from {b} to {cpu.ram[cpu.pc[0]]}!",
+                cpu.ram[cpu.pc] == b,
+                f"umin changed stack value from {b} to {cpu.ram[cpu.pc]}!",
             )
             _assert(
                 cpu.a == answer,
@@ -1105,7 +1105,7 @@ def verifyumin16(only: Optional[str], full: bool) -> None:
                 cpu.a == 123,
                 f"umin16 changed accumulator value from {123} to {cpu.a}!",
             )
-            result = ((cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1])
+            result = ((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
             _assert(
                 result == answer,
                 f"Failed to umin16({a}, {b}), "
@@ -1152,10 +1152,10 @@ def verifyumin32(only: Optional[str], full: bool) -> None:
         rununtilhalt(cpu)
         answer = min(a, b)
         result = (
-            (cpu.ram[cpu.pc[0]] << 24) +
-            (cpu.ram[cpu.pc[0] + 1] << 16) +
-            (cpu.ram[cpu.pc[0] + 2] << 8) +
-            cpu.ram[cpu.pc[0] + 3]
+            (cpu.ram[cpu.pc] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            cpu.ram[cpu.pc + 3]
         )
         _assert(
             cpu.a == 123,
@@ -1220,13 +1220,13 @@ def verifyumax(only: Optional[str], full: bool) -> None:
             rununtilhalt(cpu)
             answer = max(a, b)
             _assert(
-                cpu.ram[cpu.pc[0] + 1] == a,
+                cpu.ram[cpu.pc + 1] == a,
                 f"umax changed stack value from {a} "
-                + f"to {cpu.ram[cpu.pc[0] + 1]}!",
+                + f"to {cpu.ram[cpu.pc + 1]}!",
             )
             _assert(
-                cpu.ram[cpu.pc[0]] == b,
-                f"umax changed stack value from {b} to {cpu.ram[cpu.pc[0]]}!",
+                cpu.ram[cpu.pc] == b,
+                f"umax changed stack value from {b} to {cpu.ram[cpu.pc]}!",
             )
             _assert(
                 cpu.a == answer,
@@ -1277,7 +1277,7 @@ def verifyumax16(only: Optional[str], full: bool) -> None:
                 cpu.a == 123,
                 f"umax16 changed accumulator value from {123} to {cpu.a}!",
             )
-            result = ((cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1])
+            result = ((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
             _assert(
                 result == answer,
                 f"Failed to umax16({a}, {b}), "
@@ -1324,10 +1324,10 @@ def verifyumax32(only: Optional[str], full: bool) -> None:
         rununtilhalt(cpu)
         answer = max(a, b)
         result = (
-            (cpu.ram[cpu.pc[0]] << 24) +
-            (cpu.ram[cpu.pc[0] + 1] << 16) +
-            (cpu.ram[cpu.pc[0] + 2] << 8) +
-            cpu.ram[cpu.pc[0] + 3]
+            (cpu.ram[cpu.pc] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            cpu.ram[cpu.pc + 3]
         )
         _assert(
             cpu.a == 123,
@@ -1389,7 +1389,7 @@ def verifymathneg(only: Optional[str], full: bool) -> None:
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        calculated = bintoint(cpu.ram[cpu.pc[0]])
+        calculated = bintoint(cpu.ram[cpu.pc])
         real = -x
         _assert(
             cpu.a == 123,
@@ -1438,7 +1438,7 @@ def verifyneg16(only: Optional[str], full: bool) -> None:
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
         calculated = bintoint16(
-            (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
         )
         real = -x
         _assert(
@@ -1494,10 +1494,10 @@ def verifyneg32(only: Optional[str], full: bool) -> None:
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
         calculated = bintoint32(
-            (cpu.ram[cpu.pc[0]] << 24) +
-            (cpu.ram[cpu.pc[0] + 1] << 16) +
-            (cpu.ram[cpu.pc[0] + 2] << 8) +
-            cpu.ram[cpu.pc[0] + 3]
+            (cpu.ram[cpu.pc] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            cpu.ram[cpu.pc + 3]
         )
         real = -x
         _assert(
@@ -1558,7 +1558,7 @@ def verifystrlen(only: Optional[str], full: bool) -> None:
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        stack_input = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+        stack_input = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
         _assert(
             stack_input == 0x1000,
             f"strlen changed stack input from {0x1000} to {stack_input}!",
@@ -1621,8 +1621,8 @@ def verifystrcpy(only: Optional[str], full: bool) -> None:
             cpu.a == 123,
             f"strcpy changed A register from 123 to {cpu.a}!",
         )
-        stack_dest = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
-        stack_source = (cpu.ram[cpu.pc[0] + 2] << 8) + cpu.ram[cpu.pc[0] + 3]
+        stack_dest = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        stack_source = (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
         _assert(
             stack_source == 0x1000,
             f"strcpy changed stack source from {0x1000} to {stack_source}!",
@@ -1700,9 +1700,9 @@ def verifystrcat(only: Optional[str], full: bool) -> None:
                 cpu.a == 123,
                 f"strcat changed A register from 123 to {cpu.a}!",
             )
-            stack_dest = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+            stack_dest = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
             stack_source = (
-                (cpu.ram[cpu.pc[0] + 2] << 8) + cpu.ram[cpu.pc[0] + 3]
+                (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
             )
             _assert(
                 stack_source == 0x1000,
@@ -1790,9 +1790,9 @@ def verifystrcmp(only: Optional[str], full: bool) -> None:
                 answer = 0
             elif source > destination:
                 answer = 1
-            stack_dest = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+            stack_dest = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
             stack_source = (
-                (cpu.ram[cpu.pc[0] + 2] << 8) + cpu.ram[cpu.pc[0] + 3]
+                (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
             )
             _assert(
                 stack_source == 0x1000,
@@ -1851,7 +1851,7 @@ def verifyitoa(only: Optional[str], full: bool) -> None:
             bintoint(cpu.a) == x,
             f"itoa changed A register from {x} to {cpu.a}!",
         )
-        stack_input = (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+        stack_input = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
         _assert(
             stack_input == 0x1000,
             f"itoa changed stack input from {0x1000} to {stack_input}!",
@@ -1918,7 +1918,7 @@ def verifyatoi(only: Optional[str], full: bool) -> None:
                 rununtilhalt(cpu)
 
                 stack_input = (
-                    (cpu.ram[cpu.pc[0]] << 8) + cpu.ram[cpu.pc[0] + 1]
+                    (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
                 )
                 _assert(
                     stack_input == (0x1000 + len(numstr)),

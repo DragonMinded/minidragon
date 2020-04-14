@@ -84,7 +84,7 @@ if __name__ == "__main__":
             # Bit 12
             microcode += "." if step.a_output else "X"
             microcode += "." if step.d_output else "X"
-            microcode += "."
+            microcode += "." if step.u_output else "X"
             microcode += "." if step.sram_output else "X"
 
             # Bit 16
@@ -106,9 +106,9 @@ if __name__ == "__main__":
             microcode += "." if (step.alu_src & 0x1) != 0 else "X"
 
             # Bit 28
-            microcode += "."
-            microcode += "."
-            microcode += "."
+            microcode += "." if step.v_output else "X"
+            microcode += "." if step.u_input else "X"
+            microcode += "." if step.v_input else "X"
             # This isn't the last instruction, so don't reset the
             # microcode counter.
             microcode += "X"

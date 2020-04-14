@@ -765,6 +765,216 @@ class BaseRegisterInstruction(BaseInstruction, ABC):
 
 
 @instruction
+class LOADU(BaseRegisterInstruction):
+    # Load the contents of memory at P+C to U register.
+
+    opcode = 0b000
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_output=True,
+                u_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class STOREU(BaseRegisterInstruction):
+    # Store the contents of the U register to memory at P+C.
+
+    opcode = 0b001
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_input=True,
+                u_output=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class LOADV(BaseRegisterInstruction):
+    # Load the contents of memory at P+C to V register.
+
+    opcode = 0b010
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_output=True,
+                v_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class STOREV(BaseRegisterInstruction):
+    # Store the contents of the V register to memory at P+C.
+
+    opcode = 0b011
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_input=True,
+                v_output=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class SWAPAU(BaseRegisterInstruction):
+    # Swap the contents of the A and U registers.
+
+    opcode = 0b100
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                a_output=True,
+                d_input=True,
+            ),
+            ControlSignals(
+                u_output=True,
+                a_input=True,
+            ),
+            ControlSignals(
+                d_output=True,
+                u_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class SWAPAV(BaseRegisterInstruction):
+    # Swap the contents of the A and V registers.
+
+    opcode = 0b101
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                a_output=True,
+                d_input=True,
+            ),
+            ControlSignals(
+                v_output=True,
+                a_input=True,
+            ),
+            ControlSignals(
+                d_output=True,
+                v_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class SWAPUV(BaseRegisterInstruction):
+    # Swap the contents of the U and V registers.
+
+    opcode = 0b110
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                u_output=True,
+                d_input=True,
+            ),
+            ControlSignals(
+                v_output=True,
+                u_input=True,
+            ),
+            ControlSignals(
+                d_output=True,
+                v_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
 class SWAPPC(BaseRegisterInstruction):
     # Swap PC and SPC registers.
     opcode = 0b111
@@ -1223,7 +1433,7 @@ class SHR(BaseALUInstruction):
         ]
 
 
-class BaseMemoryInstruction(BaseInstruction, ABC):
+class BaseMoveInstruction(BaseInstruction, ABC):
     opcode: int
 
     def handles(self, instruction: int) -> bool:
@@ -1251,7 +1461,7 @@ class BaseMemoryInstruction(BaseInstruction, ABC):
 
 
 @instruction
-class ATOP(BaseMemoryInstruction):
+class ATOP(BaseMoveInstruction):
     # Move contents of A register to P register.
 
     opcode = 0b000
@@ -1278,7 +1488,7 @@ class ATOP(BaseMemoryInstruction):
 
 
 @instruction
-class ATOC(BaseMemoryInstruction):
+class ATOC(BaseMoveInstruction):
     # Move contents of A register to C register.
 
     opcode = 0b001
@@ -1304,7 +1514,7 @@ class ATOC(BaseMemoryInstruction):
 
 
 @instruction
-class PTOA(BaseMemoryInstruction):
+class PTOA(BaseMoveInstruction):
     # Move contents of P register to A register.
 
     opcode = 0b010
@@ -1335,7 +1545,7 @@ class PTOA(BaseMemoryInstruction):
 
 
 @instruction
-class CTOA(BaseMemoryInstruction):
+class CTOA(BaseMoveInstruction):
     # Move contents of C register to A register.
 
     opcode = 0b011
@@ -1354,6 +1564,110 @@ class CTOA(BaseMemoryInstruction):
                 carry=ControlSignals.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ATOU(BaseMoveInstruction):
+    # Move contents of A register to U register.
+
+    opcode = 0b100
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                u_input=True,
+                a_output=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ATOV(BaseMoveInstruction):
+    # Move contents of A register to V register.
+
+    opcode = 0b101
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                v_input=True,
+                a_output=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class UTOA(BaseMoveInstruction):
+    # Move contents of U register to A register.
+
+    opcode = 0b110
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                a_input=True,
+                u_output=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class VTOA(BaseMoveInstruction):
+    # Move contents of V register to A register.
+
+    opcode = 0b111
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                a_input=True,
+                v_output=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -2739,6 +3053,10 @@ class ControlSignals:
         # 8 bits, output on top 8 bits of the bus
         d_high_output: Optional[bool] = None,
         # 8 bits, output on low 8 bits of the bus
+        u_output: Optional[bool] = None,
+        # 8 bits, output on low 8 bits of the bus
+        v_output: Optional[bool] = None,
+        # 8 bits, output on low 8 bits of the bus
         z_output: Optional[bool] = None,
         # 8 bits, output on low 8 bits of the bus
         sram_output: Optional[bool] = None,
@@ -2754,6 +3072,8 @@ class ControlSignals:
         c_input: Optional[bool] = None,
         d_input: Optional[bool] = None,
         p_input: Optional[bool] = None,
+        u_input: Optional[bool] = None,
+        v_input: Optional[bool] = None,
         sram_input: Optional[bool] = None,
         flags_input: Optional[bool] = None,
 
@@ -2792,6 +3112,10 @@ class ControlSignals:
         self.d_input = d_input or False
         self.d_output = d_output or False
         self.d_high_output = d_high_output or False
+        self.u_output = u_output or False
+        self.v_output = v_output or False
+        self.u_input = u_input or False
+        self.v_input = v_input or False
 
 
 class ALU:
@@ -2906,6 +3230,8 @@ class CPUCore:
         self.a = 0
         self.p = [0, 0]
         self.c = [0, 0]
+        self.u = 0
+        self.v = 0
 
         # Processor statistics.
         self.cycles = 0
@@ -2940,7 +3266,7 @@ class CPUCore:
         self.last_instruction = ControlSignals()
 
     @property
-    def pc(self) -> List[int]:
+    def pc(self) -> int:
         pc = self.flags & self.FLAGS_PC != 0
 
         if self.last_instruction.pc_swap:
@@ -2957,14 +3283,19 @@ class CPUCore:
             else self.c[1 if pc else 0]
         )
         c = c & 0xFF
-        pandc = p + c
+        return p + c
 
+    @property
+    def spc(self) -> int:
+        pc = self.flags & self.FLAGS_PC != 0
+
+        if self.last_instruction.pc_swap:
+            pc = not pc
         sp = self.p[0 if pc else 1]
         sp = (sp << 8) & 0xFF00
         sc = self.c[0 if pc else 1]
         sc = sc & 0xFF
-        spandsc = sp + sc
-        return [pandc, spandsc]
+        return sp + sc
 
     def print(self) -> None:
         # Look up the current bus values if we're about to store on this
@@ -3106,6 +3437,10 @@ class CPUCore:
                 self.b = self.data & 0xFF
             if self.last_instruction.d_input:
                 self.d = self.data & 0xFF
+            if self.last_instruction.u_input:
+                self.u = self.data & 0xFF
+            if self.last_instruction.v_input:
+                self.v = self.data & 0xFF
             if self.last_instruction.p_input:
                 self.p[which_pc] = (self.data >> 8) & 0xFF
             if self.last_instruction.c_input:
@@ -3190,6 +3525,10 @@ class CPUCore:
                 self.data = (self.data & 0xFF00) + (self.d & 0xFF)
             if instruction.d_high_output:
                 self.data = ((self.d << 8) & 0xFF00) + (self.data & 0x00FF)
+            if instruction.u_output:
+                self.data = (self.data & 0xFF00) + (self.u & 0xFF)
+            if instruction.v_output:
+                self.data = (self.data & 0xFF00) + (self.v & 0xFF)
             if instruction.alu_low_output:
                 self.data = (
                     (self.data & 0xFF00) +
