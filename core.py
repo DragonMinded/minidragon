@@ -71,12 +71,12 @@ def _splitparams(blob: str) -> Tuple[str, ...]:
     return tuple(params)
 
 
-
 def _paramrep(parameters: Tuple[str, ...]) -> str:
     if len(parameters) > 0:
         return ", ".join(parameters)
     else:
         return ""
+
 
 def _insnrep(mnemonic: str, parameters: Tuple[str, ...]) -> str:
     if len(parameters) > 0:
@@ -106,7 +106,11 @@ def _checkoneparam(mnemonic: str, parameters: Tuple[str, ...]) -> None:
         ) from None
 
 
-def _checklabel(mnemonic: str, parameters: Tuple[str, ...], loose: bool) -> None:
+def _checklabel(
+    mnemonic: str,
+    parameters: Tuple[str, ...],
+    loose: bool,
+) -> None:
     if not loose:
         raise ParameterOutOfRangeException(
             f"Undefined label {_paramrep(parameters)} for instruction "
@@ -447,12 +451,20 @@ class JRI(BaseInstruction):
         _checkoneparam(mnemonic, parameters)
         parameter = parameters[0]
         try:
-            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
+            location = getint(
+                parameter,
+                6,
+                hint=_insnrep(mnemonic, parameters),
+            )
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter] - origin - 1)
-                location = getint(offset, 6, hint=_insnrep(mnemonic, parameters))
+                location = getint(
+                    offset,
+                    6,
+                    hint=_insnrep(mnemonic, parameters),
+                )
             else:
                 # Verify that we do or don't need labels.
                 _checklabel(mnemonic, parameters, loose)
@@ -691,12 +703,20 @@ class PUSHIP(BaseInstruction):
 
         try:
             # Try to grab the offset as a raw integer.
-            location = getint(parameter, 5, hint=_insnrep(mnemonic, parameters))
+            location = getint(
+                parameter,
+                5,
+                hint=_insnrep(mnemonic, parameters),
+            )
         except InvalidInstructionException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter] - origin)
-                location = getint(offset, 5, hint=_insnrep(mnemonic, parameters))
+                location = getint(
+                    offset,
+                    5,
+                    hint=_insnrep(mnemonic, parameters),
+                )
             else:
                 # We don't care about this value right now, fill it in as
                 # whatever. We'll get to it on the second pass.
@@ -1297,60 +1317,6 @@ class CTOA(BaseMemoryInstruction):
 
 
 @instruction
-class LOADA(BaseMemoryInstruction):
-    # Load the contents of memory at P+C to A register.
-
-    opcode = 0b100
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
-                sram_output=True,
-                a_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
-class STOREA(BaseMemoryInstruction):
-    # Store the contents of the A register to memory at P+C.
-
-    opcode = 0b101
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
-                sram_input=True,
-                a_output=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
 class SKIPIF(BaseInstruction):
     # Skip the next instruction if immediate condition true.
 
@@ -1826,6 +1792,60 @@ class POPSPC(BaseStackInstruction):
         ]
 
 
+@instruction
+class LOADA(BaseStackInstruction):
+    # Load the contents of memory at P+C to A register.
+
+    opcode = 0b110
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_output=True,
+                a_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class STOREA(BaseStackInstruction):
+    # Store the contents of the A register to memory at P+C.
+
+    opcode = 0b111
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_input=True,
+                a_output=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
 class BaseMacro(BaseInstruction):
     def handles(self, instruction: int) -> bool:
         # We never handle disassembly, macros generate assembly blocks
@@ -2018,7 +2038,11 @@ class JRIZ(BaseMacro):
 
         try:
             # First, try as an integer.
-            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
+            location = getint(
+                parameter,
+                6,
+                hint=_insnrep(mnemonic, parameters),
+            )
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -2065,7 +2089,11 @@ class JRINZ(BaseMacro):
 
         try:
             # First, try as an integer.
-            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
+            location = getint(
+                parameter,
+                6,
+                hint=_insnrep(mnemonic, parameters),
+            )
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -2112,7 +2140,11 @@ class JRIC(BaseMacro):
 
         try:
             # First, try as an integer.
-            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
+            location = getint(
+                parameter,
+                6,
+                hint=_insnrep(mnemonic, parameters),
+            )
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
@@ -2159,7 +2191,11 @@ class JRINC(BaseMacro):
 
         try:
             # First, try as an integer.
-            location = getint(parameter, 6, hint=_insnrep(mnemonic, parameters))
+            location = getint(
+                parameter,
+                6,
+                hint=_insnrep(mnemonic, parameters),
+            )
             # We subtract one because the virtual position of this instruction
             # is one memory address earlier than where the actual jump
             # instruction will go.
