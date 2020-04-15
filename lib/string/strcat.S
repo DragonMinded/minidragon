@@ -15,18 +15,18 @@ strcat:
     ;     CALL strcat
     ;
     ; Stack layout
-    ; PC + ? - pointer to end of destination
-    ; PC + ? - pointer to end of destination
-    ; PC + ? - saved U register
-    ; PC + ? - saved A register
-    ; PC + ? - saved SP
-    ; PC + ? - saved SC
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - pointer to destination
-    ; PC + ? - pointer to destination
-    ; PC + ? - pointer to source
-    ; PC + ? - pointer to source
+    ; PC + 0  - pointer to end of destination
+    ; PC + 1  - pointer to end of destination
+    ; PC + 2  - saved U register
+    ; PC + 3  - saved A register
+    ; PC + 4  - saved SP
+    ; PC + 5  - saved SC
+    ; PC + 6  - return address
+    ; PC + 7  - return address
+    ; PC + 8  - pointer to destination
+    ; PC + 9  - pointer to destination
+    ; PC + 10 - pointer to source
+    ; PC + 11 - pointer to source
 
     ; First, save the existing registers
     PUSH SPC

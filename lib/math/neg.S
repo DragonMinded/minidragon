@@ -10,9 +10,9 @@ neg:
     ;     CALL neg
     ;
     ; Stack layout:
+    ; PC + 0 - return address
     ; PC + 1 - return address
-    ; PC + 2 - return address
-    ; PC + 3 - number to negate
+    ; PC + 2 - number to negate
 
     ; Negate the number on the stack.
     ADDPCI 2

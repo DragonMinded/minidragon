@@ -630,17 +630,17 @@ umax16:
     ;     CALL umax16
     ;
     ; Stack layout:
-    ; PC + 0 - temporary second number storage
-    ; PC + 1 - temporary second number storage
-    ; PC + 2 - temporary first number storage
-    ; PC + 3 - temporary first number storage
-    ; PC + 4 - contents of A register preserved
-    ; PC + 4 - return address
-    ; PC + 5 - return address
-    ; PC + 6 - second number
-    ; PC + 7 - second number
-    ; PC + 8 - first number
-    ; PC + 9 - first number
+    ; PC + 0  - temporary second number storage
+    ; PC + 1  - temporary second number storage
+    ; PC + 2  - temporary first number storage
+    ; PC + 3  - temporary first number storage
+    ; PC + 4  - contents of A register preserved
+    ; PC + 5  - return address
+    ; PC + 6  - return address
+    ; PC + 7  - second number
+    ; PC + 8  - second number
+    ; PC + 9  - first number
+    ; PC + 10 - first number
 
     ; First, save the A register
     PUSH A

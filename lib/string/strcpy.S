@@ -14,16 +14,16 @@ strcpy:
     ;     CALL strcpy
     ;
     ; Stack layout
-    ; PC + ? - saved U register
-    ; PC + ? - saved A register
-    ; PC + ? - saved SP
-    ; PC + ? - saved SC
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - pointer to destination
-    ; PC + ? - pointer to destination
-    ; PC + ? - pointer to source
-    ; PC + ? - pointer to source
+    ; PC + 0 - saved U register
+    ; PC + 1 - saved A register
+    ; PC + 2 - saved SP
+    ; PC + 3 - saved SC
+    ; PC + 4 - return address
+    ; PC + 5 - return address
+    ; PC + 6 - pointer to destination
+    ; PC + 7 - pointer to destination
+    ; PC + 8 - pointer to source
+    ; PC + 9 - pointer to source
 
     ; First, save the existing registers
     PUSH SPC

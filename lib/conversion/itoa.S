@@ -13,24 +13,24 @@ itoa:
     ;   CALL itoa
     ;
     ; Stack layout
-    ; PC + ? - stored A temporary value (absolute).
-    ; PC + ? - Remainder of last division.
-    ; PC + ? - Whether the A value is negative or not (1 for negative, 0 for positive).
-    ; PC + ? - Safe buffer area for temporary output.
-    ; PC + ? - Safe buffer area for temporary output.
-    ; PC + ? - Safe buffer area for temporary output.
-    ; PC + ? - Safe buffer area for temporary output.
-    ; PC + ? - Safe buffer area for temporary output.
-    ; PC + ? - Saved P to safe buffer area.
-    ; PC + ? - Saved C to safe buffer area.
-    ; PC + ? - Saved SP
-    ; PC + ? - Saved SC
-    ; PC + ? - Original U register value.
-    ; PC + ? - Original A register value.
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - pointer to string
-    ; PC + ? - pointer to string
+    ; PC + 0  - stored A temporary value (absolute).
+    ; PC + 1  - Remainder of last division.
+    ; PC + 2  - Whether the A value is negative or not (1 for negative, 0 for positive).
+    ; PC + 3  - Safe buffer area for temporary output.
+    ; PC + 4  - Safe buffer area for temporary output.
+    ; PC + 5  - Safe buffer area for temporary output.
+    ; PC + 6  - Safe buffer area for temporary output.
+    ; PC + 7  - Safe buffer area for temporary output.
+    ; PC + 8  - Saved P to safe buffer area.
+    ; PC + 9  - Saved C to safe buffer area.
+    ; PC + 10 - Saved SP
+    ; PC + 11 - Saved SC
+    ; PC + 12 - Original U register value.
+    ; PC + 13 - Original A register value.
+    ; PC + 14 - return address
+    ; PC + 15 - return address
+    ; PC + 16 - pointer to string
+    ; PC + 17 - pointer to string
 
     ; Save the A register.
     PUSH A

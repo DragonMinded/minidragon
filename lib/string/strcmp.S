@@ -17,17 +17,17 @@ strcmp:
     ;     CALL strmp
     ;
     ; Stack layout
-    ; PC + ? - saved destination byte
-    ; PC + ? - saved source byte
-    ; PC + ? - saved U register
-    ; PC + ? - saved SP
-    ; PC + ? - saved SC
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - pointer to destination
-    ; PC + ? - pointer to destination
-    ; PC + ? - pointer to source
-    ; PC + ? - pointer to source
+    ; PC + 0  - saved destination byte
+    ; PC + 1  - saved source byte
+    ; PC + 2  - saved U register
+    ; PC + 3  - saved SP
+    ; PC + 4  - saved SC
+    ; PC + 5  - return address
+    ; PC + 6  - return address
+    ; PC + 7  - pointer to destination
+    ; PC + 8  - pointer to destination
+    ; PC + 9  - pointer to source
+    ; PC + 10 - pointer to source
 
     ; First, save the existing registers.
     PUSH SPC
