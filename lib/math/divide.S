@@ -1,7 +1,7 @@
 udiv:
     ; Divide an unsigned number by another unsigned number, returning the
-    ; quotient in A and the remainder on the stack. Works on unsigned
-    ; numbers in the range of 0-127 inclusive.
+    ; quotient in A and the remainder on the stack. Assumes that dividend
+    ; and divisor are unsigned numbers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -11,14 +11,14 @@ udiv:
     ;   CALL udiv
     ;
     ; Stack layout at call time
-    ; PC + ? - accumulator (partial remainder)
-    ; PC + ? - divisor
-    ; PC + ? - saved U register
-    ; PC + ? - saved V register
-    ; PC + 0 - return address
-    ; PC + 1 - return address
-    ; PC + 2 - dividend
-    ; PC + 3 - divisor
+    ; PC + 0 - accumulator (partial remainder)
+    ; PC + 1 - divisor
+    ; PC + 2 - saved U register
+    ; PC + 3 - saved V register
+    ; PC + 4 - return address
+    ; PC + 5 - return address
+    ; PC + 6 - dividend
+    ; PC + 7 - divisor
 
     ; First, save the U/V registers
     PUSH V
