@@ -11,70 +11,69 @@ udiv:
     ;   CALL udiv
     ;
     ; Stack layout at call time
+    ; PC + ? - accumulator (partial remainder)
+    ; PC + ? - divisor
+    ; PC + ? - saved U register
+    ; PC + ? - saved V register
     ; PC + 0 - return address
     ; PC + 1 - return address
     ; PC + 2 - dividend
     ; PC + 3 - divisor
-    ;
-    ; Stack layout during division
-    ; PC + 0 - quotient
-    ; PC + 1 - return address
-    ; PC + 2 - return address
-    ; PC + 3 - divisor
-    ; PC + 4 - remainder
 
-    ; Swap dividend/divisor so we can accumulate the remainder in
-    ; the right spot.
-    ADDPCI 2
-    LOAD A
-    SUBPCI 3
-    STORE A
+    ; First, save the U/V registers
+    PUSH V
+    PUSH U
 
-    ADDPCI 4
+    ; Now, preload, with U = quotient (starts at zero)
+    ZERO
+    SWAP A, U
+
+    ; Preload A = divisor
+    ADDPCI 5
     LOAD A
+
+    ; Preload V = remainder
     DECPC
-    STORE A
+    LOAD V
 
-    SUBPCI 3
-    LOAD A
-    ADDPCI 4
-    STORE A
-
-    ; Now, zero out the quotient
-    SUBPCI 4
-    LOADI 0
-    STORE A
-
-_udiv_loop:
-    ; Attempt to subtract the divisor from the dividend
-    ADDPCI 3
-    LOAD A
-    NEG
-    INCPC
-    ADD
-
-    ; If we went negative, then the dividend is the remainder
-    ; and we've finished. The accumulated result is the quotient.
+    ; Move so we can call cmp later
     SUBPCI 5
     STORE A
+    DECPC
+
+    ; Now, make sure V = -divisor and A = remainder
+    NEG
+    SWAP A, V
+
+_udiv_loop:
+    ; First, see if divisor < remainder
+    STORE A
+    CALL ucmp
+
+    ; If we returned negative, that means we still have work to do
+    NEG
     SHL
-    LOAD A
-    ADDPCI 5
     JRIC _udiv_finished
 
-    ; Save the last value as the new dividend.
-    STORE A
+    ; We can subtract the divisor from the accumulated remainder now,
+    ; we know that it is less than the remainder.
+    LOAD A
+    ADDV
 
     ; Increment the quotient.
-    SUBPCI 4
-    LOAD A
+    SWAP A, U
     INC
-    STORE A
+    SWAP U, A
 
     ; Finally, do it all over again!
     JRI _udiv_loop
 
 _udiv_finished:
+    ; First, restore the remainder
+    LOAD A
+    ADDPCI 7
+    STORE A
+
     ; Move the return address to the right spot on the stack
     SUBPCI 2
     LOAD A
@@ -85,10 +84,14 @@ _udiv_finished:
     INCPC
     STORE A
 
-    ; Now, restore the quotient
-    SUBPCI 2
-    POP A
-    INCPC
+    ; Now, move the quotient out of U
+    MOV U, A
+
+    ; Restore U/V registers
+    SUBPCI 3
+    POP U
+    POP V
 
     ; Finally, return
+    INCPC
     RET

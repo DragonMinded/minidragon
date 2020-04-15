@@ -443,12 +443,14 @@ def verifyudiv(only: Optional[str], full: bool) -> None:
         initlines = fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
 
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(0, 128, 1 if full else 7):
-        for y in range(1, 128, 1 if full else 5):
+    for x in range(0, 256, 1 if full else 7):
+        for y in range(1, 256, 1 if full else 5):
             memory = getmemory(os.linesep.join([
                 *initlines,
                 f"PUSHI {y}",
@@ -456,6 +458,7 @@ def verifyudiv(only: Optional[str], full: bool) -> None:
                 f"CALL udiv",
                 f"HALT",
                 *dividelines,
+                *cmplines,
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
@@ -1792,6 +1795,8 @@ def verifyitoa(only: Optional[str], full: bool) -> None:
         dividelines = fp.readlines()
     with open("lib/conversion/itoa.S", "r") as fp:
         itoalines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -1806,6 +1811,7 @@ def verifyitoa(only: Optional[str], full: bool) -> None:
             f"HALT",
             *itoalines,
             *dividelines,
+            *cmplines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
