@@ -19,7 +19,7 @@ strcmp:
     ; Stack layout
     ; PC + ? - saved destination byte
     ; PC + ? - saved source byte
-    ; PC + ? - number of bytes compared
+    ; PC + ? - saved U register
     ; PC + ? - saved SP
     ; PC + ? - saved SC
     ; PC + ? - return address
@@ -32,10 +32,13 @@ strcmp:
     ; First, save the existing registers.
     PUSH SPC
 
-    ; Keep track of how many bytes we compared so we can rewind.
-    PUSHI 0
+    ; Save the U register so we can use it for copies.
+    PUSH U
+    ZERO
+    MOV A, U
 
-    ; Make room for source/destination byte.
+    ; Move to the tip of the saved bytes to prime the loop
+    ; below.
     SUBPCI 2
 
     ; We can do an ugly hack, where we don't have to compare
@@ -46,13 +49,12 @@ strcmp:
     ; depending on whether it is a null byte.
 _strcmp_loop:
     ; Keep track of number of bytes compared
-    ADDPCI 2
-    LOAD A
+    SWAP U, A
     INC
-    STORE A
-    ADDPCI 7
+    SWAP A, U
 
     ; Grab a byte from the source
+    ADDPCI 9
     POP SPC
     SWAP PC, SPC
     POP A
@@ -90,16 +92,14 @@ _strcmp_loop:
 
 _strcmp_save_answer:
     ; A holds the comparison value at this point, so save it to
-    ; the stack.
-    INCPC
-    STORE A
+    ; the U register, and pop out the U register to A so we can
+    ; fix up the stack pointers.
+    SWAP U, A
 
 _strcmp_done:
     ; Restore the stack pointers
-    INCPC
-    LOAD A
     NEG
-    ADDPCI 5
+    ADDPCI 7
     POP SPC
     SWAP PC, SPC
     ADDPC
@@ -113,9 +113,9 @@ _strcmp_done:
     PUSH SPC
 
     ; Restore the A register to the answer we calculated.
-    SUBPCI 8
-    POP A
-    INCPC
+    SUBPCI 7
+    SWAP A, U
+    POP U
     POP SPC
 
     ; Now, return to caller

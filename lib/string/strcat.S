@@ -15,9 +15,9 @@ strcat:
     ;     CALL strcat
     ;
     ; Stack layout
-    ; PC + ? - number of bytes copied
     ; PC + ? - pointer to end of destination
     ; PC + ? - pointer to end of destination
+    ; PC + ? - saved U register
     ; PC + ? - saved A register
     ; PC + ? - saved SP
     ; PC + ? - saved SC
@@ -31,12 +31,17 @@ strcat:
     ; First, save the existing registers
     PUSH SPC
     PUSH A
+    PUSH U
 
     ; Now, advance the destination pointer until we find the
     ; terminating null byte.
-    ADDPCI 5
+    ADDPCI 6
     POP SPC
     SWAP PC, SPC
+
+    ; We don't need to initialize the count of bytes copied because
+    ; we first advance until we find a null pointer. Null is zero,
+    ; so this loop below will init our count!
 
 _strcat_advance:
     ; Loop until we find the pointer to the null byte itself.
@@ -48,43 +53,40 @@ _strcat_advance:
 
 _strcat_update_dest:
     SWAP PC, SPC
-    SUBPCI 7
+    SUBPCI 8
     PUSH SPC
-    PUSHI 0
+    ADDPCI 10
 
 _strcat_loop:
     ; Keep track of number of bytes copied
-    LOAD A
     INC
-    STORE A
-    ADDPCI 10
 
     ; Grab a byte from the source
     POP SPC
     SWAP PC, SPC
-    POP A
+    POP U
     SWAP PC, SPC
     PUSH SPC
 
     ; Store that byte in the destination
-    SUBPCI 9
+    SUBPCI 10
     POP SPC
     SWAP PC, SPC
-    STORE A
+    STORE U
     INCPC
     SWAP PC, SPC
     PUSH SPC
-    SUBPCI 1
+    ADDPCI 10
 
     ; See if we copied the null termination
+    SWAP U, A
     ADDI 0
+    SWAP A, U
     JRINZ _strcat_loop
 
 _strcat_done:
     ; Restore the source stack pointer
-    POP A
     NEG
-    ADDPCI 9
     POP SPC
     SWAP PC, SPC
     ADDPC
@@ -92,7 +94,8 @@ _strcat_done:
     PUSH SPC
 
     ; Restore the shadow stack and A register
-    SUBPCI 7
+    SUBPCI 8
+    POP U
     POP A
     POP SPC
 

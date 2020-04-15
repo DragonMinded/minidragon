@@ -10,21 +10,28 @@ strlen:
     ;     CALL strlen
     ;
     ; Stack layout
-    ; PC + 0 - return address
-    ; PC + 1 - return address
-    ; PC + 2 - pointer to string high byte
-    ; PC + 3 - pointer to string low byte
+    ; PC + 0 - saved U register
+    ; PC + 1 - saved SPC
+    ; PC + 2 - saved SPC
+    ; PC + 3 - return address
+    ; PC + 4 - return address
+    ; PC + 5 - pointer to string high byte
+    ; PC + 6 - pointer to string low byte
 
     ; First, save the calling function's local stack
     PUSH SPC
 
+    ; Now save the temporary U register.
+    PUSH U
+
     ; Now, move past the saved stack and set SPC to point at the string.
-    ADDPCI 4
+    ADDPCI 5
     POP SPC
     SUBPCI 7
 
     ; Set up the count, then point at the string.
-    STOREI 0
+    ZERO
+    MOV A, U
     SWAP PC, SPC
 
     ; Now, until a null byte is encountered, add to our counter.
@@ -33,19 +40,23 @@ _strlen_loop:
     ADDI 0
     JRIZ _strlen_done
 
-    SWAP PC, SPC
-    LOAD A
-    INC
-    STORE A
-    SWAP PC, SPC
+    ; Move to next character.
     INCPC
+
+    ; Add one to our counter.
+    SWAP A, U
+    INC
+    SWAP U, A
 
     JRI _strlen_loop
 
 _strlen_done:
     ; Grab the final count into the A register.
     SWAP PC, SPC
-    POP A
+    MOV U, A
+
+    ; Restore the U register.
+    POP U
 
     ; Restore the SPC to what it was before we clobbered it.
     POP SPC
