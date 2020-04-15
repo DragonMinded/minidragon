@@ -36,9 +36,9 @@ _ucmp_ne:
     ; Make copies so we can mess with the numbers
     PUSH U
     ADDPCI 3
-    LOAD U
-    INCPC
     LOAD A
+    INCPC
+    LOAD U
     SUBPCI 4
 
     ; Technically we should only do this 8 times, for 8 bits,
@@ -47,6 +47,7 @@ _ucmp_ne:
     ; limit is applied.
 _ucmp_loop:
     ; First, shift the first number left.
+    SWAP A, U
     SHL
 
     ; If the top bit is 1, then A is >= B, so we check for that
@@ -57,7 +58,6 @@ _ucmp_loop:
     ; here.
     SWAP U, A
     SHL
-    SWAP A, U
 
     ; If the top bit is 0, then A == B as far as we know, since both
     ; their high bits match.
@@ -71,9 +71,8 @@ _ucmp_loop:
 
 _ucmp_first_high:
     ; Now, grab the second number.
-    SWAP U, A
-    SHL
     SWAP A, U
+    SHL
 
     ; If the top bit is 0, then A is > B, since the high bit of A
     ; is set, and the high bit of B is not set. If the top bit is
@@ -136,9 +135,9 @@ ucmp16:
 
 _ucmp16_high_ne:
     ; Make copies so we can mess with the numbers
-    LOAD U
-    ADDPCI 2
     LOAD A
+    ADDPCI 2
+    LOAD U
     SUBPCI 5
 
     ; The rest of this algorithm is identical to other versions, since we
@@ -147,9 +146,9 @@ _ucmp16_high_ne:
 
 _ucmp16_low_ne:
     ; Make copies so we can mess with the numbers
-    LOAD U
-    ADDPCI 2
     LOAD A
+    ADDPCI 2
+    LOAD U
     SUBPCI 6
 
     ; The rest of this algorithm is identical to other versions, since we
@@ -236,9 +235,9 @@ ucmp32:
 
 _ucmp32_1st_ne:
     ; Make copies so we can mess with the numbers
-    LOAD U
-    ADDPCI 4
     LOAD A
+    ADDPCI 4
+    LOAD U
     SUBPCI 7
 
     ; The rest of this algorithm is identical to other versions, since we
@@ -247,9 +246,9 @@ _ucmp32_1st_ne:
 
 _ucmp32_2nd_ne:
     ; Make copies so we can mess with the numbers
-    LOAD U
-    ADDPCI 4
     LOAD A
+    ADDPCI 4
+    LOAD U
     SUBPCI 8
 
     ; The rest of this algorithm is identical to other versions, since we
@@ -258,9 +257,9 @@ _ucmp32_2nd_ne:
 
 _ucmp32_3rd_ne:
     ; Make copies so we can mess with the numbers
-    LOAD A
-    SUBPCI 4
     LOAD U
+    SUBPCI 4
+    LOAD A
     SUBPCI 5
 
     ; The rest of this algorithm is identical to other versions, since we
@@ -269,9 +268,9 @@ _ucmp32_3rd_ne:
 
 _ucmp32_4th_ne:
     ; Make copies so we can mess with the numbers
-    LOAD A
-    SUBPCI 4
     LOAD U
+    SUBPCI 4
+    LOAD A
     SUBPCI 6
 
     ; The rest of this algorithm is identical to other versions, since we

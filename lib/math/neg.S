@@ -52,8 +52,7 @@ neg16:
     STORE A
     INCPC
     LOAD A
-    INV
-    ADDI 1
+    NEG
     STORE A
     DECPC
     ZERO
@@ -107,8 +106,7 @@ neg32:
     INCPC
 
     LOAD A
-    INV
-    ADDI 1
+    NEG
     STORE A
 
     DECPC
