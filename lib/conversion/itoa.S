@@ -25,7 +25,7 @@ itoa:
     ; PC + ? - Saved C to safe buffer area.
     ; PC + ? - Saved SP
     ; PC + ? - Saved SC
-    ; PC + ? - Length of output.
+    ; PC + ? - Original U register value.
     ; PC + ? - Original A register value.
     ; PC + ? - return address
     ; PC + ? - return address
@@ -35,8 +35,12 @@ itoa:
     ; Save the A register.
     PUSH A
 
-    ; Save the output length (starts with 1, due to always having a null).
-    PUSHI 1
+    ; Save the U register.
+    PUSH U
+
+    ; Initialize the output length (starts with 1, due to always having a null).
+    LOADI 1
+    MOV A, U
 
     ; Now, save the calling function's local stack.
     PUSH SPC
@@ -89,12 +93,11 @@ _itoa_neg:
     ; Store that it is negative
     ADDPCI 2
     STOREI 1
+    SUBPCI 2
 
     ; Also, update our output characters to reflect a negative sign.
-    ADDPCI 10
-    STOREI 2
-
-    SUBPCI 12
+    LOADI 2
+    MOV A, U
 
 _itoa_loop:
     ; Divide A by 10
@@ -124,11 +127,9 @@ _itoa_loop:
     PUSH SPC
 
     ; Count how many output bytes so we can rewind the pointer.
-    ADDPCI 4
-    LOAD A
+    MOV U, A
     INC
-    STORE A
-    SUBPCI 4
+    MOV A, U
 
     ; Now, see if we're finished (the quotient is zero).
     SUBPCI 8
@@ -186,9 +187,7 @@ _itoa_done:
     ; bytes we output and advancing backwards that much.
     ADDPCI 8
     POP SPC
-    SUBPCI 6
-    LOAD A
-    ADDPCI 6
+    MOV U, A
     SWAP PC, SPC
     NEG
     ADDPC

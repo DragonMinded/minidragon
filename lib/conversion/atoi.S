@@ -25,33 +25,36 @@ atoi:
 
     ; First, save the calling function's locals.
     PUSH SPC
+    PUSH U
+    PUSH V
 
-    ; Now, assume that the number is positive for now.
-    PUSHI 0
+    ; Now, assume that the number is positive for now. U will be
+    ; the negation indicator.
+    ZERO
+    MOV A, U
 
-    ; Start with the number at zero as well.
-    PUSHI 0
+    ; Now, start with the number itself being zero. V will be the
+    ; accumulated number.
+    MOV A, V
 
     ; Advance the stack pointer back to the pointer to the string.
     ADDPCI 6
+    POP SPC
+    SWAP PC, SPC
 
 _atoi_skip_whitespace:
     ; Stack layout when skipping leading space:
-    ; PC + -6 - current accumulated result.
-    ; PC + -5 - whether the number is negative (1) or not (0).
-    ; PC + -4 - saved SPC.
-    ; PC + -3 - saved SPC.
-    ; PC + -2 - return address.
-    ; PC + -1 - return address.
-    ; PC + 0  - pointer to string (will be updated).
-    ; PC + 1  - pointer to string (will be updated).
+    ; PC + -8 - saved V register.
+    ; PC + -7 - saved U register.
+    ; PC + -6 - saved SPC.
+    ; PC + -5 - saved SPC.
+    ; PC + -4 - return address.
+    ; PC + -3 - return address.
+    ; PC + -2 - pointer to string (will be updated).
+    ; PC + -1 - pointer to string (will be updated).
 
     ; See if the character is a space.
     LOADI " "
-
-    ; Set the SPC to point at our string.
-    POP SPC
-    SWAP PC, SPC
 
     ; XOR the byte in the string against the space to check if they equal.
     XOR
@@ -68,8 +71,6 @@ _atoi_skip_whitespace:
 _atoi_skip_ws_inc:
     ; Increment our string pointer to skip the character.
     INCPC
-    SWAP PC, SPC
-    PUSH SPC
 
     ; Do it again!
     jri _atoi_skip_whitespace
@@ -83,49 +84,32 @@ _atoi_check_positive:
     ; Check for a - sign, consume it if found.
     LOADI "-"
     XOR
-    JRINZ _atoi_no_prefix
-
-    ; Increment our string pointer to skip the character.
-    INCPC
-    SWAP PC, SPC
-    PUSH SPC
+    JRINZ _atoi_number_loop
 
     ; Remember that this was negative.
-    SUBPCI 5
-    STOREI 1
-    ADDPCI 5
-    JRI _atoi_number_loop
-
-_atoi_no_prefix:
-    ; Reset our stack pointer.
-    SWAP PC, SPC
-    SUBPCI 2
-    JRI _atoi_number_loop
+    LOADI 1
+    MOV A, U
 
 _atoi_skip_plus_inc:
     ; Increment our string pointer to skip the character.
     INCPC
-    SWAP PC, SPC
-    PUSH SPC
 
     ; Now, start consuming digit characters and adding them to our accumulator.
 _atoi_number_loop:
     ; Stack layout at start of loop:
-    ; PC + -6 - current accumulated result.
-    ; PC + -5 - whether the number is negative (1) or not (0).
-    ; PC + -4 - saved SPC.
-    ; PC + -3 - saved SPC.
-    ; PC + -2 - return address.
-    ; PC + -1 - return address.
-    ; PC + 0  - pointer to string advanced past leading space and +/- (will be updated).
-    ; PC + 1  - pointer to string advanced past leading space and +/- (will be updated).
+    ; PC + -8 - saved V register.
+    ; PC + -7 - saved U register.
+    ; PC + -6 - saved SPC.
+    ; PC + -5 - saved SPC.
+    ; PC + -4 - return address.
+    ; PC + -3 - return address.
+    ; PC + -2 - pointer to string advanced past leading space and +/- (will be updated).
+    ; PC + -1 - pointer to string advanced past leading space and +/- (will be updated).
 
     ; Load with negative value of ascii "0", to subtract it from the number on the stack.
     LOADI -48
 
     ; Perform the math (ascii digit) - "0"
-    POP SPC
-    SWAP PC, SPC
     ADD
 
     ; See if it is negative (meaning a value < "0")
@@ -143,61 +127,51 @@ _atoi_number_loop:
     ; We know the digit is between "0" and "9" inclusive, so let's multiply our
     ; current accumulated result and add the digit value in.
     SWAP PC, SPC
-    SUBPCI 8
+    SUBPCI 9
+    STORE V
 
     ; Multiply by 10, getting the result in A.
     PUSHI 10
     CALL umult
-    ADDPCI 2
+    ADDPCI 10
+    SWAP PC, SPC
 
-    ; Store that accumulated result back in the same spot.
-    PUSH A
+    ; Store that accumulated result back into our accumulated result register.
+    MOV A, V
 
     ; Now, load up the digit, subtract it from "0", add it to the current result.
     LOADI -48
-    SWAP PC, SPC
     ADD
     INCPC
-    SWAP PC, SPC
-    ADD
-    STORE A
-
-    ; Update our pointer.
-    ADDPCI 8
-    PUSH SPC
+    ADDV
+    MOV A, V
 
     ; Do it again!
     LNGJUMP _atoi_number_loop
 
 _atoi_number_end:
     ; The stack now points at the end of the string, whether that's a null byte
-    ; or the beginning of a non-integer.
-
+    ; or the beginning of a non-integer. Save it back so the calling function
+    ; can implement things like sscanf().
     SWAP PC, SPC
+    PUSH SPC
 
     ; See if we need to negate the number.
-    SUBPCI 7
-    LOAD A
+    MOV U, A
     ADDI 0
+    MOV V, A
     JRIZ _atoi_return_positive
 
     ; Load and negate the number, return.
-    DECPC
-    POP A
     NEG
 
-    ; Restore the saved SPC
-    INCPC
-    POP SPC
-
-    ; Finally, return.
-    RET
-
 _atoi_return_positive:
-    ; Grab the number we accumulated, restore the stack.
-    DECPC
-    POP A
-    INCPC
+    ; Restore U/V
+    SUBPCI 6
+    POP V
+    POP U
+
+    ; Restore the saved SPC
     POP SPC
 
     ; Finally, return.
