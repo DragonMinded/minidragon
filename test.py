@@ -2,7 +2,7 @@
 import argparse
 import os
 import struct
-from typing import List, Optional
+from typing import Dict, List, Optional
 from core import (
     InvalidInstructionException,
     ParameterOutOfRangeException,
@@ -400,12 +400,23 @@ def verifyumult(only: Optional[str], full: bool) -> None:
         initlines = fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
 
     cycles = 0
     instructions = 0
     count = 0
+    zeros: Dict[str, bool] = {'x': False, 'y': False}
     for x in range(0, 256):
         for y in range(0, 256):
+            if x == 0 and y != 0:
+                if zeros['x']:
+                    continue
+                zeros['x'] = True
+            if x != 0 and y == 0:
+                if zeros['y']:
+                    continue
+                zeros['y'] = True
             if x * y > 255:
                 continue
             memory = getmemory(os.linesep.join([
@@ -415,6 +426,7 @@ def verifyumult(only: Optional[str], full: bool) -> None:
                 f"CALL umult",
                 f"HALT",
                 *multiplylines,
+                *addlines,
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
@@ -430,6 +442,80 @@ def verifyumult(only: Optional[str], full: bool) -> None:
         print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for umult: {int(cycles/count)}")
     print(f"Average instructions for umult: {int(instructions/count)}")
+
+
+def verifyumult16(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "umult16":
+        return
+
+    print("Verifying umult16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/multiply.S", "r") as fp:
+        multiplylines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    zeros: Dict[str, bool] = {'x': False, 'y': False}
+    xrng = [
+        *range(0, 16),
+        *range(16, 64, 3),
+        *range(64, 65536, 137 if full else 1473)
+    ]
+    for x in xrng:
+        validrange = int(65536 / (x + 1))
+        step = int(validrange / 10)
+        if step < 1:
+            step = 1
+        for y in range(0, 65536, step):
+            if x == 0 and y != 0:
+                if zeros['x']:
+                    continue
+                zeros['x'] = True
+            if x != 0 and y == 0:
+                if zeros['y']:
+                    continue
+                zeros['y'] = True
+            if x * y > 65535:
+                continue
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"PUSHI {y & 0xFF}",
+                f"PUSHI {(y >> 8) & 0xFF}",
+                f"LOADI 123",
+                f"CALL umult16",
+                f"HALT",
+                *multiplylines,
+                *addlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            calculated = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+            real = (x * y) & 0xFFFF
+            _assert(
+                cpu.a == 123,
+                f"umut16 changed A register from 123 to {cpu.a}!",
+            )
+            _assert(
+                real == calculated,
+                f"Failed to umult16 {x} and {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for umult16: {int(cycles/count)}")
+    print(f"Average instructions for umult16: {int(instructions/count)}")
 
 
 def verifyudiv(only: Optional[str], full: bool) -> None:
@@ -1850,6 +1936,8 @@ def verifyatoi(only: Optional[str], full: bool) -> None:
         initlines = fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
     with open("lib/conversion/atoi.S", "r") as fp:
         atoilines = fp.readlines()
 
@@ -1882,6 +1970,7 @@ def verifyatoi(only: Optional[str], full: bool) -> None:
                     "HALT",
                     *atoilines,
                     *multiplylines,
+                    *addlines,
                 ]))
                 cpu = CPUCore(memory)
                 rununtilhalt(cpu)
@@ -1946,6 +2035,7 @@ if __name__ == "__main__":
     verifyadd16(only, args.full)
     verifyadd32(only, args.full)
     verifyumult(only, args.full)
+    verifyumult16(only, args.full)
     verifyudiv(only, args.full)
     verifyabs(only, args.full)
     verifyabs16(only, args.full)
