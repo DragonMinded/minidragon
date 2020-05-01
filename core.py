@@ -442,7 +442,7 @@ class JRI(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -521,7 +521,7 @@ class ADDI(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -533,7 +533,7 @@ class ADDI(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -590,7 +590,7 @@ class PUSHIP(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -605,7 +605,7 @@ class PUSHIP(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 address_src=ControlSignals.ADDRESS_SRC_PC,
                 sram_input=True,
@@ -619,7 +619,7 @@ class PUSHIP(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -634,7 +634,7 @@ class PUSHIP(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_low_output=True,
                 address_src=ControlSignals.ADDRESS_SRC_PC,
                 sram_input=True,
@@ -647,7 +647,7 @@ class PUSHIP(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -752,7 +752,7 @@ class ADDU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -764,7 +764,7 @@ class ADDU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -787,7 +787,7 @@ class ADCU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_FROM_FLAGS,
+                carry=ALU.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -799,7 +799,7 @@ class ADCU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -822,7 +822,7 @@ class ANDU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_AND,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -834,7 +834,7 @@ class ANDU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -857,7 +857,7 @@ class ORU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_OR,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -869,7 +869,7 @@ class ORU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -892,7 +892,7 @@ class XORU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_XOR,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -904,7 +904,7 @@ class XORU(BaseALUUInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -958,7 +958,7 @@ class ADDV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -970,7 +970,7 @@ class ADDV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -993,7 +993,7 @@ class ADCV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_FROM_FLAGS,
+                carry=ALU.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1005,7 +1005,7 @@ class ADCV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1028,7 +1028,7 @@ class ANDV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_AND,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1040,7 +1040,7 @@ class ANDV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1063,7 +1063,7 @@ class ORV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_OR,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1075,7 +1075,7 @@ class ORV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1098,7 +1098,7 @@ class XORV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_XOR,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1110,7 +1110,7 @@ class XORV(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1128,7 +1128,7 @@ class RCL(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_SHL,
-                carry=ControlSignals.CARRY_FROM_FLAGS,
+                carry=ALU.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1140,7 +1140,7 @@ class RCL(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1158,7 +1158,7 @@ class RCR(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_SHR,
-                carry=ControlSignals.CARRY_FROM_FLAGS,
+                carry=ALU.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1170,7 +1170,7 @@ class RCR(BaseALUVInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1230,7 +1230,7 @@ class INV(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1253,7 +1253,7 @@ class ADD(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1265,7 +1265,7 @@ class ADD(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1288,7 +1288,7 @@ class ADC(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_FROM_FLAGS,
+                carry=ALU.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1300,7 +1300,7 @@ class ADC(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1323,7 +1323,7 @@ class AND(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_AND,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1335,7 +1335,7 @@ class AND(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1358,7 +1358,7 @@ class OR(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_OR,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1370,7 +1370,7 @@ class OR(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1393,7 +1393,7 @@ class XOR(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_XOR,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1405,7 +1405,7 @@ class XOR(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1423,7 +1423,7 @@ class SHL(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_SHL,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1435,7 +1435,7 @@ class SHL(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1453,7 +1453,7 @@ class SHR(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_SHR,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1465,7 +1465,7 @@ class SHR(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1497,7 +1497,7 @@ class ADDPCI(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -1509,7 +1509,7 @@ class ADDPCI(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1570,7 +1570,7 @@ class SUBPCI(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -1582,7 +1582,7 @@ class SUBPCI(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1667,7 +1667,7 @@ class LOADU(BaseRegisterInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1694,7 +1694,7 @@ class STOREU(BaseRegisterInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1721,7 +1721,7 @@ class LOADV(BaseRegisterInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1748,7 +1748,7 @@ class STOREV(BaseRegisterInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1782,7 +1782,7 @@ class SWAPAU(BaseRegisterInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1816,7 +1816,7 @@ class SWAPAV(BaseRegisterInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1850,7 +1850,7 @@ class SWAPUV(BaseRegisterInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1872,7 +1872,7 @@ class SWAPPC(BaseRegisterInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1926,7 +1926,7 @@ class ATOP(BaseMoveInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1952,7 +1952,7 @@ class ATOC(BaseMoveInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1976,14 +1976,14 @@ class PTOA(BaseMoveInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_low_output=True,
                 a_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2007,14 +2007,14 @@ class CTOA(BaseMoveInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2040,7 +2040,7 @@ class ATOU(BaseMoveInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2066,7 +2066,7 @@ class ATOV(BaseMoveInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2092,7 +2092,7 @@ class UTOA(BaseMoveInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2118,7 +2118,7 @@ class VTOA(BaseMoveInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2162,7 +2162,7 @@ class SKIPIF(BaseInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2244,7 +2244,7 @@ class LNGJUMP(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2259,7 +2259,7 @@ class LNGJUMP(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2329,7 +2329,7 @@ class LOADI(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2343,7 +2343,7 @@ class LOADI(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2385,7 +2385,7 @@ class ADDPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -2397,7 +2397,7 @@ class ADDPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             )
@@ -2428,7 +2428,7 @@ class POPIP(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -2444,7 +2444,7 @@ class POPIP(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -2475,7 +2475,7 @@ class PUSHSPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -2491,7 +2491,7 @@ class PUSHSPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 d_input=True,
             ),
@@ -2512,7 +2512,7 @@ class PUSHSPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -2528,7 +2528,7 @@ class PUSHSPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_CLEAR,
+                carry=ALU.CARRY_CLEAR,
                 alu_low_output=True,
                 d_input=True,
             ),
@@ -2546,7 +2546,7 @@ class PUSHSPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2587,7 +2587,7 @@ class POPSPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -2612,7 +2612,7 @@ class POPSPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -2621,7 +2621,7 @@ class POPSPC(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2648,7 +2648,7 @@ class LOADA(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2675,7 +2675,7 @@ class STOREA(BaseStackInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
-                carry=ControlSignals.CARRY_SET,
+                carry=ALU.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -3791,10 +3791,6 @@ class ControlSignals:
     ALU_SRC_PC = 2
     ALU_SRC_IP = 3
 
-    CARRY_SET = 1
-    CARRY_FROM_FLAGS = 2
-    CARRY_CLEAR = 3
-
     ADDRESS_SRC_PC = 0
     ADDRESS_SRC_IP = 1
 
@@ -3860,7 +3856,7 @@ class ControlSignals:
         pc_swap: Optional[bool] = None,
     ) -> None:
         self.alu_src = alu_src if alu_src is not None else self.ALU_SRC_IP
-        self.carry = carry if carry is not None else self.CARRY_CLEAR
+        self.carry = carry if carry is not None else ALU.CARRY_CLEAR
         self.alu_op = alu_op if alu_op is not None else ALU.OPERATION_NULL
         self.address_src = (
             address_src if address_src is not None else self.ADDRESS_SRC_IP
@@ -3927,20 +3923,51 @@ class ALU:
     # No operation, output indeterminate.
     OPERATION_NULL = 7
 
-    def __init__(self, op: int, a: int, b: int, carry: bool) -> None:
+    # Values dictating how the carry flag should be treated.
+    CARRY_SET = 1
+    CARRY_FROM_FLAGS = 2
+    CARRY_CLEAR = 3
+
+    def __init__(
+        self,
+        op: int,
+        carry_req: int,
+        a: int,
+        b: int,
+        carry: bool,
+    ) -> None:
         self.op = op
         self.a = a
         self.b = b
-        self.carryin = carry
+        self.carry_req = carry_req
+        self.carry = carry
 
     @property
     def result(self) -> int:
         if self.op == self.OPERATION_ADD:
-            return (self.a + self.b + (1 if self.carryin else 0)) & 0xFFFF
+            if self.carry_req == ALU.CARRY_SET:
+                carryval = 1
+            elif self.carry_req == ALU.CARRY_CLEAR:
+                carryval = 0
+            elif self.carry_req == ALU.CARRY_FROM_FLAGS:
+                carryval = 1 if self.carry else 0
+            return (self.a + self.b + carryval) & 0xFFFF
         if self.op == self.OPERATION_SHL:
-            return ((self.a << 1) & 0xFF) | (0x01 if self.carryin else 0)
+            if self.carry_req == ALU.CARRY_SET:
+                carryval = (self.a >> 7) & 0x01
+            elif self.carry_req == ALU.CARRY_CLEAR:
+                carryval = 0
+            elif self.carry_req == ALU.CARRY_FROM_FLAGS:
+                carryval = 1 if self.carry else 0
+            return ((self.a << 1) & 0xFF) | carryval
         if self.op == self.OPERATION_SHR:
-            return ((self.a >> 1) & 0xFF) | (0x80 if self.carryin else 0)
+            if self.carry_req == ALU.CARRY_SET:
+                carryval = (self.a << 7) & 0x80
+            elif self.carry_req == ALU.CARRY_CLEAR:
+                carryval = 0
+            elif self.carry_req == ALU.CARRY_FROM_FLAGS:
+                carryval = 0x80 if self.carry else 0
+            return ((self.a >> 1) & 0xFF) | carryval
         if self.op == self.OPERATION_INV:
             return (~self.a) & 0xFF
         if self.op == self.OPERATION_AND:
@@ -3958,9 +3985,13 @@ class ALU:
         # While the ALU itself is 16-bit, flags are relative to 8-bit
         # operations.
         if self.op == self.OPERATION_ADD:
-            return (
-                (self.a & 0xFF) + (self.b & 0xFF) + (1 if self.carryin else 0)
-            ) & 0x100 != 0
+            if self.carry_req == ALU.CARRY_SET:
+                carryval = 1
+            elif self.carry_req == ALU.CARRY_CLEAR:
+                carryval = 0
+            elif self.carry_req == ALU.CARRY_FROM_FLAGS:
+                carryval = 1 if self.carry else 0
+            return ((self.a & 0xFF) + (self.b & 0xFF) + carryval) & 0x100 != 0
         if self.op == self.OPERATION_SHL:
             return (self.a << 1) & 0x100 != 0
         if self.op == self.OPERATION_SHR:
@@ -3979,25 +4010,7 @@ class ALU:
     def zero(self) -> bool:
         # While the ALU itself is 16-bit, flags are relative to 8-bit
         # operations.
-        if self.op == self.OPERATION_ADD:
-            return (
-                self.a + self.b + (1 if self.carryin else 0)
-            ) & 0xFF == 0
-        if self.op == self.OPERATION_SHL:
-            return (self.a << 1) & 0xFF == 0
-        if self.op == self.OPERATION_SHR:
-            return (self.a >> 1) & 0xFF == 0
-        if self.op == self.OPERATION_INV:
-            return False
-        if self.op == self.OPERATION_AND:
-            return ((self.a & self.b) & 0xFF) == 0
-        if self.op == self.OPERATION_OR:
-            return ((self.a | self.b) & 0xFF) == 0
-        if self.op == self.OPERATION_XOR:
-            return ((self.a ^ self.b) & 0xFF) == 0
-        if self.op == self.OPERATION_NULL:
-            return False
-        raise Exception("Not implemented!")
+        return self.result & 0xFF == 0
 
 
 class CPUCore:
@@ -4038,7 +4051,7 @@ class CPUCore:
             self.ram.append(0)
 
         # ALU
-        self.alu = ALU(ALU.OPERATION_ADD, 0, 0, False)
+        self.alu = ALU(ALU.OPERATION_NULL, ALU.CARRY_CLEAR, 0, 0, False)
 
         # Busses
         self.data = 0b1111111111111111
@@ -4250,6 +4263,8 @@ class CPUCore:
 
             # Now, set up the ALU.
             self.alu.op = instruction.alu_op
+            self.alu.carry = (self.flags & self.FLAGS_CF) != 0
+            self.alu.carry_req = instruction.carry
             self.alu.b = sign_extend(self.b, 7)
             if instruction.alu_src == ControlSignals.ALU_SRC_A:
                 self.alu.a = self.a
@@ -4260,14 +4275,6 @@ class CPUCore:
                     ((self.p[which_pc] << 8) & 0xFF00) +
                     (self.c[which_pc] & 0xFF)
                 )
-            else:
-                raise Exception("Not implemented")
-            if instruction.carry == ControlSignals.CARRY_CLEAR:
-                self.alu.carryin = False
-            elif instruction.carry == ControlSignals.CARRY_SET:
-                self.alu.carryin = True
-            elif instruction.carry == ControlSignals.CARRY_FROM_FLAGS:
-                self.alu.carryin = (self.flags & self.FLAGS_CF) != 0
             else:
                 raise Exception("Not implemented")
 
