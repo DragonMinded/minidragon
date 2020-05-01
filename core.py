@@ -911,6 +911,66 @@ class XORU(BaseALUUInstruction):
         ]
 
 
+@instruction
+class ROL(BaseALUUInstruction):
+    # Shift contents of A left and shift in top bit.
+
+    opcode = 0b110
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_SHL,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class ROR(BaseALUUInstruction):
+    # Shift contents of A right and shift in bottom bit.
+
+    opcode = 0b111
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_SHR,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
 class BaseALUVInstruction(BaseInstruction, ABC):
     opcode: int
 
@@ -1149,7 +1209,7 @@ class RCL(BaseALUVInstruction):
 
 @instruction
 class RCR(BaseALUVInstruction):
-    # Shift contents of A right.
+    # Shift contents of A right and shift in carry flag.
 
     opcode = 0b111
 

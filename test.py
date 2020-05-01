@@ -389,6 +389,45 @@ def verifysubpci(only: Optional[List[str]], full: bool) -> None:
             )
 
 
+def verifyshift(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "shift" not in only:
+        return
+
+    print("Verifying shifts...")
+    for i in range(256):
+        for operation in ["SHL", "SHR", "ROL", "ROR", "RCL", "RCR"]:
+            if operation == "SHL":
+                expected = i << 2
+            elif operation == "SHR":
+                expected = i >> 2
+            elif operation == "ROL":
+                expected = (i << 2) | (i >> 6)
+            elif operation == "ROR":
+                expected = (i >> 2) | (i << 6)
+            elif operation == "RCL":
+                # Since we will rotate with carry, the first carry gets
+                # "swallowed" as we shift in the first time. This is due
+                # to the carry flag always starting clear.
+                expected = (i << 2) | (i >> 7)
+            elif operation == "RCR":
+                expected = (i >> 2) | (i << 7)
+            expected = expected & 0xFF
+
+            memory = getmemory(f"""
+                LOADI {i}
+                {operation}
+                {operation}
+                HALT
+            """)
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == expected,
+                f"Failed to {operation} {i} twice, " +
+                f"expected {expected} but got {cpu.a}",
+            )
+
+
 def verifyumult(only: Optional[List[str]], full: bool) -> None:
     if only is not None and "umult" not in only:
         return
@@ -2118,6 +2157,7 @@ if __name__ == "__main__":
     verifyneg(only, args.full)
     verifyaddpci(only, args.full)
     verifysubpci(only, args.full)
+    verifyshift(only, args.full)
 
     # Math library verification
     verifymathadd(only, args.full)
