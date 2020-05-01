@@ -13,19 +13,17 @@ abs:
     ; PC + 0 - return address
     ; PC + 1 - return address
 
-    ; Save the original value of A
-    PUSH A
-
     ; Now, check if it is negative.
     SHL
-    POP A
     JRIC _abs_negative
 
     ; Its already positive, so just return it.
+    RCR
     RET
 
 _abs_negative:
     ; Gotta two's compliment it.
+    RCR
     NEG
     RET
 

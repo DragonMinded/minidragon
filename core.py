@@ -1117,6 +1117,66 @@ class XORV(BaseALUVInstruction):
         ]
 
 
+@instruction
+class RCL(BaseALUVInstruction):
+    # Shift contents of A left and shift in carry flag.
+
+    opcode = 0b110
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_SHL,
+                carry=ControlSignals.CARRY_FROM_FLAGS,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
+class RCR(BaseALUVInstruction):
+    # Shift contents of A right.
+
+    opcode = 0b111
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_SHR,
+                carry=ControlSignals.CARRY_FROM_FLAGS,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ControlSignals.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
 class BaseALUSRAMInstruction(BaseInstruction, ABC):
     opcode: int
 
@@ -1363,6 +1423,7 @@ class SHL(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_SHL,
+                carry=ControlSignals.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1392,6 +1453,7 @@ class SHR(BaseALUSRAMInstruction):
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_SHR,
+                carry=ControlSignals.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -3876,9 +3938,9 @@ class ALU:
         if self.op == self.OPERATION_ADD:
             return (self.a + self.b + (1 if self.carryin else 0)) & 0xFFFF
         if self.op == self.OPERATION_SHL:
-            return (self.a << 1) & 0xFF
+            return ((self.a << 1) & 0xFF) | (0x01 if self.carryin else 0)
         if self.op == self.OPERATION_SHR:
-            return (self.a >> 1) & 0xFF
+            return ((self.a >> 1) & 0xFF) | (0x80 if self.carryin else 0)
         if self.op == self.OPERATION_INV:
             return (~self.a) & 0xFF
         if self.op == self.OPERATION_AND:

@@ -120,35 +120,24 @@ _umult16_loop:
     LNGJUMPZ _umult16_finished
 
 _umult16_nz:
-    ; See if first operand's bottom bit set, also perform
-    ; first operand >>= 1.
-    LOAD A
-    SHR
-    STORE A
-    JRINC _umult16_no_add_first_shift
-
-    ; We need to shift the top byte into the bottom byte,
-    ; then we need to add the current second operand to
-    ; the accumulator.
+    ; First operand >>= 1.
     DECPC
     LOAD A
     SHR
     STORE A
 
-    ; If there wasn't a carry, we're done!
-    JRINC _umult16_first_shift_copy
-
-    ; There was a carry, so we need to add it into the first.
     INCPC
-    LOADI 0x80
-    OR
+    LOAD A
+    RCR
     STORE A
-    DECPC
+
+    ; See if first operand's bottom bit was set
+    JRINC _umult16_second_shift
 
 _umult16_first_shift_copy:
     ; Now, copy the second value into our temporary storage, add it to the
     ; current accumulator.
-    DECPC
+    SUBPCI 2
     LOAD A
     SUBPCI 7
     STORE A
@@ -162,52 +151,19 @@ _umult16_first_shift_copy:
     ; high byte where we would have been if we jumped immediately
     ; to _umult16_second_shift
     CALL add16
-    ADDPCI 7
-    JRI _umult16_second_shift
-
-_umult16_no_add_first_shift:
-    ; We don't need to add, but we do need to shift the
-    ; top byte into the bottom byte of the first operand.
-    DECPC
-    LOAD A
-    SHR
-    STORE A
-
-    ; If there wasn't a carry, we're done!
-    JRINC _umult16_second_shift
-
-    ; There was a carry, so we need to add it into the first.
-    INCPC
-    LOADI 0x80
-    OR
-    STORE A
-    DECPC
+    ADDPCI 8
 
 _umult16_second_shift:
     ; Second operand <<= 1. We have to do this in two parts.
-    DECPC
+    SUBPCI 2
     LOAD A
     SHL
     STORE A
     DECPC
 
-    JRIC _umult16_second_shift_carry
-
-    ; We didn't have any carry bit, so its safe to shift the
-    ; second.
+    ; Now, shift in the upper bit into the second half.
     LOAD A
-    SHL
-    STORE A
-
-    ; Back to loop
-    ADDPCI 2
-    LNGJUMP _umult16_loop
-
-_umult16_second_shift_carry:
-    ; We did have a carry bit, so we need to add it in.
-    LOAD A
-    SHL
-    ADDI 1
+    RCL
     STORE A
 
     ; Back to loop
@@ -292,26 +248,27 @@ umult32:
     PUSH A
 
     ; Stick our stack pointer where we expect it to be when we're
-    ; through the loop at least once.
-    ADDPCI 11
+    ; through the loop at least once, which is pointing at the first
+    ; operand low byte.
+    ADDPCI 14
 
 _umult32_loop:
     ; See if first operand high byte is zero.
     LOAD A
     ADDI 0
-    INCPC
+    DECPC
     JRINZ _umult32_nz_add_two
 
     ; See if the third byte is zero.
     LOAD A
     ADDI 0
-    INCPC
+    DECPC
     JRINZ _umult32_nz_add_one
 
     ; See if the second byte is zero.
     LOAD A
     ADDI 0
-    INCPC
+    DECPC
     JRINZ _umult32_nz
 
     ; See if the first operand low byte is zero.
@@ -323,71 +280,34 @@ _umult32_loop:
 _umult32_nz_add_two:
     ; Cascading increments is a bit inefficient but we need to be
     ; able to bail out of the above check at any time.
-    INCPC
+    DECPC
 _umult32_nz_add_one:
-    INCPC
+    DECPC
 
 _umult32_nz:
     ; See if first operand's bottom bit set, also perform
-    ; first operand >>= 1.
-    LOAD A
-    SHR
-    STORE A
-    LNGJUMPNC _umult32_no_add_first_shift
-
-    ; We need to shift the second byte into the bottom byte.
-    DECPC
+    ; first operand >>= 1. Ripple this from top to bottom bit.
     LOAD A
     SHR
     STORE A
 
-    ; If there wasn't a carry, we're done!
-    JRINC _umult32_first_shift_no_set_1
-
-    ; There was a carry, so we need to add it into the first.
     INCPC
-    LOADI 0x80
-    OR
-    STORE A
-    DECPC
-
-_umult32_first_shift_no_set_1:
-    ; We need to shift the third byte into the second byte.
-    DECPC
     LOAD A
-    SHR
+    RCR
     STORE A
 
-    ; If there wasn't a carry, we're done!
-    JRINC _umult32_first_shift_no_set_2
-
-    ; There was a carry, so we need to add it into the first.
     INCPC
-    LOADI 0x80
-    OR
-    STORE A
-    DECPC
-
-_umult32_first_shift_no_set_2:
-    ; We need to shift the high byte into the third byte byte.
-    DECPC
     LOAD A
-    SHR
+    RCR
     STORE A
 
-    ; If there wasn't a carry, we're done!
-    JRINC _umult32_first_shift_copy
-
-    ; There was a carry, so we need to add it into the first.
     INCPC
-    LOADI 0x80
-    OR
+    LOAD A
+    RCR
     STORE A
-    DECPC
 
-_umult32_first_shift_copy:
-    ; Move to the low byte of the second number.
-    DECPC
+    SUBPCI 4
+    LNGJUMPNC _umult32_second_shift
 
     ; Now, copy the second value into our temporary storage, add it to the
     ; current accumulator.
@@ -412,120 +332,33 @@ _umult32_first_shift_copy:
     ; high byte where we would have been if we jumped immediately
     ; to _umult32_second_shift
     CALL add32
-    ADDPCI 11
-    LNGJUMP _umult32_second_shift
-
-_umult32_no_add_first_shift:
-    ; We don't need to add, but we do need to shift the number right.
-    DECPC
-    LOAD A
-    SHR
-    STORE A
-
-    ; If there wasn't a carry, we're done!
-    JRINC _umult32_no_add_first_shift_no_set_1
-
-    ; There was a carry, so we need to add it into the first.
-    INCPC
-    LOADI 0x80
-    OR
-    STORE A
-    DECPC
-
-_umult32_no_add_first_shift_no_set_1:
-    ; We need to shift the third byte into the second byte.
-    DECPC
-    LOAD A
-    SHR
-    STORE A
-
-    ; If there wasn't a carry, we're done!
-    JRINC _umult32_no_add_first_shift_no_set_2
-
-    ; There was a carry, so we need to add it into the first.
-    INCPC
-    LOADI 0x80
-    OR
-    STORE A
-    DECPC
-
-_umult32_no_add_first_shift_no_set_2:
-    ; We need to shift the high byte into the third byte byte.
-    DECPC
-    LOAD A
-    SHR
-    STORE A
-
-    ; If there wasn't a carry, we're done!
-    JRINC _umult32_second_shift
-
-    ; There was a carry, so we need to add it into the first.
-    INCPC
-    LOADI 0x80
-    OR
-    STORE A
-    DECPC
+    ADDPCI 10
 
 _umult32_second_shift:
     ; Second operand <<= 1. We have to do this in four parts.
-    ; Do this "backwards", or top byte to bottom byte, so we
-    ; don't have to worry about losing the carry flag when we
-    ; figure out whether to shift or not.
-    SUBPCI 4
+    ; Ripple the bit left as we shift each chunk.
     LOAD A
     SHL
     STORE A
-    INCPC
-
-    ; Now, do the third byte, and possibly add a bit to the
-    ; high byte if we got a carry.
-    LOAD A
-    SHL
-    STORE A
-
-    JRINC _umult32_second_shift_skip_carry_1
 
     DECPC
     LOAD A
-    ADDI 1
+    RCL
     STORE A
-    INCPC
-
-_umult32_second_shift_skip_carry_1:
-    ; Now, do the second byte, and possibly add a bit to the
-    ; third byte if we got a carry.
-    INCPC
-    LOAD A
-    SHL
-    STORE A
-
-    JRINC _umult32_second_shift_skip_carry_2
 
     DECPC
     LOAD A
-    ADDI 1
+    RCL
     STORE A
-    INCPC
-
-_umult32_second_shift_skip_carry_2:
-    ; Now, do the low byte, and possibly add a bit to the
-    ; third byte if we got a carry.
-    INCPC
-    LOAD A
-    SHL
-    STORE A
-
-    JRINC _umult32_second_shift_skip_carry_3
 
     DECPC
     LOAD A
-    ADDI 1
+    RCL
     STORE A
-    INCPC
 
-_umult32_second_shift_skip_carry_3:
-    ; Finished shifting, back to loop
-    INCPC
+    ; Finished shifting, back to loop. Move our stack pointer to the
+    ; first operand low byte, where it starts out.
+    ADDPCI 7
     LNGJUMP _umult32_loop
 
 _umult32_finished:
@@ -534,21 +367,21 @@ _umult32_finished:
     LOAD A
     ADDPCI 11
     STORE A
-    SUBPCI 12
+    SUBPCI 10
     LOAD A
     ADDPCI 11
     STORE A
-    SUBPCI 12
+    SUBPCI 10
     LOAD A
     ADDPCI 11
     STORE A
-    SUBPCI 12
+    SUBPCI 10
     LOAD A
     ADDPCI 11
     STORE A
 
     ; Move the return address so we can do a return.
-    SUBPCI 5
+    SUBPCI 8
     LOAD A
     ADDPCI 4
     STORE A
