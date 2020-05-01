@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 48 478
+Sheet 49 479
 Title ""
 Date ""
 Rev ""
@@ -15,8 +15,8 @@ Comment4 ""
 $EndDescr
 Wire Wire Line
 	1500 3200 1650 3200
-Text HLabel 1500 3200 0    50   Input ~ 0
-MCODE_RST
+Text HLabel 1500 5000 0    50   Input ~ 0
+~MCODE_RST
 Connection ~ 3950 2950
 Wire Wire Line
 	3500 2950 3950 2950
@@ -295,4 +295,22 @@ Text HLabel 5600 1550 2    50   Output ~ 0
 Wire Wire Line
 	5500 1550 5600 1550
 Connection ~ 5500 1550
+$Sheet
+S 1900 4250 200  550 
+U 620B502D
+F0 "Reset Inverter Not" 50
+F1 "MicrocodeResetInverter.sch" 50
+F2 "D" I B 2000 4800 50 
+F3 "Q" O T 2000 4250 50 
+$EndSheet
+Wire Wire Line
+	1500 5000 2000 5000
+Wire Wire Line
+	2000 5000 2000 4800
+Wire Wire Line
+	2000 4250 2000 3500
+Wire Wire Line
+	2000 3500 1500 3500
+Wire Wire Line
+	1500 3500 1500 3200
 $EndSCHEMATC

@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A2 23386 16535
 encoding utf-8
-Sheet 371 478
+Sheet 437 479
 Title ""
 Date ""
 Rev ""
@@ -118,7 +118,7 @@ F7 "EN3" O R 17100 3600 50
 F8 "EN4" O R 17100 3700 50 
 $EndSheet
 Text HLabel 13800 4800 2    50   Output ~ 0
-MCODE_RST
+~MCODE_RST
 $Comp
 L power:VCC #PWR?
 U 1 1 5E7CCB8B

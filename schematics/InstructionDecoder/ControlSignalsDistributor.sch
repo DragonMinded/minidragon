@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A3 16535 11693
 encoding utf-8
-Sheet 375 478
+Sheet 443 479
 Title "Control Signals Distributor"
 Date "2020-03-20"
 Rev "1"

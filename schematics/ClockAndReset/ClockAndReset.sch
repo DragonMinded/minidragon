@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 11 478
+Sheet 11 479
 Title "Clock and Reset Generator"
 Date "2020-01-06"
 Rev "1"

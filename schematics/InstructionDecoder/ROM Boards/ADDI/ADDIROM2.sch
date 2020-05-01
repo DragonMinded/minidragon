@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A2 23386 16535
 encoding utf-8
-Sheet 386 478
+Sheet 453 479
 Title "Instruction Decoder ROM Mini Board"
 Date "2020-03-23"
 Rev "1"
@@ -2124,7 +2124,7 @@ L Device:R R?
 U 1 1 606D3267
 P 3300 2450
 F 0 "R?" V 3093 2450 50  0000 C CNN
-F 1 "10K" V 3184 2450 50  0000 C CNN
+F 1 "1K" V 3184 2450 50  0000 C CNN
 F 2 "Resistor_THT:R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal" V 3230 2450 50  0001 C CNN
 F 3 "~" H 3300 2450 50  0001 C CNN
 	1    3300 2450

@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 409 478
+Sheet 409 479
 Title "High Current Buffer"
 Date "2020-04-10"
 Rev "1"
