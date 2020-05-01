@@ -138,7 +138,7 @@ _itoa_loop:
     JRIZ _itoa_negative_check
 
     ; We got more work to do
-    LNGJUMP _itoa_loop
+    JRI _itoa_loop
 
 _itoa_negative_check:
     ; See if the number was negative.

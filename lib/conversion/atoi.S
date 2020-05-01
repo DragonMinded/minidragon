@@ -114,7 +114,7 @@ _atoi_number_loop:
 
     ; See if it is negative (meaning a value < "0")
     SHL
-    LNGJUMPC _atoi_number_end
+    JRIC _atoi_number_end
 
     ; Do the above again, but checking to make sure it is <= "9"
     LOADI -58

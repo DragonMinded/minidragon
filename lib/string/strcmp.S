@@ -88,7 +88,7 @@ _strcmp_loop:
     ; or keep going (null not hit).
     LOAD A
     ADDI 0
-    LNGJUMPNZ _strcmp_loop
+    JRINZ _strcmp_loop
 
 _strcmp_save_answer:
     ; A holds the comparison value at this point, so save it to

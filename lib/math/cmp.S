@@ -214,7 +214,7 @@ ucmp32:
     LOAD A
     ADDPCI 4
     XOR
-    LNGJUMPNZ _ucmp32_3rd_ne
+    JRINZ _ucmp32_3rd_ne
 
     ; Now, check the final byte to see if they're equal. Same rationale as
     ; above for ordering
@@ -222,7 +222,7 @@ ucmp32:
     LOAD A
     ADDPCI 4
     XOR
-    LNGJUMPNZ _ucmp32_4th_ne
+    JRINZ _ucmp32_4th_ne
 
     ; Its equal, so lets bail. We unfortunately can't make it back to the
     ; saved return value in 8 or less positions. This is due to the above
