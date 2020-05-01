@@ -1,6 +1,6 @@
 # MiniDragon
 
-Schematics, hardware simulator and software files for the MiniDragon CPU. This is a from-scratch CPU that I designed and am implementing using transistors, capacitors, resistors and diodes. The goal is to make an 8-bit CPU that could be used for general-purpose computing. There are a lot of toy instruction sets floating around on the web. I chose instead to design my own, loosely based off of the PDP and 6502. It is a single accumulator design with a pair of 16-bit stack pointers and a pair of temporary 8-bit registers. Instructions are 8 bits, operands are 8 bits from memory, temporary registers or immediate, and running software can access all 16 bits of memory available to the CPU. Eventually, I want the assembled CPU along with some external RAM, ROM and a serial interface chip to be self-hosting. So, I hope to eventually have a built-in assembler in the ROM.
+Schematics, hardware simulator and software files for the MiniDragon CPU. This is a from-scratch CPU that I designed and am implementing using transistors, capacitors, resistors and diodes. The goal is to make an 8-bit CPU that could be used for general-purpose computing. There are a lot of toy instruction sets floating around on the web. I chose instead to design my own, loosely based off of the PDP and 6502. It is a single accumulator design with a pair of 16-bit stack pointers and a pair of temporary 8-bit registers. Instructions are 8 bits, operands are 8 bits from memory, temporary registers or immediate, and running software can access all 16 bits of memory available to the CPU. Eventually, I want the assembled CPU along with some external RAM, ROM and a serial interface chip to be self-hosting. So, I hope to eventually have a built-in assembler or BASIC interpreter in the ROM.
 
 ## Layout
 
@@ -38,8 +38,12 @@ The layout is separated into logical components:
  * LOADI - Load immediate stored in next memory cell to A. Can load any 8-bit value.
  * ADDI - Add immediate sign-extended to A, no carry. Can add values between -32 and 31. Affects ZF and CF.
  * INV - Bitwise invert A. Affects ZF and CF.
- * SHL - Shift A left by 1, set carry to top bit shifted out. Affects ZF and CF.
- * SHR - Shift A right by 1, set carry to bottom bit shifted out. Affects ZF and CF.
+ * SHL - Shift A left by 1, setting the bottom bit to 0, set carry to top bit shifted out. Affects ZF and CF.
+ * SHR - Shift A right by 1, setting the top bit to 0, set carry to bottom bit shifted out. Affects ZF and CF.
+ * RCL - Shift A left by 1, setting bottom bit to the carry flag, set carry to top bit shifted out. Affects ZF and CF.
+ * RCR - Shift A right by 1, setting top bit to the carry flag, set carry to bottom bit shifted out. Affects ZF and CF.
+ * ROL - Shift A left by 1, setting the bottom bit to the shifted out top bit, set carry to top bit shifted out. Affects ZF and CF.
+ * ROR - Shift A right by 1, setting the top bit to the shifted our bottom bit, set carry to bottom bit shifted out. Affects ZF and CF.
  * ADD - Add contents of memory location PC to A register. Affects ZF and CF.
  * ADC - Add contents of memory location PC to A register, with carry in from flags. Affects ZF and CF.
  * AND - And contents of memory location PC against A register. Affects ZF and CF.
@@ -167,8 +171,8 @@ opcpde            description                         implementation            
 1 0 0 0 1 0 1 1   <i>and from V</i>
 1 0 0 0 1 1 0 0   <i>or from V</i>
 1 0 0 0 1 1 0 1   <i>xor from V</i>
-1 0 0 0 1 1 1 0   shift left with carry A             A << 1 + CF > A                RCL
-1 0 0 0 1 1 1 1   shift right with carry A            A >> 1 + (CF << 7) > A         RCR
+1 0 0 0 1 1 1 0   rotate left with carry A            A << 1 + CF > A                RCL
+1 0 0 0 1 1 1 1   rotate right with carry A           A >> 1 + (CF << 7) > A         RCR
 
 <b>1 0 0 s s y y y   arithmetic op against [PC]</b>
 1 0 0 0 1 0 0 0   <i>invert A</i>
@@ -242,8 +246,7 @@ Because of the complexity of designing such a system from scratch, there are a l
    - Instruction decoder components for several opcode sections detailed above.
    - Detailed design of external memory interface.
  - Convenience boards, such as boards which can push a debug value onto a bus, have not been designed yet.
- - The standard library is far from complete. I still need to decide on what IO to give the finished project before I can code access routines for them.
+ - The standard library is far from complete. I am probably going to standardize on a serial chip with the VT-100 dialect and then I can code access routines for them. I also need to figure out if an assembler or BASIC interpreter will fit in ROM.
  - Several functions are missing from the current standard library:
-   - memcpy, memset and memcmp functions.
-   - 16 bit and 32 bit multiply, divide, atoi and itoa functionality.
+   - 16 bit and 32 bit divide, atoi and itoa functionality.
    - signed comparison, multiplication and division functionality.
