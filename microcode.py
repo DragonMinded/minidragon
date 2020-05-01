@@ -106,7 +106,7 @@ if __name__ == "__main__":
         microcode += "." if step.v_input else "X"
         # This isn't the last instruction, so don't reset the
         # microcode counter.
-        microcode += "X"
+        microcode += "."
 
         # Keep track of how many jumpers we will need
         jumpers += count_jumpers(microcode)
@@ -134,7 +134,14 @@ if __name__ == "__main__":
             # We can cheat, we don't care about the rest of the signals since
             # we're going to reset the microcode counter asynchronously,
             # looking up the next instruction in the process.
-            microcodes.append("................................")
+            microcodes.append("...............................X")
+            jumpers += 1
+            holes += 31
+        else:
+            raise Exception(
+                "Cannot generate microcode reset signal, this instruction "
+                "will infinite loop!"
+            )
         microcodes.append("")
 
     microcodes.append(f"Total jumpers: {jumpers}")
