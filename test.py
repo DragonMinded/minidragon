@@ -91,8 +91,8 @@ def checkerror(fname: str, error: Exception) -> None:
     )
 
 
-def verifyassembler(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "assembler":
+def verifyassembler(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "assembler" not in only:
         return
 
     print("Verifying assembler...")
@@ -201,8 +201,8 @@ def verifyassembler(only: Optional[str], full: bool) -> None:
     )
 
 
-def verifyaddi(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "addi":
+def verifyaddi(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "addi" not in only:
         return
 
     print("Verifying ADDI...")
@@ -239,8 +239,8 @@ def verifyaddi(only: Optional[str], full: bool) -> None:
             )
 
 
-def verifyloadi(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "loadi":
+def verifyloadi(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "loadi" not in only:
         return
 
     print("Verifying LOADI...")
@@ -263,8 +263,8 @@ def verifyloadi(only: Optional[str], full: bool) -> None:
         _assert(bintoint(cpu.a) == i, f"Failed to set A to {i}!")
 
 
-def verifysetpc(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "setpc":
+def verifysetpc(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "setpc" not in only:
         return
 
     print("Verifying SETPC...")
@@ -284,8 +284,8 @@ def verifysetpc(only: Optional[str], full: bool) -> None:
     print(BACK_AND_CLEAR_LINE)
 
 
-def verifyaddpc(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "addpc":
+def verifyaddpc(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "addpc" not in only:
         return
 
     print("Verifying ADDPC...")
@@ -305,8 +305,8 @@ def verifyaddpc(only: Optional[str], full: bool) -> None:
         )
 
 
-def verifyneg(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "neg":
+def verifyneg(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "neg" not in only:
         return
 
     print("Verifying NEG...")
@@ -321,8 +321,8 @@ def verifyneg(only: Optional[str], full: bool) -> None:
         _assert(bintoint(cpu.a) == -i, f"Failed to negate A!")
 
 
-def verifyaddpci(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "addpci":
+def verifyaddpci(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "addpci" not in only:
         return
 
     print("Verifying ADDPCI...")
@@ -355,8 +355,8 @@ def verifyaddpci(only: Optional[str], full: bool) -> None:
             )
 
 
-def verifysubpci(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "subpci":
+def verifysubpci(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "subpci" not in only:
         return
 
     print("Verifying SUBPCI...")
@@ -389,8 +389,8 @@ def verifysubpci(only: Optional[str], full: bool) -> None:
             )
 
 
-def verifyumult(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "umult":
+def verifyumult(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "umult" not in only:
         return
 
     print("Verifying umult...")
@@ -445,8 +445,8 @@ def verifyumult(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for umult: {int(instructions/count)}")
 
 
-def verifyumult16(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "umult16":
+def verifyumult16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "umult16" not in only:
         return
 
     print("Verifying umult16...")
@@ -520,8 +520,8 @@ def verifyumult16(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for umult16: {int(instructions/count)}")
 
 
-def verifyumult32(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "umult32":
+def verifyumult32(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "umult32" not in only:
         return
 
     print("Verifying umult32...")
@@ -605,8 +605,8 @@ def verifyumult32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for umult32: {int(instructions/count)}")
 
 
-def verifyudiv(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "udiv":
+def verifyudiv(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "udiv" not in only:
         return
 
     print("Verifying udiv...")
@@ -655,8 +655,8 @@ def verifyudiv(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for udiv: {int(instructions/count)}")
 
 
-def verifymathadd(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "mathadd":
+def verifymathadd(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "mathadd" not in only:
         return
 
     print("Verifying add...")
@@ -698,8 +698,8 @@ def verifymathadd(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for add: {int(instructions/count)}")
 
 
-def verifyadd16(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "add16":
+def verifyadd16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "add16" not in only:
         return
 
     print("Verifying add16...")
@@ -748,8 +748,8 @@ def verifyadd16(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for add16: {int(instructions/count)}")
 
 
-def verifyadd32(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "add32":
+def verifyadd32(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "add32" not in only:
         return
 
     print("Verifying add32...")
@@ -807,8 +807,8 @@ def verifyadd32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for add32: {int(instructions/count)}")
 
 
-def verifyabs(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "abs":
+def verifyabs(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "abs" not in only:
         return
 
     print("Verifying abs...")
@@ -846,8 +846,8 @@ def verifyabs(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for abs: {int(instructions/count)}")
 
 
-def verifyabs16(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "abs16":
+def verifyabs16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "abs16" not in only:
         return
 
     print("Verifying abs16...")
@@ -899,8 +899,8 @@ def verifyabs16(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for abs16: {int(instructions/count)}")
 
 
-def verifyabs32(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "abs32":
+def verifyabs32(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "abs32" not in only:
         return
 
     print("Verifying abs32...")
@@ -963,8 +963,8 @@ def verifyabs32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for abs32: {int(instructions/count)}")
 
 
-def verifyucmp(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "ucmp":
+def verifyucmp(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "ucmp" not in only:
         return
 
     print("Verifying ucmp...")
@@ -1019,8 +1019,8 @@ def verifyucmp(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for ucmp: {int(instructions/count)}")
 
 
-def verifyucmp16(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "ucmp16":
+def verifyucmp16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "ucmp16" not in only:
         return
 
     print("Verifying ucmp16...")
@@ -1078,8 +1078,8 @@ def verifyucmp16(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for ucmp16: {int(instructions/count)}")
 
 
-def verifyucmp32(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "ucmp32":
+def verifyucmp32(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "ucmp32" not in only:
         return
 
     print("Verifying ucmp32...")
@@ -1163,8 +1163,8 @@ def verifyucmp32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for ucmp32: {int(instructions/count)}")
 
 
-def verifyumin(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "umin":
+def verifyumin(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "umin" not in only:
         return
 
     print("Verifying umin...")
@@ -1214,8 +1214,8 @@ def verifyumin(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for umin: {int(instructions/count)}")
 
 
-def verifyumin16(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "umin16":
+def verifyumin16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "umin16" not in only:
         return
 
     print("Verifying umin16...")
@@ -1264,8 +1264,8 @@ def verifyumin16(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for umin16: {int(instructions/count)}")
 
 
-def verifyumin32(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "umin32":
+def verifyumin32(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "umin32" not in only:
         return
 
     print("Verifying umin32...")
@@ -1335,8 +1335,8 @@ def verifyumin32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for umin32: {int(instructions/count)}")
 
 
-def verifyumax(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "umax":
+def verifyumax(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "umax" not in only:
         return
 
     print("Verifying umax...")
@@ -1386,8 +1386,8 @@ def verifyumax(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for umax: {int(instructions/count)}")
 
 
-def verifyumax16(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "umax16":
+def verifyumax16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "umax16" not in only:
         return
 
     print("Verifying umax16...")
@@ -1436,8 +1436,8 @@ def verifyumax16(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for umax16: {int(instructions/count)}")
 
 
-def verifyumax32(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "umax32":
+def verifyumax32(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "umax32" not in only:
         return
 
     print("Verifying umax32...")
@@ -1507,8 +1507,8 @@ def verifyumax32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for umax32: {int(instructions/count)}")
 
 
-def verifymathneg(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "mathneg":
+def verifymathneg(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "mathneg" not in only:
         return
 
     print("Verifying neg...")
@@ -1548,8 +1548,8 @@ def verifymathneg(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for neg: {int(instructions/count)}")
 
 
-def verifyneg16(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "neg16":
+def verifyneg16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "neg16" not in only:
         return
 
     print("Verifying neg16...")
@@ -1598,8 +1598,8 @@ def verifyneg16(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for neg16: {int(instructions/count)}")
 
 
-def verifyneg32(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "neg32":
+def verifyneg32(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "neg32" not in only:
         return
 
     print("Verifying neg32...")
@@ -1659,8 +1659,8 @@ def verifyneg32(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for neg32: {int(instructions/count)}")
 
 
-def verifystrlen(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "strlen":
+def verifystrlen(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "strlen" not in only:
         return
 
     print("Verifying strlen...")
@@ -1715,8 +1715,8 @@ def verifystrlen(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for strlen: {int(instructions/count)}")
 
 
-def verifystrcpy(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "strcpy":
+def verifystrcpy(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "strcpy" not in only:
         return
 
     print("Verifying strcpy...")
@@ -1783,8 +1783,8 @@ def verifystrcpy(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for strcpy: {int(instructions/count)}")
 
 
-def verifystrcat(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "strcat":
+def verifystrcat(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "strcat" not in only:
         return
 
     print("Verifying strcat...")
@@ -1866,8 +1866,8 @@ def verifystrcat(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for strcat: {int(instructions/count)}")
 
 
-def verifystrcmp(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "strcmp":
+def verifystrcmp(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "strcmp" not in only:
         return
 
     print("Verifying strcmp...")
@@ -1955,8 +1955,8 @@ def verifystrcmp(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for strcmp: {int(instructions/count)}")
 
 
-def verifyitoa(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "itoa":
+def verifyitoa(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "itoa" not in only:
         return
 
     print("Verifying itoa...")
@@ -2012,8 +2012,8 @@ def verifyitoa(only: Optional[str], full: bool) -> None:
     print(f"Average instructions for itoa: {int(instructions/count)}")
 
 
-def verifyatoi(only: Optional[str], full: bool) -> None:
-    if only is not None and only != "atoi":
+def verifyatoi(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "atoi" not in only:
         return
 
     print("Verifying atoi...")
@@ -2098,12 +2098,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "-o",
         "--only",
-        help="Only run this test.",
+        help="Only run this test (comma separated values allowed).",
         type=str,
         default=None,
     )
     args = parser.parse_args()
-    only = args.only.lower() if args.only else None
+    only = [
+        x.strip() for x in args.only.lower().split(',')
+    ] if args.only else None
 
     # Verify assembler errors
     verifyassembler(only, args.full)
