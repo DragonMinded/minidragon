@@ -418,7 +418,8 @@ def verifyumult(only: Optional[str], full: bool) -> None:
                     continue
                 zeros['y'] = True
             if x * y > 255:
-                continue
+                # No sense continuing, the next value will be too large too.
+                break
             memory = getmemory(os.linesep.join([
                 *initlines,
                 f"PUSHI {x}",
@@ -482,7 +483,8 @@ def verifyumult16(only: Optional[str], full: bool) -> None:
                     continue
                 zeros['y'] = True
             if x * y > 65535:
-                continue
+                # No sense continuing, the next value will be too large too.
+                break
             memory = getmemory(os.linesep.join([
                 *initlines,
                 f"PUSHI {x & 0xFF}",
@@ -516,6 +518,91 @@ def verifyumult16(only: Optional[str], full: bool) -> None:
         print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for umult16: {int(cycles/count)}")
     print(f"Average instructions for umult16: {int(instructions/count)}")
+
+
+def verifyumult32(only: Optional[str], full: bool) -> None:
+    if only is not None and only != "umult32":
+        return
+
+    print("Verifying umult32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/multiply.S", "r") as fp:
+        multiplylines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    zeros: Dict[str, bool] = {'x': False, 'y': False}
+    xrng = [
+        *range(0, 16),
+        *range(16, 64, 3),
+        *range(64, 65536, 1473 if full else 15479),
+        *range(65536, 0x100000000, 0x1C12345 if full else 0x1C776543)
+    ]
+    for x in xrng:
+        validrange = int(0x100000000 / (x + 1))
+        step = int(validrange / 10) + 1
+        if step < 1:
+            step = 1
+        for y in range(0, 0x100000000, step):
+            if x == 0 and y != 0:
+                if zeros['x']:
+                    continue
+                zeros['x'] = True
+            if x != 0 and y == 0:
+                if zeros['y']:
+                    continue
+                zeros['y'] = True
+            if x * y > 0xFFFFFFFF:
+                # No sense continuing, the next value will be too large too.
+                break
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"PUSHI {(x >> 16) & 0xFF}",
+                f"PUSHI {(x >> 24) & 0xFF}",
+                f"PUSHI {y & 0xFF}",
+                f"PUSHI {(y >> 8) & 0xFF}",
+                f"PUSHI {(y >> 16) & 0xFF}",
+                f"PUSHI {(y >> 24) & 0xFF}",
+                f"LOADI 123",
+                f"CALL umult32",
+                f"HALT",
+                *multiplylines,
+                *addlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            calculated = (
+                (cpu.ram[cpu.pc] << 24) +
+                (cpu.ram[cpu.pc + 1] << 16) +
+                (cpu.ram[cpu.pc + 2] << 8) +
+                cpu.ram[cpu.pc + 3]
+            )
+            real = (x * y) & 0xFFFFFFFF
+            _assert(
+                cpu.a == 123,
+                f"umut16 changed A register from 123 to {cpu.a}!",
+            )
+            _assert(
+                real == calculated,
+                f"Failed to umult32 {x} and {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 0x100000000)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for umult32: {int(cycles/count)}")
+    print(f"Average instructions for umult32: {int(instructions/count)}")
 
 
 def verifyudiv(only: Optional[str], full: bool) -> None:
@@ -2036,6 +2123,7 @@ if __name__ == "__main__":
     verifyadd32(only, args.full)
     verifyumult(only, args.full)
     verifyumult16(only, args.full)
+    verifyumult32(only, args.full)
     verifyudiv(only, args.full)
     verifyabs(only, args.full)
     verifyabs16(only, args.full)
