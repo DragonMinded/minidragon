@@ -3,7 +3,7 @@ EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 89 479
+Sheet 89 484
 Title "8-bit Bus Output Circuit"
 Date "2020-01-12"
 Rev "1"
