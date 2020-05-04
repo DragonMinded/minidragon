@@ -689,7 +689,7 @@ def verifyudiv(only: Optional[List[str]], full: bool) -> None:
             instructions += cpu.ticks
             count += 1
 
-        print(f"{CLEAR_LINE}{int((x * 100) / 128)}% complete...")
+        print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for udiv: {int(cycles/count)}")
     print(f"Average instructions for udiv: {int(instructions/count)}")
 
