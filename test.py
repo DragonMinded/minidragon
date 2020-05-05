@@ -657,12 +657,16 @@ def verifyudiv(only: Optional[List[str]], full: bool) -> None:
         dividelines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
 
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(0, 256, 1 if full else 7):
-        for y in range(1, 256, 1 if full else 5):
+    for x in range(0, 256, 7 if full else 37):
+        for y in range(1, 256, 5 if full else 23):
             memory = getmemory(os.linesep.join([
                 *initlines,
                 f"PUSHI {y}",
@@ -671,6 +675,8 @@ def verifyudiv(only: Optional[List[str]], full: bool) -> None:
                 f"HALT",
                 *dividelines,
                 *cmplines,
+                *addlines,
+                *neglines,
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
@@ -692,6 +698,74 @@ def verifyudiv(only: Optional[List[str]], full: bool) -> None:
         print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for udiv: {int(cycles/count)}")
     print(f"Average instructions for udiv: {int(instructions/count)}")
+
+
+def verifyudiv16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "udiv16" not in only:
+        return
+
+    print("Verifying udiv16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 65536, 1234 if full else 6543):
+        for y in range(
+            1 + (x // 13),
+            65536,
+            (987 if full else 9876) - (x // 19)
+        ):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {y & 0xFF}",
+                f"PUSHI {(y >> 8) & 0xFF}",
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"LOADI 123",
+                f"CALL udiv16",
+                f"HALT",
+                *dividelines,
+                *cmplines,
+                *addlines,
+                *neglines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            quotient = (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
+            remainder = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+            _assert(
+                quotient == x // y,
+                f"Failed to udiv16 {x} by {y}, "
+                + f"got {quotient} instead of {x // y}!",
+            )
+            _assert(
+                remainder == x % y,
+                f"Failed to udiv16 {x} by {y}, "
+                + f"got {remainder} instead of {x // y}!",
+            )
+            _assert(
+                cpu.a == 123,
+                f"udiv16 changed A register from 123 to {cpu.a}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for udiv16: {int(cycles/count)}")
+    print(f"Average instructions for udiv16: {int(instructions/count)}")
 
 
 def verifymathadd(only: Optional[List[str]], full: bool) -> None:
@@ -2009,6 +2083,10 @@ def verifyitoa(only: Optional[List[str]], full: bool) -> None:
         itoalines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -2024,6 +2102,8 @@ def verifyitoa(only: Optional[List[str]], full: bool) -> None:
             *itoalines,
             *dividelines,
             *cmplines,
+            *addlines,
+            *neglines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -2167,6 +2247,7 @@ if __name__ == "__main__":
     verifyumult16(only, args.full)
     verifyumult32(only, args.full)
     verifyudiv(only, args.full)
+    verifyudiv16(only, args.full)
     verifyabs(only, args.full)
     verifyabs16(only, args.full)
     verifyabs32(only, args.full)
