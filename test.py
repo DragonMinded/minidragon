@@ -768,6 +768,88 @@ def verifyudiv16(only: Optional[List[str]], full: bool) -> None:
     print(f"Average instructions for udiv16: {int(instructions/count)}")
 
 
+def verifyudiv32(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "udiv32" not in only:
+        return
+
+    print("Verifying udiv32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for bump, x in enumerate(range(0, 2**32, 80904192 if full else 809041923)):
+        for y in range(
+            1 + bump,
+            2**32,
+            122945537 if full else 245880537
+        ):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {y & 0xFF}",
+                f"PUSHI {(y >> 8) & 0xFF}",
+                f"PUSHI {(y >> 16) & 0xFF}",
+                f"PUSHI {(y >> 24) & 0xFF}",
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"PUSHI {(x >> 16) & 0xFF}",
+                f"PUSHI {(x >> 24) & 0xFF}",
+                f"LOADI 123",
+                f"CALL udiv32",
+                f"HALT",
+                *dividelines,
+                *cmplines,
+                *addlines,
+                *neglines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            quotient = (
+                (cpu.ram[cpu.pc + 4] << 24) +
+                (cpu.ram[cpu.pc + 5] << 16) +
+                (cpu.ram[cpu.pc + 6] << 8) +
+                (cpu.ram[cpu.pc + 7])
+            )
+            remainder = (
+                (cpu.ram[cpu.pc + 0] << 24) +
+                (cpu.ram[cpu.pc + 1] << 16) +
+                (cpu.ram[cpu.pc + 2] << 8) +
+                (cpu.ram[cpu.pc + 3])
+            )
+            _assert(
+                quotient == x // y,
+                f"Failed to udiv32 {x} by {y}, "
+                + f"got {quotient} instead of {x // y}!",
+            )
+            _assert(
+                remainder == x % y,
+                f"Failed to udiv32 {x} by {y}, "
+                + f"got {remainder} instead of {x // y}!",
+            )
+            _assert(
+                cpu.a == 123,
+                f"udiv32 changed A register from 123 to {cpu.a}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 2**32)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for udiv32: {int(cycles/count)}")
+    print(f"Average instructions for udiv32: {int(instructions/count)}")
+
+
 def verifymathadd(only: Optional[List[str]], full: bool) -> None:
     if only is not None and "mathadd" not in only:
         return
@@ -2248,6 +2330,7 @@ if __name__ == "__main__":
     verifyumult32(only, args.full)
     verifyudiv(only, args.full)
     verifyudiv16(only, args.full)
+    verifyudiv32(only, args.full)
     verifyabs(only, args.full)
     verifyabs16(only, args.full)
     verifyabs32(only, args.full)
