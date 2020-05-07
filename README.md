@@ -239,14 +239,34 @@ Due to the sheer number of parts involved in making a register, there are no scr
 
 Because of the complexity of designing such a system from scratch, there are a lot of inefficiencies in how the various circuits are assembled. In many cases, buffers are not actually necessary and add to propagation delay. In order to make the project manageable by a single human being, I've decided to sacrifice any sort of speed for modularity. This will result in a CPU that can theoretically only operate at a clock cycle of ~100KHz. If I was to be a lot more dilligent I could probably get this up into the several hundered or even megahertz level, but it isn't worth it.
 
-## TODOs
+## Build Progress
 
- - The block diagram is far from complete. It is missing the following:
-   - All ALU components.
-   - Instruction decoder components for several opcode sections detailed above.
-   - Detailed design of external memory interface.
- - Convenience boards, such as boards which can push a debug value onto a bus, have not been designed yet.
- - The standard library is far from complete. I am probably going to standardize on a serial chip with the VT-100 dialect and then I can code access routines for them. I also need to figure out if an assembler or BASIC interpreter will fit in ROM.
- - Several functions are missing from the current standard library:
-   - 16 bit and 32 bit divide, atoi and itoa functionality.
-   - signed comparison, multiplication and division functionality.
+As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale.
+
+### Hardware
+
+ - instruction decoder: 4% complete
+    - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 53 instructions (52 real intsructions and a microcode board for the shared load instruction step) only one instruction is fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
+ - special registers: 100% complete
+   - All design work and diagramming for necessry circuits is completed. Registers that can be read in order to perform conditional logic as well as source immediate values are completed and fully integrated onto the physical build.
+ - general purpose registers: 38% complete
+   - All design work and diagramming for the eight general purpose registers is completed. Three registers (A, B and D) are built and fully integrated into the physical build.
+ - ALU: 0% complete
+   - I have not yet started on the design and diagram of the ALU. I have a general idea of the direction I will take, but nothing concrete exists. The ALU will be decomposed into seven core functions that each will generate their own output and carry flag and a shared zero flag generator. I am hoping to design a modular ALU which can be built one function at a time for easier integration.
+ - memory interface: 0% complete
+   - MiniDragon CPU is designed to appear like a standard 80's CPU from external components' perspective. This means 16 output "pins" for address lines, 8 bidirectional "pins" for data lines, and a few crucial control signals brought out. These signals will include a bus enable (which determines when the CPU is attempting to use the address/data bus) and a read/write signal (which dictates whether the data pins should be seen as input or output). Its possible that I will instead bring out write enable and read enable bits which dictate that the bus should be active and either a read or a write should occur. It should be noted that all of these signals are asynchronous. System clock and reset lines may be brought out as external pins should that be necessary.
+   - Additional circuitry that is not technically part of MiniDragon but will be necessary for its execution include a serial chip for IO, glue logic to support address decoding, a ROM chip and an SRAM chip to provide nonvolatile and volatile storage. These will likely be built using off-the-shelf TTL-compatible 7400 logic since they aren't part of the CPU itself.
+ - power distribution: 0% complete
+   - I will likely go with an adjustable 5V switching mode power supply that can supply the necessary amperage (5+ amps estimated at this point) along with a digital voltmeter to make fine adjustments. The circuits are fairly sensitive to core voltage being at or slightly above 5V so this will be necessary for stability.
+ - debugging boards: 50% complete
+   - Various debugging boards, used mostly for setting hand-selected values on various busses are designed and prototyped on breadboards. They are not laid out for fabrication. I am still weighing whether or not this will be necessary.
+
+### Software
+
+ - assembler and disassembler: 100% completed.
+ - simulator: 100% completed.
+ - stdlib: 88% completed.
+   - The standard library sits at 30 of 34 desired functions. I am not currently targetting signed math so I have limited the math library to unsigned integers only. Remaining functions to implement include: atoi16, atoi32, itoa16, itoa32.
+ - BIOS: 0% completed.
+   - Because I have not yet solidified my decision on the serial chip for MiniDragon I have not bothered to start with a BIOS. Plans include basic startup and memory access tests followed by some sort of assembler or interpreter and possibly an executable format and loader.
+   - I am currently leaning towards supporting VT-100 over serial, giving me input and output that can be paired with a modern terminal emulator or a physical terminal device.
