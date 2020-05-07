@@ -241,9 +241,11 @@ Because of the complexity of designing such a system from scratch, there are a l
 
 ## Build Progress
 
-As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale.
+As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 43% finished with the whole project.
 
 ### Hardware
+
+As a whole, the hardware side of MiniDragon is 27% complete.
 
  - instruction decoder: 4% complete
     - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 53 instructions (52 real intsructions and a microcode board for the shared load instruction step) only one instruction is fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
@@ -262,6 +264,8 @@ As I continue with both the physical and virtual implementations of MiniDragon i
    - Various debugging boards, used mostly for setting hand-selected values on various busses are designed and prototyped on breadboards. They are not laid out for fabrication. I am still weighing whether or not this will be necessary.
 
 ### Software
+
+As a whole, the software side of MiniDragon is 72% complete.
 
  - assembler and disassembler: 100% completed.
  - simulator: 100% completed.
