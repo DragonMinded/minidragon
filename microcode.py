@@ -27,6 +27,8 @@ if __name__ == "__main__":
     microcodes: List[str] = []
     jumpers: int = 0
     holes: int = 0
+    boards: int = 0
+    miniboards: int = 0
 
     def append_microcode(step: ControlSignals) -> None:
         global jumpers
@@ -115,6 +117,9 @@ if __name__ == "__main__":
 
     microcodes.append("Instruction Load")
     append_microcode(InstructionLoadControlSignals())
+    microcodes.append("ROM boards: 0")
+    microcodes.append("MiniROM boards: 1")
+    miniboards += 1
     microcodes.append("")
 
     for instruction in instructions:
@@ -127,6 +132,22 @@ if __name__ == "__main__":
         microcodes.append(instruction.__class__.__name__)
         for num, step in enumerate(signals):
             append_microcode(step)
+
+        # One-indexed instead of zero-indexed, and add one for the early
+        # terminate.
+        actual = num + 2
+        if (actual % 4) == 1:
+            # We can do a regular board followed by a mini-board.
+            addboards = actual // 4
+            addminiboards = 1
+        else:
+            # Round up, so two or more of the microcodes go onto the
+            # last board.
+            addboards = (actual + 3) // 4
+            addminiboards = 0
+
+        boards += addboards
+        miniboards += addminiboards
 
         # Append an "early terminate" signal to the microcode counter if we
         # haven't run out of room.
@@ -142,10 +163,14 @@ if __name__ == "__main__":
                 "Cannot generate microcode reset signal, this instruction "
                 "will infinite loop!"
             )
+        microcodes.append(f"ROM boards: {addboards}")
+        microcodes.append(f"MiniROM boards: {addminiboards}")
         microcodes.append("")
 
     microcodes.append(f"Total jumpers: {jumpers}")
     microcodes.append(f"Total holes: {holes}")
+    microcodes.append(f"Total ROM boards: {boards}")
+    microcodes.append(f"Total MiniROM boards: {miniboards}")
 
     if args.file:
         with open(args.file, "w") as fp:
