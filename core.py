@@ -745,7 +745,6 @@ class ADDU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -780,7 +779,6 @@ class ADCU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -815,7 +813,6 @@ class ANDU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -850,7 +847,6 @@ class ORU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -885,7 +881,6 @@ class XORU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -1011,7 +1006,6 @@ class ADDV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
@@ -1046,7 +1040,6 @@ class ADCV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
@@ -1081,7 +1074,6 @@ class ANDV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
@@ -1116,7 +1108,6 @@ class ORV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
@@ -1151,7 +1142,6 @@ class XORV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
