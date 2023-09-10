@@ -251,7 +251,7 @@ As I continue with both the physical and virtual implementations of MiniDragon i
 
 ### Hardware
 
-As a whole, the hardware side of MiniDragon is 27% complete.
+As a whole, the hardware side of MiniDragon is 43% complete.
 
  - instruction decoder: 4% complete
     - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 53 instructions (52 real intsructions and a microcode board for the shared load instruction step) only one instruction is fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
@@ -271,12 +271,13 @@ As a whole, the hardware side of MiniDragon is 27% complete.
 
 ### Software
 
-As a whole, the software side of MiniDragon is 72% complete.
+As a whole, the software side of MiniDragon is 74% complete.
 
  - assembler and disassembler: 100% completed.
  - simulator: 100% completed.
- - stdlib: 88% completed.
-   - The standard library sits at 30 of 34 desired functions. I am not currently targetting signed math so I have limited the math library to unsigned integers only. Remaining functions to implement include: atoi16, atoi32, itoa16, itoa32.
+ - stdlib: 94% completed.
+   - The standard library sits at 32 of 34 desired functions. I am not currently targetting signed math so I have limited the math library to unsigned integers only. Remaining functions to implement include: itoa16, itoa32.
+   - It's possible I might add a math coprocessor to MiniDragon at some point, in which case the stdlib will want to use that for comparisons, multiplication, division and negation.
  - BIOS: 0% completed.
    - Because I have not yet solidified my decision on the serial chip for MiniDragon I have not bothered to start with a BIOS. Plans include basic startup and memory access tests followed by some sort of assembler or interpreter and possibly an executable format and loader.
    - I am currently leaning towards supporting VT-100 over serial, giving me input and output that can be paired with a modern terminal emulator or a physical terminal device.
