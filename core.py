@@ -199,7 +199,7 @@ def disassemble(instruction: int) -> str:
     return f".byte {hexstr(instruction, 2)}"
 
 
-def decode(instruction: int) -> List["ControlSignals"]:
+def decode(instruction: int) -> Tuple[str, List["ControlSignals"]]:
     global instructions
 
     for inst in instructions:
@@ -209,7 +209,7 @@ def decode(instruction: int) -> List["ControlSignals"]:
                 raise InvalidInstructionException(
                     "Instruction contains too many microcodes"
                 )
-            return signals
+            return inst.mnemonic(instruction), signals
     else:
         raise InvalidInstructionException("Instruction not implemented")
 
@@ -4259,6 +4259,8 @@ class CPUCore:
             # move to the next microcode on real HW.
             ControlSignals(),
         ]
+        hint = ""
+        hintaddr = 0
 
         # Run microcode.
         while len(instructions) > 0:
@@ -4295,8 +4297,8 @@ class CPUCore:
             if self.last_instruction.sram_input:
                 if self.address >= len(self.ram) or self.address < 0:
                     raise Exception(
-                        f"Address {self.address} outside of bounds of "
-                        + "given memory!"
+                        f"Address {self.address} outside of bounds of " +
+                        f"given memory when executing instruction {hint} at {hintaddr}!"
                     )
                 self.ram = (
                     self.ram[:self.address] +
@@ -4305,7 +4307,7 @@ class CPUCore:
                 )
             if self.last_instruction.ir_input:
                 self.ir = self.data & 0xFF
-                instructions = self.instruction_decode()
+                hint, instructions, hintaddr = self.instruction_decode()
 
             # Fetch
             instruction = instructions[0]
@@ -4351,8 +4353,8 @@ class CPUCore:
             if instruction.sram_output:
                 if self.address >= len(self.ram) or self.address < 0:
                     raise Exception(
-                        f"Address {self.address} outside of bounds of "
-                        + "given memory!"
+                        f"Address {self.address} outside of bounds of " +
+                        f"given memory when executing instruction {hint} at {hintaddr}!"
                     )
                 self.data = (
                     (self.data & 0xFF00) +
@@ -4417,5 +4419,5 @@ class CPUCore:
         # Keep track of ticks
         self.ticks += 1
 
-    def instruction_decode(self) -> List[ControlSignals]:
-        return decode(self.ir)
+    def instruction_decode(self) -> Tuple[str, List[ControlSignals], int]:
+        return (*decode(self.ir), self.ir)
