@@ -103,12 +103,20 @@ if __name__ == "__main__":
             ip = int(operation[2:], 16)
             cpu.ip = ip
             cpu.print()
+        elif operation[:2] == "a ":
+            ip = int(operation[2:], 16)
+            while True:
+                if cpu.ip == ip:
+                    break
+                cpu.tick()
+                cpu.print()
 
         elif operation in ["?"]:
             print("c - Continue")
             print("s - Step over")
             print("r - Run until RET")
             print("h - Run until HALT")
+            print("a - Run until ADDRESS")
             print("p - Print")
             print("m - Memory contents")
             print("d - Disassemble memory")
