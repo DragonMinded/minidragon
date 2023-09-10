@@ -5,7 +5,7 @@ strcmp:
     ; If the strings are identical, set A to 0 and return. If the source
     ; is alphabetically greater than the destination, set A to 1 and
     ; return. Does not touch the source/destination pointers on the
-    ; stack.
+    ; stack, nor does it clobber the U/V registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;

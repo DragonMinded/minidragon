@@ -1,7 +1,7 @@
 strcat:
     ; Given a stack holding a source and destination pointer, copy
     ; a null-terminated string from source to the end of the string
-    ; at destination. Does not touch the A register nor the
+    ; at destination. Does not clobber the A/U/V register nor the
     ; source/destination pointer on the stack.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.

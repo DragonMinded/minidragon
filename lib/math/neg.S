@@ -1,7 +1,8 @@
 neg:
-    ; Given an integer on the stack, assume it is a two's compliment
-    ; number and return the negation of it. This function is somewhat useless
-    ; as there's an assembler macro for it, but it keeps the stdlib orthogonal.
+    ; Given an integer on the stack, assume it is a two's compliment number
+    ; and return the negation of it in the A register. This function is
+    ; somewhat useless as there's an assembler macro for it, but it keeps
+    ; the stdlib orthogonal. Does not clobber the U/V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -25,8 +26,8 @@ neg:
 
 neg16:
     ; Given a 16-bit integer on the stack, assume it is a two's compliment
-    ; number and return the negation of it. Does not clobber the A, U, V
-    ; or SPC registers.
+    ; number and return the negation of the number on the stack. Does not
+    ; clobber the A, U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;

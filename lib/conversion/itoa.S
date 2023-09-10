@@ -1,8 +1,8 @@
 itoa:
     ; Given an integer in the A register and a pointer on the stack
     ; to output a string to, converts the value in the A register to
-    ; a string. Works on signed 8 bit integers only. Does not change
-    ; the A register or the string pointer input.
+    ; a string. Works on signed 8 bit integers only. Does not clobber
+    ; the A/U/V register or the string pointer input.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;

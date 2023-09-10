@@ -8,7 +8,8 @@ atoi:
     ; Note that unlike most of the other functions, this does modify the
     ; pointer to the string on the stack. The pointer will point to the
     ; first non-integer character (or null byte) found, so that atoi can
-    ; be used in more complex input scanning.
+    ; be used in more complex input scanning. Does not clobber the U/V
+    ; registers or the SPC.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
