@@ -187,7 +187,8 @@ atoi16:
     ; integer either in the range of [-32768, 32767] or [0, 65535], convert
     ; that string to an integer. Skips all leading whitespace, and allows
     ; for an optional preceeding +/- indicator. Stops at the first non-integer
-    ; character it finds, returning the integer value on the stack.
+    ; character it finds, returning the integer value on the stack. Note that
+    ; the caller is responsible for allocating stack space for the response.
     ;
     ; Note that unlike most of the other functions, this does modify the
     ; pointer to the string on the stack. The pointer will point to the
@@ -200,7 +201,8 @@ atoi16:
     ; If you have a string buffer at 0x1234, call this similar to:
     ;     PUSHI 0x34
     ;     PUSHI 0x12
-    ;     CALL atoi
+    ;     SUBPCI 2
+    ;     CALL atoi16
     ;
     ; Stack layout at start:
     ; PC + 0  - temporary converted integer.
@@ -364,6 +366,228 @@ _atoi16_return_positive:
 
     ; Restore A/U/SPC registers so we don't clobber them.
     SUBPCI 8
+    POP A
+    POP V
+    POP U
+    POP SPC
+
+    ; Finally, return.
+    RET
+
+atoi32:
+    ; Given a string pointed to on the stack, as long as it represents an
+    ; integer either in the range of [-2147483648, 2147483647] or [0, 4294967295],
+    ; convert that string to an integer. Skips all leading whitespace, and allows
+    ; for an optional preceeding +/- indicator. Stops at the first non-integer
+    ; character it finds, returning the integer value on the stack. Note that
+    ; the caller is responsible for allocating stack space for the response.
+    ;
+    ; Note that unlike most of the other functions, this does modify the
+    ; pointer to the string on the stack. The pointer will point to the
+    ; first non-integer character (or null byte) found, so that atoi can
+    ; be used in more complex input scanning. Does not clobber the A/U/V
+    ; registers or the SPC.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you have a string buffer at 0x1234, call this similar to:
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     SUBPCI 4
+    ;     CALL atoi32
+    ;
+    ; Stack layout at start:
+    ; PC + 0  - temporary converted integer.
+    ; PC + 1  - temporary converted integer.
+    ; PC + 2  - temporary converted integer.
+    ; PC + 3  - temporary converted integer.
+    ; PC + 4  - Saved A.
+    ; PC + 5  - Saved V.
+    ; PC + 6  - Saved U.
+    ; PC + 7  - Saved SPC.
+    ; PC + 8  - Saved SPC.
+    ; PC + 9  - return address.
+    ; PC + 10 - return address.
+    ; PC + 11 - final converted integer.
+    ; PC + 12 - final converted integer.
+    ; PC + 13 - final converted integer.
+    ; PC + 14 - final converted integer.
+    ; PC + 15 - pointer to string (will be updated).
+    ; PC + 16 - pointer to string (will be updated).
+
+    ; First, save the calling function's locals.
+    PUSH SPC
+    PUSH U
+    PUSH V
+    PUSH A
+
+    ; Now, assume that the number is positive for now. U will be
+    ; the negation indicator.
+    ZERO
+    MOV A, U
+
+    ; Now, start with the number itself being zero. The stack location
+    ; will be the accumulated number.
+    PUSH A
+    PUSH A
+    PUSH A
+    PUSH A
+
+    ; Advance the stack pointer back to the pointer to the string.
+    ADDPCI 15
+    POP SPC
+    SUBPCI 17
+    SWAP PC, SPC
+
+_atoi32_skip_whitespace:
+    ; See if the character is a space.
+    LOADI " "
+
+    ; XOR the byte in the string against the space to check if they equal.
+    XOR
+    JRIZ _atoi32_skip_ws_inc
+
+    ; See if the character is a tab.
+    LOADI "\t"
+    XOR
+    JRIZ _atoi32_skip_ws_inc
+
+    ; It is none of the characters we want to skip.
+    JRI _atoi32_check_positive
+
+_atoi32_skip_ws_inc:
+    ; Increment our string pointer to skip the character.
+    INCPC
+
+    ; Do it again!
+    jri _atoi32_skip_whitespace
+
+_atoi32_check_positive:
+    ; Compare current pointed to byte against a "+"
+    LOADI "+"
+    XOR
+    JRIZ _atoi32_skip_plus_inc
+
+    ; Check for a - sign, consume it if found.
+    LOADI "-"
+    XOR
+    JRINZ _atoi32_number_loop
+
+    ; Remember that this was negative.
+    LOADI 1
+    MOV A, U
+
+_atoi32_skip_plus_inc:
+    ; Increment our string pointer to skip the character.
+    INCPC
+
+    ; Now, start consuming digit characters and adding them to our accumulator.
+_atoi32_number_loop:
+    ; Load with negative value of ascii "0", to subtract it from the number on the stack.
+    LOADI -48
+
+    ; Perform the math (ascii digit) - "0"
+    ADD
+
+    ; See if it is negative (meaning a value < "0")
+    SHL
+    LNGJUMPC _atoi32_number_end
+
+    ; Do the above again, but checking to make sure it is <= "9"
+    LOADI -58
+    ADD
+    SHL
+
+    ; See if it is negative (meaning we are between "0" and "9" inclusive).
+    LNGJUMPNC _atoi32_number_end
+
+    ; We know the digit is between "0" and "9" inclusive, so let's multiply our
+    ; current accumulated result and add the digit value in. But first, save the
+    ; current value as an integer to A so we don't have to move around to get it again.
+    LOADI -48
+    ADD
+    MOV A, V
+
+    ; Swap back to our stack, which should point at the temporary number.
+    SWAP PC, SPC
+
+    ; Multiply by 10, getting the result in our temporary location.
+    PUSHI 10
+    PUSHI 0
+    PUSHI 0
+    PUSHI 0
+    CALL umult32
+
+    ; Add lower 8 bits together.
+    MOV V, A
+    ADDPCI 3
+    ADD
+    STORE A
+
+    ; Add next 8 bits together.
+    DECPC
+    LOADI 0
+    ADC
+    STORE A
+
+    ; Add next 8 bits together.
+    DECPC
+    LOADI 0
+    ADC
+    STORE A
+
+    ; Add high 8 bits together.
+    DECPC
+    LOADI 0
+    ADC
+    STORE A
+
+    ; Swap back now that we've added.
+    SWAP PC, SPC
+
+    ; Do it again!
+    INCPC
+    LNGJUMP _atoi32_number_loop
+
+_atoi32_number_end:
+    ; The stack now points at the end of the string, whether that's a null byte
+    ; or the beginning of a non-integer. Save it back so the calling function
+    ; can implement things like sscanf().
+    SWAP PC, SPC
+    ADDPCI 17
+    PUSH SPC
+
+    ; See if we need to negate the number.
+    MOV U, A
+    ADDI 0
+
+    ; Move to the temporary number itself on the stack.
+    SUBPCI 15
+    JRIZ _atoi32_return_positive
+
+    ; Need to negate it, so do that negation.
+    CALL neg32
+
+_atoi32_return_positive:
+    ; First, copy the temporary value to its final position in the stack.
+    LOAD A
+    ADDPCI 11
+    STORE A
+    SUBPCI 10
+    LOAD A
+    ADDPCI 11
+    STORE A
+    SUBPCI 10
+    LOAD A
+    ADDPCI 11
+    STORE A
+    SUBPCI 10
+    LOAD A
+    ADDPCI 11
+    STORE A
+    SUBPCI 10
+
+    ; Restore A/U/SPC registers so we don't clobber them.
     POP A
     POP V
     POP U
