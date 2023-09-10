@@ -2226,6 +2226,8 @@ def verifyatoi(only: Optional[List[str]], full: bool) -> None:
         multiplylines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
     with open("lib/conversion/atoi.S", "r") as fp:
         atoilines = fp.readlines()
 
@@ -2239,8 +2241,8 @@ def verifyatoi(only: Optional[List[str]], full: bool) -> None:
             prefixes = {"", " ", "  ", "+", " +", "  +"}
 
         for prefix in prefixes:
+            numstr = f"{prefix}{x}"
             for suffix in {"", " and some", "!"}:
-                numstr = f"{prefix}{x}"
                 memory = getmemory(os.linesep.join([
                     *initlines,
                     "LNGJUMP code",
@@ -2259,6 +2261,7 @@ def verifyatoi(only: Optional[List[str]], full: bool) -> None:
                     *atoilines,
                     *multiplylines,
                     *addlines,
+                    *neglines,
                 ]))
                 cpu = CPUCore(memory)
                 rununtilhalt(cpu)
@@ -2284,6 +2287,91 @@ def verifyatoi(only: Optional[List[str]], full: bool) -> None:
 
     print(f"{CLEAR_LINE}Average cycles for atoi: {int(cycles/count)}")
     print(f"Average instructions for atoi: {int(instructions/count)}")
+
+
+def verifyatoi16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "atoi16" not in only:
+        return
+
+    print("Verifying atoi16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/multiply.S", "r") as fp:
+        multiplylines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+    with open("lib/conversion/atoi.S", "r") as fp:
+        atoilines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(-32767, 32768, 123 if full else 2763):
+        if x < 0:
+            prefixes = {"", " ", "  "}
+        else:
+            prefixes = {"", " ", "  ", "+", " +", "  +"}
+
+        for prefix in prefixes:
+            numstr = f"{prefix}{x}"
+            for suffix in {"", " and some", "!"}:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    "LNGJUMP code",
+                    ".org 0x1000",
+                    "string:",
+                    *[f".char {c!r}" for c in numstr],
+                    *[f".char {c!r}" for c in suffix],
+                    ".byte 0x00",
+                    "code:",
+                    "SWAP PC, SPC",
+                    "SETPC string",
+                    "SWAP PC, SPC",
+                    "PUSH SPC",
+                    # Doesn't matter the contents, just need to make room.
+                    "SUBPCI 2",
+                    # Just make sure we don't clobber A.
+                    "LOADI 123",
+                    "CALL atoi16",
+                    "HALT",
+                    *atoilines,
+                    *multiplylines,
+                    *addlines,
+                    *neglines,
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"umax16 changed accumulator value from {123} to {cpu.a}!",
+                )
+                result = ((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
+                stack_input = (
+                    (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
+                )
+                _assert(
+                    stack_input == (0x1000 + len(numstr)),
+                    f"atoi expected stack {hex(0x1000 + len(numstr))} "
+                    + f"but got {hex(stack_input)}!",
+                )
+                _assert(
+                    bintoint16(result) == x,
+                    f"Failed to atoi({numstr}), "
+                    + f"got {bintoint16(result)} instead of {x}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+        print(f"{CLEAR_LINE}{int(((x + 32767) * 100) / 65536)}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for atoi16: {int(cycles/count)}")
+    print(f"Average instructions for atoi16: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -2356,3 +2444,4 @@ if __name__ == "__main__":
     # Conversion library verification
     verifyitoa(only, args.full)
     verifyatoi(only, args.full)
+    verifyatoi16(only, args.full)
