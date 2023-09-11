@@ -527,11 +527,34 @@ _atoi32_number_loop:
     ; Swap back to our stack, which should point at the temporary number.
     SWAP PC, SPC
 
+    ; It's worth juggling the umult param order here since umult uses a looping multiply.
+    LOAD A
+    SUBPCI 4
+    STORE A
+    ADDPCI 5
+    LOAD A
+    SUBPCI 4
+    STORE A
+    ADDPCI 5
+    LOAD A
+    SUBPCI 4
+    STORE A
+    ADDPCI 5
+    LOAD A
+    SUBPCI 4
+    STORE A
+
+    INCPC
+    STOREI 0
+    INCPC
+    STOREI 0
+    INCPC
+    STOREI 0
+    INCPC
+    STOREI 10
+    SUBPCI 7
+
     ; Multiply by 10, getting the result in our temporary location.
-    PUSHI 10
-    PUSHI 0
-    PUSHI 0
-    PUSHI 0
     CALL umult32
 
     ; Add lower 8 bits together.
