@@ -325,10 +325,14 @@ _atoi16_number_loop:
     STORE A
     DECPC
 
+    ; Don't bother doing next three instructions if carry unset, as an optimization.
+    JRINC _atoi16_skip_add
+
     ; Add higher 8 bits together.
     LOADI 0
     ADC
     STORE A
+_atoi16_skip_add:
     SWAP PC, SPC
 
     ; Do it again!
@@ -524,24 +528,38 @@ _atoi32_number_loop:
     ADD
     STORE A
 
+    JRIC _atoi32_add_2
+    SUBPCI 3
+    JRI _atoi32_skip_add
+
+_atoi32_add_2:
     ; Add next 8 bits together.
     DECPC
     LOADI 0
     ADC
     STORE A
 
+    JRIC _atoi32_add_3
+    SUBPCI 2
+    JRI _atoi32_skip_add
+
+_atoi32_add_3:
     ; Add next 8 bits together.
     DECPC
     LOADI 0
     ADC
     STORE A
+    DECPC
+
+    ; Don't bother doing next three instructions if carry unset, as an optimization.
+    JRINC _atoi32_skip_add
 
     ; Add high 8 bits together.
-    DECPC
     LOADI 0
     ADC
     STORE A
 
+_atoi32_skip_add:
     ; Swap back now that we've added.
     SWAP PC, SPC
 
