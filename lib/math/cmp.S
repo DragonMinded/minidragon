@@ -33,18 +33,20 @@ ucmp:
     RET
 
 _ucmp_ne:
-    ; Make copies so we can mess with the numbers
+    ; Save the U register.
     PUSH U
     ADDPCI 3
+
+    ; Load the two numbers from the stack.
     LOAD A
     INCPC
     LOAD U
+
+    ; Stick our pointer back where we expect it to be.
     SUBPCI 4
 
-    ; Technically we should only do this 8 times, for 8 bits,
-    ; but given the base case above where they are equal, we
-    ; know for a fact we will find a difference here, so no
-    ; limit is applied.
+    ; Now, because subtraction comparison only works for numbers between 0-127,
+    ; do an oldschool comparison on the high bit.
 _ucmp_loop:
     ; First, shift the first number left.
     SWAP A, U
@@ -53,35 +55,47 @@ _ucmp_loop:
 
     ; If the top bit is 1, then A is >= B, so we check for that
     ; in the second if.
-    JRIC _ucmp_first_high
+    JRINC _ucmp_check_second
 
+    ; If the top bit is 0, then A > B
+    SHL
+    JRINC _ucmp_first_larger
+    JRI _ucmp_subtract
+
+_ucmp_check_second:
     ; If the top bit is 0, then A is <= B, so we check for that
     ; here.
     SHL
 
-    ; If the top bit is 0, then A == B as far as we know, since both
-    ; their high bits match.
-    JRINC _ucmp_loop
+    ; If the top bit is 1, then A < B since we only get here if the
+    ; top bit of A is unset.
+    JRIC _ucmp_second_larger
 
-    ; If the top bit is 1, then A < B, since the high bit of B is
-    ; set and the high bit of A is not set.
-    POP U
-    LOADI -1
-    RET
+_ucmp_subtract:
+    ; We know that both top bits are unset, so we can do the subtraction
+    ; trick to figure out the rest.
+    SHR
+    NEG
+    SWAP A, U
+    SHR
 
-_ucmp_first_high:
-    ; Now, grab the second number.
+    ; Check after addition to see if the top bit is set.
+    ADDU
     SHL
+    JRIC _ucmp_second_larger
 
-    ; If the top bit is 0, then A is > B, since the high bit of A
-    ; is set, and the high bit of B is not set. If the top bit is
-    ; 1, then A == B as far as we know.
-    JRIC _ucmp_loop
-
+_ucmp_first_larger:
     ; We know that A > B here, so lets bail.
     POP U
     LOADI 1
     RET
+
+_ucmp_second_larger:
+    ; We know that A < B here, so lets bail.
+    POP U
+    LOADI -1
+    RET
+
 
 ucmp16:
     ; Given two 16-bit unsigned integers on the stack, return -1 if the first
