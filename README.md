@@ -49,16 +49,19 @@ The layout is separated into logical components:
  * AND - And contents of memory location PC against A register. Affects ZF and CF.
  * OR - Or contents of memory location PC against A register. Affects ZF and CF.
  * XOR - XOR contents of memory location PC against A register. Affects ZF and CF.
+ * CMP - Compare contents of memory location PC against A register. Affects ZF and CF.
  * ADDU - Add contents of U to A register. Affects ZF and CF.
  * ADCU - Add contents of U to A register, with carry in from flags. Affects ZF and CF.
  * ANDU - And contents of U against A register. Affects ZF and CF.
  * ORU - Or contents of U against A register. Affects ZF and CF.
  * XORU - XOR contents of U against A register. Affects ZF and CF.
+ * CMPU - Compare contents of U against A register. Affects ZF and CF.
  * ADDV - Add contents of V to A register. Affects ZF and CF.
  * ADCV - Add contents of V to A register, with carry in from flags. Affects ZF and CF.
  * ANDV - And contents of V against A register. Affects ZF and CF.
  * ORV - Or contents of V against A register. Affects ZF and CF.
  * XORV - XOR contents of V against A register. Affects ZF and CF.
+ * CMPV - Compare contents of V against A register. Affects ZF and CF.
  * ADDPCI - Add immediate to PC. Can add any value between 1 and 32 inclusive. Since we only have the capability of sign-extending the bottom 4 or 6 bits of an instruction to use as an immediate, this intentionally chooses an instruction prefix which sets the 6th bit to 0, in order to simplify decoding logic as well as keep the immediate register simple. This is why there is a separate ADDPCI and SUBPCI instruction.
  * SUBPCI - Subtract immediate from PC. Can subtract any value between 1 and 32 inclusive. Much like ADDPCI, this uses a clever trick where the 6th bit in the instruction prefix is set to 1, in order to correctly sign-extend the immediate.
  * ADDPC - Add A register sign-extended from 8 to 16 bits to the PC register.

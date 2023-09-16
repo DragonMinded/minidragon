@@ -4046,7 +4046,7 @@ class ALU:
         if self.op == self.OPERATION_SHR:
             return (self.a & 0b1) != 0
         if self.op == self.OPERATION_CMP:
-            return (self.a > self.b)
+            return ((self.a & 0xFF) > (self.b & 0xFF))
         if self.op in [
             self.OPERATION_INV,
             self.OPERATION_AND,
@@ -4060,7 +4060,10 @@ class ALU:
     def zero(self) -> bool:
         # While the ALU itself is 16-bit, flags are relative to 8-bit
         # operations.
-        return self.result & 0xFF == 0
+        if self.op == self.OPERATION_CMP:
+            return (self.a & 0xFF) == (self.b & 0xFF)
+        else:
+            return self.result & 0xFF == 0
 
 
 class CPUCore:
