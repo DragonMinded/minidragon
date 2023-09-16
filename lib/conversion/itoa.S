@@ -116,7 +116,6 @@ _itoa_loop:
 
     ; Update the remainder to be a character.
     ADD
-    STORE A
 
     ; Now, grab where we're going to output this from the stack.
     ADDPCI 7
