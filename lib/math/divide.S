@@ -78,8 +78,11 @@ _udiv_loop:
     JRIZ _udiv_shift_quotient
 
     ; Now, see if the remainder is larger than the divisor.
-    CALL ucmp
-    SHL
+    LOAD A
+    INCPC
+    CMP
+    DECPC
+
     JRINC _udiv_sub_divisor
 
 _udiv_shift_quotient:
