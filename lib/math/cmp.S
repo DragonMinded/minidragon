@@ -255,39 +255,28 @@ umin:
     ;     CALL umin
     ;
     ; Stack layout:
-    ; PC + 0 - temporary second number storage
-    ; PC + 1 - temporary first number storage
-    ; PC + 2 - return address
-    ; PC + 3 - return address
-    ; PC + 4 - second number
-    ; PC + 5 - first number
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - second number
+    ; PC + 3 - first number
 
-    ; First, copy the first and second number so we can call ucmp.
-    ADDPCI 3
-    LOAD A
-    SUBPCI 4
-    STORE A
-    ADDPCI 3
-    LOAD A
-    SUBPCI 4
-    STORE A
-
-    ; Now, figure out which is less
-    CALL ucmp
-
-    ; Return the first number if 1st < 2nd, otherwise return second.
-    SHL
-    JRINC _umin_ge
-
-    INCPC
-    LOAD A
-    INCPC
-    RET
-
-_umin_ge:
-    ; First number is >= second number, return second number.
-    LOAD A
+    ; First, figure out which number is actually bigger.
     ADDPCI 2
+    LOAD A
+    INCPC
+    CMP
+
+    JRIC _umin_ge
+
+    ; Second number is bigger or equal.
+    DECPC
+    LOAD A
+    SUBPCI 2
+    RET
+ 
+ _umin_ge:
+    LOAD A
+    SUBPCI 3
     RET
 
 
@@ -549,39 +538,28 @@ umax:
     ;     CALL umax
     ;
     ; Stack layout:
-    ; PC + 0 - temporary second number storage
-    ; PC + 1 - temporary first number storage
-    ; PC + 2 - return address
-    ; PC + 3 - return address
-    ; PC + 4 - second number
-    ; PC + 5 - first number
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - second number
+    ; PC + 3 - first number
 
-    ; First, copy the first and second number so we can call ucmp.
-    ADDPCI 3
-    LOAD A
-    SUBPCI 4
-    STORE A
-    ADDPCI 3
-    LOAD A
-    SUBPCI 4
-    STORE A
-
-    ; Now, figure out which is less
-    CALL ucmp
-
-    ; Return the first number if 1st > 2nd, otherwise return second.
-    SHL
-    JRIC _umax_le
-
-    INCPC
-    LOAD A
-    INCPC
-    RET
-
-_umax_le:
-    ; First number is >= second number, return second number.
-    LOAD A
+    ; First, figure out which number is actually bigger.
     ADDPCI 2
+    LOAD A
+    INCPC
+    CMP
+
+    JRINC _umax_ge
+
+    ; Second number is bigger or equal.
+    DECPC
+    LOAD A
+    SUBPCI 2
+    RET
+ 
+ _umax_ge:
+    LOAD A
+    SUBPCI 3
     RET
 
 
