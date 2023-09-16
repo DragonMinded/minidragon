@@ -49,6 +49,7 @@ _ucmp_loop:
     ; First, shift the first number left.
     SWAP A, U
     SHL
+    SWAP U, A
 
     ; If the top bit is 1, then A is >= B, so we check for that
     ; in the second if.
@@ -56,7 +57,6 @@ _ucmp_loop:
 
     ; If the top bit is 0, then A is <= B, so we check for that
     ; here.
-    SWAP U, A
     SHL
 
     ; If the top bit is 0, then A == B as far as we know, since both
@@ -71,7 +71,6 @@ _ucmp_loop:
 
 _ucmp_first_high:
     ; Now, grab the second number.
-    SWAP A, U
     SHL
 
     ; If the top bit is 0, then A is > B, since the high bit of A
