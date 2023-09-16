@@ -145,7 +145,7 @@ opcpde            description                         implementation            
 1 0 0 0 0 x x x   push IP + immediate                 PC - 2 > PC, IP + imm > [PC]   PUSHIP x        PUSH IP + x
 
 <b>1 0 0 s s y y y   arithmetic op with operand</b> †2
-1 0 0 s s 0 0 0
+1 0 0 s s 0 0 0   compare against [PC]/U/V            A > A                          CMP/CMPU/CMPV
 1 0 0 s s 0 0 1   add from [PC]/U/V                   A + {ss} > A                   ADD/ADDU/ADDV
 1 0 0 s s 0 1 0   add with carry from [PC]/U/V        A + {ss} + CF > A              ADC/ADCU/ADCV
 1 0 0 s s 0 1 1   and from [PC]/U/V                   A & {ss} > A                   AND/ANDU/ANDV
@@ -155,7 +155,7 @@ opcpde            description                         implementation            
 1 0 0 s s 1 1 1   <i>see tables below</i>
 
 <b>1 0 0 s s y y y   arithmetic op against U</b>
-1 0 0 0 1 0 0 0
+1 0 0 0 1 0 0 0   <i>compare A against U</i>
 1 0 0 0 1 0 0 1   <i>add from U</i>
 1 0 0 0 1 0 1 0   <i>add with carry from U</i>
 1 0 0 0 1 0 1 1   <i>and from U</i>
@@ -165,7 +165,7 @@ opcpde            description                         implementation            
 1 0 0 0 1 1 1 1   rotate right A                      A >> 1 + ((A << 7) & 0x80) > A ROR
 
 <b>1 0 0 s s y y y   arithmetic op against V</b>
-1 0 0 1 0 0 0 0
+1 0 0 1 0 0 0 0   <i>compare A against V</i>
 1 0 0 1 0 0 0 1   <i>add from V</i>
 1 0 0 1 0 0 1 0   <i>add with carry from V</i>
 1 0 0 1 0 0 1 1   <i>and from V</i>
@@ -175,7 +175,7 @@ opcpde            description                         implementation            
 1 0 0 1 0 1 1 1   rotate right with carry A           A >> 1 + (CF << 7) > A         RCR
 
 <b>1 0 0 s s y y y   arithmetic op against [PC]</b>
-1 0 0 1 1 0 0 0
+1 0 0 1 1 0 0 0   <i>compare A against [PC]</i>
 1 0 0 1 1 0 0 1   <i>add from [PC]</i>
 1 0 0 1 1 0 1 0   <i>add with carry from [PC]</i>
 1 0 0 1 1 0 1 1   <i>and from [PC]</i>
