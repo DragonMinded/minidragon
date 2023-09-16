@@ -2199,6 +2199,63 @@ class INV(BaseInstruction):
 
 
 @instruction
+class NEG(BaseInstruction):
+    # Two's compliment negate contents of A.
+
+    def handles(self, instruction: int) -> bool:
+        if instruction & 0b11111000 != 0b11110000:
+            return False
+        # This instruction is mapped to both locations due to planned decoding.
+        return instruction & 0b111 in {0b001, 0b111}
+
+    def mnemonic(self, instruction: int) -> str:
+        return "NEG"
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_INV,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic == "NEG"
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        return [0b11110001]
+
+
+@instruction
 class SKIPIF(BaseInstruction):
     # Skip the next instruction if immediate condition true.
 
@@ -3247,30 +3304,6 @@ class LNGJUMPNC(BaseMacro):
                 f"LNGJUMP {location}",
                 "skip_longjump:",
             ],
-            hint=_insnrep(mnemonic, parameters),
-        )
-
-
-@instruction
-class NEG(BaseMacro):
-    # Twos compliment negate the A register.
-
-    def assembles(self, mnemonic: str) -> bool:
-        return mnemonic == "NEG"
-
-    def vals(
-        self,
-        mnemonic: str,
-        parameters: Tuple[str, ...],
-        origin: int,
-        labels: Dict[str, int],
-        loose: bool,
-    ) -> List[int]:
-        # Super simple, but convenient to use.
-        _checkempty(mnemonic, parameters)
-        return self.compile(
-            origin,
-            ["INV", "ADDI 1"],
             hint=_insnrep(mnemonic, parameters),
         )
 

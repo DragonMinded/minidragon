@@ -38,6 +38,7 @@ The layout is separated into logical components:
  * LOADI - Load immediate stored in next memory cell to A. Can load any 8-bit value. Skips over that value after executing since it is not a valid instruction.
  * ADDI - Add immediate sign-extended to A, no carry. Can add values between -32 and 31. Affects ZF and CF.
  * INV - Bitwise invert A. Affects ZF and CF.
+ * NEG - Twos compliment negate A register. Affects ZF and CF, as if it was implemented as an "INV" followed by an "ADDI 1".
  * SHL - Shift A left by 1, setting the bottom bit to 0, set carry to top bit shifted out. Affects ZF and CF.
  * SHR - Shift A right by 1, setting the top bit to 0, set carry to bottom bit shifted out. Affects ZF and CF.
  * RCL - Shift A left by 1, setting bottom bit to the carry flag, set carry to top bit shifted out. Affects ZF and CF.
@@ -101,7 +102,6 @@ For convenience of programming without too much hassle, several assembler macros
  * INCPC - Add 1 to PC. Implemented as "ADDPCI 1".
  * DECPC - Subtract 1 from PC. Implemented as "SUBPCI 1".
  * STOREI - Stores immediate value to memory pointed at by PC register, clobbering A register. Stores full 8-bit value to memory. Implemented as a "LOADI" followed by a "STOREA".
- * NEG - Twos compliment negate A register. Implemented as an "INV" followed by an "ADDI 1".
  * INC - Increment A register. Implemented as an "ADDI 1".
  * DEC - Decrement A register. Implemented as an "ADDI -1".
  * RET - Return from subroutine (identical to POPIP).
@@ -215,13 +215,13 @@ opcpde            description                         implementation            
 
 <b>1 1 1 1 0 y y y   status op</b> †5
 1 1 1 1 0 0 0 0   invert A                            ~A > A                         INV
-1 1 1 1 0 0 0 1
+1 1 1 1 0 0 0 1   negate A                            ~A + 1 > A                     NEG
 1 1 1 1 0 0 1 0   skip next instruction if CF         IP + 1 + CF > IP               SKIPIF CF
 1 1 1 1 0 0 1 1   skip next instruction if !CF        IP + 1 + !CF > IP              SKIPIF !CF
 1 1 1 1 0 1 0 0   skip next instruction if ZF         IP + 1 + ZF > IP               SKIPIF ZF
 1 1 1 1 0 1 0 1   skip next instruction if !ZF        IP + 1 + !ZF > IP              SKIPIF !ZF
 1 1 1 1 0 1 1 0   invert A                            ~A > A                         INV
-1 1 1 1 0 1 1 1
+1 1 1 1 0 1 1 1   negate A                            ~A + 1 > A                     NEG
 
 <b>1 1 1 1 1 y y y   stack op</b>
 1 1 1 1 1 0 0 0   jump to immediate                   [IP + 1] > IP                  LNGJUMP x
