@@ -2,6 +2,7 @@
 import argparse
 import os
 import struct
+from itertools import chain
 from typing import Dict, List, Optional
 from core import (
     InvalidInstructionException,
@@ -15,6 +16,9 @@ from core import (
 
 CLEAR_LINE = "\033[F\033[K"
 BACK_AND_CLEAR_LINE = "\033[F\033[K\033[F"
+
+
+verbose: bool = False
 
 
 def _assert(statement: bool, msg: str) -> None:
@@ -42,6 +46,10 @@ def getmemory(instr: str) -> List[int]:
 
 def rununtilhalt(cpu: CPUCore) -> None:
     while True:
+        if verbose:
+            cpu.print()
+            cpu.dump()
+            print("")
         if cpu.mnemonic == "HALT":
             return
         cpu.tick()
@@ -729,10 +737,10 @@ def verifyudiv16(only: Optional[List[str]], full: bool) -> None:
         ):
             memory = getmemory(os.linesep.join([
                 *initlines,
-                f"PUSHI {y & 0xFF}",
-                f"PUSHI {(y >> 8) & 0xFF}",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
+                f"PUSHI {y & 0xFF}",
+                f"PUSHI {(y >> 8) & 0xFF}",
                 f"LOADI 123",
                 f"CALL udiv16",
                 f"HALT",
@@ -2173,7 +2181,7 @@ def verifyitoa(only: Optional[List[str]], full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(-128, 128, 1 if full else 7):
+    for x in sorted(chain([0], range(-128, 128, 1 if full else 7))):
         memory = getmemory(os.linesep.join([
             *initlines,
             f"PUSHI 0x00",
@@ -2213,6 +2221,80 @@ def verifyitoa(only: Optional[List[str]], full: bool) -> None:
     print(f"Average instructions for itoa: {int(instructions/count)}")
 
 
+def verifyitoa16(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "itoa16" not in only:
+        return
+
+    print("Verifying itoa16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/conversion/itoa.S", "r") as fp:
+        itoalines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in sorted(chain([0], range(-32767, 32768, 123 if full else 2763))):
+        xbin = inttobin16(x)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI {xbin & 0xFF}",
+            f"PUSHI {(xbin >> 8) & 0xFF}",
+            f"PUSHI 0x00",
+            f"PUSHI 0x10",
+            f"LOADI 123",
+            f"CALL itoa16",
+            f"HALT",
+            *itoalines,
+            *dividelines,
+            *cmplines,
+            *addlines,
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"itoa16 changed accumulator value from {123} to {cpu.a}!",
+        )
+        stack_input = ((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
+        original_number = (
+            (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
+        )
+        _assert(
+            stack_input == 0x1000,
+            f"itoa16 changed stack input from {0x1000} to {stack_input}!",
+        )
+        _assert(
+            getstring(cpu, 0x1000) == str(x),
+            f"Failed to itoa({x}), "
+            + f"got {getstring(cpu, 0x1000)} instead of {str(x)}!",
+        )
+        _assert(
+            bintoint16(original_number) == x,
+            f"itoa16 changed original number inpu from {x} to {bintoint16(original_number)}!"
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+        print(f"{CLEAR_LINE}{int(((x + 32767) * 100) / 65536)}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for itoa16: {int(cycles/count)}")
+    print(f"Average instructions for itoa16: {int(instructions/count)}")
+
+
 def verifyatoi(only: Optional[List[str]], full: bool) -> None:
     if only is not None and "atoi" not in only:
         return
@@ -2234,7 +2316,7 @@ def verifyatoi(only: Optional[List[str]], full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(-128, 128, 1 if full else 7):
+    for x in sorted(chain([0], range(-128, 128, 1 if full else 7))):
         if x < 0:
             prefixes = {"", " ", "  "}
         else:
@@ -2310,7 +2392,7 @@ def verifyatoi16(only: Optional[List[str]], full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(-32767, 32768, 123 if full else 2763):
+    for x in sorted(chain([0], range(-32767, 32768, 123 if full else 2763))):
         if x < 0:
             prefixes = {"", " ", "  "}
         else:
@@ -2395,7 +2477,7 @@ def verifyatoi32(only: Optional[List[str]], full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(-2147483648, 2147483647, 8060929 if full else 381075969):
+    for x in sorted(chain([0], range(-2147483648, 2147483647, 8060929 if full else 381075969))):
         if x < 0:
             prefixes = {"", " ", "  "}
         else:
@@ -2476,6 +2558,12 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "-v",
+        "--verbose",
+        help="Display verbose execution details.",
+        action="store_true",
+    )
+    parser.add_argument(
         "-o",
         "--only",
         help="Only run this test (comma separated values allowed).",
@@ -2486,6 +2574,9 @@ if __name__ == "__main__":
     only = [
         x.strip() for x in args.only.lower().split(',')
     ] if args.only else None
+
+    # Make sure we can debug.
+    verbose = args.verbose
 
     # Verify assembler errors
     verifyassembler(only, args.full)
@@ -2534,6 +2625,7 @@ if __name__ == "__main__":
 
     # Conversion library verification
     verifyitoa(only, args.full)
+    verifyitoa16(only, args.full)
     verifyatoi(only, args.full)
     verifyatoi16(only, args.full)
     verifyatoi32(only, args.full)

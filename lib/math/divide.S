@@ -143,19 +143,27 @@ udiv16:
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; If you want to divide 15000 by 3, call this similar to:
-    ;   PUSHI 0x00
-    ;   PUSHI 0x03
     ;   PUSHI 0x3A
     ;   PUSHI 0x98
+    ;   PUSHI 0x00
+    ;   PUSHI 0x03
     ;   CALL udiv16
     ;
     ; Stack layout at call time
     ; PC + ? - return address
     ; PC + ? - return address
-    ; PC + ? - dividend high byte
-    ; PC + ? - dividend low byte
     ; PC + ? - divisor high byte
     ; PC + ? - divisor low byte
+    ; PC + ? - dividend high byte
+    ; PC + ? - dividend low byte
+    ;
+    ; Stack layout at return time
+    ; PC + ? - return address
+    ; PC + ? - return address
+    ; PC + ? - remainder high byte
+    ; PC + ? - remainder low byte
+    ; PC + ? - quotient high byte
+    ; PC + ? - quotient low byte
     ;
     ; Stack layout after initialization
     ; PC + ? - remainder
@@ -180,17 +188,28 @@ udiv16:
     MOV A, U
 
     ; Initialize the divisor copy so we can call ucmp easier.
-    ADDPCI 7
+    ADDPCI 5
     LOAD A
-    SUBPCI 8
+    SUBPCI 6
     STORE A
-    ADDPCI 7
+    ADDPCI 5
     LOAD A
-    SUBPCI 8
+    SUBPCI 6
+    STORE A
+
+    ; Move the dividend to where it should be internally.
+    ADDPCI 9
+    LOAD A
+    SUBPCI 2
+    STORE A
+    INCPC
+    LOAD A
+    SUBPCI 2
     STORE A
 
     ; Initialize the remainder
     ZERO
+    SUBPCI 6
     PUSH A
     PUSH A
 
