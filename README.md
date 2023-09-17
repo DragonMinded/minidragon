@@ -275,8 +275,8 @@ As a whole, the software side of MiniDragon is 74% complete.
 
  - assembler and disassembler: 100% completed.
  - simulator: 100% completed.
- - stdlib: 94% completed.
-   - The standard library sits at 32 of 34 desired functions. I am not currently targetting signed math so I have limited the math library to unsigned integers only. Remaining functions to implement include: itoa16, itoa32.
+ - stdlib: 97% completed.
+   - The standard library sits at 33 of 34 desired functions. I am not currently targetting signed math so I have limited the math library to unsigned integers only. Remaining functions to implement include: itoa32.
    - It's possible I might add a math coprocessor to MiniDragon at some point, in which case the stdlib will want to use that for comparisons, multiplication, division and negation.
  - BIOS: 0% completed.
    - Because I have not yet solidified my decision on the serial chip for MiniDragon I have not bothered to start with a BIOS. Plans include basic startup and memory access tests followed by some sort of assembler or interpreter and possibly an executable format and loader.
