@@ -673,12 +673,13 @@ def verifyudiv(only: Optional[List[str]], full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(0, 256, 7 if full else 37):
-        for y in range(1, 256, 5 if full else 23):
+    for dividend in range(0, 256, 7 if full else 37):
+        for divisor in range(1, 256, 5 if full else 23):
             memory = getmemory(os.linesep.join([
                 *initlines,
-                f"PUSHI {y}",
-                f"PUSHI {x}",
+                f"PUSHI {dividend}",
+                f"PUSHI {divisor}",
+                f"LOADI 123",
                 f"CALL udiv",
                 f"HALT",
                 *dividelines,
@@ -688,22 +689,27 @@ def verifyudiv(only: Optional[List[str]], full: bool) -> None:
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
-            _assert(
-                cpu.a == x // y,
-                f"Failed to udiv {x} by {y}, "
-                + f"got {cpu.a} instead of {x // y}!",
-            )
+            quotient = cpu.ram[cpu.pc + 1]
             remainder = cpu.ram[cpu.pc]
             _assert(
-                remainder == x % y,
-                f"Failed to udiv {x} by {y}, "
-                + f"got {remainder} instead of {x // y}!",
+                quotient == dividend // divisor,
+                f"Failed to udiv {dividend} by {divisor}, "
+                + f"got {cpu.a} instead of {dividend // divisor}!",
+            )
+            _assert(
+                remainder == dividend % divisor,
+                f"Failed to udiv {dividend} by {divisor}, "
+                + f"got {remainder} instead of {dividend % divisor}!",
+            )
+            _assert(
+                cpu.a == 123,
+                f"udiv16 changed A register from 123 to {cpu.a}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
             count += 1
 
-        print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
+        print(f"{CLEAR_LINE}{int((dividend * 100) / 256)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for udiv: {int(cycles/count)}")
     print(f"Average instructions for udiv: {int(instructions/count)}")
 
@@ -729,18 +735,18 @@ def verifyudiv16(only: Optional[List[str]], full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for x in range(0, 65536, 1234 if full else 6543):
-        for y in range(
-            1 + (x // 13),
+    for dividend in range(0, 65536, 1234 if full else 6543):
+        for divisor in range(
+            1 + (dividend // 13),
             65536,
-            (987 if full else 9876) - (x // 19)
+            (987 if full else 9876) - (dividend // 19)
         ):
             memory = getmemory(os.linesep.join([
                 *initlines,
-                f"PUSHI {x & 0xFF}",
-                f"PUSHI {(x >> 8) & 0xFF}",
-                f"PUSHI {y & 0xFF}",
-                f"PUSHI {(y >> 8) & 0xFF}",
+                f"PUSHI {dividend & 0xFF}",
+                f"PUSHI {(dividend >> 8) & 0xFF}",
+                f"PUSHI {divisor & 0xFF}",
+                f"PUSHI {(divisor >> 8) & 0xFF}",
                 f"LOADI 123",
                 f"CALL udiv16",
                 f"HALT",
@@ -754,14 +760,14 @@ def verifyudiv16(only: Optional[List[str]], full: bool) -> None:
             quotient = (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
             remainder = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
             _assert(
-                quotient == x // y,
-                f"Failed to udiv16 {x} by {y}, "
-                + f"got {quotient} instead of {x // y}!",
+                quotient == dividend // divisor,
+                f"Failed to udiv16 {dividend} by {divisor}, "
+                + f"got {quotient} instead of {dividend // divisor}!",
             )
             _assert(
-                remainder == x % y,
-                f"Failed to udiv16 {x} by {y}, "
-                + f"got {remainder} instead of {x // y}!",
+                remainder == dividend % divisor,
+                f"Failed to udiv16 {dividend} by {divisor}, "
+                + f"got {remainder} instead of {dividend % divisor}!",
             )
             _assert(
                 cpu.a == 123,
@@ -771,7 +777,7 @@ def verifyudiv16(only: Optional[List[str]], full: bool) -> None:
             instructions += cpu.ticks
             count += 1
 
-        print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
+        print(f"{CLEAR_LINE}{int((dividend * 100) / 65536)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for udiv16: {int(cycles/count)}")
     print(f"Average instructions for udiv16: {int(instructions/count)}")
 
@@ -797,22 +803,22 @@ def verifyudiv32(only: Optional[List[str]], full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for bump, x in enumerate(range(0, 2**32, 80904192 if full else 809041923)):
-        for y in range(
+    for bump, dividend in enumerate(range(0, 2**32, 80904192 if full else 809041923)):
+        for divisor in range(
             1 + bump,
             2**32,
             122945537 if full else 245880537
         ):
             memory = getmemory(os.linesep.join([
                 *initlines,
-                f"PUSHI {y & 0xFF}",
-                f"PUSHI {(y >> 8) & 0xFF}",
-                f"PUSHI {(y >> 16) & 0xFF}",
-                f"PUSHI {(y >> 24) & 0xFF}",
-                f"PUSHI {x & 0xFF}",
-                f"PUSHI {(x >> 8) & 0xFF}",
-                f"PUSHI {(x >> 16) & 0xFF}",
-                f"PUSHI {(x >> 24) & 0xFF}",
+                f"PUSHI {dividend & 0xFF}",
+                f"PUSHI {(dividend >> 8) & 0xFF}",
+                f"PUSHI {(dividend >> 16) & 0xFF}",
+                f"PUSHI {(dividend >> 24) & 0xFF}",
+                f"PUSHI {divisor & 0xFF}",
+                f"PUSHI {(divisor >> 8) & 0xFF}",
+                f"PUSHI {(divisor >> 16) & 0xFF}",
+                f"PUSHI {(divisor >> 24) & 0xFF}",
                 f"LOADI 123",
                 f"CALL udiv32",
                 f"HALT",
@@ -836,14 +842,14 @@ def verifyudiv32(only: Optional[List[str]], full: bool) -> None:
                 (cpu.ram[cpu.pc + 3])
             )
             _assert(
-                quotient == x // y,
-                f"Failed to udiv32 {x} by {y}, "
-                + f"got {quotient} instead of {x // y}!",
+                quotient == dividend // divisor,
+                f"Failed to udiv32 {dividend} by {divisor}, "
+                + f"got {quotient} instead of {dividend // divisor}!",
             )
             _assert(
-                remainder == x % y,
-                f"Failed to udiv32 {x} by {y}, "
-                + f"got {remainder} instead of {x // y}!",
+                remainder == dividend % divisor,
+                f"Failed to udiv32 {dividend} by {divisor}, "
+                + f"got {remainder} instead of {dividend % divisor}!",
             )
             _assert(
                 cpu.a == 123,
@@ -853,7 +859,7 @@ def verifyudiv32(only: Optional[List[str]], full: bool) -> None:
             instructions += cpu.ticks
             count += 1
 
-        print(f"{CLEAR_LINE}{int((x * 100) / 2**32)}% complete...")
+        print(f"{CLEAR_LINE}{int((dividend * 100) / 2**32)}% complete...")
     print(f"{CLEAR_LINE}Average cycles for udiv32: {int(cycles/count)}")
     print(f"Average instructions for udiv32: {int(instructions/count)}")
 

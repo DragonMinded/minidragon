@@ -13,8 +13,8 @@ itoa:
     ;   CALL itoa
     ;
     ; Stack layout
-    ; PC + 0  - stored A temporary value (absolute).
-    ; PC + 1  - Remainder of last division.
+    ; PC + 0  - Remainder of last division.
+    ; PC + 1  - stored A temporary value (absolute).
     ; PC + 2  - Whether the A value is negative or not (1 for negative, 0 for positive).
     ; PC + 3  - Safe buffer area for temporary output.
     ; PC + 4  - Safe buffer area for temporary output.
@@ -68,7 +68,7 @@ itoa:
     ; Retrieve the original A value, skip past our buffer.
     ADDPCI 5
     LOAD A
-    SUBPCI 12
+    SUBPCI 11
 
     ; Assume the integer is positive.
     PUSH A
@@ -78,9 +78,9 @@ itoa:
     JRIC _itoa_neg
 
     ; Its already positive, we don't need to fix anything.
-    ADDPCI 2
+    INCPC
     STOREI 0
-    SUBPCI 2
+    DECPC
 
     JRI _itoa_loop
 
@@ -91,9 +91,9 @@ _itoa_neg:
     STORE A
 
     ; Store that it is negative
-    ADDPCI 2
+    INCPC
     STOREI 1
-    SUBPCI 2
+    DECPC
 
     ; Also, update our output characters to reflect a negative sign.
     LOADI 2
@@ -101,14 +101,8 @@ _itoa_neg:
 
 _itoa_loop:
     ; Divide A by 10
-    INCPC
-    STOREI 10
-    DECPC
+    PUSHI 10
     CALL udiv
-
-    ; Quotient is in A, remainder is on stack. Save the quotient.
-    PUSH A
-    INCPC
 
     ; Now, load the zero character constant so we can change the
     ; raw integer value to a character.
@@ -118,7 +112,7 @@ _itoa_loop:
     ADD
 
     ; Now, grab where we're going to output this from the stack.
-    ADDPCI 7
+    ADDPCI 8
     POP SPC
     SWAP PC, SPC
     PUSH A
@@ -131,7 +125,7 @@ _itoa_loop:
     MOV A, U
 
     ; Now, see if we're finished (the quotient is zero).
-    SUBPCI 8
+    SUBPCI 7
     LOAD A
     ADDI 0
     JRIZ _itoa_negative_check
@@ -141,7 +135,7 @@ _itoa_loop:
 
 _itoa_negative_check:
     ; See if the number was negative.
-    ADDPCI 2
+    INCPC
     LOAD A
     ADDPCI 6
     ADDI 0

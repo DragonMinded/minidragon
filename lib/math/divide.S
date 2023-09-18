@@ -1,28 +1,43 @@
 udiv:
     ; Divide an unsigned number by another unsigned number, returning the
-    ; quotient in A and the remainder on the stack. Assumes that dividend
-    ; and divisor are unsigned numbers.
+    ; quotient and the remainder on the stack. Assumes that dividend and
+    ; divisor are unsigned numbers. Does not modify the A/U/V or stack
+    ; registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; If you want to divide 15 by 3, call this similar to:
-    ;   PUSHI 3
     ;   PUSHI 15
+    ;   PUSHI 3
     ;   CALL udiv
     ;
     ; Stack layout at call time
+    ; PC + ? - return address
+    ; PC + ? - return address
+    ; PC + ? - divisor
+    ; PC + ? - dividend
+    ;
+    ; Stack layout at return time
+    ; PC + ? - return address
+    ; PC + ? - return address
+    ; PC + ? - remainder
+    ; PC + ? - quotient
+    ;
+    ; Stack layout after initialization
     ; PC + ? - divisor copy
     ; PC + ? - remainder
+    ; PC + ? - saved A register
     ; PC + ? - saved U register
     ; PC + ? - saved V register
     ; PC + ? - return address
     ; PC + ? - return address
-    ; PC + ? - dividend
     ; PC + ? - divisor
+    ; PC + ? - dividend
 
-    ; First, save the U/V registers
+    ; First, save the A/U/V registers
     PUSH V
     PUSH U
+    PUSH A
 
     ; Now, preload U = loop value
     LOADI 8
@@ -44,11 +59,11 @@ udiv:
 _udiv_loop:
     ; First, shift out the top bit from the dividend, so we can shift
     ; it into the remainder accumulator.
-    ADDPCI 6
+    ADDPCI 8
     LOAD A
     SHL
     STORE A
-    SUBPCI 5
+    SUBPCI 7
 
     ; Shift the bit into the remainder to accumulate it.
     LOAD A
@@ -113,26 +128,17 @@ _udiv_check_termination:
     ADDPCI 6
     STORE A
 
-    ; Now, relocate the return address so we can pop it later.
-    SUBPCI 2
-    LOAD A
+    ; Now, locate the quotient where it should go.
     INCPC
-    STORE A
-    SUBPCI 2
-    LOAD A
-    INCPC
-    STORE A
+    STORE V
 
-    ; Put the quotient in A where we promise it to be.
-    MOV V, A
-
-    ; Now, restore the U/V registers.
-    SUBPCI 3
+    ; Now, restore all of the saved registers.
+    SUBPCI 6
+    POP A
     POP U
     POP V
 
     ; Finally, return the calculated values!
-    INCPC
     RET
 
 udiv16:
@@ -360,26 +366,38 @@ udiv32:
     ;
     ; If you want to divide 1500000 by 3, call this similar to:
     ;   PUSHI 0x00
-    ;   PUSHI 0x00
-    ;   PUSHI 0x00
-    ;   PUSHI 0x03
-    ;   PUSHI 0x00
     ;   PUSHI 0x16
     ;   PUSHI 0xE3
     ;   PUSHI 0x60
+    ;   PUSHI 0x00
+    ;   PUSHI 0x00
+    ;   PUSHI 0x00
+    ;   PUSHI 0x03
     ;   CALL udiv32
     ;
     ; Stack layout at call time
     ; PC + ? - return address
     ; PC + ? - return address
-    ; PC + ? - dividend high byte
-    ; PC + ? - dividend second byte
-    ; PC + ? - dividend third byte
-    ; PC + ? - dividend low byte
     ; PC + ? - divisor high byte
     ; PC + ? - divisor second byte
     ; PC + ? - divisor third byte
     ; PC + ? - divisor low byte
+    ; PC + ? - dividend high byte
+    ; PC + ? - dividend second byte
+    ; PC + ? - dividend third byte
+    ; PC + ? - dividend low byte
+    ;
+    ; Stack layout at return time
+    ; PC + ? - return address
+    ; PC + ? - return address
+    ; PC + ? - remainder high byte
+    ; PC + ? - remainder second byte
+    ; PC + ? - remainder third byte
+    ; PC + ? - remainder low byte
+    ; PC + ? - quotient high byte
+    ; PC + ? - quotient second byte
+    ; PC + ? - quotient third byte
+    ; PC + ? - quotient low byte
     ;
     ; Stack layout after initialization
     ; PC + ? - remainder
@@ -412,24 +430,43 @@ udiv32:
     MOV A, U
 
     ; Initialize the divisor copy so we can call ucmp easier.
-    ADDPCI 11
+    ADDPCI 7
     LOAD A
-    SUBPCI 12
+    SUBPCI 8
     STORE A
-    ADDPCI 11
+    ADDPCI 7
     LOAD A
-    SUBPCI 12
+    SUBPCI 8
     STORE A
-    ADDPCI 11
+    ADDPCI 7
     LOAD A
-    SUBPCI 12
+    SUBPCI 8
     STORE A
-    ADDPCI 11
+    ADDPCI 7
     LOAD A
-    SUBPCI 12
+    SUBPCI 8
+    STORE A
+
+    ; Now, move the dividend where we expect it internally.
+    ADDPCI 15
+    LOAD A
+    SUBPCI 4
+    STORE A
+    ADDPCI 3
+    LOAD A
+    SUBPCI 4
+    STORE A
+    ADDPCI 3
+    LOAD A
+    SUBPCI 4
+    STORE A
+    ADDPCI 3
+    LOAD A
+    SUBPCI 4
     STORE A
 
     ; Initialize the remainder
+    SUBPCI 8
     ZERO
     PUSH A
     PUSH A
