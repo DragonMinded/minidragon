@@ -2289,7 +2289,7 @@ def verifyitoa16(only: Optional[List[str]], full: bool) -> None:
         )
         _assert(
             bintoint16(original_number) == x,
-            f"itoa16 changed original number inpu from {x} to {bintoint16(original_number)}!"
+            f"itoa16 changed original number input from {x} to {bintoint16(original_number)}!"
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -2299,6 +2299,85 @@ def verifyitoa16(only: Optional[List[str]], full: bool) -> None:
 
     print(f"{CLEAR_LINE}Average cycles for itoa16: {int(cycles/count)}")
     print(f"Average instructions for itoa16: {int(instructions/count)}")
+
+
+def verifyitoa32(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "itoa32" not in only:
+        return
+
+    print("Verifying itoa32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/conversion/itoa.S", "r") as fp:
+        itoalines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in sorted(chain([0], range(-2147483648, 2147483647, 8060929 if full else 381075969))):
+        xbin = inttobin32(x)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI {xbin & 0xFF}",
+            f"PUSHI {(xbin >> 8) & 0xFF}",
+            f"PUSHI {(xbin >> 16) & 0xFF}",
+            f"PUSHI {(xbin >> 24) & 0xFF}",
+            f"PUSHI 0x00",
+            f"PUSHI 0x10",
+            f"LOADI 123",
+            f"CALL itoa32",
+            f"HALT",
+            *itoalines,
+            *dividelines,
+            *cmplines,
+            *addlines,
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"itoa32 changed accumulator value from {123} to {cpu.a}!",
+        )
+        stack_input = ((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
+        original_number = (
+            (cpu.ram[cpu.pc + 2] << 24) +
+            (cpu.ram[cpu.pc + 3] << 16) +
+            (cpu.ram[cpu.pc + 4] << 8) +
+            (cpu.ram[cpu.pc + 5] << 0)
+        )
+        _assert(
+            stack_input == 0x1000,
+            f"itoa32 changed stack input from {0x1000} to {stack_input}!",
+        )
+        _assert(
+            getstring(cpu, 0x1000) == str(x),
+            f"Failed to itoa({x}), "
+            + f"got {getstring(cpu, 0x1000)} instead of {str(x)}!",
+        )
+        _assert(
+            bintoint32(original_number) == x,
+            f"itoa32 changed original number input from {x} to {bintoint32(original_number)}!"
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+        print(f"{CLEAR_LINE}{int(((x + 2147483647) * 100) / 2**32)}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for itoa32: {int(cycles/count)}")
+    print(f"Average instructions for itoa32: {int(instructions/count)}")
 
 
 def verifyatoi(only: Optional[List[str]], full: bool) -> None:
@@ -2632,6 +2711,7 @@ if __name__ == "__main__":
     # Conversion library verification
     verifyitoa(only, args.full)
     verifyitoa16(only, args.full)
+    verifyitoa32(only, args.full)
     verifyatoi(only, args.full)
     verifyatoi16(only, args.full)
     verifyatoi32(only, args.full)
