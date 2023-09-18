@@ -273,12 +273,11 @@ As a whole, the hardware side of MiniDragon is 43% complete.
 
 ### Software
 
-As a whole, the software side of MiniDragon is 74% complete.
+As a whole, the software side of MiniDragon is 75% complete.
 
  - assembler and disassembler: 100% completed.
  - simulator: 100% completed.
- - stdlib: 97% completed.
-   - The standard library sits at 33 of 34 desired functions. I am not currently targetting signed math so I have limited the math library to unsigned integers only. Remaining functions to implement include: itoa32.
+ - stdlib: 100% completed.
  - BIOS: 0% completed.
    - Because I have not yet solidified my decision on the serial chip for MiniDragon I have not bothered to start with a BIOS. Plans include basic startup and memory access tests followed by some sort of assembler or interpreter and possibly an executable format and loader.
    - I am currently leaning towards supporting VT-100 over serial, giving me input and output that can be paired with a modern terminal emulator or a physical terminal device.
