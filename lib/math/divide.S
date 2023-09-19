@@ -12,27 +12,27 @@ udiv:
     ;   CALL udiv
     ;
     ; Stack layout at call time
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - divisor
-    ; PC + ? - dividend
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - divisor
+    ; PC + 3 - dividend
     ;
     ; Stack layout at return time
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - remainder
-    ; PC + ? - quotient
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - remainder
+    ; PC + 3 - quotient
     ;
     ; Stack layout after initialization
-    ; PC + ? - divisor copy
-    ; PC + ? - remainder
-    ; PC + ? - saved A register
-    ; PC + ? - saved U register
-    ; PC + ? - saved V register
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - divisor
-    ; PC + ? - dividend
+    ; PC + 0 - divisor copy
+    ; PC + 1 - remainder
+    ; PC + 2 - saved A register
+    ; PC + 3 - saved U register
+    ; PC + 4 - saved V register
+    ; PC + 5 - return address
+    ; PC + 6 - return address
+    ; PC + 7 - divisor
+    ; PC + 8 - dividend
 
     ; First, save the A/U/V registers
     PUSH V
@@ -117,10 +117,7 @@ _udiv_check_termination:
     LNGJUMPNZ _udiv_loop
 
     ; We're finished, so restore all the values to their correct place.
-    ; Stack layout should look like this once we finish:
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - remainder
+_udiv_return:
 
     ; First, relocate the remainder where it should go.
     INCPC
@@ -144,7 +141,8 @@ _udiv_check_termination:
 udiv16:
     ; Divide an unsigned 16-bit number by another unsigned 16-bit number,
     ; returning the quotient and the remainder on the stack. Assumes that
-    ; dividend and divisor are unsigned numbers.
+    ; dividend and divisor are unsigned numbers. Does not modify the A/U/V
+    ; or stack registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -156,34 +154,34 @@ udiv16:
     ;   CALL udiv16
     ;
     ; Stack layout at call time
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - divisor high byte
-    ; PC + ? - divisor low byte
-    ; PC + ? - dividend high byte
-    ; PC + ? - dividend low byte
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - divisor high byte
+    ; PC + 3 - divisor low byte
+    ; PC + 4 - dividend high byte
+    ; PC + 5 - dividend low byte
     ;
     ; Stack layout at return time
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - remainder high byte
-    ; PC + ? - remainder low byte
-    ; PC + ? - quotient high byte
-    ; PC + ? - quotient low byte
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - remainder high byte
+    ; PC + 3 - remainder low byte
+    ; PC + 4 - quotient high byte
+    ; PC + 5 - quotient low byte
     ;
     ; Stack layout after initialization
-    ; PC + ? - remainder
-    ; PC + ? - remainder
-    ; PC + ? - divisor copy
-    ; PC + ? - divisor copy
-    ; PC + ? - saved U register
-    ; PC + ? - saved A register
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - dividend high byte
-    ; PC + ? - dividend low byte
-    ; PC + ? - quotient high byte
-    ; PC + ? - quotient low byte
+    ; PC + 0  - remainder
+    ; PC + 1  - remainder
+    ; PC + 2  - divisor copy
+    ; PC + 3  - divisor copy
+    ; PC + 4  - saved U register
+    ; PC + 5  - saved A register
+    ; PC + 6  - return address
+    ; PC + 7  - return address
+    ; PC + 8  - dividend high byte
+    ; PC + 9  - dividend low byte
+    ; PC + 10 - quotient high byte
+    ; PC + 11 - quotient low byte
 
     ; First, save the A and U registers
     PUSH A
@@ -332,13 +330,7 @@ _udiv16_check_termination:
     LNGJUMPNZ _udiv16_loop
 
     ; We're finished, so restore all the values to their correct place.
-    ; Stack layout should look like this once we finish:
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - remainder high byte
-    ; PC + ? - remainder low byte
-    ; PC + ? - quotient high byte
-    ; PC + ? - quotient low byte
+_udiv16_return:
 
     ; First, relocate the remainder where it should go.
     LOAD A
@@ -360,7 +352,8 @@ _udiv16_check_termination:
 udiv32:
     ; Divide an unsigned 32-bit number by another unsigned 32-bit number,
     ; returning the quotient and the remainder on the stack. Assumes that
-    ; dividend and divisor are unsigned numbers.
+    ; dividend and divisor are unsigned numbers. Does not modify the A/U/V
+    ; or stack registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -376,50 +369,50 @@ udiv32:
     ;   CALL udiv32
     ;
     ; Stack layout at call time
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - divisor high byte
-    ; PC + ? - divisor second byte
-    ; PC + ? - divisor third byte
-    ; PC + ? - divisor low byte
-    ; PC + ? - dividend high byte
-    ; PC + ? - dividend second byte
-    ; PC + ? - dividend third byte
-    ; PC + ? - dividend low byte
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - divisor high byte
+    ; PC + 3 - divisor second byte
+    ; PC + 4 - divisor third byte
+    ; PC + 5 - divisor low byte
+    ; PC + 6 - dividend high byte
+    ; PC + 7 - dividend second byte
+    ; PC + 8 - dividend third byte
+    ; PC + 9 - dividend low byte
     ;
     ; Stack layout at return time
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - remainder high byte
-    ; PC + ? - remainder second byte
-    ; PC + ? - remainder third byte
-    ; PC + ? - remainder low byte
-    ; PC + ? - quotient high byte
-    ; PC + ? - quotient second byte
-    ; PC + ? - quotient third byte
-    ; PC + ? - quotient low byte
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - remainder high byte
+    ; PC + 3 - remainder second byte
+    ; PC + 4 - remainder third byte
+    ; PC + 5 - remainder low byte
+    ; PC + 6 - quotient high byte
+    ; PC + 7 - quotient second byte
+    ; PC + 8 - quotient third byte
+    ; PC + 9 - quotient low byte
     ;
     ; Stack layout after initialization
-    ; PC + ? - remainder
-    ; PC + ? - remainder
-    ; PC + ? - remainder
-    ; PC + ? - remainder
-    ; PC + ? - divisor copy
-    ; PC + ? - divisor copy
-    ; PC + ? - divisor copy
-    ; PC + ? - divisor copy
-    ; PC + ? - saved U register
-    ; PC + ? - saved A register
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - dividend high byte
-    ; PC + ? - dividend second byte
-    ; PC + ? - dividend third byte
-    ; PC + ? - dividend low byte
-    ; PC + ? - quotient high byte
-    ; PC + ? - quotient second byte
-    ; PC + ? - quotient third byte
-    ; PC + ? - quotient low byte
+    ; PC + 0  - remainder
+    ; PC + 1  - remainder
+    ; PC + 2  - remainder
+    ; PC + 3  - remainder
+    ; PC + 4  - divisor copy
+    ; PC + 5  - divisor copy
+    ; PC + 6  - divisor copy
+    ; PC + 7  - divisor copy
+    ; PC + 8  - saved U register
+    ; PC + 9  - saved A register
+    ; PC + 10 - return address
+    ; PC + 11 - return address
+    ; PC + 12 - dividend high byte
+    ; PC + 13 - dividend second byte
+    ; PC + 14 - dividend third byte
+    ; PC + 15 - dividend low byte
+    ; PC + 16 - quotient high byte
+    ; PC + 17 - quotient second byte
+    ; PC + 18 - quotient third byte
+    ; PC + 19 - quotient low byte
 
     ; First, save the A and U registers
     PUSH A
@@ -647,17 +640,7 @@ _udiv32_check_termination:
     LNGJUMPNZ _udiv32_loop
 
     ; We're finished, so restore all the values to their correct place.
-    ; Stack layout should look like this once we finish:
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - remainder high byte
-    ; PC + ? - remainder second byte
-    ; PC + ? - remainder third byte
-    ; PC + ? - remainder low byte
-    ; PC + ? - quotient high byte
-    ; PC + ? - quotient second byte
-    ; PC + ? - quotient third byte
-    ; PC + ? - quotient low byte
+_udiv32_return:
 
     ; First, relocate the remainder where it should go.
     LOAD A
