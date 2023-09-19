@@ -1393,6 +1393,7 @@ def verifyumin(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {a}",
                 f"PUSHI {b}",
+                f"LOADI 123",
                 f"CALL umin",
                 f"HALT",
                 *cmplines,
@@ -1401,18 +1402,14 @@ def verifyumin(only: Optional[List[str]], full: bool) -> None:
             rununtilhalt(cpu)
             answer = min(a, b)
             _assert(
-                cpu.ram[cpu.pc + 1] == a,
-                f"umin changed stack value from {a} "
-                + f"to {cpu.ram[cpu.pc + 1]}!",
+                cpu.a == 123,
+                f"umin changed accumulator value from {123} to {cpu.a}!",
             )
+            result = cpu.ram[cpu.pc]
             _assert(
-                cpu.ram[cpu.pc] == b,
-                f"umin changed stack value from {b} to {cpu.ram[cpu.pc]}!",
-            )
-            _assert(
-                cpu.a == answer,
+                result == answer,
                 f"Failed to umin({a}, {b}), "
-                + f"got {cpu.a} instead of {answer}!",
+                + f"got {result} instead of {answer}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
@@ -1565,6 +1562,7 @@ def verifyumax(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {a}",
                 f"PUSHI {b}",
+                f"LOADI 123",
                 f"CALL umax",
                 f"HALT",
                 *cmplines,
@@ -1573,18 +1571,14 @@ def verifyumax(only: Optional[List[str]], full: bool) -> None:
             rununtilhalt(cpu)
             answer = max(a, b)
             _assert(
-                cpu.ram[cpu.pc + 1] == a,
-                f"umax changed stack value from {a} "
-                + f"to {cpu.ram[cpu.pc + 1]}!",
+                cpu.a == 123,
+                f"umax changed accumulator value from {123} to {cpu.a}!",
             )
+            result = cpu.ram[cpu.pc]
             _assert(
-                cpu.ram[cpu.pc] == b,
-                f"umax changed stack value from {b} to {cpu.ram[cpu.pc]}!",
-            )
-            _assert(
-                cpu.a == answer,
+                result == answer,
                 f"Failed to umax({a}, {b}), "
-                + f"got {cpu.a} instead of {answer}!",
+                + f"got {result} instead of {answer}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks

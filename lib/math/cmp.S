@@ -9,8 +9,8 @@ ucmp:
     ;
     ; If you want to see if 5 is less than, equal to or greater than 7,
     ; call this similar to:
-    ;     PUSHI 5
     ;     PUSHI 7
+    ;     PUSHI 5
     ;     CALL ucmp
     ;
     ; Stack layout:
@@ -108,10 +108,10 @@ ucmp16:
     ;
     ; If you want to see if 0x1234 is less than, equal to or greater than
     ; 0x5678, call this similar to:
-    ;     PUSHI 0x34
-    ;     PUSHI 0x12
     ;     PUSHI 0x78
     ;     PUSHI 0x56
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
     ;     CALL ucmp16
     ;
     ; Stack layout:
@@ -294,8 +294,8 @@ _ucmp32_4th_ne:
 
 umin:
     ; Given two unsigned integers on the stack, return the smaller of the
-    ; two in the A register. Does not clobber the U, V or SPC registers.
-    ; Does not clobber the numbers on the stack.
+    ; two on the stack, removing the other one. Does not clobber the A, U, V
+    ; or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -307,19 +307,23 @@ umin:
     ; Stack layout:
     ; PC + 0 - temporary second number storage
     ; PC + 1 - temporary first number storage
-    ; PC + 2 - return address
+    ; PC + 2 - saved A register
     ; PC + 3 - return address
-    ; PC + 4 - second number
-    ; PC + 5 - first number
+    ; PC + 4 - return address
+    ; PC + 5 - second number
+    ; PC + 6 - first number
+
+    ; Save the A register
+    PUSH A
 
     ; First, copy the first and second number so we can call ucmp.
-    ADDPCI 3
+    ADDPCI 4
     LOAD A
-    SUBPCI 4
+    SUBPCI 5
     STORE A
-    ADDPCI 3
+    ADDPCI 4
     LOAD A
-    SUBPCI 4
+    SUBPCI 5
     STORE A
 
     ; Now, figure out which is less
@@ -329,15 +333,43 @@ umin:
     SHL
     JRINC _umin_ge
 
-    INCPC
+    ; First number is already in the right spot. Walk the return address to
+    ; where it should be.
+    ADDPCI 4
     LOAD A
+    INCPC
+    STORE A
+    SUBPCI 2
+    LOAD A
+    INCPC
+    STORE A
+
+    ; Restore A register and return.
+    SUBPCI 2
+    POP A
     INCPC
     RET
 
 _umin_ge:
-    ; First number is >= second number, return second number.
+    ; First number is >= second number, return second number, by copying it and
+    ; the return address up.
+    ADDPCI 5
     LOAD A
-    ADDPCI 2
+    INCPC
+    STORE A
+    SUBPCI 2
+    LOAD A
+    INCPC
+    STORE A
+    SUBPCI 2
+    LOAD A
+    INCPC
+    STORE A
+
+    ; Restore A register and return.
+    SUBPCI 2
+    POP A
+    INCPC
     RET
 
 
@@ -588,8 +620,8 @@ _umin32_ge:
 
 umax:
     ; Given two unsigned integers on the stack, return the larger of the
-    ; two in the A register. Does not clobber the U, V or SPC registers.
-    ; Does not clobber the numbers on the stack.
+    ; two on the stack, removing the other one. Does not clobber the A, U, V
+    ; or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -601,37 +633,69 @@ umax:
     ; Stack layout:
     ; PC + 0 - temporary second number storage
     ; PC + 1 - temporary first number storage
-    ; PC + 2 - return address
+    ; PC + 2 - saved A register
     ; PC + 3 - return address
-    ; PC + 4 - second number
-    ; PC + 5 - first number
+    ; PC + 4 - return address
+    ; PC + 5 - second number
+    ; PC + 6 - first number
+
+    ; Save the A register
+    PUSH A
 
     ; First, copy the first and second number so we can call ucmp.
-    ADDPCI 3
+    ADDPCI 4
     LOAD A
-    SUBPCI 4
+    SUBPCI 5
     STORE A
-    ADDPCI 3
+    ADDPCI 4
     LOAD A
-    SUBPCI 4
+    SUBPCI 5
     STORE A
 
     ; Now, figure out which is less
     CALL ucmp
 
-    ; Return the first number if 1st > 2nd, otherwise return second.
+    ; Return the second number if 1st < 2nd, otherwise return first.
     SHL
     JRIC _umax_le
 
-    INCPC
+    ; First number is already in the right spot. Walk the return address to
+    ; where it should be.
+    ADDPCI 4
     LOAD A
+    INCPC
+    STORE A
+    SUBPCI 2
+    LOAD A
+    INCPC
+    STORE A
+
+    ; Restore A register and return.
+    SUBPCI 2
+    POP A
     INCPC
     RET
 
 _umax_le:
-    ; First number is >= second number, return second number.
+    ; First number is <= second number, return second number, by copying it and
+    ; the return address up.
+    ADDPCI 5
     LOAD A
-    ADDPCI 2
+    INCPC
+    STORE A
+    SUBPCI 2
+    LOAD A
+    INCPC
+    STORE A
+    SUBPCI 2
+    LOAD A
+    INCPC
+    STORE A
+
+    ; Restore A register and return.
+    SUBPCI 2
+    POP A
+    INCPC
     RET
 
 
