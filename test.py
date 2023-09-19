@@ -2206,9 +2206,10 @@ def verifyitoa(only: Optional[List[str]], full: bool) -> None:
     for x in sorted(chain([0], range(-128, 128, 1 if full else 7))):
         memory = getmemory(os.linesep.join([
             *initlines,
+            f"PUSHI {x}",
             f"PUSHI 0x00",
             f"PUSHI 0x10",
-            f"LOADI {x}",
+            f"LOADI 123",
             f"CALL itoa",
             f"HALT",
             *itoalines,
@@ -2221,7 +2222,7 @@ def verifyitoa(only: Optional[List[str]], full: bool) -> None:
         rununtilhalt(cpu)
 
         _assert(
-            bintoint(cpu.a) == x,
+            bintoint(cpu.ram[cpu.pc + 2]) == x,
             f"itoa changed A register from {x} to {cpu.a}!",
         )
         stack_input = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
@@ -2233,6 +2234,10 @@ def verifyitoa(only: Optional[List[str]], full: bool) -> None:
             getstring(cpu, 0x1000) == str(x),
             f"Failed to itoa({x}), "
             + f"got {getstring(cpu, 0x1000)} instead of {str(x)}!",
+        )
+        _assert(
+            cpu.a == 123,
+            f"itoa32 changed accumulator value from {123} to {cpu.a}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks

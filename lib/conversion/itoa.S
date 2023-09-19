@@ -1,8 +1,8 @@
 itoa:
-    ; Given an integer in the A register and a pointer on the stack
-    ; to output a string to, converts the value in the A register to
-    ; a decimal string. Works on signed 8 bit integers only. Does not
-    ; clobber the A/U/V register or the string pointer input.
+    ; Given an integer on the stack and a pointer on the stack to output a
+    ; string to, converts the value in the A register to a decimal string.
+    ; Works on signed 8 bit integers only. Does not clobber the A/U/V register
+    ; or the string pointer input.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -38,6 +38,7 @@ itoa:
     ; PC + 15 - return address
     ; PC + 16 - pointer to string
     ; PC + 17 - pointer to string
+    ; PC + 18 - integer to save
 
     ; Save the A register.
     PUSH A
@@ -73,9 +74,9 @@ itoa:
     PUSH SPC
 
     ; Retrieve the original A value, skip past our buffer.
-    ADDPCI 5
+    ADDPCI 10
     LOAD A
-    SUBPCI 11
+    SUBPCI 16
 
     ; Assume the integer is positive.
     PUSH A
