@@ -38,7 +38,7 @@ itoa:
     ; PC + 15 - return address
     ; PC + 16 - pointer to string
     ; PC + 17 - pointer to string
-    ; PC + 18 - integer to save
+    ; PC + 18 - integer
 
     ; Save the A register.
     PUSH A
