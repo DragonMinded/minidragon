@@ -885,14 +885,19 @@ def verifymathadd(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {x}",
                 f"PUSHI {y}",
+                f"LOADI 123",
                 f"CALL add",
                 f"HALT",
                 *addlines,
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
-            calculated = cpu.a
+            calculated = cpu.ram[cpu.pc]
             real = (x + y) & 0xFF
+            _assert(
+                cpu.a == 123,
+                f"add32 changed A register from 123 to {cpu.a}!",
+            )
             _assert(
                 real == calculated,
                 f"Failed to add {x} and {y}, "
