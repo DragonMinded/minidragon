@@ -471,6 +471,7 @@ def verifyumult(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {x}",
                 f"PUSHI {y}",
+                f"LOADI 123",
                 f"CALL umult",
                 f"HALT",
                 *multiplylines,
@@ -479,9 +480,13 @@ def verifyumult(only: Optional[List[str]], full: bool) -> None:
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
             _assert(
-                cpu.a == x * y,
+                cpu.ram[cpu.pc] == x * y,
                 f"Failed to umult {x} by {y}, "
-                + f"got {cpu.a} instead of {x * y}!",
+                + f"got {cpu.ram[cpu.pc]} instead of {x * y}!",
+            )
+            _assert(
+                cpu.a == 123,
+                f"umut16 changed A register from 123 to {cpu.a}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks

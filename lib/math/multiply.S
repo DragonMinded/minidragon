@@ -1,6 +1,6 @@
 umult:
     ; Multiply two unsigned 8-bit numbers on the stack, returning value
-    ; in A. Does not clobber U, V or SPC registers.
+    ; on the stack. Does not clobber A, U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -10,28 +10,29 @@ umult:
     ;   CALL umult
     ;
     ; Stack layout
-    ; PC + 0 - Saved V register
-    ; PC + 1 - Saved U register
-    ; PC + 2 - return address
+    ; PC + 0 - Saved A register
+    ; PC + 1 - Saved V register
+    ; PC + 2 - Saved U register
     ; PC + 3 - return address
-    ; PC + 4 - second operand
-    ; PC + 5 - first operand
+    ; PC + 4 - return address
+    ; PC + 5 - second operand
+    ; PC + 6 - first operand
 
     ; Save temporary registers.
     PUSH U
     PUSH V
+    PUSH A
 
     ; Initialize the accumulator.
     ZERO
 
-    ; Load our first operand into V register...
+    ; Load our second operand into the U register.
     ADDPCI 5
-    LOAD V
-
-    ; ...and our second operand into the U register.
-    DECPC
     LOAD U
-    SUBPCI 4
+
+    ; ...and our first operand into V register...
+    INCPC
+    LOAD V
 
 _umult_loop:
     ; See if first operand is zero
@@ -58,15 +59,27 @@ _umult_shift:
     JRI _umult_loop
 
 _umult_finished:
-    ; Place accumulated result back into A register (MOV faster than SWAP
-    ; in this case).
-    MOV V, A
+    ; Place accumulated result back into the stack in the right place.
+    STORE V
+
+    ; Do the wiggle to move the return address.
+    SUBPCI 2
+    LOAD A
+    INCPC
+    STORE A
+    SUBPCI 2
+    LOAD A
+    INCPC
+    STORE A
 
     ; Restore temporary registers.
+    SUBPCI 4
+    POP A
     POP V
     POP U
 
     ; And done!
+    INCPC
     RET
 
 
