@@ -1,8 +1,9 @@
 neg:
     ; Given an integer on the stack, assume it is a two's compliment number
-    ; and return the negation of it in the A register. This function is
-    ; somewhat useless as there's an assembler macro for it, but it keeps
-    ; the stdlib orthogonal. Does not clobber the U/V or SPC registers.
+    ; and return the negation of it on the stack in place of the original
+    ; number This function is somewhat useless as there's an assembler macro
+    ; for it, but it keeps the stdlib orthogonal for stack-based math. Does
+    ; not clobber the A/U/V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -11,24 +12,28 @@ neg:
     ;     CALL neg
     ;
     ; Stack layout:
-    ; PC + 0 - return address
+    ; PC + 0 - saved A register
     ; PC + 1 - return address
-    ; PC + 2 - number to negate
+    ; PC + 2 - return address
+    ; PC + 3 - number to negate
 
     ; Negate the number on the stack.
-    ADDPCI 2
+    PUSH A
+    ADDPCI 3
     LOAD A
     NEG
-    SUBPCI 2
+    STORE A
+    SUBPCI 3
 
     ; Restore A, return.
+    POP A
     RET
 
 
 neg16:
     ; Given a 16-bit integer on the stack, assume it is a two's compliment
-    ; number and return the negation of the number on the stack. Does not
-    ; clobber the A, U, V or SPC registers.
+    ; number and return the negation of the number on the stack in place of
+    ; the original number. Does not clobber the A/U/V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -69,8 +74,8 @@ neg16:
 
 neg32:
     ; Given a 32-bit integer on the stack, assume it is a two's compliment
-    ; number and return the negation of it. Does not clobber the A, U, V
-    ; or SPC registers.
+    ; number and return the negation of it on the stack in place of the
+    ; original number. Does not clobber the A/U/V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;

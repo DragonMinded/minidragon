@@ -1735,14 +1735,19 @@ def verifymathneg(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             f"PUSHI {x}",
+            f"LOADI 123",
             f"CALL neg",
             f"HALT",
             *neglines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        calculated = bintoint(cpu.a)
+        calculated = bintoint(cpu.ram[cpu.pc])
         real = -x
+        _assert(
+            cpu.a == 123,
+            f"neg16 changed A register from 123 to {cpu.a}!",
+        )
         _assert(
             real == calculated,
             f"Failed to neg {x}, "
