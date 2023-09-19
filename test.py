@@ -1035,7 +1035,8 @@ def verifyabs(only: Optional[List[str]], full: bool) -> None:
     for x in range(-127, 128):
         memory = getmemory(os.linesep.join([
             *initlines,
-            f"LOADI {x}",
+            f"PUSHI {x}",
+            f"LOADI 123",
             f"CALL abs",
             f"HALT",
             *neglines,
@@ -1043,9 +1044,15 @@ def verifyabs(only: Optional[List[str]], full: bool) -> None:
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
+        calculated = bintoint(cpu.ram[cpu.pc])
+        real = abs(x)
         _assert(
-            cpu.a == abs(x),
-            f"Failed to abs({x}), got {cpu.a} instead of {x}!",
+            cpu.a == 123,
+            f"abs16 changed A register from 123 to {cpu.a}!",
+        )
+        _assert(
+            real == calculated,
+            f"Failed to abs({x}), got {calculated} instead of {real}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks

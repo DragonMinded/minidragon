@@ -1,7 +1,7 @@
 abs:
-    ; Given an integer in the A register, assume it is a two's compliment
-    ; number and return the absolute value of the number in the A register.
-    ; Does not clobber the U, V or SPC registers.
+    ; Given an 8-bit integer on the stack, assume it is a two's compliment
+    ; number and return the absolute value of the number. Does not clobber
+    ; the A, U, V or SPC registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
@@ -10,21 +10,34 @@ abs:
     ;     CALL abs
     ;
     ; Stack layout:
-    ; PC + 0 - return address
+    ; PC + 0 - saved A register
     ; PC + 1 - return address
+    ; PC + 2 - return address
+    ; PC + 3 - integer
+
+    ; First, save the A register
+    PUSH A
 
     ; Now, check if it is negative.
+    ADDPCI 3
+    LOAD A
     SHL
     JRIC _abs_negative
 
     ; Its already positive, so just return it.
-    RCR
+    SUBPCI 3
+    POP A
     RET
 
 _abs_negative:
-    ; Gotta two's compliment it.
+    ; Gotta two's compliment it and then return it.
     RCR
     NEG
+    STORE A
+
+    ; Now, restore the A register and return.
+    SUBPCI 3
+    POP A
     RET
 
 
