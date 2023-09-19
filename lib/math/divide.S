@@ -138,6 +138,7 @@ _udiv_return:
     ; Finally, return the calculated values!
     RET
 
+
 udiv16:
     ; Divide an unsigned 16-bit number by another unsigned 16-bit number,
     ; returning the quotient and the remainder on the stack. Assumes that
@@ -348,6 +349,7 @@ _udiv16_return:
 
     ; Finally, return the calculated values!
     RET
+
 
 udiv32:
     ; Divide an unsigned 32-bit number by another unsigned 32-bit number,

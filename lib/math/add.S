@@ -27,6 +27,7 @@ add:
     ; Finally, return to caller
     RET
 
+
 add16:
     ; Add two 16-bit numbers on the stack, returning the value on the stack.
     ; Numbers are stored on the stack as big-endian. Does not clobber the
@@ -86,6 +87,7 @@ add16:
 
     ; Finally, return to caller
     RET
+
 
 add32:
     ; Add two 32-bit numbers on the stack, returning the value on the stack.

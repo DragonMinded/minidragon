@@ -182,6 +182,7 @@ _atoi_return_positive:
     ; Finally, return.
     RET
 
+
 atoi16:
     ; Given a string pointed to on the stack, as long as it represents an
     ; integer either in the range of [-32768, 32767] or [0, 65535], convert
@@ -389,6 +390,7 @@ _atoi16_return_positive:
 
     ; Finally, return.
     RET
+
 
 atoi32:
     ; Given a string pointed to on the stack, as long as it represents an

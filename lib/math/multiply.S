@@ -69,6 +69,7 @@ _umult_finished:
     ; And done!
     RET
 
+
 umult16:
     ; Multiply two unsigned 16-bit numbers on the stack, returning value
     ; on the stack. Does not clobber A, U, V or SPC registers.
@@ -198,6 +199,7 @@ _umult16_finished:
 
     ; And done!
     RET
+
 
 umult32:
     ; Multiply two unsigned 32-bit numbers on the stack, returning value

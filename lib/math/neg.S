@@ -24,6 +24,7 @@ neg:
     ; Restore A, return.
     RET
 
+
 neg16:
     ; Given a 16-bit integer on the stack, assume it is a two's compliment
     ; number and return the negation of the number on the stack. Does not
@@ -64,6 +65,7 @@ neg16:
     SUBPCI 3
     POP A
     RET
+
 
 neg32:
     ; Given a 32-bit integer on the stack, assume it is a two's compliment
