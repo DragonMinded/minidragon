@@ -2439,6 +2439,10 @@ def verifyatoi(only: Optional[List[str]], full: bool) -> None:
                     "SETPC string",
                     "SWAP PC, SPC",
                     "PUSH SPC",
+                    # Doesn't matter the contents, just need to make room.
+                    "DECPC",
+                    # Just make sure we don't clobber A.
+                    "LOADI 123",
                     "CALL atoi",
                     "HALT",
                     *atoilines,
@@ -2450,7 +2454,12 @@ def verifyatoi(only: Optional[List[str]], full: bool) -> None:
                 rununtilhalt(cpu)
 
                 stack_input = (
-                    (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+                    (cpu.ram[cpu.pc + 1] << 8) + cpu.ram[cpu.pc + 2]
+                )
+                result = cpu.ram[cpu.pc]
+                _assert(
+                    cpu.a == 123,
+                    f"atoi16 changed accumulator value from {123} to {cpu.a}!",
                 )
                 _assert(
                     stack_input == (0x1000 + len(numstr)),
@@ -2458,9 +2467,9 @@ def verifyatoi(only: Optional[List[str]], full: bool) -> None:
                     + f"but got {hex(stack_input)}!",
                 )
                 _assert(
-                    bintoint(cpu.a) == x,
+                    bintoint(result) == x,
                     f"Failed to atoi({numstr}), "
-                    + f"got {bintoint(cpu.a)} instead of {x}!",
+                    + f"got {bintoint(result)} instead of {x}!",
                 )
                 cycles += cpu.cycles
                 instructions += cpu.ticks

@@ -3,12 +3,14 @@ atoi:
     ; integer either in the range of [-128, 127] or [0, 255], convert that
     ; string to an integer. Skips all leading whitespace, and allows for
     ; an optional preceeding +/- indicator. Stops at the first non-integer
-    ; character it finds, returning the integer value in the A register.
+    ; character it finds, returning the integer value on the stack. Note
+    ; that the caller is responsible for allocating stack space for the
+    ; response.
     ;
     ; Note that unlike most of the other functions, this does modify the
     ; pointer to the string on the stack. The pointer will point to the
     ; first non-integer character (or null byte) found, so that atoi can
-    ; be used in more complex input scanning. Does not clobber the U/V
+    ; be used in more complex input scanning. Does not clobber the A/U/V
     ; registers or the SPC.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
@@ -16,22 +18,26 @@ atoi:
     ; If you have a string buffer at 0x1234, call this similar to:
     ;     PUSHI 0x34
     ;     PUSHI 0x12
+    ;     DECPC
     ;     CALL atoi
     ;
     ; Stack layout at start:
-    ; PC + 0 - Saved V.
-    ; PC + 1 - Saved U.
-    ; PC + 2 - Saved SPC.
+    ; PC + 0 - Saved A.
+    ; PC + 1 - Saved V.
+    ; PC + 2 - Saved U.
     ; PC + 3 - Saved SPC.
-    ; PC + 4 - return address.
+    ; PC + 4 - Saved SPC.
     ; PC + 5 - return address.
-    ; PC + 6 - pointer to string (will be updated).
-    ; PC + 7 - pointer to string (will be updated).
+    ; PC + 6 - return address.
+    ; PC + 7 - final converted integer.
+    ; PC + 8 - pointer to string (will be updated).
+    ; PC + 9 - pointer to string (will be updated).
 
     ; First, save the calling function's locals.
     PUSH SPC
     PUSH U
     PUSH V
+    PUSH A
 
     ; Now, assume that the number is positive for now. U will be
     ; the negation indicator.
@@ -43,21 +49,13 @@ atoi:
     MOV A, V
 
     ; Advance the stack pointer back to the pointer to the string.
-    ADDPCI 6
+    ADDPCI 8
     POP SPC
+    SUBPCI 11
+
     SWAP PC, SPC
 
 _atoi_skip_whitespace:
-    ; Stack layout when skipping leading space:
-    ; PC + -8 - saved V register.
-    ; PC + -7 - saved U register.
-    ; PC + -6 - saved SPC.
-    ; PC + -5 - saved SPC.
-    ; PC + -4 - return address.
-    ; PC + -3 - return address.
-    ; PC + -2 - pointer to string (will be updated).
-    ; PC + -1 - pointer to string (will be updated).
-
     ; See if the character is a space.
     LOADI " "
 
@@ -101,16 +99,6 @@ _atoi_skip_plus_inc:
 
     ; Now, start consuming digit characters and adding them to our accumulator.
 _atoi_number_loop:
-    ; Stack layout at start of loop:
-    ; PC + -8 - saved V register.
-    ; PC + -7 - saved U register.
-    ; PC + -6 - saved SPC.
-    ; PC + -5 - saved SPC.
-    ; PC + -4 - return address.
-    ; PC + -3 - return address.
-    ; PC + -2 - pointer to string advanced past leading space and +/- (will be updated).
-    ; PC + -1 - pointer to string advanced past leading space and +/- (will be updated).
-
     ; Load with negative value of ascii "0", to subtract it from the number on the stack.
     LOADI -48
 
@@ -132,17 +120,13 @@ _atoi_number_loop:
     ; We know the digit is between "0" and "9" inclusive, so let's multiply our
     ; current accumulated result and add the digit value in.
     SWAP PC, SPC
-    SUBPCI 9
     STORE V
 
-    ; Multiply by 10, getting the result in A.
+    ; Multiply by 10, getting the result on the stack.
     PUSHI 10
     CALL umult
-    ADDPCI 10
+    LOAD V
     SWAP PC, SPC
-
-    ; Store that accumulated result back into our accumulated result register.
-    MOV A, V
 
     ; Now, load up the digit, subtract it from "0", add it to the current result.
     LOADI -48
@@ -159,6 +143,7 @@ _atoi_number_end:
     ; or the beginning of a non-integer. Save it back so the calling function
     ; can implement things like sscanf().
     SWAP PC, SPC
+    ADDPCI 11
     PUSH SPC
 
     ; See if we need to negate the number.
@@ -171,8 +156,12 @@ _atoi_number_end:
     NEG
 
 _atoi_return_positive:
-    ; Restore U/V
-    SUBPCI 6
+    ; Put the value back on the stack properly.
+    PUSH A
+
+    ; Restore A/U/V
+    SUBPCI 7
+    POP A
     POP V
     POP U
 
