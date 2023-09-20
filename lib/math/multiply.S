@@ -84,17 +84,17 @@ umult16:
     ;   CALL umult16
     ;
     ; Stack layout
-    ; PC + ? - temporary storage for second operand shifted high byte
-    ; PC + ? - temporary storage for second operand shifted low byte
-    ; PC + ? - temporary storage for accumulator high byte
-    ; PC + ? - temporary storage for accumulator low byte
-    ; PC + ? - saved A register
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - second operand high byte
-    ; PC + ? - second operand low byte
-    ; PC + ? - first operand high byte
-    ; PC + ? - first operand low byte
+    ; PC + 0  - temporary storage for second operand shifted high byte
+    ; PC + 1  - temporary storage for second operand shifted low byte
+    ; PC + 2  - temporary storage for accumulator high byte
+    ; PC + 3  - temporary storage for accumulator low byte
+    ; PC + 4  - saved A register
+    ; PC + 5  - return address
+    ; PC + 6  - return address
+    ; PC + 7  - second operand high byte
+    ; PC + 8  - second operand low byte
+    ; PC + 9  - first operand high byte
+    ; PC + 10 - first operand low byte
 
     ; Save the contents of the A register
     PUSH A
@@ -219,25 +219,25 @@ umult32:
     ;   CALL umult32
     ;
     ; Stack layout
-    ; PC + ? - temporary storage for second operand shifted high byte
-    ; PC + ? - temporary storage for second operand shifted third byte
-    ; PC + ? - temporary storage for second operand shifted second byte
-    ; PC + ? - temporary storage for second operand shifted low byte
-    ; PC + ? - temporary storage for accumulator high byte
-    ; PC + ? - temporary storage for accumulator third byte
-    ; PC + ? - temporary storage for accumulator second byte
-    ; PC + ? - temporary storage for accumulator low byte
-    ; PC + ? - saved A register
-    ; PC + ? - return address
-    ; PC + ? - return address
-    ; PC + ? - second operand high byte
-    ; PC + ? - second operand third byte
-    ; PC + ? - second operand second byte
-    ; PC + ? - second operand low byte
-    ; PC + ? - first operand high byte
-    ; PC + ? - first operand third byte
-    ; PC + ? - first operand second byte
-    ; PC + ? - first operand low byte
+    ; PC + 0  - temporary storage for second operand shifted high byte
+    ; PC + 1  - temporary storage for second operand shifted third byte
+    ; PC + 2  - temporary storage for second operand shifted second byte
+    ; PC + 3  - temporary storage for second operand shifted low byte
+    ; PC + 4  - temporary storage for accumulator high byte
+    ; PC + 5  - temporary storage for accumulator third byte
+    ; PC + 6  - temporary storage for accumulator second byte
+    ; PC + 7  - temporary storage for accumulator low byte
+    ; PC + 8  - saved A register
+    ; PC + 9  - return address
+    ; PC + 10 - return address
+    ; PC + 11 - second operand high byte
+    ; PC + 12 - second operand third byte
+    ; PC + 13 - second operand second byte
+    ; PC + 14 - second operand low byte
+    ; PC + 15 - first operand high byte
+    ; PC + 16 - first operand third byte
+    ; PC + 17 - first operand second byte
+    ; PC + 18 - first operand low byte
 
     ; Save the contents of the A register
     PUSH A

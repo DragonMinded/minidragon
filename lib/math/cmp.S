@@ -168,6 +168,7 @@ _ucmp16_low_ne:
     ; know the bytes don't equal and we are just shifting out of stack.
     LNGJUMP _ucmp_loop
 
+
 ucmp32:
     ; Given two 32-bit unsigned integers on the stack, return -1 if the first
     ; is less than the second, 0 if the first equals the second, and 1 if the
@@ -290,6 +291,7 @@ _ucmp32_4th_ne:
     ; know the bytes don't equal and we are just shifting out of stack.
     LNGJUMP _ucmp_loop
 
+
 umin:
     ; Given two unsigned integers on the stack, return the smaller of the
     ; two in the A register. Does not clobber the U, V or SPC registers.
@@ -338,6 +340,7 @@ _umin_ge:
     ADDPCI 2
     RET
 
+
 umin16:
     ; Given two unsigned 16-bit integers on the stack, return the smaller
     ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
@@ -352,17 +355,17 @@ umin16:
     ;     CALL umin16
     ;
     ; Stack layout:
-    ; PC + 0 - temporary second number storage
-    ; PC + 1 - temporary second number storage
-    ; PC + 2 - temporary first number storage
-    ; PC + 3 - temporary first number storage
-    ; PC + 4 - contents of A register preserved
-    ; PC + 4 - return address
-    ; PC + 5 - return address
-    ; PC + 6 - second number
-    ; PC + 7 - second number
-    ; PC + 8 - first number
-    ; PC + 9 - first number
+    ; PC + 0  - temporary second number storage
+    ; PC + 1  - temporary second number storage
+    ; PC + 2  - temporary first number storage
+    ; PC + 3  - temporary first number storage
+    ; PC + 4  - contents of A register preserved
+    ; PC + 5  - return address
+    ; PC + 6  - return address
+    ; PC + 7  - second number
+    ; PC + 8  - second number
+    ; PC + 9  - first number
+    ; PC + 10 - first number
 
     ; First, save the A register
     PUSH A
@@ -440,6 +443,7 @@ _umin16_ge:
 
     ; Now, return!
     RET
+
 
 umin32:
     ; Given two unsigned 32-bit integers on the stack, return the smaller
@@ -630,6 +634,7 @@ _umax_le:
     ADDPCI 2
     RET
 
+
 umax16:
     ; Given two unsigned 16-bit integers on the stack, return the larger
     ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
@@ -732,6 +737,7 @@ _umax16_le:
 
     ; Now, return!
     RET
+
 
 umax32:
     ; Given two unsigned 32-bit integers on the stack, return the larger

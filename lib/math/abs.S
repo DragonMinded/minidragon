@@ -27,6 +27,7 @@ _abs_negative:
     NEG
     RET
 
+
 abs16:
     ; Given a 16-bit integer on the stack, assume it is a two's compliment
     ; number and return the absolute value of the number. Does not clobber
@@ -64,6 +65,7 @@ _abs16_negative:
     ; Gotta two's compliment it. Lets use the neg16 function, and trick
     ; it into jumping to our own return.
     LNGJUMP neg16
+
 
 abs32:
     ; Given a 32-bit integer on the stack, assume it is a two's compliment
