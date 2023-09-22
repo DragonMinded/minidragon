@@ -100,7 +100,7 @@ if __name__ == "__main__":
         microcode += "." if (step.alu_op & 0x1) != 0 else "X"
         microcode += "." if (immsrc & 0x2) != 0 else "X"
         microcode += "." if (immsrc & 0x1) != 0 else "X"
-        microcode += "." if (step.alu_src & 0x1) != 0 else "X"
+        microcode += "." if (step.address_src & 0x1) != 0 else "X"
 
         # Bit 28
         microcode += "." if step.v_output else "X"
