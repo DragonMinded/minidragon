@@ -145,7 +145,7 @@ opcpde            description                         implementation            
 1 0 0 0 0 x x x   push IP + immediate                 PC - 2 > PC, IP + imm > [PC]   PUSHIP x        PUSH IP + x
 
 <b>1 0 0 s s y y y   arithmetic op with operand</b> †2
-1 0 0 s s 0 0 0   invert A                            ~A > A                         INV
+1 0 0 s s 0 0 0
 1 0 0 s s 0 0 1   add from [PC]/U/V                   A + {ss} > A                   ADD/ADDU/ADDV
 1 0 0 s s 0 1 0   add with carry from [PC]/U/V        A + {ss} + CF > A              ADC/ADCU/ADCV
 1 0 0 s s 0 1 1   and from [PC]/U/V                   A & {ss} > A                   AND/ANDU/ANDV
@@ -155,7 +155,7 @@ opcpde            description                         implementation            
 1 0 0 s s 1 1 1   <i>see tables below</i>
 
 <b>1 0 0 s s y y y   arithmetic op against U</b>
-1 0 0 0 1 0 0 0   <i>invert A</i>
+1 0 0 0 1 0 0 0
 1 0 0 0 1 0 0 1   <i>add from U</i>
 1 0 0 0 1 0 1 0   <i>add with carry from U</i>
 1 0 0 0 1 0 1 1   <i>and from U</i>
@@ -165,7 +165,7 @@ opcpde            description                         implementation            
 1 0 0 0 1 1 1 1   rotate right A                      A >> 1 + ((A << 7) & 0x80) > A ROR
 
 <b>1 0 0 s s y y y   arithmetic op against V</b>
-1 0 0 1 0 0 0 0   <i>invert A</i>
+1 0 0 1 0 0 0 0
 1 0 0 1 0 0 0 1   <i>add from V</i>
 1 0 0 1 0 0 1 0   <i>add with carry from V</i>
 1 0 0 1 0 0 1 1   <i>and from V</i>
@@ -175,7 +175,7 @@ opcpde            description                         implementation            
 1 0 0 1 0 1 1 1   rotate right with carry A           A >> 1 + (CF << 7) > A         RCR
 
 <b>1 0 0 s s y y y   arithmetic op against [PC]</b>
-1 0 0 1 1 0 0 0   <i>invert A</i>
+1 0 0 1 1 0 0 0
 1 0 0 1 1 0 0 1   <i>add from [PC]</i>
 1 0 0 1 1 0 1 0   <i>add with carry from [PC]</i>
 1 0 0 1 1 0 1 1   <i>and from [PC]</i>
@@ -211,13 +211,13 @@ opcpde            description                         implementation            
 1 1 1 0 1 1 1 1   store V register to A               V > A                          VTOA            MOV V, A
 
 <b>1 1 1 1 0 y y y   status op</b> †5
-1 1 1 1 0 0 0 0
+1 1 1 1 0 0 0 0   invert A                            ~A > A                         INV
 1 1 1 1 0 0 0 1
 1 1 1 1 0 0 1 0   skip next instruction if CF         IP + 1 + CF > IP               SKIPIF CF
 1 1 1 1 0 0 1 1   skip next instruction if !CF        IP + 1 + !CF > IP              SKIPIF !CF
 1 1 1 1 0 1 0 0   skip next instruction if ZF         IP + 1 + ZF > IP               SKIPIF ZF
 1 1 1 1 0 1 0 1   skip next instruction if !ZF        IP + 1 + !ZF > IP              SKIPIF !ZF
-1 1 1 1 0 1 1 0
+1 1 1 1 0 1 1 0   invert A                            ~A > A                         INV
 1 1 1 1 0 1 1 1
 
 <b>1 1 1 1 1 y y y   stack op</b>
@@ -235,7 +235,7 @@ opcpde            description                         implementation            
  * †2 This might be slightly misleading, given that the register operand {00} is not only undefined but also not mapped to ALU operations. See †1 for details.
  * †3 Due to only being able to sign-extend the lower 4 or 6 bits of an instruction, this cleverly puts itself into an instuction slot where the 6th bit is 1.
  * †4 Due to only being able to sign-extend the lower 4 or 6 bits of an instruction, this cleverly puts itself into an instuction slot where the 6th bit is 0.
- * †5 Even though there are four undefined instructions here, attempting to specify one will decode to a SKIPIF instruction. However, the behavior is still undefined due to how we use the lower 3 bits as selector signals for combinatorial logic. The lowest bit is used as an "invert selected flags signal" bit, and the next two bits are used as "CF select" and "ZF select".
+ * †5 I've shoved some arithmetic instructions that do not use a "B" operand here. We decode them versus a SKIPIF by doing an XOR/EQUALITY on the 2nd and 3rd bit, making them map to two places in the ISA. When in SKIPIF mode, we use the lower 3 bits as selector signals for combinatorial logic. The lowest bit is used as an "invert selected flags signal" bit, and the next two bits are used as "CF select" and "ZF select". This is why we can map unrelated instructions to when the last two bits are 00 or 11, since those would map to "neither CF or ZF" and "both CF and ZF" respectively.
 
 ## Design Concessions
 

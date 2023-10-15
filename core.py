@@ -738,7 +738,7 @@ class BaseALUUInstruction(BaseInstruction, ABC):
 
 @instruction
 class ADDU(BaseALUUInstruction):
-    # Add contents of memory at P+C to A register.
+    # Add contents of U to A register.
 
     opcode = 0b001
 
@@ -772,7 +772,7 @@ class ADDU(BaseALUUInstruction):
 
 @instruction
 class ADCU(BaseALUUInstruction):
-    # Add contents of memory at P+C to A register with carry in.
+    # Add contents of U to A register with carry in.
 
     opcode = 0b010
 
@@ -806,7 +806,7 @@ class ADCU(BaseALUUInstruction):
 
 @instruction
 class ANDU(BaseALUUInstruction):
-    # Add contents of memory at P+C with A register.
+    # And contents of U with A register.
 
     opcode = 0b011
 
@@ -840,7 +840,7 @@ class ANDU(BaseALUUInstruction):
 
 @instruction
 class ORU(BaseALUUInstruction):
-    # Or contents of memory at P+C with A register.
+    # Or contents of U with A register.
 
     opcode = 0b100
 
@@ -874,7 +874,7 @@ class ORU(BaseALUUInstruction):
 
 @instruction
 class XORU(BaseALUUInstruction):
-    # Exclusive or contents of memory at P+C with A register.
+    # Exclusive or contents of U with A register.
 
     opcode = 0b101
 
@@ -999,7 +999,7 @@ class BaseALUVInstruction(BaseInstruction, ABC):
 
 @instruction
 class ADDV(BaseALUVInstruction):
-    # Add contents of memory at P+C to A register.
+    # Add contents of V to A register.
 
     opcode = 0b001
 
@@ -1033,7 +1033,7 @@ class ADDV(BaseALUVInstruction):
 
 @instruction
 class ADCV(BaseALUVInstruction):
-    # Add contents of memory at P+C to A register with carry in.
+    # Add contents of V to A register with carry in.
 
     opcode = 0b010
 
@@ -1067,7 +1067,7 @@ class ADCV(BaseALUVInstruction):
 
 @instruction
 class ANDV(BaseALUVInstruction):
-    # Add contents of memory at P+C with A register.
+    # And contents of V with A register.
 
     opcode = 0b011
 
@@ -1101,7 +1101,7 @@ class ANDV(BaseALUVInstruction):
 
 @instruction
 class ORV(BaseALUVInstruction):
-    # Or contents of memory at P+C with A register.
+    # Or contents of V with A register.
 
     opcode = 0b100
 
@@ -1135,7 +1135,7 @@ class ORV(BaseALUVInstruction):
 
 @instruction
 class XORV(BaseALUVInstruction):
-    # Exclusive or contents of memory at P+C with A register.
+    # Exclusive or contents of V with A register.
 
     opcode = 0b101
 
@@ -1259,35 +1259,6 @@ class BaseALUSRAMInstruction(BaseInstruction, ABC):
 
 
 @instruction
-class INV(BaseALUSRAMInstruction):
-    # Invert contents of A.
-
-    opcode = 0b000
-
-    def signals(self) -> List["ControlSignals"]:
-        return [
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_INV,
-                alu_output=True,
-                a_input=True,
-                flags_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
-                alu_output=True,
-                ip_input=True,
-            ),
-        ]
-
-
-@instruction
 class ADD(BaseALUSRAMInstruction):
     # Add contents of memory at P+C to A register.
 
@@ -1359,7 +1330,7 @@ class ADC(BaseALUSRAMInstruction):
 
 @instruction
 class AND(BaseALUSRAMInstruction):
-    # Add contents of memory at P+C with A register.
+    # And contents of memory at P+C with A register.
 
     opcode = 0b011
 
@@ -2173,6 +2144,55 @@ class VTOA(BaseMoveInstruction):
                 ip_input=True,
             ),
         ]
+
+
+@instruction
+class INV(BaseInstruction):
+    # Invert contents of A.
+
+    def handles(self, instruction: int) -> bool:
+        if instruction & 0b11111000 != 0b11110000:
+            return False
+        # This instruction is mapped to both locations due to planned decoding.
+        return instruction & 0b111 in {0b000, 0b110}
+
+    def mnemonic(self, instruction: int) -> str:
+        return "INV"
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_INV,
+                alu_output=True,
+                a_input=True,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic == "INV"
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        return [0b11110000]
 
 
 @instruction
