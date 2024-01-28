@@ -382,6 +382,22 @@
     [
       "ce6f44aa-7642-4f48-aced-087a71075e9a",
       "V Register"
+    ],
+    [
+      "dcb75f80-e2ae-4c94-82e7-12aa05130a09",
+      "IP Register"
+    ],
+    [
+      "de1c2143-436e-4841-804c-5d9f557d13a6",
+      "Address Bus"
+    ],
+    [
+      "5a9c84e3-92ff-4886-bc2d-5dea441aa2ba",
+      "PC Register"
+    ],
+    [
+      "a0907723-5fb1-4efb-90f1-494907708bae",
+      "SRAM Interface"
     ]
   ],
   "text_variables": {}
