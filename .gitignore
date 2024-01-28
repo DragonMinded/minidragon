@@ -25,4 +25,5 @@ sym-lib-table
 *.net
 *.dsn
 *.ses
+*.lck
 ibom.html
