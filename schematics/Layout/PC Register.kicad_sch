@@ -1976,12 +1976,12 @@
     (property "Datasheet" "" (at 59.69 135.89 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "" (uuid 6743af9f-3cd4-45ac-8e9e-168e7c76bd6a))
-    (pin "" (uuid 04abf60e-7166-4d59-b756-0cf804d7b1e8))
-    (pin "" (uuid 7e5e30e4-5b97-4e0c-a6f9-7c39ab654f83))
-    (pin "" (uuid 30105d71-8b6a-4fe6-a4c6-4dfe8b77208b))
-    (pin "" (uuid 06857fd1-d97f-4d82-a5c7-afa7e68b30f6))
-    (pin "" (uuid 53579eb4-f009-468d-98d8-59cfabef5a71))
+    (pin "" (uuid 6743af9f-3cd4-45ac-8e9e-168e7c76bd6b))
+    (pin "" (uuid 04abf60e-7166-4d59-b756-0cf804d7b1e9))
+    (pin "" (uuid 7e5e30e4-5b97-4e0c-a6f9-7c39ab654f84))
+    (pin "" (uuid 30105d71-8b6a-4fe6-a4c6-4dfe8b77208c))
+    (pin "" (uuid 06857fd1-d97f-4d82-a5c7-afa7e68b30f7))
+    (pin "" (uuid 53579eb4-f009-468d-98d8-59cfabef5a72))
     (instances
       (project "MiniDragon"
         (path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/5a9c84e3-92ff-4886-bc2d-5dea441aa2ba"
@@ -2086,12 +2086,12 @@
     (property "Datasheet" "" (at 166.37 44.45 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "" (uuid 6743af9f-3cd4-45ac-8e9e-168e7c76bd6a))
-    (pin "" (uuid 04abf60e-7166-4d59-b756-0cf804d7b1e8))
-    (pin "" (uuid 7e5e30e4-5b97-4e0c-a6f9-7c39ab654f83))
-    (pin "" (uuid 30105d71-8b6a-4fe6-a4c6-4dfe8b77208b))
-    (pin "" (uuid 06857fd1-d97f-4d82-a5c7-afa7e68b30f6))
-    (pin "" (uuid 53579eb4-f009-468d-98d8-59cfabef5a71))
+    (pin "" (uuid 6743af9f-3cd4-45ac-8e9e-168e7c76bd6c))
+    (pin "" (uuid 04abf60e-7166-4d59-b756-0cf804d7b1ea))
+    (pin "" (uuid 7e5e30e4-5b97-4e0c-a6f9-7c39ab654f85))
+    (pin "" (uuid 30105d71-8b6a-4fe6-a4c6-4dfe8b77208d))
+    (pin "" (uuid 06857fd1-d97f-4d82-a5c7-afa7e68b30f8))
+    (pin "" (uuid 53579eb4-f009-468d-98d8-59cfabef5a73))
     (instances
       (project "MiniDragon"
         (path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/5a9c84e3-92ff-4886-bc2d-5dea441aa2ba"
@@ -2315,7 +2315,7 @@
     (property "Datasheet" "" (at 166.37 29.21 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "1" (uuid c628fa26-df77-4c09-b657-d76eb1f0d6b5))
+    (pin "1" (uuid c628fa26-df77-4c09-b657-d76eb1f0d6b6))
     (instances
       (project "MiniDragon"
         (path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/5a9c84e3-92ff-4886-bc2d-5dea441aa2ba"
@@ -2458,7 +2458,7 @@
     (property "Datasheet" "" (at 59.69 120.65 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "1" (uuid c628fa26-df77-4c09-b657-d76eb1f0d6b5))
+    (pin "1" (uuid c628fa26-df77-4c09-b657-d76eb1f0d6b7))
     (instances
       (project "MiniDragon"
         (path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/5a9c84e3-92ff-4886-bc2d-5dea441aa2ba"
@@ -2720,12 +2720,12 @@
     (property "Datasheet" "" (at 59.69 173.99 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "" (uuid 6743af9f-3cd4-45ac-8e9e-168e7c76bd6a))
-    (pin "" (uuid 04abf60e-7166-4d59-b756-0cf804d7b1e8))
-    (pin "" (uuid 7e5e30e4-5b97-4e0c-a6f9-7c39ab654f83))
-    (pin "" (uuid 30105d71-8b6a-4fe6-a4c6-4dfe8b77208b))
-    (pin "" (uuid 06857fd1-d97f-4d82-a5c7-afa7e68b30f6))
-    (pin "" (uuid 53579eb4-f009-468d-98d8-59cfabef5a71))
+    (pin "" (uuid 6743af9f-3cd4-45ac-8e9e-168e7c76bd6d))
+    (pin "" (uuid 04abf60e-7166-4d59-b756-0cf804d7b1eb))
+    (pin "" (uuid 7e5e30e4-5b97-4e0c-a6f9-7c39ab654f86))
+    (pin "" (uuid 30105d71-8b6a-4fe6-a4c6-4dfe8b77208e))
+    (pin "" (uuid 06857fd1-d97f-4d82-a5c7-afa7e68b30f9))
+    (pin "" (uuid 53579eb4-f009-468d-98d8-59cfabef5a74))
     (instances
       (project "MiniDragon"
         (path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/5a9c84e3-92ff-4886-bc2d-5dea441aa2ba"
@@ -3060,7 +3060,7 @@
     (property "Datasheet" "" (at 292.1 46.99 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "1" (uuid 1f79532a-1e88-48d1-80e2-256e05bc6e94))
+    (pin "1" (uuid 1f79532a-1e88-48d1-80e2-256e05bc6e95))
     (instances
       (project "MiniDragon"
         (path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/5a9c84e3-92ff-4886-bc2d-5dea441aa2ba"
@@ -3085,7 +3085,7 @@
     (property "Datasheet" "" (at 59.69 158.75 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "1" (uuid c628fa26-df77-4c09-b657-d76eb1f0d6b5))
+    (pin "1" (uuid c628fa26-df77-4c09-b657-d76eb1f0d6b8))
     (instances
       (project "MiniDragon"
         (path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/5a9c84e3-92ff-4886-bc2d-5dea441aa2ba"
@@ -3147,7 +3147,7 @@
     (property "Datasheet" "" (at 59.69 176.53 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "1" (uuid 1f79532a-1e88-48d1-80e2-256e05bc6e94))
+    (pin "1" (uuid 1f79532a-1e88-48d1-80e2-256e05bc6e96))
     (instances
       (project "MiniDragon"
         (path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/5a9c84e3-92ff-4886-bc2d-5dea441aa2ba"
@@ -3197,7 +3197,7 @@
     (property "Datasheet" "" (at 59.69 138.43 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "1" (uuid 1f79532a-1e88-48d1-80e2-256e05bc6e94))
+    (pin "1" (uuid 1f79532a-1e88-48d1-80e2-256e05bc6e97))
     (instances
       (project "MiniDragon"
         (path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/5a9c84e3-92ff-4886-bc2d-5dea441aa2ba"
