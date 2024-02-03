@@ -923,10 +923,6 @@ class ROL(BaseALUUInstruction):
                 flags_input=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -951,10 +947,6 @@ class ROR(BaseALUUInstruction):
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -1184,10 +1176,6 @@ class RCL(BaseALUVInstruction):
                 flags_input=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -1212,10 +1200,6 @@ class RCR(BaseALUVInstruction):
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -1450,10 +1434,6 @@ class SHL(BaseALUSRAMInstruction):
                 flags_input=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -1478,10 +1458,6 @@ class SHR(BaseALUSRAMInstruction):
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -1682,10 +1658,6 @@ class LOADU(BaseRegisterInstruction):
                 u_input=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -1707,10 +1679,6 @@ class STOREU(BaseRegisterInstruction):
                 address_src=ControlSignals.ADDRESS_SRC_PC,
                 sram_input=True,
                 u_output=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -1736,10 +1704,6 @@ class LOADV(BaseRegisterInstruction):
                 v_input=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -1761,10 +1725,6 @@ class STOREV(BaseRegisterInstruction):
                 address_src=ControlSignals.ADDRESS_SRC_PC,
                 sram_input=True,
                 v_output=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -1797,10 +1757,6 @@ class SWAPAU(BaseRegisterInstruction):
                 u_input=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -1829,10 +1785,6 @@ class SWAPAV(BaseRegisterInstruction):
             ControlSignals(
                 d_output=True,
                 v_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -1865,10 +1817,6 @@ class SWAPUV(BaseRegisterInstruction):
                 v_input=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -1886,8 +1834,6 @@ class SWAPPC(BaseRegisterInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                z_output=True,
-                b_input=True,
                 pc_swap=True,
             ),
             ControlSignals(
@@ -1935,14 +1881,9 @@ class ATOP(BaseMoveInstruction):
 
     def signals(self) -> List["ControlSignals"]:
         return [
-            # We can cheat here to save on microcodes, since both p and
-            # b input on different halves of the bus, and both a_high and
-            # z output on different halves of the bus.
             ControlSignals(
                 p_input=True,
-                b_input=True,
                 a_high_output=True,
-                z_output=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -1967,10 +1908,6 @@ class ATOC(BaseMoveInstruction):
                 a_output=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -1990,10 +1927,6 @@ class PTOA(BaseMoveInstruction):
         return [
             # To save on control signals, we are routing through the ALU.
             # We do this by adding zero to the PC and taking that output.
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
@@ -2021,10 +1954,6 @@ class CTOA(BaseMoveInstruction):
         return [
             # To save on control signals, we are routing through the ALU.
             # We do this by adding zero to the PC and taking that output.
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_PC,
                 alu_op=ALU.OPERATION_ADD,
@@ -2055,10 +1984,6 @@ class ATOU(BaseMoveInstruction):
                 a_output=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -2079,10 +2004,6 @@ class ATOV(BaseMoveInstruction):
             ControlSignals(
                 v_input=True,
                 a_output=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -2107,10 +2028,6 @@ class UTOA(BaseMoveInstruction):
                 u_output=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -2131,10 +2048,6 @@ class VTOA(BaseMoveInstruction):
             ControlSignals(
                 a_input=True,
                 v_output=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -2167,10 +2080,6 @@ class INV(BaseInstruction):
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -2308,10 +2217,6 @@ class LNGJUMP(BaseStackInstruction):
             # First, increment the IP so we can get the address of
             # the upper byte.
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -2392,10 +2297,6 @@ class LOADI(BaseStackInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             # First, increment the IP so we can grab the value.
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
@@ -2482,12 +2383,6 @@ class POPIP(BaseStackInstruction):
 
     def signals(self) -> List["ControlSignals"]:
         return [
-            # First, preload the B register with zero so we can increment.
-            # the PC register.
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
             # Store PC in D register.
             ControlSignals(
                 address_src=ControlSignals.ADDRESS_SRC_PC,
@@ -2631,12 +2526,6 @@ class POPSPC(BaseStackInstruction):
 
     def signals(self) -> List["ControlSignals"]:
         return [
-            # First, preload the B register with zero so we can increment.
-            # the PC register.
-            ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
             # Store contents of PC in D register, swap to SPC.
             ControlSignals(
                 address_src=ControlSignals.ADDRESS_SRC_PC,
@@ -2712,10 +2601,6 @@ class LOADA(BaseStackInstruction):
                 a_input=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
@@ -2737,10 +2622,6 @@ class STOREA(BaseStackInstruction):
                 address_src=ControlSignals.ADDRESS_SRC_PC,
                 sram_input=True,
                 a_output=True,
-            ),
-            ControlSignals(
-                z_output=True,
-                b_input=True,
             ),
             ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_IP,
@@ -4328,6 +4209,12 @@ class CPUCore:
             if self.last_instruction.ir_input:
                 self.ir = self.data & 0xFF
                 hint, instructions, hintaddr = self.instruction_decode()
+
+            # We also treat the IR input control signal as an asynchronous reset request to the B
+            # register, since it is always temporary for each instruction. That allows us to save
+            # some clocks for many instructions by assuming it is zero for each instruction.
+            if self.last_instruction.ir_input:
+                self.b = 0
 
             # Fetch
             instruction = instructions[0]
