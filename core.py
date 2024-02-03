@@ -2221,10 +2221,6 @@ class NEG(BaseInstruction):
                 flags_input=True,
             ),
             ControlSignals(
-                z_output=True,
-                b_input=True,
-            ),
-            ControlSignals(
                 alu_src=ControlSignals.ALU_SRC_A,
                 alu_op=ALU.OPERATION_ADD,
                 carry=ALU.CARRY_SET,
