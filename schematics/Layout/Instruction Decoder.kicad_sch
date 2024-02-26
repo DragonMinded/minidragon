@@ -3164,9 +3164,9 @@
   )
 
   (symbol (lib_id "MiniDragon:Zero Detector") (at 53.34 72.39 0) (unit 1)
-    (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
+    (in_bom yes) (on_board yes) (dnp no)
     (uuid 95369998-0e43-4e7f-a030-8f248d566c50)
-    (property "Reference" "B40" (at 55.5341 58.0969 0)
+    (property "Reference" "B40" (at 62.23 58.42 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
     (property "Value" "~" (at 53.34 72.39 0)
