@@ -245,31 +245,31 @@ Due to the sheer number of parts involved in making a register as well as the co
 
 Similarly, due to the complexity of such a circuit, no number comparison instructions are present. Instead, comparison functions are implemented in the stdlib by bitwise comparing two numbers from top to bottom bit. This makes a lot of functions such as integer conversion and division functions much slower than they need to be. Due to this, I'm considering possibly adding a compare function to the ALU and placing it in place of the INV instruction. INV would move to the unused opcode in the status op block, at which case I would have room to implement a hardware NEG. I've experimented with this on a separate branch and the gains are significant. Alternatively, its possible to design an external math coprocessor. This is similar to contemporary CPUs with a floating point or math coprocessor so would not be out of the question. If this happens, the standard library should be updated to call the coprocessor instead of perofrming comparisons, multiplication and division on-CPU.
 
-Because of the complexity of designing such a system from scratch, there are a lot of inefficiencies in how the various circuits are assembled. In many cases, buffers are not actually necessary and add to propagation delay. In order to make the project manageable by a single creature, I've decided to sacrifice any sort of speed for modularity. This will result in a CPU that can theoretically only operate at a clock cycle of ~100KHz. If I was to be a lot more dilligent I could probably get this up into the several hundered or even megahertz level, but it isn't worth it. Perhaps in a second TTL-only iteration?
+Because of the complexity of designing such a system from scratch, there are a lot of inefficiencies in how the various circuits are assembled. In many cases, buffers are not actually necessary and add to propagation delay. In order to make the project manageable by a single creature, I've decided to sacrifice any sort of speed for modularity. This will result in a CPU that can theoretically only operate at a clock cycle of ~100KHz. If I was to be a lot more dilligent I could probably get this up into the several hundered or even megahertz level, but it isn't worth it. Perhaps in a second, miniaturized TTL-only iteration?
 
 ## Build Progress
 
-As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 43% finished with the whole project.
+As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 61% finished with the whole project.
 
 ### Hardware
 
-As a whole, the hardware side of MiniDragon is 43% complete.
+As a whole, the hardware side of MiniDragon is 53% complete.
 
- - instruction decoder: 4% complete
-    - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 53 instructions (52 real intsructions and a microcode board for the shared load instruction step) only one instruction is fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
+ - instruction decoder: 5% complete
+    - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 56 instructions (55 real instructions and a microcode board for the shared load instruction step) 3 instructions are fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
  - special registers: 100% complete
    - All design work and diagramming for necessry circuits is completed. Registers that can be read in order to perform conditional logic as well as source immediate values are completed and fully integrated onto the physical build.
  - general purpose registers: 38% complete
    - All design work and diagramming for the eight general purpose registers is completed. Three registers (A, B and D) are built and fully integrated into the physical build.
- - ALU: 0% complete
-   - I have started on the design of the ALU, but have not begun to document it in the schematics. I have a general idea of the direction I will take, but almost nothing concrete exists. The ALU will be decomposed into seven core functions that each will generate their own output and carry flag and a shared zero flag generator. I am hoping to design a modular ALU which can be built one function at a time for easier integration.
+ - ALU: 25% complete
+   - The ALU core is completely designed, laid out and documented. Tested and fabricated designs for ADD, INV, OR, AND, and XOR exist, but only ADD has been integrated into the physical layout. The ALU is decomposed into seven core functions that each generate their own output and carry flag, along with a shared zero flag generator and a carry flag selector circuit.
  - memory interface: 0% complete
    - MiniDragon CPU is designed to appear like a standard 80's CPU from external components' perspective. This means 16 output "pins" for address lines, 8 bidirectional "pins" for data lines, and a few crucial control signals brought out. These signals will include a bus enable (which determines when the CPU is attempting to use the address/data bus) and a read/write signal (which dictates whether the data pins should be seen as input or output). Its possible that I will instead bring out write enable and read enable bits which dictate that the bus should be active and either a read or a write should occur. It should be noted that all of these signals are asynchronous. System clock and reset lines may be brought out as external pins should that be necessary, but this was not normally done for period-accurate CPUs.
    - Additional circuitry that is not technically part of MiniDragon but will be necessary for its execution include a serial chip for IO, glue logic to support address decoding, a ROM chip and an SRAM chip to provide nonvolatile and volatile storage. These will likely be built using off-the-shelf TTL-compatible 7400 logic since they aren't part of the CPU itself.
  - power distribution: 100% complete
-   - I went with an adjustable 5V switching mode power supply that can supply the necessary amperage (5+ amps estimated at this point) along with a digital voltmeter to make fine adjustments. The circuits are fairly sensitive to core voltage being at or slightly above 5V the integrated digital voltmeter necessary to accurately monitor the system.
- - debugging boards: 50% complete
-   - Various debugging boards, used mostly for setting hand-selected values on various busses are designed and prototyped on breadboards. They are not laid out for fabrication. I am still weighing whether or not this will be necessary.
+   - I went with an adjustable 5V switching mode power supply that can supply the necessary amperage (5+ amps estimated at this point) along with a few digital readouts sprinkled across the board for fine adjustments. The circuits are fairly sensitive to core voltage being at or slightly above 4.75V so the main power supply is turned up to about 5.40V to accomodate voltage sag in the power distribution circuits.
+ - debugging boards: 100% complete
+   - Various debugging boards, used mostly for setting hand-selected values on various busses are designed and fabricated. They are currently in use both as tools for helping test boards during bring-up and as a simulated memory interface for board integration and system testing.
 
 ### Software
 
