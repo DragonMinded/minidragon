@@ -1,10 +1,14 @@
 import textwrap
 import unittest
 
-from .core import CompilerError, FunctionPrototype, NoneType, parse_prototypes, parse_and_compile
+from .core import CompilerError, FunctionPrototype, CoreType, NoneType, parse_prototypes, parse_and_compile
 
 
 class TestCompiler(unittest.TestCase):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.maxDiff = None
+
     def test_empty(self) -> None:
         output = parse_and_compile("__test__", "", [])
         assert len(output) == 0
@@ -54,7 +58,24 @@ class TestCompiler(unittest.TestCase):
         self.assertEqual([FunctionPrototype("simple", NoneType, [])], prototypes)
 
         output = parse_and_compile("__test__", func, [])
-        self.assertEqual([], output)
+        self.assertEqual([
+            "simple:",
+            "  ; __test__ line 3: return",
+            "  RET",
+        ], output)
+
+    def test_define_simple_return_function(self) -> None:
+        func = textwrap.dedent("""
+            def simple() -> int8:
+                return 15
+        """)
+
+        prototypes = parse_prototypes("__test__", func)
+        self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [])], prototypes)
+
+        output = parse_and_compile("__test__", func, [])
+        self.assertEqual([
+        ], output)
 
 
 if __name__ == '__main__':
