@@ -22,11 +22,85 @@ class CompilerError(Exception):
         self.line = metaval.start.line
 
 
+class CoreType:
+    def __init__(self, base_type: str, const: bool = False) -> None:
+        self.type = base_type
+        self.const = const
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            return self.type == other
+        if isinstance(other, CoreType):
+            return self.type == other.type
+        return False
+
+
+NoneType = CoreType("None", True)
+
+
+class InOutCoreType(CoreType):
+    def __init__(self, base_type: str) -> None:
+        super().__init__(base_type, False)
+
+
+class OutCoreType(CoreType):
+    def __init__(self, base_type: str) -> None:
+        super().__init__(base_type, False)
+
+
+class RegisterCoreType(CoreType):
+    def __init__(self, register: str) -> None:
+        super().__init__(register, False)
+
+
+class ParamReturnType(CoreType):
+    def __init__(self, position: int) -> None:
+        super().__init__(str(position), False)
+
+
+def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
+    if expr is None:
+        return None
+    if isinstance(expr, cst.Annotation):
+        expr = expr.annotation
+    if not isinstance(expr, cst.BaseExpression):
+        return None
+
+    const: bool = False
+
+    if isinstance(expr, cst.Subscript):
+        # Might be a const expr.
+        qualifier = expr.value
+        if not isinstance(qualifier, cst.Name):
+            return None
+
+        if qualifier.value == "const":
+            if len(expr.slice) != 1:
+                return None
+
+            sliceval = expr.slice[0]
+            if not isinstance(sliceval, cst.SubscriptElement):
+                return None
+            if not isinstance(sliceval.slice, cst.Index):
+                return None
+
+            const = True
+            expr = sliceval.slice.value
+
+    if isinstance(expr, cst.Name):
+        if expr.value == "None":
+            return NoneType
+        else:
+            return CoreType(expr.value, const)
+
+    return None
+
+
 class FunctionPrototype:
-    def __init__(self, name: str, return_type: str, params: Optional[List[str]] = None) -> None:
+    def __init__(self, name: str, return_type: CoreType, params: Optional[List[CoreType]] = None) -> None:
         self.name = name
         self.return_type = return_type
-        self.params: List[str] = params or []
+        self.params: List[CoreType] = params or []
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, FunctionPrototype):
@@ -36,31 +110,31 @@ class FunctionPrototype:
 
 
 class StackVar:
-    def __init__(self, name: str, vartype: str, location: Optional[int] = None) -> None:
+    def __init__(self, name: str, vartype: CoreType, location: Optional[int] = None) -> None:
         self.name = name
         self.type = vartype
         self.location = location
 
     @property
     def size(self) -> int:
-        if self.type in {"int8", "const(int8)"}:
+        if self.type == "int8":
             return 1
-        if self.type in {"int16", "const(int16)"}:
+        if self.type == "int16":
             return 2
-        if self.type in {"int32", "const(int32)"}:
+        if self.type == "int32":
             return 4
-        if self.type in {"char", "const(char)"}:
+        if self.type == "char":
             return 1
         # Strings are passed by reference pointer.
-        if self.type in {"str", "const(str)"}:
+        if self.type == "string":
             return 2
         # Pointers are 16 bit due to CPU arch.
-        if self.type in {"pointer", "const(pointer)"}:
+        if self.type == "pointer":
             return 2
         raise NotImplementedError(f"Type {self.type} not implemented!")
 
     def __repr__(self) -> str:
-        return f"{self.type} {self.name}: {self.location} size {self.size}"
+        return f"{self.type.type} {self.name}: {self.location} size {self.size}"
 
 
 class Stack:
@@ -130,35 +204,6 @@ def codegen_eval(expr: cst.BaseExpression) -> object:
     return eval(code)
 
 
-def get_type(expr: Optional[cst.CSTNode]) -> Optional[str]:
-    if expr is None:
-        return None
-    if isinstance(expr, cst.Annotation):
-        expr = expr.annotation
-    if not isinstance(expr, cst.BaseExpression):
-        return None
-
-    const: bool = False
-
-    if isinstance(expr, cst.Call):
-        # Might be a const expr.
-        func = expr.func
-        if not isinstance(func, cst.Name):
-            return None
-
-        if func.value == "const":
-            if len(expr.args) != 1:
-                return None
-
-            const = True
-            expr = expr.args[0].value
-
-    if isinstance(expr, cst.Name):
-        return f"const({expr.value})" if const else expr.value
-
-    return None
-
-
 def _hex(val: int, pad: int) -> str:
     hexval = hex(val)[2:]
     while len(hexval) < pad:
@@ -180,7 +225,7 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
     if assign_type is None:
         raise CompilerError("Unsupported type for global variable definition", context)
 
-    if assign_type[:6] == "const(":
+    if assign_type.const:
         if assign_value is None:
             raise CompilerError("Expecting initialization value for global const definition", context)
         if not isinstance(assign_value, cst.BaseExpression):
@@ -189,7 +234,7 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
         value = codegen_eval(assign_value)
         compiled.append(f"{assign_name}:")
 
-        if assign_type == "const(int8)":
+        if assign_type == "int8":
             if not isinstance(value, int):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             if value < -128 or value > 255:
@@ -197,7 +242,7 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
 
             value = value & 0xFF
             compiled.append(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
-        elif assign_type == "const(int16)":
+        elif assign_type == "int16":
             if not isinstance(value, int):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             if value < -32768 or value > 65535:
@@ -206,7 +251,7 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
             value = value & 0xFFFF
             compiled.append(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
             compiled.append(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
-        elif assign_type == "const(int32)":
+        elif assign_type == "int32":
             if not isinstance(value, int):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             if value < -2147483648 or value > 4294967295:
@@ -217,13 +262,13 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
             compiled.append(f"  .byte {_hex((value >> 16) & 0xFF, 2)}")
             compiled.append(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
             compiled.append(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
-        elif assign_type == "const(char)":
+        elif assign_type == "char":
             if not isinstance(value, str):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             if len(value) != 1:
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             compiled.append(f"  .char {value[0]!r}")
-        elif assign_type == "const(str)":
+        elif assign_type == "string":
             if not isinstance(value, str):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             for c in value:
@@ -295,7 +340,7 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
             raise CompilerError(f"Unsupported type for function parameter {func_param.name.value}", context)
 
     # Need a spot on the stack for our return pointer that is placed when called.
-    stack.alloc(StackVar("builtin(retptr)", "pointer"))
+    stack.alloc(StackVar("builtin(retptr)", CoreType("pointer")))
 
     # Make sure that we have room on the stack for the return value.
     if function_type != "None":
@@ -308,16 +353,16 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
     # Now, let's save all of our clobbered values.
     for clobber in clobbers:
         if clobber == "a":
-            stack.alloc(StackVar("builtin(saved_a)", "int8"))
+            stack.alloc(StackVar("builtin(saved_a)", CoreType("int8")))
             compiled.append("  PUSH A")
         elif clobber == "u":
-            stack.alloc(StackVar("builtin(saved_u)", "int8"))
+            stack.alloc(StackVar("builtin(saved_u)", CoreType("int8")))
             compiled.append("  PUSH U")
         elif clobber == "v":
-            stack.alloc(StackVar("builtin(saved_v)", "int8"))
+            stack.alloc(StackVar("builtin(saved_v)", CoreType("int8")))
             compiled.append("  PUSH V")
         elif clobber == "spc":
-            stack.alloc(StackVar("builtin(saved_spc)", "int8"))
+            stack.alloc(StackVar("builtin(saved_spc)", CoreType("int8")))
             compiled.append("  PUSH SPC")
         else:
             raise Exception(f"Logic error, unexpected clobber {clobber}!")
@@ -400,39 +445,39 @@ def parse_prototypes(module: str, code: str) -> List[FunctionPrototype]:
 
 def builtin_prototypes() -> List[FunctionPrototype]:
     prototypes: List[FunctionPrototype] = [
-        FunctionPrototype("strcat", "None", ["inout(string)", "inout(string)"]),
-        FunctionPrototype("strcmp", "reg(a)", ["inout(string)", "inout(string)"]),
-        FunctionPrototype("strcpy", "None", ["inout(string)", "inout(string)"]),
-        FunctionPrototype("strlen", "reg(a)", ["inout(string)"]),
-        FunctionPrototype("atoi", "reg(a)", ["inout(string)"]),
-        FunctionPrototype("atoi16", "param(1)", ["inout(string)", "out(int16)"]),
-        FunctionPrototype("atoi32", "param(1)", ["inout(string)", "out(int32)"]),
-        FunctionPrototype("itoa", "None", ["reg(a)", "inout(string)"]),
-        FunctionPrototype("itoa16", "None", ["int16", "inout(string)"]),
-        FunctionPrototype("itoa32", "None", ["int32", "inout(string)"]),
+        FunctionPrototype("strcat", NoneType, [InOutCoreType("string"), InOutCoreType("string")]),
+        FunctionPrototype("strcmp", RegisterCoreType("a"), [InOutCoreType("string"), InOutCoreType("string")]),
+        FunctionPrototype("strcpy", NoneType, [InOutCoreType("string"), InOutCoreType("string")]),
+        FunctionPrototype("strlen", RegisterCoreType("a"), [InOutCoreType("string")]),
+        FunctionPrototype("atoi", RegisterCoreType("a"), [InOutCoreType("string")]),
+        FunctionPrototype("atoi16", ParamReturnType(1), [InOutCoreType("string"), OutCoreType("int16")]),
+        FunctionPrototype("atoi32", ParamReturnType(1), [InOutCoreType("string"), OutCoreType("int32")]),
+        FunctionPrototype("itoa", NoneType, [RegisterCoreType("a"), InOutCoreType("string")]),
+        FunctionPrototype("itoa16", NoneType, [CoreType("int16"), InOutCoreType("string")]),
+        FunctionPrototype("itoa32", NoneType, [CoreType("int32"), InOutCoreType("string")]),
     ]
 
     # The following are special cases since we will be bridging to them when compiling
     # math expressions. They're kept here for posterity.
     [
-        FunctionPrototype("abs", "reg(a)", ["reg(a)"]),
-        FunctionPrototype("abs16", "param(0)", ["inout(int16)"]),
-        FunctionPrototype("abs32", "param(0)", ["inout(int32)"]),
-        FunctionPrototype("neg", "reg(a)", ["inout(int8)"]),
-        FunctionPrototype("neg16", "param(0)", ["inout(int16)"]),
-        FunctionPrototype("neg32", "param(0)", ["inout(int32)"]),
-        FunctionPrototype("add", "reg(a)", ["inout(int8)", "inout(int8)"]),
-        FunctionPrototype("add16", "int16", ["int16", "int16"]),
-        FunctionPrototype("add32", "int32", ["int32", "int32"]),
-        FunctionPrototype("ucmp", "reg(a)", ["inout(int8)", "inout(int8)"]),
-        FunctionPrototype("ucmp16", "reg(a)", ["inout(int16)", "inout(int16)"]),
-        FunctionPrototype("ucmp32", "reg(a)", ["inout(int32)", "inout(int32)"]),
-        FunctionPrototype("umin", "reg(a)", ["inout(int8)", "inout(int8)"]),
-        FunctionPrototype("umin16", "int16", ["int16", "int16"]),
-        FunctionPrototype("umin32", "int32", ["int32", "int32"]),
-        FunctionPrototype("umax", "reg(a)", ["inout(int8)", "inout(int8)"]),
-        FunctionPrototype("umax16", "int16", ["int16", "int16"]),
-        FunctionPrototype("umax32", "int32", ["int32", "int32"]),
+        FunctionPrototype("abs", RegisterCoreType("a"), [RegisterCoreType("a")]),
+        FunctionPrototype("abs16", ParamReturnType(0), [InOutCoreType("int16")]),
+        FunctionPrototype("abs32", ParamReturnType(0), [InOutCoreType("int32")]),
+        FunctionPrototype("neg", RegisterCoreType("a"), [InOutCoreType("int8")]),
+        FunctionPrototype("neg16", ParamReturnType(0), [InOutCoreType("int16")]),
+        FunctionPrototype("neg32", ParamReturnType(0), [InOutCoreType("int32")]),
+        FunctionPrototype("add", RegisterCoreType("a"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("add16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
+        FunctionPrototype("add32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
+        FunctionPrototype("ucmp", RegisterCoreType("a"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("ucmp16", RegisterCoreType("a"), [InOutCoreType("int16"), InOutCoreType("int16")]),
+        FunctionPrototype("ucmp32", RegisterCoreType("a"), [InOutCoreType("int32"), InOutCoreType("int32")]),
+        FunctionPrototype("umin", RegisterCoreType("a"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("umin16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
+        FunctionPrototype("umin32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
+        FunctionPrototype("umax", RegisterCoreType("a"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("umax16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
+        FunctionPrototype("umax32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
     ]
 
     return prototypes
