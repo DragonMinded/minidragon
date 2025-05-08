@@ -360,7 +360,7 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
                 compiled.append(f"  .char {c[0]!r}")
             compiled.append(f"  .byte 0x00")
         else:
-            raise CompilerError("Unsupported type for global variable definition", context)
+            raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
     else:
         # TODO: Support allocating variables in main RAM instead of constants in ROM.
@@ -542,7 +542,11 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
         stack.free(name)
 
+    # Now, if we need to, move past any temporary values we didn't pop but don't care about.
+    final_move_to_ret = stack.diff(retptr_final_loc + 1)
+    compiled += generate_move_by(final_move_to_ret, stack, clobbers, context)
     compiled.append(f"  RET")
+
     return compiled
 
 
@@ -688,8 +692,7 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                 clobbers.add("a")
 
                 # Move to the right spot on the stack to call the add function, then call it.
-                amount = stack.diff(stack.size - 1)
-                compiled += generate_move_by(amount, stack, clobbers, context)
+                compiled += generate_move_to(rhs_dest, stack, clobbers, context)
                 compiled.append("  CALL add")
 
                 # This function puts the result in a, so check if that's what we want.
@@ -699,14 +702,9 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                     stack.free(lhs_dest)
                 else:
                     stack.free(rhs_dest)
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append("  STORE A")
                     if lhs_dest != destination:
-                        # Need to shuffle this parameter into the destination.
-                        src_loc = stack.absfind(lhs_dest)
-                        dst_loc = stack.absfind(destination)
-                        if src_loc is None or dst_loc is None:
-                            raise Exception("Logic error, could not find source or destination move location!")
-
-                        compiled += generate_memcpy_unrolled(src_loc, dst_loc, 1, stack, clobbers, context)
                         stack.free(lhs_dest)
             elif isinstance(expression.operator, cst.Subtract):
                 # The stdlib for add clobbers the A register. We also clobber by negating the second param.
@@ -719,8 +717,7 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                 compiled.append("  STORE A")
 
                 # Move to the right spot on the stack to call the add function, then call it.
-                amount = stack.diff(stack.size - 1)
-                compiled += generate_move_by(amount, stack, clobbers, context)
+                compiled += generate_move_to(rhs_dest, stack, clobbers, context)
                 compiled.append("  CALL add")
 
                 # This function puts the result in a, so check if that's what we want.
@@ -730,26 +727,21 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                     stack.free(lhs_dest)
                 else:
                     stack.free(rhs_dest)
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append("  STORE A")
                     if lhs_dest != destination:
-                        # Need to shuffle this parameter into the destination.
-                        src_loc = stack.absfind(lhs_dest)
-                        dst_loc = stack.absfind(destination)
-                        if src_loc is None or dst_loc is None:
-                            raise Exception("Logic error, could not find source or destination move location!")
-
-                        compiled += generate_memcpy_unrolled(src_loc, dst_loc, 1, stack, clobbers, context)
                         stack.free(lhs_dest)
             else:
                 # TODO: Support other operators than add/subtract.
                 raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+
         else:
+            # TODO: Support other bit sizes than 8.
             raise CompilerError(f"Unsupported addition size!", context)
 
     else:
         # TODO: What other expression types are we missing? Probably function calls and memory read operations.
         # TODO: Looks like also string/character assignments and such.
-        print(destination)
-        print(expression)
         raise CompilerError(f"Unsupported expression type {expression} in expression compiler!", context)
 
     return compiled

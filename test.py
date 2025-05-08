@@ -3105,6 +3105,64 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
     print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
 
 
+def verifycomplexexpression(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "complexexpression" not in only:
+        return
+
+    print("Verifying complexexpression...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 89, 0, 42, -42]:
+        for y in [1, 2, 3, -4, -5, -6]:
+            for z in [13, -13, 22, -22]:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    "LNGJUMP code",
+                    *parse_and_compile("complexexpression", textwrap.dedent(f"""
+                        def complexexpression(param1: int8, param2: int8, param3: int8) -> int8:
+                            return param1 + (param2 - param3) + 7
+                    """), []),
+                    "code:",
+                    f"LOADI {x}",
+                    "PUSH A",
+                    f"LOADI {y}",
+                    "PUSH A",
+                    f"LOADI {z}",
+                    "PUSH A",
+                    "LOADI 123",
+                    "CALL complexexpression",
+                    "HALT",
+                    *addlines,
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"complexexpression changed accumulator value from {x} to {cpu.a}!",
+                )
+                result = cpu.ram[cpu.pc + 0]
+                expected = x + (y - z) + 7
+                _assert(
+                    bintoint(result) == expected,
+                    f"Failed to complexexpression, "
+                    + f"got {bintoint(result)} instead of {expected}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for complexexpression: {int(cycles/count)}")
+    print(f"Average instructions for complexexpression: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -3194,3 +3252,4 @@ if __name__ == "__main__":
     verifyechoparam(only, args.full)
     verifyaddandreturn(only, args.full)
     verifysubtractandreturn(only, args.full)
+    verifycomplexexpression(only, args.full)
