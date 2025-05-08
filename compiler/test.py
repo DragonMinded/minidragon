@@ -1,7 +1,7 @@
 import textwrap
 import unittest
 
-from .core import CompilerError, FunctionPrototype, CoreType, NoneType, parse_prototypes, parse_and_compile
+from .core import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, NoneType, parse_prototypes, parse_and_compile
 
 
 class TestCompiler(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestCompiler(unittest.TestCase):
     def test_throw_on_top_level_statement(self) -> None:
         with self.assertRaises(CompilerError) as cm:
             parse_and_compile("__test__", 'print("Hello, world!")', [])
-        self.assertEqual("__test__ Line 1: Arbitrary top-level statements are not supported", str(cm.exception))
+        self.assertEqual("__test__ line 1: Arbitrary top-level statements are not supported", str(cm.exception))
 
     def test_allow_global_const_declaration_init(self) -> None:
         output = parse_and_compile("__test__", 'UINT8_CONST: const[int8] = 123', [])
@@ -41,12 +41,12 @@ class TestCompiler(unittest.TestCase):
     def test_throw_on_global_const_declaration(self) -> None:
         with self.assertRaises(CompilerError) as cm:
             parse_and_compile("__test__", 'UINT8_CONST: const[int8]', [])
-        self.assertEqual("__test__ Line 1: Expecting initialization value for global const definition", str(cm.exception))
+        self.assertEqual("__test__ line 1: Expecting initialization value for global const definition", str(cm.exception))
 
     def test_throw_on_global_no_type(self) -> None:
         with self.assertRaises(CompilerError) as cm:
             parse_and_compile("__test__", 'SOME_CONST = 123', [])
-        self.assertEqual("__test__ Line 1: Global variable declarations must have a type", str(cm.exception))
+        self.assertEqual("__test__ line 1: Global variable declarations must have a type", str(cm.exception))
 
     def test_define_simple_function(self) -> None:
         func = textwrap.dedent("""
@@ -60,6 +60,14 @@ class TestCompiler(unittest.TestCase):
         output = parse_and_compile("__test__", func, [])
         self.assertEqual([
             "simple:",
+            "  ; Stack layout just after function call:",
+            "  ; PC + 0 - builtin(retptr)",
+            "  ; PC + 1 - builtin(retptr)",
+            "  ;",
+            "  ; Stack layout just before return:",
+            "  ; PC + 0 - builtin(retptr)",
+            "  ; PC + 1 - builtin(retptr)",
+            "  ;",
             "  ; __test__ line 3: return",
             "  RET",
         ], output)
@@ -71,7 +79,33 @@ class TestCompiler(unittest.TestCase):
         """)
 
         prototypes = parse_prototypes("__test__", func)
+        self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [PaddingCoreType(1)])], prototypes)
+
+        output = parse_and_compile("__test__", func, [])
+        self.assertEqual([
+        ], output)
+
+    def test_define_simple_unpadded_return_function(self) -> None:
+        func = textwrap.dedent("""
+            def simple() -> nopad[int8]:
+                return 15
+        """)
+
+        prototypes = parse_prototypes("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [])], prototypes)
+
+        output = parse_and_compile("__test__", func, [])
+        self.assertEqual([
+        ], output)
+
+    def test_define_simple_input_and_return_function(self) -> None:
+        func = textwrap.dedent("""
+            def simple(param: int8) -> int8:
+                return param + 10
+        """)
+
+        prototypes = parse_prototypes("__test__", func)
+        self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [CoreType("int8")])], prototypes)
 
         output = parse_and_compile("__test__", func, [])
         self.assertEqual([

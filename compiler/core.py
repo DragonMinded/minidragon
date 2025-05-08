@@ -28,9 +28,10 @@ class CompilerError(Exception):
 
 
 class CoreType:
-    def __init__(self, base_type: str, const: bool = False) -> None:
+    def __init__(self, base_type: str, const: bool = False, return_padding: bool = True) -> None:
         self.type = base_type
         self.const = const
+        self.return_padding = return_padding
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, str):
@@ -39,86 +40,17 @@ class CoreType:
             return self.type == other.type
         return False
 
+    def __repr__(self) -> str:
+        pre = ""
+        post = ""
+        if self.const:
+            pre = "const[" + pre
+            post = post + "]"
+        if not self.return_padding:
+            pre = "nopad[" + pre
+            post = post + "]"
 
-NoneType = CoreType("None", True)
-
-
-class InOutCoreType(CoreType):
-    def __init__(self, base_type: str) -> None:
-        super().__init__(base_type, False)
-
-
-class OutCoreType(CoreType):
-    def __init__(self, base_type: str) -> None:
-        super().__init__(base_type, False)
-
-
-class RegisterCoreType(CoreType):
-    def __init__(self, register: str) -> None:
-        super().__init__(register, False)
-
-
-class ParamReturnType(CoreType):
-    def __init__(self, position: int) -> None:
-        super().__init__(str(position), False)
-
-
-def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
-    if expr is None:
-        return None
-    if isinstance(expr, cst.Annotation):
-        expr = expr.annotation
-    if not isinstance(expr, cst.BaseExpression):
-        return None
-
-    const: bool = False
-
-    if isinstance(expr, cst.Subscript):
-        # Might be a const expr.
-        qualifier = expr.value
-        if not isinstance(qualifier, cst.Name):
-            return None
-
-        if qualifier.value == "const":
-            if len(expr.slice) != 1:
-                return None
-
-            sliceval = expr.slice[0]
-            if not isinstance(sliceval, cst.SubscriptElement):
-                return None
-            if not isinstance(sliceval.slice, cst.Index):
-                return None
-
-            const = True
-            expr = sliceval.slice.value
-
-    if isinstance(expr, cst.Name):
-        if expr.value == "None":
-            return NoneType
-        else:
-            return CoreType(expr.value, const)
-
-    return None
-
-
-class FunctionPrototype:
-    def __init__(self, name: str, return_type: CoreType, params: Optional[List[CoreType]] = None) -> None:
-        self.name = name
-        self.return_type = return_type
-        self.params: List[CoreType] = params or []
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, FunctionPrototype):
-            return False
-
-        return self.name == other.name and self.return_type == other.return_type and self.params == other.params
-
-
-class StackVar:
-    def __init__(self, name: str, vartype: CoreType, location: Optional[int] = None) -> None:
-        self.name = name
-        self.type = vartype
-        self.location = location
+        return pre + self.type + post
 
     @property
     def size(self) -> int:
@@ -137,6 +69,128 @@ class StackVar:
         if self.type == "pointer":
             return 2
         raise NotImplementedError(f"Type {self.type} not implemented!")
+
+
+NoneType = CoreType("None", True, False)
+
+
+class InOutCoreType(CoreType):
+    def __init__(self, base_type: str) -> None:
+        super().__init__(base_type, False)
+
+
+class OutCoreType(CoreType):
+    def __init__(self, base_type: str) -> None:
+        super().__init__(base_type, False)
+
+
+class RegisterCoreType(CoreType):
+    def __init__(self, register: str) -> None:
+        super().__init__(register, False)
+
+
+class ParamReturnCoreType(CoreType):
+    def __init__(self, position: int) -> None:
+        super().__init__("position: " + str(position), False)
+
+    @property
+    def position(self) -> int:
+        return int(self.type[10:])
+
+
+class PaddingCoreType(CoreType):
+    def __init__(self, padbytes: int) -> None:
+        super().__init__("padding: " + str(padbytes), False)
+
+    @property
+    def padbytes(self) -> int:
+        return int(self.type[9:])
+
+
+def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
+    if expr is None:
+        return None
+    if isinstance(expr, cst.Annotation):
+        expr = expr.annotation
+    if not isinstance(expr, cst.BaseExpression):
+        return None
+
+    const: bool = False
+    nopad: bool = False
+
+    while True:
+        if isinstance(expr, cst.Subscript):
+            # Might be a const expr or a nopad expr.
+            qualifier = expr.value
+            if not isinstance(qualifier, cst.Name):
+                return None
+
+            if qualifier.value == "const":
+                if len(expr.slice) != 1:
+                    return None
+
+                sliceval = expr.slice[0]
+                if not isinstance(sliceval, cst.SubscriptElement):
+                    return None
+                if not isinstance(sliceval.slice, cst.Index):
+                    return None
+
+                const = True
+                expr = sliceval.slice.value
+                continue
+
+            if qualifier.value == "nopad":
+                if len(expr.slice) != 1:
+                    return None
+
+                sliceval = expr.slice[0]
+                if not isinstance(sliceval, cst.SubscriptElement):
+                    return None
+                if not isinstance(sliceval.slice, cst.Index):
+                    return None
+
+                nopad = True
+                expr = sliceval.slice.value
+                continue
+
+        elif isinstance(expr, cst.Name):
+            if expr.value == "None":
+                return NoneType
+            else:
+                return CoreType(expr.value, const, not nopad)
+
+        else:
+            return None
+
+
+class FunctionPrototype:
+    def __init__(self, name: str, return_type: CoreType, params: Optional[List[CoreType]] = None) -> None:
+        self.name = name
+        self.return_type = return_type
+        self.params: List[CoreType] = params or []
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, FunctionPrototype):
+            return False
+
+        return self.name == other.name and self.return_type == other.return_type and self.params == other.params
+
+    def __repr__(self) -> str:
+        params = ', '.join('\'' + str(s) + '\'' for s in self.params)
+        if not params:
+            params = "none"
+        return f"Function {self.name!r} params {params} return value {self.return_type!r}"
+
+
+class StackVar:
+    def __init__(self, name: str, vartype: CoreType, location: Optional[int] = None) -> None:
+        self.name = name
+        self.type = vartype
+        self.location = location
+
+    @property
+    def size(self) -> int:
+        return self.type.size
 
     def __repr__(self) -> str:
         return f"{self.type.type} {self.name}: {self.location} size {self.size}"
@@ -163,9 +217,11 @@ class Stack:
         self.size += var.size
         return var.size
 
-    def free(self) -> None:
+    def free(self, name: str) -> None:
         if not self.stack:
             raise Exception("Logic error, freeing from empty stack!")
+        if self.stack[-1].name != name:
+            raise Exception("Logic error, not popping the right thing from stack!")
 
         self.size -= self.stack[-1].size
         self.stack = self.stack[:-1]
@@ -191,6 +247,9 @@ class Stack:
             if entry.name == name:
                 return entry.size
         return None
+
+    def diff(self, desired: int) -> int:
+        return desired - self.location
 
     def move(self, offset: int) -> None:
         self.location = self.location + offset
@@ -306,6 +365,56 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
     return compiled
 
 
+def generate_move_by(move_amt: int, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+    compiled: List[str] = []
+    if move_amt > 0:
+        compiled.append(f"  SUBPCI {move_amt}")
+    elif move_amt < 0:
+        compiled.append(f"  ADDPCI {-move_amt}")
+    stack.move(move_amt)
+    return compiled
+
+
+def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+    compiled: List[str] = []
+    move_amt = stack.find(destination)
+    if move_amt is None:
+        raise Exception(f"Logic error, could not find {destination} on stack to move to!")
+    return generate_move_by(move_amt, stack, clobbers, context)
+
+
+def generate_memcpy_unrolled(src_loc: int, dst_loc: int, size: int, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+    compiled: List[str] = []
+
+    from_rel = stack.diff(src_loc)
+    compiled += generate_move_by(from_rel, stack, clobbers, context)
+    shuffle_amount = stack.location - dst_loc
+    if shuffle_amount == 0:
+        return compiled
+
+    if shuffle_amount < 0:
+        for i in range(size):
+            compiled.append("  LOAD A")
+            compiled.append(f"  SUBPCI {-shuffle_amount}")
+            compiled.append("  STORE A")
+
+            if i < size - 1:
+                compiled.append(f"  ADDPCI {(-shuffle_amount) - 1}")
+
+        stack.move((-shuffle_amount) - (size - 1))
+    else:
+        for i in range(size):
+            compiled.append("  LOAD A")
+            compiled.append(f"  ADDPCI {shuffle_amount}")
+            compiled.append("  STORE A")
+
+            if i < size - 1:
+                compiled.append(f"  SUBPCI {shuffle_amount + 1}")
+
+        stack.move(-(shuffle_amount - (size - 1)))
+    return compiled
+
+
 def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
     compiled: List[str] = [context.comment()]
 
@@ -344,12 +453,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
                 raise Exception("Logic error, failed to get move amounts for builtin(retptr)!")
 
             # Generate code to move from our position to the first byte of the retval.
-            if first_move > 0:
-                compiled.append(f"  SUBPCI {first_move}")
-            elif first_move < 0:
-                compiled.append(f"  ADDPCI {-first_move}")
-            stack.move(first_move)
-
+            compiled += generate_move_by(first_move, stack, clobbers, context)
             compiled.append("  LOAD U")
             compiled.append("  DECPC")
             compiled.append("  LOAD V")
@@ -363,33 +467,16 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             # We need to use the A register to move the value, so it's clobbered now.
             clobbers.add("a")
 
-            # We need to relocate the retval to this spot.
-            first_move = stack.find("builtin(retval)")
+            # We need to relocate the retptr to this spot.
+            src_loc = stack.absfind("builtin(retval)")
             number_of_moves = stack.sizeof("builtin(retval)")
 
-            if first_move is None or number_of_moves is None:
+            if src_loc is None or number_of_moves is None:
                 raise Exception("Logic error, failed to get move amounts for builtin(retval)!")
 
+            # Generate code to move from our position to the first byte of the retptr.
             retptr_final_loc = number_of_moves
-
-            # Generate code to move from our position to the first byte of the retval.
-            if first_move > 0:
-                compiled.append(f"  SUBPCI {first_move}")
-            elif first_move < 0:
-                compiled.append(f"  ADDPCI {-first_move}")
-            stack.move(first_move)
-
-            shuffle_amount = stack.location
-
-            for i in range(number_of_moves):
-                compiled.append("  LOAD A")
-                compiled.append(f"  ADDPCI {shuffle_amount}")
-                compiled.append("  STORE A")
-
-                if i < number_of_moves - 1:
-                    compiled.append(f"  SUBPCI {shuffle_amount + 1}")
-
-            stack.move(-(shuffle_amount - (number_of_moves - 1)))
+            compiled += generate_memcpy_unrolled(src_loc, 0, number_of_moves, stack, clobbers, context)
 
     # Now, move the return pointer if needed.
     if retptr_in_uv:
@@ -397,12 +484,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
         # Gotta grab it out of the saved U/V registers.
         restore_move_amt = retptr_final_loc - stack.location
-        if restore_move_amt > 0:
-            compiled.append(f"  SUBPCI {restore_move_amt}")
-        elif restore_move_amt < 0:
-            compiled.append(f"  ADDPCI {-restore_move_amt}")
-        stack.move(restore_move_amt)
-
+        compiled += generate_move_by(restore_move_amt, stack, clobbers, context)
         compiled.append("  STORE U")
         compiled.append("  DECPC")
         compiled.append("  STORE V")
@@ -419,30 +501,14 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             clobbers.add("a")
 
             # We need to relocate the retptr to this spot.
-            first_move = stack.find("builtin(retptr)")
+            src_loc = stack.absfind("builtin(retptr)")
             number_of_moves = stack.sizeof("builtin(retptr)")
 
-            if first_move is None or number_of_moves is None:
+            if src_loc is None or number_of_moves is None:
                 raise Exception("Logic error, failed to get move amounts for builtin(retptr)!")
 
             # Generate code to move from our position to the first byte of the retptr.
-            if first_move > 0:
-                compiled.append(f"  SUBPCI {first_move}")
-            elif first_move < 0:
-                compiled.append(f"  ADDPCI {-first_move}")
-            stack.move(first_move)
-
-            shuffle_amount = stack.location - retptr_final_loc
-
-            for i in range(number_of_moves):
-                compiled.append("  LOAD A")
-                compiled.append(f"  ADDPCI {shuffle_amount}")
-                compiled.append("  STORE A")
-
-                if i < number_of_moves - 1:
-                    compiled.append(f"  SUBPCI {shuffle_amount + 1}")
-
-            stack.move(-(shuffle_amount - (number_of_moves - 1)))
+            compiled += generate_memcpy_unrolled(src_loc, retptr_final_loc, number_of_moves, stack, clobbers, context)
 
     # Now, pop all of our saved registers, and then return.
     if clobbers:
@@ -454,11 +520,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             if move_amt is None:
                 raise Exception(f"Logic error, failed to get move amounts for {name}!")
 
-            if move_amt > 0:
-                compiled.append(f"  SUBPCI {move_amt}")
-            elif move_amt < 0:
-                compiled.append(f"  ADDPCI {-move_amt}")
-            stack.move(move_amt)
+            compiled += generate_move_by(move_amt, stack, clobbers, context)
 
             if name == "builtin(saved_a)":
                 compiled.append(f"  POP A")
@@ -475,15 +537,183 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             else:
                 raise Exception(f"Logic error, unexpected saved type {name}!")
 
-        stack.free()
+        stack.free(name)
 
     compiled.append(f"  RET")
     return compiled
 
 
-def generate_expr(expression: cst.BaseExpression, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+def generate_const_load(val: int, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
     compiled: List[str] = []
-    print(expression)
+
+    if destination == "a":
+        compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+    else:
+        dest_loc = stack.find(destination)
+        dest_size = stack.sizeof(destination)
+        if dest_loc is None or dest_size is None:
+            raise Exception("Logic error, cannot find destination to load constant to!")
+
+        compiled += generate_move_by(dest_loc, stack, clobbers, context)
+        if dest_size == 1:
+            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+        elif dest_size == 2:
+            compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+            compiled.append("  DECPC")
+            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+            stack.move(1)
+        elif dest_size == 4:
+            compiled.append(f"  LOADI {_hex((val >> 24) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+            compiled.append("  DECPC")
+            compiled.append(f"  LOADI {_hex((val >> 16) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+            compiled.append("  DECPC")
+            compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+            compiled.append("  DECPC")
+            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+            stack.move(3)
+        else:
+            raise CompilerError(f"Unsupported destination {destination} for const load", context)
+
+    return compiled
+
+
+__expr_global_count: int = 0
+
+
+def expr_temp_name() -> str:
+    global __expr_global_count
+    __expr_global_count += 1
+    return f"builtin(expr_temp_{__expr_global_count})"
+
+
+def expr_integer_type(size: int) -> CoreType:
+    if size == 1:
+        return CoreType("int8")
+    elif size == 2:
+        return CoreType("int16")
+    elif size == 4:
+        return CoreType("int32")
+    else:
+        raise Exception("Logic error, unrecognized integer size!")
+
+
+def generate_expr_internal(expression: cst.BaseExpression, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+    compiled: List[str] = []
+
+    destination_size = 1 if destination == "a" else stack.sizeof(destination)
+    if destination_size == None:
+        raise Exception("Logic error, could not calculate size of destination!")
+
+    if isinstance(expression, cst.Integer):
+        intval = int(expression.value)
+        compiled += generate_const_load(intval, destination, stack, clobbers, context)
+
+    elif isinstance(expression, cst.Name):
+        source = expression.value
+        if source != destination:
+            if destination == "a":
+                # Just need to load A with the value.
+                compiled += generate_move_to(source, stack, clobbers, context)
+                compiled.append("  LOAD A")
+            else:
+                source_loc = stack.absfind(source)
+                source_size = stack.sizeof(source)
+                dest_loc = stack.absfind(destination)
+                dest_size = stack.sizeof(destination)
+                if source_loc is None or source_size is None:
+                    raise CompilerError(f"Undefined variable reference to {source!r}", context)
+                if dest_loc is None or dest_size is None:
+                    raise Exception("Logic error, cannot find destination to copy variable value to!")
+                if source_size != dest_size:
+                    raise CompilerError(f"Unsupported assignment from different variable sizes", context)
+
+                compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+
+    elif isinstance(expression, cst.BinaryOperation):
+        # Special case for operating on two constants. We could do full evalulation, but meh.
+        if isinstance(expression.left, cst.Integer) and isinstance(expression.right, cst.Integer):
+            if isinstance(expression.operator, cst.Add):
+                intval = int(expression.left.value) + int(expression.right.value)
+                compiled += generate_const_load(intval, destination, stack, clobbers, context)
+            else:
+                raise CompilerError(f"Unsupported compile-time computation for {expression.operator}!", context)
+
+        if destination == "a" or stack.stack[-1].name != destination:
+            # In order to ensure that it's possible to do stack math on this value, locate it in
+            # a temporary location for the time being if the destination isn't the top of the stack.
+            lhs_dest = expr_temp_name()
+            stack.alloc(StackVar(lhs_dest, expr_integer_type(destination_size)))
+        else:
+            # Safe to put first parameter in the top of the stack where it already is useful for math.
+            lhs_dest = destination
+
+        compiled += generate_expr_internal(expression.left, lhs_dest, stack, clobbers, context.wrap(expression.left))
+
+        # Now, get the second parameter onto the stack in the right spot.
+        rhs_dest = expr_temp_name()
+        stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
+        compiled += generate_expr_internal(expression.right, rhs_dest, stack, clobbers, context.wrap(expression.right))
+
+        # Move to the right spot on the stack to math ourselves up.
+        amount = stack.diff(stack.size - 1)
+
+        # Now, perform some math of matics!
+        if destination_size == 1:
+            if isinstance(expression.operator, cst.Add):
+                clobbers.add("a")
+                compiled += generate_move_by(amount, stack, clobbers, context)
+                compiled.append("  CALL add")
+            else:
+                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+
+            # This function puts the result in a, so check if that's what we want.
+            if destination == "a":
+                # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
+                stack.free(rhs_dest)
+                stack.free(lhs_dest)
+            else:
+                stack.free(rhs_dest)
+                if lhs_dest != destination:
+                    # Need to shuffle this parameter into the destination.
+                    src_loc = stack.absfind(lhs_dest)
+                    dst_loc = stack.absfind(destination)
+                    if src_loc is None or dst_loc is None:
+                        raise Exception("Logic error, could not find source or destination move location!")
+
+                    compiled += generate_memcpy_unrolled(src_loc, dst_loc, 1, stack, clobbers, context)
+                    stack.free(lhs_dest)
+        else:
+            raise CompilerError(f"Unsupported addition size!", context)
+
+    else:
+        print(destination)
+        print(expression)
+        raise CompilerError(f"Unsupported expression type {expression} in expression compiler!", context)
+
+    return compiled
+
+
+def generate_expr(expression: cst.BaseExpression, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+    compiled: List[str] = [context.comment()]
+
+    size = stack.sizeof(destination)
+    if size == 1:
+        # We can potentially keep the math in the A register!
+        clobbers.add("a")
+
+        compiled += generate_expr_internal(expression, "a", stack, clobbers, context)
+        compiled += generate_move_to(destination, stack, clobbers, context)
+        compiled.append("  STORE A")
+    else:
+        # Just do stack-based operations.
+        compiled += generate_expr_internal(expression, destination, stack, clobbers, context)
 
     return compiled
 
@@ -526,6 +756,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
         raise CompilerError("Unsupported parameter definition for function definition", context)
 
     prototype = FunctionPrototype(func.name.value, function_type)
+    stack: Stack = Stack()
 
     for func_param in function_params:
         if func_param.default is not None:
@@ -537,6 +768,11 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
             raise CompilerError(f"Expecting type for function parameter {func_param.name.value}", context)
 
         prototype.params.append(param_type)
+        stack.alloc(StackVar(func_param.name.value, param_type))
+
+    if function_type.return_padding and stack.size < function_type.size:
+        # We need to request padding out to the return size.
+        prototype.params.append(PaddingCoreType(function_type.size - stack.size))
 
     return prototype
 
@@ -568,21 +804,61 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
         except NotImplementedError:
             raise CompilerError(f"Unsupported type for function parameter {func_param.name.value}", context)
 
+    if function_type.return_padding and stack.size < function_type.size:
+        # We need to account for return type padding.
+        for _ in range(function_type.size - stack.size):
+            stack.alloc(StackVar("builtin(padding)", CoreType('int8')))
+
     # Need a spot on the stack for our return pointer that is placed when called.
     stack.alloc(StackVar("builtin(retptr)", CoreType("pointer")))
-    stack.location = stack.size
+    stack.location = stack.size - 1
 
-    # Make sure that we have room on the stack for the return value.
+    # Generate before and after call stack documentation.
+    preamble: List[str] = []
+    if stack.size > 0:
+        preamble.append("  ; Stack layout just after function call:")
+    prevals: List[str] = []
+    for entry in stack.stack:
+        for i in range(entry.size):
+            if entry.location is None:
+                raise Exception("Logic error, expected stack entry to have location!")
+            prevals.append(f"  ; PC + {stack.size - (entry.location + i + 1)} - {entry.name}")
+    preamble += reversed(prevals)
+    if preamble:
+        preamble.append("  ;")
+
+    preamble.append("  ; Stack layout just before return:")
+    fake_stack: Stack = Stack()
     if function_type is not NoneType:
-        size = stack.alloc(StackVar("builtin(retval)", function_type))
+        fake_stack.alloc(StackVar("builtin(retval)", function_type))
+    fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer")))
+    prevals = []
+    for entry in fake_stack.stack:
+        for i in range(entry.size):
+            if entry.location is None:
+                raise Exception("Logic error, expected stack entry to have location!")
+            prevals.append(f"  ; PC + {fake_stack.size - (entry.location + i + 1)} - {entry.name}")
+    preamble += reversed(prevals)
+    if preamble:
+        preamble.append("  ;")
 
-        compiled.append("  ; Allocate stack space for return variable")
-        compiled.append(f"  SUBPCI {size}")
-        stack.move(size)
+    # Temporary room for the return value, which will be placed after clobbers, but we need
+    # somewhere so clobber calculation can work.
+    temp_size = 0
+    if function_type is not NoneType:
+        temp_size = stack.alloc(StackVar("builtin(retval)", function_type))
+        stack.move(temp_size)
 
     # First pass to figure out clobbers
     clobbers: Set[str] = set()
     compile_chunk(func.body, stack.clone(), clobbers, function_type, context)
+
+    # Unwind our temporary return value location.
+    if temp_size > 0:
+        if stack.stack[-1].name != "builtin(retval)":
+            raise Exception("Logic error, top of stack isn't the retval temporary!")
+        stack.move(-temp_size)
+        stack.free("builtin(retval)")
 
     # Now, let's save all of our clobbered values.
     if clobbers:
@@ -607,11 +883,17 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
         else:
             raise Exception(f"Logic error, unexpected clobber {clobber}!")
 
+    # Make sure that we have room on the stack for the return value. Don't move at this point
+    # because we might not want to generate instructions to move.
+    if function_type is not NoneType:
+        size = stack.alloc(StackVar("builtin(retval)", function_type))
+
     # Now, second pass to actually compile.
     compiled += compile_chunk(func.body, stack, set(), function_type, context)
 
     return [
         f"{function_name}:",
+        *preamble,
         *compiled,
     ]
 
@@ -649,6 +931,11 @@ def parse_and_compile(module: str, code: str, refs: List[FunctionPrototype]) -> 
         else:
             print(statement)
             raise CompilerError("Unsupported statement", context)
+
+        compiled.append("")
+
+    while compiled and compiled[-1] == "":
+        compiled = compiled[:-1]
 
     return compiled
 
@@ -688,8 +975,8 @@ def builtin_prototypes() -> List[FunctionPrototype]:
         FunctionPrototype("strcpy", NoneType, [InOutCoreType("string"), InOutCoreType("string")]),
         FunctionPrototype("strlen", RegisterCoreType("a"), [InOutCoreType("string")]),
         FunctionPrototype("atoi", RegisterCoreType("a"), [InOutCoreType("string")]),
-        FunctionPrototype("atoi16", ParamReturnType(1), [InOutCoreType("string"), OutCoreType("int16")]),
-        FunctionPrototype("atoi32", ParamReturnType(1), [InOutCoreType("string"), OutCoreType("int32")]),
+        FunctionPrototype("atoi16", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int16")]),
+        FunctionPrototype("atoi32", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int32")]),
         FunctionPrototype("itoa", NoneType, [RegisterCoreType("a"), InOutCoreType("string")]),
         FunctionPrototype("itoa16", NoneType, [CoreType("int16"), InOutCoreType("string")]),
         FunctionPrototype("itoa32", NoneType, [CoreType("int32"), InOutCoreType("string")]),
@@ -699,11 +986,11 @@ def builtin_prototypes() -> List[FunctionPrototype]:
     # math expressions. They're kept here for posterity.
     [
         FunctionPrototype("abs", RegisterCoreType("a"), [RegisterCoreType("a")]),
-        FunctionPrototype("abs16", ParamReturnType(0), [InOutCoreType("int16")]),
-        FunctionPrototype("abs32", ParamReturnType(0), [InOutCoreType("int32")]),
+        FunctionPrototype("abs16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
+        FunctionPrototype("abs32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
         FunctionPrototype("neg", RegisterCoreType("a"), [InOutCoreType("int8")]),
-        FunctionPrototype("neg16", ParamReturnType(0), [InOutCoreType("int16")]),
-        FunctionPrototype("neg32", ParamReturnType(0), [InOutCoreType("int32")]),
+        FunctionPrototype("neg16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
+        FunctionPrototype("neg32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
         FunctionPrototype("add", RegisterCoreType("a"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("add16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("add32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
