@@ -60,7 +60,7 @@ class TestCompiler(unittest.TestCase):
         output = parse_and_compile("__test__", func, [])
         self.assertEqual([
             "simple:",
-            "  ; Stack layout just after function call:",
+            "  ; Stack layout just after call:",
             "  ; PC + 0 - builtin(retptr)",
             "  ; PC + 1 - builtin(retptr)",
             "  ;",
@@ -83,6 +83,32 @@ class TestCompiler(unittest.TestCase):
 
         output = parse_and_compile("__test__", func, [])
         self.assertEqual([
+            'simple:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(padding)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: 15',
+            '  LOADI 0x0f',
+            '  SUBPCI 1',
+            '  STORE A',
+            '  ; __test__ line 3: return 15',
+            '  ; Moving return value to correct location in stack.',
+            '  LOAD A',
+            '  ADDPCI 4',
+            '  STORE A',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 3',
+            '  POP A',
+            '  RET'
         ], output)
 
     def test_define_simple_unpadded_return_function(self) -> None:

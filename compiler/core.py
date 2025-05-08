@@ -636,6 +636,18 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
 
                 compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
 
+    elif isinstance(expression, cst.UnaryOperation):
+        if isinstance(expression.operator, cst.Minus):
+            if isinstance(expression.expression, cst.Integer):
+                # Special case for negative integers.
+                intval = -int(expression.expression.value)
+                compiled += generate_const_load(intval, destination, stack, clobbers, context)
+            else:
+                # Need to negate the expression.
+                raise CompilerError(f"Unsupported negation operator", context)
+        else:
+            raise CompilerError(f"Unsupported unary operation {expression}", context)
+
     elif isinstance(expression, cst.BinaryOperation):
         # Special case for operating on two constants. We could do full evalulation, but meh.
         if isinstance(expression.left, cst.Integer) and isinstance(expression.right, cst.Integer):
@@ -816,7 +828,7 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
     # Generate before and after call stack documentation.
     preamble: List[str] = []
     if stack.size > 0:
-        preamble.append("  ; Stack layout just after function call:")
+        preamble.append("  ; Stack layout just after call:")
     prevals: List[str] = []
     for entry in stack.stack:
         for i in range(entry.size):
