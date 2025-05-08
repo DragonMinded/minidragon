@@ -363,6 +363,7 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
             raise CompilerError("Unsupported type for global variable definition", context)
 
     else:
+        # TODO: Support allocating variables in main RAM instead of constants in ROM.
         raise CompilerError("Unsupported type for global variable definition", context)
     return compiled
 
@@ -645,9 +646,10 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                 intval = -int(expression.expression.value)
                 compiled += generate_const_load(intval, destination, stack, clobbers, context)
             else:
-                # Need to negate the expression.
+                # TODO: Need to negate the expression.
                 raise CompilerError(f"Unsupported negation operator", context)
         else:
+            # TODO: What other expressions are there, NOT perhaps?
             raise CompilerError(f"Unsupported unary operation {expression}", context)
 
     elif isinstance(expression, cst.BinaryOperation):
@@ -657,6 +659,7 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                 intval = int(expression.left.value) + int(expression.right.value)
                 compiled += generate_const_load(intval, destination, stack, clobbers, context)
             else:
+                # TODO: Support other operators than add.
                 raise CompilerError(f"Unsupported compile-time computation for {expression.operator}!", context)
 
         if destination == "a" or stack.stack[-1].name != destination:
@@ -685,6 +688,7 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                 compiled += generate_move_by(amount, stack, clobbers, context)
                 compiled.append("  CALL add")
             else:
+                # TODO: Support other operators than add.
                 raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
 
             # This function puts the result in a, so check if that's what we want.
@@ -707,6 +711,8 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
             raise CompilerError(f"Unsupported addition size!", context)
 
     else:
+        # TODO: What other expression types are we missing? Probably function calls and memory read operations.
+        # TODO: Looks like also string/character assignments and such.
         print(destination)
         print(expression)
         raise CompilerError(f"Unsupported expression type {expression} in expression compiler!", context)
@@ -752,8 +758,10 @@ def compile_chunk(chunk: cst.BaseSuite, stack: Stack, clobbers: Set[str], functi
                         compiled += generate_expr(simple_statement.value, "builtin(retval)", stack, clobbers, context.wrap(simple_statement.value))
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
                 else:
+                    # TODO: Assignment expressions, function calls, memory assignments.
                     raise CompilerError(f"Unsupported node to compile {simple_statement}", context)
         else:
+            # TODO: Control flow statements, etc.
             raise CompilerError(f"Unsupported node to compile {statement}", context)
 
     return compiled
@@ -954,7 +962,9 @@ def parse_and_compile(module: str, code: str, refs: List[FunctionPrototype]) -> 
         elif isinstance(statement, cst.FunctionDef):
             compiled += function(statement, context)
         else:
+            # TODO: What other statement types are we missing here?
             print(statement)
+
             raise CompilerError("Unsupported statement", context)
 
         compiled.append("")
