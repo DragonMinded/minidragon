@@ -1,10 +1,10 @@
-    .org 0x8000
-
+    ; Top of stack for algorithm. Intentionally placed at bottom of memory so
+    ; the first push wraps around. Our memory map leaves the bottom 1/4 as ROM,
+    ; the next 1/4 as hardware, and the top 1/2 as RAM.
+    .org 0x0000
 stack:
-    ; Top of stack for algorithm.
 
     .org 0x0000
-
 init:
     ; Leave room for the first instruction to be decoded as a NOP.
     ; This is potentially important depending on when we come out of

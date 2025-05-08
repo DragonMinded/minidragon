@@ -54,6 +54,8 @@ class CoreType:
 
     @property
     def size(self) -> int:
+        if self.type == "None":
+            return 0
         if self.type == "int8":
             return 1
         if self.type == "int16":
@@ -871,11 +873,22 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
             raise Exception("Logic error, top of stack isn't the retval temporary!")
         stack.move(-temp_size)
         stack.free("builtin(retval)")
+   
+    # Stick some padding between the retval and the saved retptr if we need to so
+    # unwinding on return doesn't clobber part of the stack.
+    padding_move_amt = 0
+    while stack.size < (function_type.size + 2):
+        stack.alloc(StackVar("builtin(padding)", CoreType('int8')))
+        padding_move_amt += 1
+
+    if padding_move_amt > 0:
+        compiled.append(f"  SUBPCI {padding_move_amt}")
+        stack.move(padding_move_amt)
 
     # Now, let's save all of our clobbered values.
     if clobbers:
         compiled.append("  ; Save clobbered registers")
-    for clobber in clobbers:
+    for clobber in sorted(clobbers):
         if clobber == "a":
             stack.alloc(StackVar("builtin(saved_a)", CoreType("int8")))
             compiled.append("  PUSH A")

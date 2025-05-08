@@ -2,6 +2,7 @@
 import argparse
 import os
 import struct
+import textwrap
 from itertools import chain
 from typing import Dict, List, Optional
 from core import (
@@ -13,6 +14,8 @@ from core import (
     disassemble,
     bintoint,
 )
+from compiler.core import parse_and_compile
+
 
 CLEAR_LINE = "\033[F\033[K"
 BACK_AND_CLEAR_LINE = "\033[F\033[K\033[F"
@@ -37,7 +40,7 @@ def getlines(instr: str) -> List[str]:
 
 
 def getmemory(instr: str) -> List[int]:
-    memory = [0] * 0x8000
+    memory = [0] * 0x10000
     assembled = assemble(getlines(instr))
     for loc, intval in assembled:
         memory[loc] = intval
@@ -2632,6 +2635,336 @@ def verifyatoi32(only: Optional[List[str]], full: bool) -> None:
     print(f"Average instructions for atoi32: {int(instructions/count)}")
 
 
+def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "staticreturn" not in only:
+        return
+
+    print("Verifying staticreturn...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 123, 255, 0, 42]:
+        # A normal static return requires the caller to allocate space on the stack for any
+        # return value pieces that don't fit in the original parameters.
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("staticreturn", textwrap.dedent(f"""
+                def staticreturn() -> int8:
+                    return {x}
+            """), []),
+            "code:",
+            "LOADI 123",
+            "DECPC",
+            "CALL staticreturn",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"staticreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        if x > 127:
+            _assert(
+                result == x,
+                f"Failed to staticreturn, "
+                + f"got {result} instead of {x}!",
+            )
+        else:
+            _assert(
+                bintoint(result) == x,
+                f"Failed to staticreturn, "
+                + f"got {bintoint(result)} instead of {x}!",
+            )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for staticreturn: {int(cycles/count)}")
+    print(f"Average instructions for staticreturn: {int(instructions/count)}")
+
+    print("Verifying staticreturn without padding...")
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 123, 255, 0, 42]:
+        # A nopad return shuffles things in place to ensure that the return value gets moved properly.
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("staticreturn", textwrap.dedent(f"""
+                def staticreturn() -> nopad[int8]:
+                    return {x}
+            """), []),
+            "code:",
+            "LOADI 123",
+            "CALL staticreturn",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"staticreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        if x > 127:
+            _assert(
+                result == x,
+                f"Failed to staticreturn, "
+                + f"got {result} instead of {x}!",
+            )
+        else:
+            _assert(
+                bintoint(result) == x,
+                f"Failed to staticreturn, "
+                + f"got {bintoint(result)} instead of {x}!",
+            )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for staticreturn: {int(cycles/count)}")
+    print(f"Average instructions for staticreturn: {int(instructions/count)}")
+
+
+def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "echoparam" not in only:
+        return
+
+    print("Verifying echoparam...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("echoparam", textwrap.dedent(f"""
+                def echoparam(param1: int8) -> int8:
+                    return param1
+            """), []),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL echoparam",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"echoparam changed accumulator value from {123} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            bintoint(result) == x,
+            f"Failed to echoparam, "
+            + f"got {bintoint(result)} instead of {x}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for echoparam: {int(cycles/count)}")
+    print(f"Average instructions for echoparam: {int(instructions/count)}")
+
+    print("Verifying echoparam without padding...")
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("echoparam", textwrap.dedent(f"""
+                def echoparam(param1: int8) -> nopad[int8]:
+                    return param1
+            """), []),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL echoparam",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"echoparam changed accumulator value from {123} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            bintoint(result) == x,
+            f"Failed to echoparam, "
+            + f"got {bintoint(result)} instead of {x}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for echoparam: {int(cycles/count)}")
+    print(f"Average instructions for echoparam: {int(instructions/count)}")
+
+
+def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "addandreturn" not in only:
+        return
+
+    print("Verifying addandreturn...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("addandreturn", textwrap.dedent(f"""
+                def addandreturn(param1: int8) -> int8:
+                    return param1 + 15
+            """), []),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL addandreturn",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"addandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            bintoint(result) == x + 15,
+            f"Failed to addandreturn, "
+            + f"got {bintoint(result)} instead of {x + 15}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for addandreturn: {int(cycles/count)}")
+    print(f"Average instructions for addandreturn: {int(instructions/count)}")
+    print("Verifying addandreturn with reversed parameters...")
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("addandreturn", textwrap.dedent(f"""
+                def addandreturn(param1: int8) -> int8:
+                    return 15 + param1
+            """), []),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL addandreturn",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"addandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            bintoint(result) == x + 15,
+            f"Failed to addandreturn, "
+            + f"got {bintoint(result)} instead of {x + 15}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for addandreturn: {int(cycles/count)}")
+    print(f"Average instructions for addandreturn: {int(instructions/count)}")
+
+    print("Verifying addandreturn without padding...")
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        # A nopad return shuffles things in place to ensure that the return value gets moved properly.
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("addandreturn", textwrap.dedent(f"""
+                def addandreturn(param1: int8) -> nopad[int8]:
+                    return param1 + 15
+            """), []),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL addandreturn",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"addandreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        if x > 127:
+            _assert(
+                result == x,
+                f"Failed to addandreturn, "
+                + f"got {result} instead of {x}!",
+            )
+        else:
+            _assert(
+                bintoint(result) == x + 15,
+                f"Failed to addandreturn, "
+                + f"got {bintoint(result)} instead of {x}!",
+            )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for addandreturn: {int(cycles/count)}")
+    print(f"Average instructions for addandreturn: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -2715,3 +3048,8 @@ if __name__ == "__main__":
     verifyatoi(only, args.full)
     verifyatoi16(only, args.full)
     verifyatoi32(only, args.full)
+
+    # Compiler verifications
+    verifystaticreturn(only, args.full)
+    verifyechoparam(only, args.full)
+    verifyaddandreturn(only, args.full)

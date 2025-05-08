@@ -108,7 +108,7 @@ class TestCompiler(unittest.TestCase):
             '  ; Restoring all clobbered registers.',
             '  SUBPCI 3',
             '  POP A',
-            '  RET'
+            '  RET',
         ], output)
 
     def test_define_simple_unpadded_return_function(self) -> None:
@@ -122,12 +122,53 @@ class TestCompiler(unittest.TestCase):
 
         output = parse_and_compile("__test__", func, [])
         self.assertEqual([
+            'simple:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ;',
+            '  SUBPCI 1',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  PUSH U',
+            '  PUSH V',
+            '  ; __test__ line 3: 15',
+            '  LOADI 0x0f',
+            '  SUBPCI 1',
+            '  STORE A',
+            '  ; __test__ line 3: return 15',
+            "  ; Saving return pointer to U/V so it isn't overridden by return shuffle.",
+            '  ADDPCI 6',
+            '  LOAD U',
+            '  DECPC',
+            '  LOAD V',
+            '  ; Moving return value to correct location in stack.',
+            '  SUBPCI 5',
+            '  LOAD A',
+            '  ADDPCI 6',
+            '  STORE A',
+            '  ; Restoring the return pointer from U/V to the correct location.',
+            '  SUBPCI 1',
+            '  STORE U',
+            '  DECPC',
+            '  STORE V',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 3',
+            '  POP V',
+            '  POP U',
+            '  POP A',
+            '  RET',
         ], output)
 
     def test_define_simple_input_and_return_function(self) -> None:
         func = textwrap.dedent("""
             def simple(param: int8) -> int8:
-                return param + 10
+                return param + 15
         """)
 
         prototypes = parse_prototypes("__test__", func)
@@ -135,6 +176,39 @@ class TestCompiler(unittest.TestCase):
 
         output = parse_and_compile("__test__", func, [])
         self.assertEqual([
+            'simple:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - param',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: param + 15',
+            '  ADDPCI 3',
+            '  LOAD A',
+            '  SUBPCI 5',
+            '  STORE A',
+            '  SUBPCI 1',
+            '  LOADI 0x0f',
+            '  STORE A',
+            '  CALL add',
+            '  ADDPCI 2',
+            '  STORE A',
+            '  ; __test__ line 3: return param + 15',
+            '  ; Moving return value to correct location in stack.',
+            '  LOAD A',
+            '  ADDPCI 4',
+            '  STORE A',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 3',
+            '  POP A',
+            '  RET'
         ], output)
 
 
