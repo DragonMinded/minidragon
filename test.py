@@ -2965,6 +2965,146 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
     print(f"Average instructions for addandreturn: {int(instructions/count)}")
 
 
+def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "subtractandreturn" not in only:
+        return
+
+    print("Verifying subtractandreturn...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("subtractandreturn", textwrap.dedent(f"""
+                def subtractandreturn(param1: int8) -> int8:
+                    return param1 - 15
+            """), []),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL subtractandreturn",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            bintoint(result) == x - 15,
+            f"Failed to subtractandreturn, "
+            + f"got {bintoint(result)} instead of {x - 15}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for subtractandreturn: {int(cycles/count)}")
+    print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
+    print("Verifying subtractandreturn with reversed parameters...")
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("subtractandreturn", textwrap.dedent(f"""
+                def subtractandreturn(param1: int8) -> int8:
+                    return 15 - param1
+            """), []),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL subtractandreturn",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            bintoint(result) == 15 - x,
+            f"Failed to subtractandreturn, "
+            + f"got {bintoint(result)} instead of {15 - x}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for subtractandreturn: {int(cycles/count)}")
+    print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
+
+    print("Verifying subtractandreturn without padding...")
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        # A nopad return shuffles things in place to ensure that the return value gets moved properly.
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("subtractandreturn", textwrap.dedent(f"""
+                def subtractandreturn(param1: int8) -> nopad[int8]:
+                    return param1 - 15
+            """), []),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL subtractandreturn",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"subtractandreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        if x > 127:
+            _assert(
+                result == x,
+                f"Failed to subtractandreturn, "
+                + f"got {result} instead of {x}!",
+            )
+        else:
+            _assert(
+                bintoint(result) == x - 15,
+                f"Failed to subtractandreturn, "
+                + f"got {bintoint(result)} instead of {x}!",
+            )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for subtractandreturn: {int(cycles/count)}")
+    print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -3053,3 +3193,4 @@ if __name__ == "__main__":
     verifystaticreturn(only, args.full)
     verifyechoparam(only, args.full)
     verifyaddandreturn(only, args.full)
+    verifysubtractandreturn(only, args.full)

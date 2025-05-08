@@ -658,8 +658,11 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
             if isinstance(expression.operator, cst.Add):
                 intval = int(expression.left.value) + int(expression.right.value)
                 compiled += generate_const_load(intval, destination, stack, clobbers, context)
+            elif isinstance(expression.operator, cst.Subtract):
+                intval = int(expression.left.value) - int(expression.right.value)
+                compiled += generate_const_load(intval, destination, stack, clobbers, context)
             else:
-                # TODO: Support other operators than add.
+                # TODO: Support other operators than add/subtract.
                 raise CompilerError(f"Unsupported compile-time computation for {expression.operator}!", context)
 
         if destination == "a" or stack.stack[-1].name != destination:
@@ -678,35 +681,67 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
         stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
         compiled += generate_expr_internal(expression.right, rhs_dest, stack, clobbers, context.wrap(expression.right))
 
-        # Move to the right spot on the stack to math ourselves up.
-        amount = stack.diff(stack.size - 1)
-
         # Now, perform some math of matics!
         if destination_size == 1:
             if isinstance(expression.operator, cst.Add):
+                # The stdlib for add clobbers the A register
                 clobbers.add("a")
+
+                # Move to the right spot on the stack to call the add function, then call it.
+                amount = stack.diff(stack.size - 1)
                 compiled += generate_move_by(amount, stack, clobbers, context)
                 compiled.append("  CALL add")
-            else:
-                # TODO: Support other operators than add.
-                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
 
-            # This function puts the result in a, so check if that's what we want.
-            if destination == "a":
-                # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
-                stack.free(rhs_dest)
-                stack.free(lhs_dest)
-            else:
-                stack.free(rhs_dest)
-                if lhs_dest != destination:
-                    # Need to shuffle this parameter into the destination.
-                    src_loc = stack.absfind(lhs_dest)
-                    dst_loc = stack.absfind(destination)
-                    if src_loc is None or dst_loc is None:
-                        raise Exception("Logic error, could not find source or destination move location!")
-
-                    compiled += generate_memcpy_unrolled(src_loc, dst_loc, 1, stack, clobbers, context)
+                # This function puts the result in a, so check if that's what we want.
+                if destination == "a":
+                    # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
+                    stack.free(rhs_dest)
                     stack.free(lhs_dest)
+                else:
+                    stack.free(rhs_dest)
+                    if lhs_dest != destination:
+                        # Need to shuffle this parameter into the destination.
+                        src_loc = stack.absfind(lhs_dest)
+                        dst_loc = stack.absfind(destination)
+                        if src_loc is None or dst_loc is None:
+                            raise Exception("Logic error, could not find source or destination move location!")
+
+                        compiled += generate_memcpy_unrolled(src_loc, dst_loc, 1, stack, clobbers, context)
+                        stack.free(lhs_dest)
+            elif isinstance(expression.operator, cst.Subtract):
+                # The stdlib for add clobbers the A register. We also clobber by negating the second param.
+                clobbers.add("a")
+
+                # Move to the second parameter.
+                compiled += generate_move_to(rhs_dest, stack, clobbers, context)
+                compiled.append("  LOAD A")
+                compiled.append("  NEG")
+                compiled.append("  STORE A")
+
+                # Move to the right spot on the stack to call the add function, then call it.
+                amount = stack.diff(stack.size - 1)
+                compiled += generate_move_by(amount, stack, clobbers, context)
+                compiled.append("  CALL add")
+
+                # This function puts the result in a, so check if that's what we want.
+                if destination == "a":
+                    # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
+                    stack.free(rhs_dest)
+                    stack.free(lhs_dest)
+                else:
+                    stack.free(rhs_dest)
+                    if lhs_dest != destination:
+                        # Need to shuffle this parameter into the destination.
+                        src_loc = stack.absfind(lhs_dest)
+                        dst_loc = stack.absfind(destination)
+                        if src_loc is None or dst_loc is None:
+                            raise Exception("Logic error, could not find source or destination move location!")
+
+                        compiled += generate_memcpy_unrolled(src_loc, dst_loc, 1, stack, clobbers, context)
+                        stack.free(lhs_dest)
+            else:
+                # TODO: Support other operators than add/subtract.
+                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
         else:
             raise CompilerError(f"Unsupported addition size!", context)
 
