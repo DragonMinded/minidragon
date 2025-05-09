@@ -3163,6 +3163,65 @@ def verifycomplexexpression(only: Optional[List[str]], full: bool) -> None:
     print(f"Average instructions for complexexpression: {int(instructions/count)}")
 
 
+def verifylocalvariables(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "localvariables" not in only:
+        return
+
+    print("Verifying localvariables...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 89, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile("localvariables", textwrap.dedent(f"""
+                def localvariables(param1: int8) -> int8:
+                    SOME_CONST: const[int8] = 10
+
+                    # Do some simple variable stuff.
+                    var: int8 = param1 + 2
+                    var = var + SOME_CONST
+
+                    # Return it.
+                    return var + 3
+            """), []),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL localvariables",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"localvariables changed accumulator value from {x} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        expected = x + 15
+        _assert(
+            bintoint(result) == expected,
+            f"Failed to localvariables, "
+            + f"got {bintoint(result)} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"{CLEAR_LINE}Average cycles for localvariables: {int(cycles/count)}")
+    print(f"Average instructions for localvariables: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -3253,3 +3312,4 @@ if __name__ == "__main__":
     verifyaddandreturn(only, args.full)
     verifysubtractandreturn(only, args.full)
     verifycomplexexpression(only, args.full)
+    verifylocalvariables(only, args.full)

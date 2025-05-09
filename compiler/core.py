@@ -16,6 +16,8 @@ class Context:
     def comment(self) -> str:
         fresh_module = cst.parse_module("")
         code = fresh_module.code_for_node(self.node)
+        while code[-1] == "\n":
+            code = code[:-1]
         return f"  ; {self.module} line {self.meta[self.node].start.line}: " + code
 
 
@@ -194,8 +196,12 @@ class StackVar:
     def size(self) -> int:
         return self.type.size
 
+    @property
+    def const(self) -> bool:
+        return self.type.const
+
     def __repr__(self) -> str:
-        return f"{self.type.type} {self.name}: {self.location} size {self.size}"
+        return f"{self.type!r} {self.name}: {self.location} size {self.size}"
 
 
 class Stack:
@@ -256,19 +262,11 @@ class Stack:
     def move(self, offset: int) -> None:
         self.location = self.location + offset
 
-    def at(self, offset: int) -> Optional[str]:
+    def at(self, offset: int) -> Optional[StackVar]:
         for entry in self.stack:
             if entry.location == offset:
                 # Found it, return the variable we're at.
-                return entry.name
-        return None
-
-    @property
-    def current(self) -> Optional[str]:
-        for entry in self.stack:
-            if entry.location == self.location:
-                # Found it, return the variable we're at.
-                return entry.name
+                return entry
         return None
 
     def __repr__(self) -> str:
@@ -298,7 +296,8 @@ def _hex(val: int, pad: int) -> str:
 
 
 def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
-    compiled: List[str] = []
+    compiled: List[str] = [context.comment()]
+
     target_node = assign.target
     if not isinstance(target_node, cst.Name):
         raise CompilerError("Unsupported name for global variable definition", context)
@@ -623,10 +622,15 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
         compiled += generate_const_load(intval, destination, stack, clobbers, context)
 
     elif isinstance(expression, cst.Name):
+        # TODO: This needs to support looking up global variables, for any variable that is defined globally and
+        # then locally marked with the "global" keyword.
+
         source = expression.value
         if source != destination:
             if destination == "a":
                 # Just need to load A with the value.
+                if stack.absfind(source) is None:
+                    raise CompilerError(f"Undefined variable reference to {source!r}", context)
                 compiled += generate_move_to(source, stack, clobbers, context)
                 compiled.append("  LOAD A")
             else:
@@ -638,10 +642,11 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                     raise CompilerError(f"Undefined variable reference to {source!r}", context)
                 if dest_loc is None or dest_size is None:
                     raise Exception("Logic error, cannot find destination to copy variable value to!")
-                if source_size != dest_size:
-                    raise CompilerError(f"Unsupported assignment from different variable sizes", context)
 
-                compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+                if source_size == dest_size:
+                    compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+                else:
+                    raise CompilerError(f"Unsupported assignment from different variable sizes", context)
 
     elif isinstance(expression, cst.UnaryOperation):
         if isinstance(expression.operator, cst.Minus):
@@ -765,7 +770,68 @@ def generate_expr(expression: cst.BaseExpression, destination: str, stack: Stack
     return compiled
 
 
-def compile_chunk(chunk: cst.BaseSuite, stack: Stack, clobbers: Set[str], function_type: CoreType, context: Context) -> List[str]:
+def local_variable(
+    assign_target: cst.BaseExpression,
+    assign_annotation: Optional[cst.Annotation],
+    assign_value: Optional[cst.BaseExpression],
+    stack: Stack,
+    clobbers: Set[str],
+    local_consts: List[str],
+    context: Context,
+) -> List[str]:
+    compiled: List[str] = [context.comment()]
+
+    # TODO: We need to support globals as well, not sure if in here, but somewhere, as long as they aren't constants.
+
+    if not isinstance(assign_target, cst.Name):
+        # TODO: This is where we would handle memory writes and arrays.
+        raise CompilerError("Unsupported name for local variable definition", context)
+
+    assign_name = assign_target.value
+    assign_type = get_type(assign_annotation.annotation) if assign_annotation is not None else None
+
+    # See if this is a re-assign or a definition.
+    orig_loc = stack.absfind(assign_name)
+
+    if orig_loc is None:
+        # For definitions, we need a type. For constants, we need an initial value.
+        if assign_type is None:
+            raise CompilerError("Unsupported type for local variable definition", context)
+
+        if assign_type.const and assign_value is None:
+            raise CompilerError("Expecting initialization value for local const definition", context)
+
+        if not assign_type.return_padding:
+            raise CompilerError("Unsupported nopad attribute for local variable definition", context)
+
+        # Allocate space on the stack for this local variable.
+        stack.alloc(StackVar(assign_name, assign_type))
+    else:
+        # Variables cannot be re-assigned with types. Variables cannot be re-assigned without values.
+        if assign_type is not None:
+            raise CompilerError("Unsupported type redefinition for local variable assignment", context)
+        if assign_value is None:
+            raise CompilerError("Unsupported local variable assignment", context)
+
+        # Make sure we're not overwriting a const.
+        stack_var = stack.at(orig_loc)
+        if stack_var is None:
+            raise Exception(f"Logic error, could not find stack variable for {assign_name} after identifying it exists!")
+
+        if stack_var.const:
+            raise CompilerError(f"Cannot assign to variable {stack_var.name!r} declared const", context)
+
+    # Now, if relevant, generate the expression for the assignment and put it in the stack variable.
+    if assign_value is not None:
+        if not isinstance(assign_value, cst.BaseExpression):
+            raise CompilerError(f"Cannot assign local variable with results of {assign_value}", context)
+
+        compiled += generate_expr(assign_value, assign_name, stack, clobbers, context.wrap(assign_value))
+
+    return compiled
+
+
+def compile_chunk(chunk: cst.BaseSuite, stack: Stack, clobbers: Set[str], function_type: CoreType, local_consts: List[str], context: Context) -> List[str]:
     compiled: List[str] = []
 
     for statement in chunk.body:
@@ -784,6 +850,29 @@ def compile_chunk(chunk: cst.BaseSuite, stack: Stack, clobbers: Set[str], functi
 
                         compiled += generate_expr(simple_statement.value, "builtin(retval)", stack, clobbers, context.wrap(simple_statement.value))
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
+                elif isinstance(simple_statement, cst.AnnAssign):
+                    compiled += local_variable(
+                        simple_statement.target,
+                        simple_statement.annotation,
+                        simple_statement.value,
+                        stack,
+                        clobbers,
+                        local_consts,
+                        context.wrap(simple_statement),
+                    )
+                elif isinstance(simple_statement, cst.Assign):
+                    if len(simple_statement.targets) != 1:
+                        raise CompilerError("Unsupported multi-variable assignment", context.wrap(simple_statement))
+
+                    compiled += local_variable(
+                        simple_statement.targets[0].target,
+                        None,
+                        simple_statement.value,
+                        stack,
+                        clobbers,
+                        local_consts,
+                        context.wrap(simple_statement),
+                    )
                 else:
                     # TODO: Assignment expressions, function calls, memory assignments.
                     raise CompilerError(f"Unsupported node to compile {simple_statement}", context)
@@ -832,6 +921,7 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
     function_type = get_type(func.returns)
     function_params = func.params.params
     stack: Stack = Stack()
+    local_consts: List[str] = []
 
     if function_type is None:
         raise CompilerError("Unsupported return type for function definition", context)
@@ -900,7 +990,7 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
 
     # First pass to figure out clobbers
     clobbers: Set[str] = set()
-    compile_chunk(func.body, stack.clone(), clobbers, function_type, context)
+    compile_chunk(func.body, stack.clone(), clobbers, function_type, [], context)
 
     # Unwind our temporary return value location.
     if temp_size > 0:
@@ -949,9 +1039,12 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
         size = stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    compiled += compile_chunk(func.body, stack, set(), function_type, context)
+    compiled += compile_chunk(func.body, stack, set(), function_type, local_consts, context)
+
+    # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
 
     return [
+        *local_consts,
         f"{function_name}:",
         *preamble,
         *compiled,
@@ -990,9 +1083,7 @@ def parse_and_compile(module: str, code: str, refs: List[FunctionPrototype]) -> 
             compiled += function(statement, context)
         else:
             # TODO: What other statement types are we missing here?
-            print(statement)
-
-            raise CompilerError("Unsupported statement", context)
+            raise CompilerError("Unsupported statement {statement}", context)
 
         compiled.append("")
 
@@ -1003,6 +1094,8 @@ def parse_and_compile(module: str, code: str, refs: List[FunctionPrototype]) -> 
 
 
 def parse_prototypes(module: str, code: str) -> List[FunctionPrototype]:
+    # TODO: This needs renaming and to also scan for globals so we have global types as well.
+
     parsed_module = cst.parse_module(code)
 
     # Make sure we have access to line/column numbers for errors.
