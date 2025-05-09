@@ -31,6 +31,7 @@ class CompilerError(Exception):
 
 class CoreType:
     def __init__(self, base_type: str, const: bool = False, return_padding: bool = True) -> None:
+        # TODO: Need to allow pointers to have a base type of the memory location pointed at.
         self.type = base_type
         self.const = const
         self.return_padding = return_padding
