@@ -2687,7 +2687,7 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for staticreturn: {int(cycles/count)}")
+    print(f"Average cycles for staticreturn: {int(cycles/count)}")
     print(f"Average instructions for staticreturn: {int(instructions/count)}")
 
     print("Verifying staticreturn without padding...")
@@ -2733,7 +2733,7 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for staticreturn: {int(cycles/count)}")
+    print(f"Average cycles for staticreturn: {int(cycles/count)}")
     print(f"Average instructions for staticreturn: {int(instructions/count)}")
 
 
@@ -2781,7 +2781,7 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for echoparam: {int(cycles/count)}")
+    print(f"Average cycles for echoparam: {int(cycles/count)}")
     print(f"Average instructions for echoparam: {int(instructions/count)}")
 
     print("Verifying echoparam without padding...")
@@ -2821,7 +2821,7 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for echoparam: {int(cycles/count)}")
+    print(f"Average cycles for echoparam: {int(cycles/count)}")
     print(f"Average instructions for echoparam: {int(instructions/count)}")
 
 
@@ -2872,7 +2872,7 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for addandreturn: {int(cycles/count)}")
+    print(f"Average cycles for addandreturn: {int(cycles/count)}")
     print(f"Average instructions for addandreturn: {int(instructions/count)}")
     print("Verifying addandreturn with reversed parameters...")
 
@@ -2912,7 +2912,7 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for addandreturn: {int(cycles/count)}")
+    print(f"Average cycles for addandreturn: {int(cycles/count)}")
     print(f"Average instructions for addandreturn: {int(instructions/count)}")
 
     print("Verifying addandreturn without padding...")
@@ -2961,7 +2961,7 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for addandreturn: {int(cycles/count)}")
+    print(f"Average cycles for addandreturn: {int(cycles/count)}")
     print(f"Average instructions for addandreturn: {int(instructions/count)}")
 
 
@@ -3012,7 +3012,7 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for subtractandreturn: {int(cycles/count)}")
+    print(f"Average cycles for subtractandreturn: {int(cycles/count)}")
     print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
     print("Verifying subtractandreturn with reversed parameters...")
 
@@ -3052,7 +3052,7 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for subtractandreturn: {int(cycles/count)}")
+    print(f"Average cycles for subtractandreturn: {int(cycles/count)}")
     print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
 
     print("Verifying subtractandreturn without padding...")
@@ -3101,7 +3101,7 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for subtractandreturn: {int(cycles/count)}")
+    print(f"Average cycles for subtractandreturn: {int(cycles/count)}")
     print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
 
 
@@ -3159,7 +3159,7 @@ def verifycomplexexpression(only: Optional[List[str]], full: bool) -> None:
                 instructions += cpu.ticks
                 count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for complexexpression: {int(cycles/count)}")
+    print(f"Average cycles for complexexpression: {int(cycles/count)}")
     print(f"Average instructions for complexexpression: {int(instructions/count)}")
 
 
@@ -3218,7 +3218,7 @@ def verifylocalvariables(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"{CLEAR_LINE}Average cycles for localvariables: {int(cycles/count)}")
+    print(f"Average cycles for localvariables: {int(cycles/count)}")
     print(f"Average instructions for localvariables: {int(instructions/count)}")
 
 
