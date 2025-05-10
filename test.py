@@ -14,7 +14,7 @@ from core import (
     disassemble,
     bintoint,
 )
-from compiler.core import parse_and_compile
+from compiler.core import parse_and_compile_module
 
 
 CLEAR_LINE = "\033[F\033[K"
@@ -2653,10 +2653,10 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("staticreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("staticreturn", textwrap.dedent(f"""
                 def staticreturn() -> int8:
                     return {x}
-            """), []),
+            """)),
             "code:",
             "LOADI 123",
             "DECPC",
@@ -2700,10 +2700,10 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("staticreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("staticreturn", textwrap.dedent(f"""
                 def staticreturn() -> nopad[int8]:
                     return {x}
-            """), []),
+            """)),
             "code:",
             "LOADI 123",
             "CALL staticreturn",
@@ -2753,10 +2753,10 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("echoparam", textwrap.dedent(f"""
+            *parse_and_compile_module("echoparam", textwrap.dedent(f"""
                 def echoparam(param1: int8) -> int8:
                     return param1
-            """), []),
+            """)),
             "code:",
             f"LOADI {x}",
             "PUSH A",
@@ -2793,10 +2793,10 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("echoparam", textwrap.dedent(f"""
+            *parse_and_compile_module("echoparam", textwrap.dedent(f"""
                 def echoparam(param1: int8) -> nopad[int8]:
                     return param1
-            """), []),
+            """)),
             "code:",
             f"LOADI {x}",
             "PUSH A",
@@ -2843,10 +2843,10 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("addandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("addandreturn", textwrap.dedent(f"""
                 def addandreturn(param1: int8) -> int8:
                     return param1 + 15
-            """), []),
+            """)),
             "code:",
             f"LOADI {x}",
             "PUSH A",
@@ -2883,10 +2883,10 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("addandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("addandreturn", textwrap.dedent(f"""
                 def addandreturn(param1: int8) -> int8:
                     return 15 + param1
-            """), []),
+            """)),
             "code:",
             f"LOADI {x}",
             "PUSH A",
@@ -2925,10 +2925,10 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("addandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("addandreturn", textwrap.dedent(f"""
                 def addandreturn(param1: int8) -> nopad[int8]:
                     return param1 + 15
-            """), []),
+            """)),
             "code:",
             f"LOADI {x}",
             "PUSH A",
@@ -2983,10 +2983,10 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("subtractandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("subtractandreturn", textwrap.dedent(f"""
                 def subtractandreturn(param1: int8) -> int8:
                     return param1 - 15
-            """), []),
+            """)),
             "code:",
             f"LOADI {x}",
             "PUSH A",
@@ -3023,10 +3023,10 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("subtractandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("subtractandreturn", textwrap.dedent(f"""
                 def subtractandreturn(param1: int8) -> int8:
                     return 15 - param1
-            """), []),
+            """)),
             "code:",
             f"LOADI {x}",
             "PUSH A",
@@ -3065,10 +3065,10 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("subtractandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("subtractandreturn", textwrap.dedent(f"""
                 def subtractandreturn(param1: int8) -> nopad[int8]:
                     return param1 - 15
-            """), []),
+            """)),
             "code:",
             f"LOADI {x}",
             "PUSH A",
@@ -3125,10 +3125,10 @@ def verifycomplexexpression(only: Optional[List[str]], full: bool) -> None:
                 memory = getmemory(os.linesep.join([
                     *initlines,
                     "LNGJUMP code",
-                    *parse_and_compile("complexexpression", textwrap.dedent(f"""
+                    *parse_and_compile_module("complexexpression", textwrap.dedent(f"""
                         def complexexpression(param1: int8, param2: int8, param3: int8) -> int8:
                             return param1 + (param2 - param3) + 7
-                    """), []),
+                    """)),
                     "code:",
                     f"LOADI {x}",
                     "PUSH A",
@@ -3181,7 +3181,7 @@ def verifylocalvariables(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile("localvariables", textwrap.dedent(f"""
+            *parse_and_compile_module("localvariables", textwrap.dedent(f"""
                 def localvariables(param1: int8) -> int8:
                     SOME_CONST: const[int8] = 10
 
@@ -3191,7 +3191,7 @@ def verifylocalvariables(only: Optional[List[str]], full: bool) -> None:
 
                     # Return it.
                     return var + 3
-            """), []),
+            """)),
             "code:",
             f"LOADI {x}",
             "PUSH A",
@@ -3220,6 +3220,62 @@ def verifylocalvariables(only: Optional[List[str]], full: bool) -> None:
 
     print(f"Average cycles for localvariables: {int(cycles/count)}")
     print(f"Average instructions for localvariables: {int(instructions/count)}")
+
+
+def verifyfunctioncall(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "functioncall" not in only:
+        return
+
+    print("Verifying functioncall...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 89, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("functioncall", textwrap.dedent(f"""
+                def add_10_to_two_params(param1: int8, param2: int8) -> int8:
+                    CONST_VALUE: int8 = 10
+                    return param1 + param2 + CONST_VALUE
+
+                def func(param1: int8) -> int8:
+                    return add_10_to_two_params(param1, 5)
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"functioncall changed accumulator value from {x} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        expected = x + 15
+        _assert(
+            bintoint(result) == expected,
+            f"Failed to functioncall, "
+            + f"got {bintoint(result)} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for functioncall: {int(cycles/count)}")
+    print(f"Average instructions for functioncall: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -3313,3 +3369,4 @@ if __name__ == "__main__":
     verifysubtractandreturn(only, args.full)
     verifycomplexexpression(only, args.full)
     verifylocalvariables(only, args.full)
+    verifyfunctioncall(only, args.full)

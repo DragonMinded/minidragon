@@ -1,7 +1,7 @@
 import libcst as cst
 import libcst.metadata as meta
 
-from typing import List, Mapping, Optional, Set
+from typing import Dict, List, Mapping, Optional, Set, Union
 
 
 class Context:
@@ -30,6 +30,11 @@ class CompilerError(Exception):
 
 
 class CoreType:
+    """
+    A standard type reference. Depending on where it's encountered, it can have a const[] modifier
+    applied to it, and sometimes a nopad[] modifier applied to it.
+    """
+
     def __init__(self, base_type: str, const: bool = False, return_padding: bool = True) -> None:
         # TODO: Need to allow pointers to have a base type of the memory location pointed at.
         self.type = base_type
@@ -79,22 +84,56 @@ class CoreType:
 NoneType = CoreType("None", True, False)
 
 
+class PreservedCoreType(CoreType):
+    """
+    A function call parmeter type that implies the called function will not clean this reference
+    off of the stack, but instead that the stack will still contain this value upon return from
+    the function. This does not imply that the values change, only that the values are not removed
+    from the stack upon function call.
+    """
+    def __init__(self, base_type: str) -> None:
+        super().__init__(base_type, True)
+
+
 class InOutCoreType(CoreType):
+    """
+    A function call parameter type that implies the value is not just referenced when calling
+    the function, but also that the function updates this value and it should be copied back
+    to any calling code's variable references if needed.
+    """
+
     def __init__(self, base_type: str) -> None:
         super().__init__(base_type, False)
 
 
 class OutCoreType(CoreType):
+    """
+    A function call parameter type that implies that the called function places an output parameter
+    here, but that the caller does not need to specify a value for calling. This should be paired
+    with a ParamReturnCoreType as the function return to specify that this is where to find the
+    output value.
+    """
+
     def __init__(self, base_type: str) -> None:
         super().__init__(base_type, False)
 
 
 class RegisterCoreType(CoreType):
+    """
+    A function call parameter type that implies that the called function requests its input or
+    places its output in a particular register instead of on the stack.
+    """
+
     def __init__(self, register: str) -> None:
         super().__init__(register, False)
 
 
 class ParamReturnCoreType(CoreType):
+    """
+    A function call return parameter that works in tandem with OutCoreType to specify which out
+    argument contains the result of the function call.
+    """
+
     def __init__(self, position: int) -> None:
         super().__init__("position: " + str(position), False)
 
@@ -104,6 +143,11 @@ class ParamReturnCoreType(CoreType):
 
 
 class PaddingCoreType(CoreType):
+    """
+    A function call parameter that does not need to be provided by the code itself, but instead
+    implies that the called function needs a certain amount of padding in the stack before calling.
+    """
+
     def __init__(self, padbytes: int) -> None:
         super().__init__("padding: " + str(padbytes), False)
 
@@ -185,6 +229,14 @@ class FunctionPrototype:
         if not params:
             params = "none"
         return f"Function {self.name!r} params {params} return value {self.return_type!r}"
+
+
+class GlobalVariable:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"Global variable {self.name!r}"
 
 
 class StackVar:
@@ -447,8 +499,8 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             compiled.append("  ; Saving return pointer to U/V so it isn't overridden by return shuffle.")
 
             # We need to actually save the retptr to U/V.
-            clobbers.add("u")
-            clobbers.add("v")
+            clobbers.add("U")
+            clobbers.add("V")
             retptr_in_uv = True
 
             first_move = stack.find("builtin(retptr)")
@@ -468,7 +520,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             compiled.append("  ; Moving return value to correct location in stack.")
 
             # We need to use the A register to move the value, so it's clobbered now.
-            clobbers.add("a")
+            clobbers.add("A")
 
             # We need to relocate the retptr to this spot.
             src_loc = stack.absfind("builtin(retval)")
@@ -501,7 +553,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             compiled.append("  ; Moving return pointer to correct location in stack.")
 
             # We need to use the A register to move the value, so it's clobbered now.
-            clobbers.add("a")
+            clobbers.add("A")
 
             # We need to relocate the retptr to this spot.
             src_loc = stack.absfind("builtin(retptr)")
@@ -553,7 +605,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 def generate_const_load(val: int, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
     compiled: List[str] = []
 
-    if destination == "a":
+    if destination == "A":
         compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
     else:
         dest_loc = stack.find(destination)
@@ -594,6 +646,271 @@ def generate_const_load(val: int, destination: str, stack: Stack, clobbers: Set[
 __expr_global_count: int = 0
 
 
+def generate_function_call(
+    call: cst.Call,
+    destination: str,
+    stack: Stack,
+    clobbers: Set[str],
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    context: Context,
+) -> List[str]:
+    compiled: List[str] = [context.comment()]
+
+    function_prototype: Optional[FunctionPrototype] = None
+
+    if isinstance(call.func, cst.Name):
+        # Simple reference to a function on the refs list. If it isn't in the refs list, then it could be
+        # a function pointer which needs to be supported but is not for now.
+        func_ref = call.func.value
+        for ref in refs:
+            if isinstance(ref, FunctionPrototype) and ref.name == func_ref:
+                function_prototype = ref
+                break
+        else:
+            raise CompilerError(f"Unknown function {func_ref} in call", context)
+
+    else:
+        # TODO: Support function pointers here at some point. Maybe even objects or structs?
+        raise CompilerError(f"Unsupported function call with expression node {call.func}", context)
+
+    # Now, we must figure out how to set up the stack to call this function.
+    args: List[cst.Arg] = []
+    for arg in call.args:
+        # TODO: At some point, maybe we can support these, because it would just be extraction from a list
+        # in the star arg case, and choosing the correct argument order in the keyword argument case.
+        if arg.keyword is not None:
+            raise CompilerError("Unsupported keyword argument in function call", context)
+        if arg.star != "":
+            raise CompilerError("Unsupported star argument in function call", context)
+
+        args.append(arg)
+
+    # Make sure that the number of arguments supplied matches
+    param_count = 0
+    for needed_arg in function_prototype.params:
+        if isinstance(needed_arg, PaddingCoreType):
+            # Not the responsibility of the caller, we will set this up.
+            continue
+        if isinstance(needed_arg, OutCoreType):
+            # Not the responsibility of the caller, we will set this up.
+            continue
+
+        param_count += 1
+
+    if param_count != len(args):
+        raise CompilerError(f"Function call to {func_ref} expects {param_count} args but {len(args)} were given", context)
+
+    # Now, go through the requested parameters and set up the stack.
+    copy_mapping: Dict[str, str] = {}
+    out_mapping: Dict[int, str] = {}
+    delayed_params: List[RegisterCoreType] = []
+    delayed_args: List[cst.Arg] = []
+    temporary_stack_entries: List[str] = []
+    which_arg: int = 0
+    stack_on_exit: int = stack.size - 1
+    normal_return_loc: int = stack.size
+
+    for pos, needed_arg in enumerate(function_prototype.params):
+        # Special case for if the return location is already the top of the stack, and our first parameter is an out
+        # parameter, so we can skip copying the value after calling the function.
+        if pos == 0 and stack.stack[-1].name == destination:
+            stack_type = stack.stack[-1]
+
+            if isinstance(needed_arg, OutCoreType) and isinstance(function_prototype.return_type, ParamReturnCoreType):
+                # We need to allocate space on the stack for the return value, but that's already our function call
+                # destination, so it's already allocated. Make sure the sizes match so we don't have to do anything else.
+                if function_prototype.return_type.position == pos and needed_arg.type == stack_type.type:
+                    continue
+
+        # Special case for if the first argument is already the top of the stack, and it's a preserved or in-out
+        # argument. In this case, we don't have to do anything, because the function will do what it should do with
+        # that stack location. In theory we should be able to do this with as many elements on the stack as possible
+        # for in-out and preserved params but that's a lot of work to think through so we're not doing it for now.
+        if pos == 0 and args and isinstance(args[0].value, cst.Name):
+            stack_type = stack.stack[-1]
+
+            if stack_type.name == args[0].value.value:
+                if isinstance(needed_arg, PreservedCoreType):
+                    # We have an argument that is preserved as-is, so we don't have to worry about making a temporary
+                    # copy on the stack. So, do nothing with it.
+                    if needed_arg.type == stack_type.type:
+                        continue
+
+                if isinstance(needed_arg, InOutCoreType):
+                    # We have an argument that gets modified by the function, but it's already on the top of the stack,
+                    # so no need to do nothing with it.
+                    if needed_arg.type == stack_type.type:
+                        out_mapping[pos] = stack_type.name
+                        continue
+
+        if isinstance(needed_arg, ParamReturnCoreType):
+            raise Exception(f"Logic error, not expecting a return-only type for param {pos + 1} in {func_ref}")
+
+        elif isinstance(needed_arg, PaddingCoreType):
+            # Simple padding that the function will clean up on its own. Add that padding to the stack.
+            for _ in range(needed_arg.padbytes):
+                stack.alloc(StackVar("builtin(padding)", CoreType('int8')))
+                temporary_stack_entries.append("builtin(padding)")
+
+        elif isinstance(needed_arg, OutCoreType):
+            # This is an out parameter, so we need to be able to track its position and what temporary
+            # variable we assign to it so we can copy the value to our destination after calling.
+            out_dest = expr_temp_name()
+            out_mapping[pos] = out_dest
+            stack_on_exit += stack.alloc(StackVar(out_dest, needed_arg))
+            temporary_stack_entries.append(out_dest)
+
+        elif isinstance(needed_arg, RegisterCoreType):
+            # Because we can't just do the calculation here since a subsequent arg expression calculation
+            # might clobber one of the registers, we delay this so that we do this after everything else.
+            delayed_params.append(needed_arg)
+            delayed_args.append(args[which_arg])
+            which_arg += 1
+
+        elif isinstance(needed_arg, InOutCoreType):
+            # Not only do we need to compute the input for this, but we need to copy the value back if the
+            # input was a variable name or global variable reference, so we preserve in-out behavior.
+            expr_dest = expr_temp_name()
+            out_mapping[pos] = expr_dest
+
+            arg_in_question = args[which_arg].value
+            if isinstance(arg_in_question, cst.Name):
+                copy_mapping[arg_in_question.value] = expr_dest
+            stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg))
+            temporary_stack_entries.append(expr_dest)
+            compiled += generate_expr_internal(arg_in_question, expr_dest, stack, clobbers, refs, context.wrap(arg_in_question))
+            which_arg += 1
+
+        elif isinstance(needed_arg, PreservedCoreType):
+            # This is just preserved, so we don't have to worry about copy it out, but we do need to allocate it.
+            expr_dest = expr_temp_name()
+            stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg))
+            temporary_stack_entries.append(expr_dest)
+            compiled += generate_expr_internal(args[which_arg].value, expr_dest, stack, clobbers, refs, context.wrap(args[which_arg].value))
+            which_arg += 1
+
+        else:
+            # This is just a normal core type, so we put it on the stack, and the function takes it back off again.
+            # So we don't need to fix up the stack any when we come back from the function call.
+            expr_dest = expr_temp_name()
+            stack.alloc(StackVar(expr_dest, needed_arg))
+            temporary_stack_entries.append(expr_dest)
+            compiled += generate_expr_internal(args[which_arg].value, expr_dest, stack, clobbers, refs, context.wrap(args[which_arg].value))
+            which_arg += 1
+
+    # Now, load our registers up with any register parameters.
+    for i in range(len(delayed_params)):
+        reg_dest = expr_temp_name()
+        needed_arg = delayed_params[i]
+        provided_arg = delayed_args[i]
+
+        reg_to_type = {
+            "A": "int8",
+        }
+        if needed_arg.type not in reg_to_type:
+            raise Exception(f"Logic error, tried to assign a param to unsupported register {needed_arg.type} in function {func_ref}")
+
+        stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.type])))
+        compiled += generate_expr_internal(provided_arg.value, reg_dest, stack, clobbers, refs, context.wrap(provided_arg.value))
+        compiled += generate_move_to(reg_dest, stack, clobbers, context)
+        compiled += f"POP {needed_arg.type}"
+        stack.free(reg_dest)
+
+    # Now, we're ready to actually call the function. Move to the last byte of the last parameter on the stack.
+    move_amount = stack.diff(stack.size - 1)
+    compiled += generate_move_by(move_amount, stack, clobbers, context)
+    compiled.append(f"  CALL {func_ref}")
+
+    # Track whether we captured the return value or not.
+    return_handled = False
+
+    # Now, if the return type is a register type, put it in the destination.
+    if isinstance(function_prototype.return_type, RegisterCoreType):
+        return_handled = True
+        compiled += generate_move_to(destination, stack, clobbers, context)
+        if function_prototype.return_type.type == "A":
+            compiled.append("  STORE A")
+        else:
+            raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
+
+    # Now, do some bookkeeping, first copying anything that we need to copy that was an in-out param.
+    for dst, src in copy_mapping.items():
+        source_loc = stack.absfind(src)
+        source_size = stack.sizeof(src)
+        dest_loc = stack.absfind(dst)
+        dest_size = stack.sizeof(dst)
+        if source_loc is None or source_size is None:
+            raise Exception(f"Logic error, Undefined variable reference to {src!r}", context)
+        if dest_loc is None or dest_size is None:
+            raise Exception("Logic error, cannot find destination to copy variable value to!")
+
+        if source_size == dest_size:
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+        else:
+            raise CompilerError(f"Unsupported byref assignment from different variable sizes", context)
+
+    # Now, if the return is in one of the parameters, copy that to our destination.
+    if isinstance(function_prototype.return_type, ParamReturnCoreType):
+        return_handled = True
+        src = out_mapping[function_prototype.return_type.position]
+        dst = destination
+
+        source_loc = stack.absfind(src)
+        source_size = stack.sizeof(src)
+        dest_loc = stack.absfind(dst)
+        dest_size = stack.sizeof(dst)
+        if source_loc is None or source_size is None:
+            raise Exception(f"Logic error, undefined variable reference to {src!r}", context)
+        if dest_loc is None or dest_size is None:
+            raise Exception("Logic error, cannot find destination to copy variable value to!")
+
+        if source_size == dest_size:
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+        else:
+            raise CompilerError(f"Unsupported function return from different variable sizes", context)
+
+    # Now, fix up our view of the stack.
+    for entry in reversed(temporary_stack_entries):
+        stack.free(entry)
+
+    # Now, if needed, copy the return value from the stack to its location.
+    if (not return_handled) and (not (function_prototype.return_type is NoneType)):
+        # We need to understand where we actually are on the stack, so add to the
+        # location where this would have been put on the stack.
+        stack_on_exit += function_prototype.return_type.size
+        stack.location = stack_on_exit
+
+        if destination == "A":
+            # Pop the value from the stack, instead of copying.
+            src_loc = normal_return_loc
+            src_size = function_prototype.return_type.size
+            if src_size != 1:
+                raise Exception(f"Logic error, trying to assign value of size {src_size} to A register")
+
+            move_amt = stack.diff(src_loc)
+            compiled += generate_move_by(move_amt, stack, clobbers, context)
+            compiled.append("  LOAD A")
+        else:
+            src_loc = normal_return_loc
+            src_size = function_prototype.return_type.size
+            dest_loc = stack.absfind(destination)
+            dest_size = stack.sizeof(destination)
+            if dest_loc is None or dest_size is None:
+                raise Exception(f"Logic error, cannot find destination {destination} to copy variable value to!")
+
+            if source_size == dest_size:
+                compiled += generate_memcpy_unrolled(src_loc, dest_loc, dest_size, stack, clobbers, context)
+            else:
+                raise CompilerError(f"Unsupported function return from different variable sizes", context)
+    else:
+        # Finally, calculate the true position of the stack after calling the function, so future
+        # manipulations of the stack know where we really are.
+        # when we were called.
+        stack.location = stack_on_exit
+
+    return compiled
+
+
 def expr_temp_name() -> str:
     global __expr_global_count
     __expr_global_count += 1
@@ -611,10 +928,17 @@ def expr_integer_type(size: int) -> CoreType:
         raise Exception("Logic error, unrecognized integer size!")
 
 
-def generate_expr_internal(expression: cst.BaseExpression, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+def generate_expr_internal(
+    expression: cst.BaseExpression,
+    destination: str,
+    stack: Stack,
+    clobbers: Set[str],
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    context: Context,
+) -> List[str]:
     compiled: List[str] = []
 
-    destination_size = 1 if destination == "a" else stack.sizeof(destination)
+    destination_size = 1 if destination == "A" else stack.sizeof(destination)
     if destination_size == None:
         raise Exception("Logic error, could not calculate size of destination!")
 
@@ -628,7 +952,7 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
 
         source = expression.value
         if source != destination:
-            if destination == "a":
+            if destination == "A":
                 # Just need to load A with the value.
                 if stack.absfind(source) is None:
                     raise CompilerError(f"Undefined variable reference to {source!r}", context)
@@ -675,7 +999,7 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                 # TODO: Support other operators than add/subtract.
                 raise CompilerError(f"Unsupported compile-time computation for {expression.operator}!", context)
 
-        if destination == "a" or stack.stack[-1].name != destination:
+        if destination == "A" or stack.stack[-1].name != destination:
             # In order to ensure that it's possible to do stack math on this value, locate it in
             # a temporary location for the time being if the destination isn't the top of the stack.
             lhs_dest = expr_temp_name()
@@ -684,25 +1008,25 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
             # Safe to put first parameter in the top of the stack where it already is useful for math.
             lhs_dest = destination
 
-        compiled += generate_expr_internal(expression.left, lhs_dest, stack, clobbers, context.wrap(expression.left))
+        compiled += generate_expr_internal(expression.left, lhs_dest, stack, clobbers, refs, context.wrap(expression.left))
 
         # Now, get the second parameter onto the stack in the right spot.
         rhs_dest = expr_temp_name()
         stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
-        compiled += generate_expr_internal(expression.right, rhs_dest, stack, clobbers, context.wrap(expression.right))
+        compiled += generate_expr_internal(expression.right, rhs_dest, stack, clobbers, refs, context.wrap(expression.right))
 
         # Now, perform some math of matics!
         if destination_size == 1:
             if isinstance(expression.operator, cst.Add):
                 # The stdlib for add clobbers the A register
-                clobbers.add("a")
+                clobbers.add("A")
 
                 # Move to the right spot on the stack to call the add function, then call it.
                 compiled += generate_move_to(rhs_dest, stack, clobbers, context)
                 compiled.append("  CALL add")
 
                 # This function puts the result in a, so check if that's what we want.
-                if destination == "a":
+                if destination == "A":
                     # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
                     stack.free(rhs_dest)
                     stack.free(lhs_dest)
@@ -714,7 +1038,7 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                         stack.free(lhs_dest)
             elif isinstance(expression.operator, cst.Subtract):
                 # The stdlib for add clobbers the A register. We also clobber by negating the second param.
-                clobbers.add("a")
+                clobbers.add("A")
 
                 # Move to the second parameter.
                 compiled += generate_move_to(rhs_dest, stack, clobbers, context)
@@ -727,7 +1051,7 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
                 compiled.append("  CALL add")
 
                 # This function puts the result in a, so check if that's what we want.
-                if destination == "a":
+                if destination == "A":
                     # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
                     stack.free(rhs_dest)
                     stack.free(lhs_dest)
@@ -745,6 +1069,9 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
             # TODO: Support other bit sizes than 8.
             raise CompilerError(f"Unsupported addition size!", context)
 
+    elif isinstance(expression, cst.Call):
+        compiled += generate_function_call(expression, destination, stack, clobbers, refs, context.wrap(expression))
+
     else:
         # TODO: What other expression types are we missing? Probably function calls and memory read operations.
         # TODO: Looks like also string/character assignments and such.
@@ -753,20 +1080,27 @@ def generate_expr_internal(expression: cst.BaseExpression, destination: str, sta
     return compiled
 
 
-def generate_expr(expression: cst.BaseExpression, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+def generate_expr(
+    expression: cst.BaseExpression,
+    destination: str,
+    stack: Stack,
+    clobbers: Set[str],
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    context: Context
+) -> List[str]:
     compiled: List[str] = [context.comment()]
 
     size = stack.sizeof(destination)
     if size == 1:
         # We can potentially keep the math in the A register!
-        clobbers.add("a")
+        clobbers.add("A")
 
-        compiled += generate_expr_internal(expression, "a", stack, clobbers, context)
+        compiled += generate_expr_internal(expression, "A", stack, clobbers, refs, context)
         compiled += generate_move_to(destination, stack, clobbers, context)
         compiled.append("  STORE A")
     else:
         # Just do stack-based operations.
-        compiled += generate_expr_internal(expression, destination, stack, clobbers, context)
+        compiled += generate_expr_internal(expression, destination, stack, clobbers, refs, context)
 
     return compiled
 
@@ -777,6 +1111,7 @@ def local_variable(
     assign_value: Optional[cst.BaseExpression],
     stack: Stack,
     clobbers: Set[str],
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[str],
     context: Context,
 ) -> List[str]:
@@ -827,12 +1162,20 @@ def local_variable(
         if not isinstance(assign_value, cst.BaseExpression):
             raise CompilerError(f"Cannot assign local variable with results of {assign_value}", context)
 
-        compiled += generate_expr(assign_value, assign_name, stack, clobbers, context.wrap(assign_value))
+        compiled += generate_expr(assign_value, assign_name, stack, clobbers, refs, context.wrap(assign_value))
 
     return compiled
 
 
-def compile_chunk(chunk: cst.BaseSuite, stack: Stack, clobbers: Set[str], function_type: CoreType, local_consts: List[str], context: Context) -> List[str]:
+def compile_chunk(
+    chunk: cst.BaseSuite,
+    stack: Stack,
+    clobbers: Set[str],
+    function_type: CoreType,
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[str],
+    context: Context,
+) -> List[str]:
     compiled: List[str] = []
 
     for statement in chunk.body:
@@ -849,7 +1192,7 @@ def compile_chunk(chunk: cst.BaseSuite, stack: Stack, clobbers: Set[str], functi
                         if function_type is NoneType:
                             raise CompilerError(f"Returning something from a function marked with no return value", context)
 
-                        compiled += generate_expr(simple_statement.value, "builtin(retval)", stack, clobbers, context.wrap(simple_statement.value))
+                        compiled += generate_expr(simple_statement.value, "builtin(retval)", stack, clobbers, refs, context.wrap(simple_statement.value))
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
                 elif isinstance(simple_statement, cst.AnnAssign):
                     compiled += local_variable(
@@ -858,6 +1201,7 @@ def compile_chunk(chunk: cst.BaseSuite, stack: Stack, clobbers: Set[str], functi
                         simple_statement.value,
                         stack,
                         clobbers,
+                        refs,
                         local_consts,
                         context.wrap(simple_statement),
                     )
@@ -871,6 +1215,7 @@ def compile_chunk(chunk: cst.BaseSuite, stack: Stack, clobbers: Set[str], functi
                         simple_statement.value,
                         stack,
                         clobbers,
+                        refs,
                         local_consts,
                         context.wrap(simple_statement),
                     )
@@ -899,6 +1244,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
 
     for func_param in function_params:
         if func_param.default is not None:
+            # TODO: This wouldn't be terrible to support at some point in the future, so maybe we could?
             raise CompilerError(f"Function parameter {func_param.name.value} has unsupported default", context)
 
         # Function parameters are passed on the stack, so we must know their locations and types.
@@ -916,7 +1262,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
     return prototype
 
 
-def function(func: cst.FunctionDef, context: Context) -> List[str]:
+def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVariable]], context: Context) -> List[str]:
     compiled: List[str] = []
     function_name = func.name.value
     function_type = get_type(func.returns)
@@ -991,7 +1337,7 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
 
     # First pass to figure out clobbers
     clobbers: Set[str] = set()
-    compile_chunk(func.body, stack.clone(), clobbers, function_type, [], context)
+    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, [], context)
 
     # Unwind our temporary return value location.
     if temp_size > 0:
@@ -999,7 +1345,7 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
             raise Exception("Logic error, top of stack isn't the retval temporary!")
         stack.move(-temp_size)
         stack.free("builtin(retval)")
-   
+
     # Stick some padding between the retval and the saved retptr if we need to so
     # unwinding on return doesn't clobber part of the stack.
     padding_move_amt = 0
@@ -1015,19 +1361,19 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
     if clobbers:
         compiled.append("  ; Save clobbered registers")
     for clobber in sorted(clobbers):
-        if clobber == "a":
+        if clobber == "A":
             stack.alloc(StackVar("builtin(saved_a)", CoreType("int8")))
             compiled.append("  PUSH A")
             stack.move(1)
-        elif clobber == "u":
+        elif clobber == "U":
             stack.alloc(StackVar("builtin(saved_u)", CoreType("int8")))
             compiled.append("  PUSH U")
             stack.move(1)
-        elif clobber == "v":
+        elif clobber == "V":
             stack.alloc(StackVar("builtin(saved_v)", CoreType("int8")))
             compiled.append("  PUSH V")
             stack.move(1)
-        elif clobber == "spc":
+        elif clobber == "SPC":
             stack.alloc(StackVar("builtin(saved_spc)", CoreType("int8")))
             compiled.append("  PUSH SPC")
             stack.move(2)
@@ -1040,7 +1386,7 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
         size = stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    compiled += compile_chunk(func.body, stack, set(), function_type, local_consts, context)
+    compiled += compile_chunk(func.body, stack, set(), function_type, refs, local_consts, context)
 
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
 
@@ -1052,7 +1398,27 @@ def function(func: cst.FunctionDef, context: Context) -> List[str]:
     ]
 
 
-def parse_and_compile(module: str, code: str, refs: List[FunctionPrototype]) -> List[str]:
+def is_type_definition(assign: cst.Assign) -> bool:
+    if len(assign.targets) != 1:
+        return False
+
+    target = assign.targets[0]
+    if not isinstance(target.target, cst.Name):
+        return False
+
+    if target.target.value not in {"int8", "int16", "int32", "pointer", "string"}:
+        return False
+
+    if not isinstance(assign.value, cst.Name):
+        return False
+
+    if assign.value.value not in {"int", "str"}:
+        return False
+
+    return True
+
+
+def compile_module(module: str, code: str, refs: List[Union[FunctionPrototype, GlobalVariable]]) -> List[str]:
     parsed_module = cst.parse_module(code)
 
     # Make sure we have access to line/column numbers for errors.
@@ -1075,13 +1441,15 @@ def parse_and_compile(module: str, code: str, refs: List[FunctionPrototype]) -> 
 
             body = bodylines[0]
             if isinstance(body, cst.Assign):
-                raise CompilerError("Global variable declarations must have a type", context)
+                # This could be a mypy type assignment so that the python source files can be typechecked.
+                if not is_type_definition(body):
+                    raise CompilerError("Global variable declarations must have a type", context)
             elif isinstance(body, cst.AnnAssign):
                 compiled += global_variable(body, context)
             else:
                 raise CompilerError("Arbitrary top-level statements are not supported", context)
         elif isinstance(statement, cst.FunctionDef):
-            compiled += function(statement, context)
+            compiled += function(statement, refs, context)
         else:
             # TODO: What other statement types are we missing here?
             raise CompilerError("Unsupported statement {statement}", context)
@@ -1094,7 +1462,7 @@ def parse_and_compile(module: str, code: str, refs: List[FunctionPrototype]) -> 
     return compiled
 
 
-def parse_prototypes(module: str, code: str) -> List[FunctionPrototype]:
+def parse_forward_refs(module: str, code: str) -> List[Union[FunctionPrototype, GlobalVariable]]:
     # TODO: This needs renaming and to also scan for globals so we have global types as well.
 
     parsed_module = cst.parse_module(code)
@@ -1107,7 +1475,7 @@ def parse_prototypes(module: str, code: str) -> List[FunctionPrototype]:
     # and only need a read-only copy.
     parsed_module = wrapper.module
 
-    prototypes: List[FunctionPrototype] = []
+    prototypes: List[Union[FunctionPrototype, GlobalVariable]] = []
     names: Set[str] = set()
 
     for statement in parsed_module.body:
@@ -1124,39 +1492,52 @@ def parse_prototypes(module: str, code: str) -> List[FunctionPrototype]:
     return prototypes
 
 
-def builtin_prototypes() -> List[FunctionPrototype]:
-    prototypes: List[FunctionPrototype] = [
-        FunctionPrototype("strcat", NoneType, [InOutCoreType("string"), InOutCoreType("string")]),
-        FunctionPrototype("strcmp", RegisterCoreType("a"), [InOutCoreType("string"), InOutCoreType("string")]),
-        FunctionPrototype("strcpy", NoneType, [InOutCoreType("string"), InOutCoreType("string")]),
-        FunctionPrototype("strlen", RegisterCoreType("a"), [InOutCoreType("string")]),
-        FunctionPrototype("atoi", RegisterCoreType("a"), [InOutCoreType("string")]),
+def parse_and_compile_module(module: str, code:str) -> List[str]:
+    forward_refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
+    forward_refs += parse_forward_refs(module, code)
+    return compile_module(module, code, forward_refs)
+
+
+def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
+    prototypes: List[Union[FunctionPrototype, GlobalVariable]] = [
+        # STDLIB string functions.
+        FunctionPrototype("strcat", NoneType, [PreservedCoreType("string"), PreservedCoreType("string")]),
+        FunctionPrototype("strcmp", RegisterCoreType("A"), [PreservedCoreType("string"), PreservedCoreType("string")]),
+        FunctionPrototype("strcpy", NoneType, [PreservedCoreType("string"), PreservedCoreType("string")]),
+        FunctionPrototype("strlen", RegisterCoreType("A"), [PreservedCoreType("string")]),
+
+        # STDLIB string/integer conversion functions.
+        FunctionPrototype("atoi", RegisterCoreType("A"), [InOutCoreType("string")]),
         FunctionPrototype("atoi16", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int16")]),
         FunctionPrototype("atoi32", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int32")]),
-        FunctionPrototype("itoa", NoneType, [RegisterCoreType("a"), InOutCoreType("string")]),
-        FunctionPrototype("itoa16", NoneType, [CoreType("int16"), InOutCoreType("string")]),
-        FunctionPrototype("itoa32", NoneType, [CoreType("int32"), InOutCoreType("string")]),
+        FunctionPrototype("itoa", NoneType, [RegisterCoreType("A"), PreservedCoreType("string")]),
+        FunctionPrototype("itoa16", NoneType, [PreservedCoreType("int16"), PreservedCoreType("string")]),
+        FunctionPrototype("itoa32", NoneType, [PreservedCoreType("int32"), PreservedCoreType("string")]),
+
+        # STDLIB integer math functions.
+        FunctionPrototype("abs", RegisterCoreType("A"), [RegisterCoreType("A")]),
+        FunctionPrototype("abs16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
+        FunctionPrototype("abs32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
+        FunctionPrototype("neg", RegisterCoreType("A"), [PreservedCoreType("int8")]),
+        FunctionPrototype("neg16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
+        FunctionPrototype("neg32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
+        FunctionPrototype("add", RegisterCoreType("A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
+        FunctionPrototype("add16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
+        FunctionPrototype("add32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
+
+        # STDLIB integer comparison functions.
     ]
 
     # The following are special cases since we will be bridging to them when compiling
     # math expressions. They're kept here for posterity.
     [
-        FunctionPrototype("abs", RegisterCoreType("a"), [RegisterCoreType("a")]),
-        FunctionPrototype("abs16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
-        FunctionPrototype("abs32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
-        FunctionPrototype("neg", RegisterCoreType("a"), [InOutCoreType("int8")]),
-        FunctionPrototype("neg16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
-        FunctionPrototype("neg32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
-        FunctionPrototype("add", RegisterCoreType("a"), [InOutCoreType("int8"), InOutCoreType("int8")]),
-        FunctionPrototype("add16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
-        FunctionPrototype("add32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
-        FunctionPrototype("ucmp", RegisterCoreType("a"), [InOutCoreType("int8"), InOutCoreType("int8")]),
-        FunctionPrototype("ucmp16", RegisterCoreType("a"), [InOutCoreType("int16"), InOutCoreType("int16")]),
-        FunctionPrototype("ucmp32", RegisterCoreType("a"), [InOutCoreType("int32"), InOutCoreType("int32")]),
-        FunctionPrototype("umin", RegisterCoreType("a"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("ucmp", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("ucmp16", RegisterCoreType("A"), [InOutCoreType("int16"), InOutCoreType("int16")]),
+        FunctionPrototype("ucmp32", RegisterCoreType("A"), [InOutCoreType("int32"), InOutCoreType("int32")]),
+        FunctionPrototype("umin", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("umin16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("umin32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
-        FunctionPrototype("umax", RegisterCoreType("a"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("umax", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("umax16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("umax32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
     ]

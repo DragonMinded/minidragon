@@ -1,7 +1,7 @@
 strlen:
     ; Given a stack holding a pointer to a string, return the
     ; length of the string in the A register. Does not clobber
-    ; the U/V registers.
+    ; the U/V registers nor the string pointer on the stack.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;

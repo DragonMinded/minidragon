@@ -1,7 +1,7 @@
 import textwrap
 import unittest
 
-from .core import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, NoneType, parse_prototypes, parse_and_compile
+from .core import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, NoneType, parse_forward_refs, parse_and_compile_module
 
 
 class TestCompiler(unittest.TestCase):
@@ -10,23 +10,23 @@ class TestCompiler(unittest.TestCase):
         self.maxDiff = None
 
     def test_empty(self) -> None:
-        output = parse_and_compile("__test__", "", [])
+        output = parse_and_compile_module("__test__", "")
         assert len(output) == 0
 
     def test_throw_on_top_level_statement(self) -> None:
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile("__test__", 'print("Hello, world!")', [])
+            parse_and_compile_module("__test__", 'print("Hello, world!")')
         self.assertEqual("__test__ line 1: Arbitrary top-level statements are not supported", str(cm.exception))
 
     def test_allow_global_const_declaration_init(self) -> None:
-        output = parse_and_compile("__test__", 'UINT8_CONST: const[int8] = 123', [])
+        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = 123')
         self.assertEqual([
             '  ; __test__ line 1: UINT8_CONST: const[int8] = 123',
             'UINT8_CONST:',
             '  .byte 0x7b',
         ], output)
 
-        output = parse_and_compile("__test__", 'UINT16_CONST: const[int16] = 0xCAFE', [])
+        output = parse_and_compile_module("__test__", 'UINT16_CONST: const[int16] = 0xCAFE')
         self.assertEqual([
             '  ; __test__ line 1: UINT16_CONST: const[int16] = 0xCAFE',
             'UINT16_CONST:',
@@ -34,7 +34,7 @@ class TestCompiler(unittest.TestCase):
             '  .byte 0xfe',
         ], output)
 
-        output = parse_and_compile("__test__", 'UINT32_CONST: const[int32] = 0xDEADBEEF', [])
+        output = parse_and_compile_module("__test__", 'UINT32_CONST: const[int32] = 0xDEADBEEF')
         self.assertEqual([
             '  ; __test__ line 1: UINT32_CONST: const[int32] = 0xDEADBEEF',
             'UINT32_CONST:',
@@ -44,14 +44,14 @@ class TestCompiler(unittest.TestCase):
             '  .byte 0xef',
         ], output)
 
-        output = parse_and_compile("__test__", "UINT8_CONST: const[char] = 'c'", [])
+        output = parse_and_compile_module("__test__", "UINT8_CONST: const[char] = 'c'")
         self.assertEqual([
             "  ; __test__ line 1: UINT8_CONST: const[char] = 'c'",
             "UINT8_CONST:",
             "  .char 'c'",
         ], output)
 
-        output = parse_and_compile("__test__", 'UINT8_CONST: const[string] = "test"', [])
+        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[string] = "test"')
         self.assertEqual([
             '  ; __test__ line 1: UINT8_CONST: const[string] = "test"',
             'UINT8_CONST:',
@@ -63,7 +63,7 @@ class TestCompiler(unittest.TestCase):
         ], output)
 
     def test_allow_global_const_declaration_init_expr(self) -> None:
-        output = parse_and_compile("__test__", 'UINT8_CONST: const[int8] = (7 * 2) + 1', [])
+        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = (7 * 2) + 1')
         self.assertEqual([
             '  ; __test__ line 1: UINT8_CONST: const[int8] = (7 * 2) + 1',
             'UINT8_CONST:',
@@ -72,12 +72,12 @@ class TestCompiler(unittest.TestCase):
 
     def test_throw_on_global_const_declaration(self) -> None:
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile("__test__", 'UINT8_CONST: const[int8]', [])
+            parse_and_compile_module("__test__", 'UINT8_CONST: const[int8]')
         self.assertEqual("__test__ line 1: Expecting initialization value for global const definition", str(cm.exception))
 
     def test_throw_on_global_no_type(self) -> None:
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile("__test__", 'SOME_CONST = 123', [])
+            parse_and_compile_module("__test__", 'SOME_CONST = 123')
         self.assertEqual("__test__ line 1: Global variable declarations must have a type", str(cm.exception))
 
     def test_define_simple_function(self) -> None:
@@ -86,10 +86,10 @@ class TestCompiler(unittest.TestCase):
                 return
         """)
 
-        prototypes = parse_prototypes("__test__", func)
-        self.assertEqual([FunctionPrototype("simple", NoneType, [])], prototypes)
+        prototypes = parse_forward_refs("__test__", func)
+        self.assertEqual([FunctionPrototype("simple", NoneType)], prototypes)
 
-        output = parse_and_compile("__test__", func, [])
+        output = parse_and_compile_module("__test__", func)
         self.assertEqual([
             "simple:",
             "  ; Stack layout just after call:",
@@ -110,10 +110,10 @@ class TestCompiler(unittest.TestCase):
                 return 15
         """)
 
-        prototypes = parse_prototypes("__test__", func)
+        prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [PaddingCoreType(1)])], prototypes)
 
-        output = parse_and_compile("__test__", func, [])
+        output = parse_and_compile_module("__test__", func)
         self.assertEqual([
             'simple:',
             '  ; Stack layout just after call:',
@@ -149,10 +149,10 @@ class TestCompiler(unittest.TestCase):
                 return 15
         """)
 
-        prototypes = parse_prototypes("__test__", func)
-        self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [])], prototypes)
+        prototypes = parse_forward_refs("__test__", func)
+        self.assertEqual([FunctionPrototype("simple", CoreType("int8"))], prototypes)
 
-        output = parse_and_compile("__test__", func, [])
+        output = parse_and_compile_module("__test__", func)
         self.assertEqual([
             'simple:',
             '  ; Stack layout just after call:',
@@ -203,10 +203,10 @@ class TestCompiler(unittest.TestCase):
                 return param + 15
         """)
 
-        prototypes = parse_prototypes("__test__", func)
+        prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [CoreType("int8")])], prototypes)
 
-        output = parse_and_compile("__test__", func, [])
+        output = parse_and_compile_module("__test__", func)
         self.assertEqual([
             'simple:',
             '  ; Stack layout just after call:',
@@ -250,10 +250,10 @@ class TestCompiler(unittest.TestCase):
                 return param + SOME_CONST
         """)
 
-        prototypes = parse_prototypes("__test__", func)
+        prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("defineconst", CoreType("int8"), [CoreType("int8")])], prototypes)
 
-        output = parse_and_compile("__test__", func, [])
+        output = parse_and_compile_module("__test__", func)
         self.assertEqual([
             'defineconst:',
             '  ; Stack layout just after call:',
@@ -304,10 +304,10 @@ class TestCompiler(unittest.TestCase):
                 return some_var
         """)
 
-        prototypes = parse_prototypes("__test__", func)
+        prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("defineconst", CoreType("int8"), [CoreType("int8")])], prototypes)
 
-        output = parse_and_compile("__test__", func, [])
+        output = parse_and_compile_module("__test__", func)
         self.assertEqual([
             'defineconst:',
             '  ; Stack layout just after call:',
@@ -363,7 +363,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile("__test__", func, [])
+            parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 3: Unsupported type for local variable definition", str(cm.exception))
 
     def test_throw_on_local_const_no_assign(self) -> None:
@@ -373,7 +373,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile("__test__", func, [])
+            parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 3: Expecting initialization value for local const definition", str(cm.exception))
 
     def test_throw_on_local_type_redefinition(self) -> None:
@@ -385,7 +385,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile("__test__", func, [])
+            parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 4: Unsupported type redefinition for local variable assignment", str(cm.exception))
 
     def test_throw_on_undefined_local(self) -> None:
@@ -395,7 +395,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile("__test__", func, [])
+            parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 3: Undefined variable reference to 'some_var'", str(cm.exception))
 
     def test_throw_on_local_const_reassign(self) -> None:
@@ -407,7 +407,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile("__test__", func, [])
+            parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 4: Cannot assign to variable 'SOME_VAR' declared const", str(cm.exception))
 
 
