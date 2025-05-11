@@ -92,7 +92,7 @@ if __name__ == "__main__":
         if newpos != pos:
             strval = (
                 f"{pos if pos is not None else '?'}" +
-                f"->" +
+                "->" +
                 f"{newpos if newpos is not None else '?'}"
             )
         else:

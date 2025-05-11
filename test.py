@@ -59,19 +59,19 @@ def rununtilhalt(cpu: CPUCore) -> None:
 
 
 def bintoint16(binary: int) -> int:
-    return struct.unpack("h", struct.pack("H", binary))[0]
+    return int(struct.unpack("h", struct.pack("H", binary))[0])
 
 
 def bintoint32(binary: int) -> int:
-    return struct.unpack("i", struct.pack("I", binary))[0]
+    return int(struct.unpack("i", struct.pack("I", binary))[0])
 
 
 def inttobin16(binary: int) -> int:
-    return struct.unpack("H", struct.pack("h", binary))[0]
+    return int(struct.unpack("H", struct.pack("h", binary))[0])
 
 
 def inttobin32(binary: int) -> int:
-    return struct.unpack("I", struct.pack("i", binary))[0]
+    return int(struct.unpack("I", struct.pack("i", binary))[0])
 
 
 def getstring(cpu: CPUCore, location: int) -> str:
@@ -91,7 +91,7 @@ def checkerror(fname: str, error: Exception) -> None:
     else:
         _assert(False, f"Expected a {type(error).__name__} exception!")
 
-    _assert(
+    _assert(  # noqa
         type(exception) == type(error),
         f"Expected an exception {type(error).__name__} "
         + f"but got {type(exception).__name__}!",
@@ -235,12 +235,12 @@ def verifyaddi(only: Optional[List[str]], full: bool) -> None:
         """)
         if i == -1:
             _assert(
-                disassemble(memory[0]) == f"DEC",
+                disassemble(memory[0]) == "DEC",
                 f"Failed to disassemble ADDI {i}!",
             )
         elif i == 1:
             _assert(
-                disassemble(memory[0]) == f"INC",
+                disassemble(memory[0]) == "INC",
                 f"Failed to disassemble ADDI {i}!",
             )
         else:
@@ -329,7 +329,7 @@ def verifyneg(only: Optional[List[str]], full: bool) -> None:
         """)
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
-        _assert(bintoint(cpu.a) == -i, f"Failed to negate A!")
+        _assert(bintoint(cpu.a) == -i, "Failed to negate A!")
 
 
 def verifyaddpci(only: Optional[List[str]], full: bool) -> None:
@@ -356,7 +356,7 @@ def verifyaddpci(only: Optional[List[str]], full: bool) -> None:
         """)
         if i == 1:
             _assert(
-                disassemble(memory[0]) == f"INCPC",
+                disassemble(memory[0]) == "INCPC",
                 f"Failed to disassemble ADDPCI {i}!",
             )
         else:
@@ -390,7 +390,7 @@ def verifysubpci(only: Optional[List[str]], full: bool) -> None:
         """)
         if i == 1:
             _assert(
-                disassemble(memory[0]) == f"DECPC",
+                disassemble(memory[0]) == "DECPC",
                 f"Failed to disassemble SUBPCI {i}!",
             )
         else:
@@ -474,8 +474,8 @@ def verifyumult(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {x}",
                 f"PUSHI {y}",
-                f"CALL umult",
-                f"HALT",
+                "CALL umult",
+                "HALT",
                 *multiplylines,
                 *addlines,
             ]))
@@ -541,9 +541,9 @@ def verifyumult16(only: Optional[List[str]], full: bool) -> None:
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {y & 0xFF}",
                 f"PUSHI {(y >> 8) & 0xFF}",
-                f"LOADI 123",
-                f"CALL umult16",
-                f"HALT",
+                "LOADI 123",
+                "CALL umult16",
+                "HALT",
                 *multiplylines,
                 *addlines,
             ]))
@@ -621,9 +621,9 @@ def verifyumult32(only: Optional[List[str]], full: bool) -> None:
                 f"PUSHI {(y >> 8) & 0xFF}",
                 f"PUSHI {(y >> 16) & 0xFF}",
                 f"PUSHI {(y >> 24) & 0xFF}",
-                f"LOADI 123",
-                f"CALL umult32",
-                f"HALT",
+                "LOADI 123",
+                "CALL umult32",
+                "HALT",
                 *multiplylines,
                 *addlines,
             ]))
@@ -682,9 +682,9 @@ def verifyudiv(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {dividend}",
                 f"PUSHI {divisor}",
-                f"LOADI 123",
-                f"CALL udiv",
-                f"HALT",
+                "LOADI 123",
+                "CALL udiv",
+                "HALT",
                 *dividelines,
                 *cmplines,
                 *addlines,
@@ -750,9 +750,9 @@ def verifyudiv16(only: Optional[List[str]], full: bool) -> None:
                 f"PUSHI {(dividend >> 8) & 0xFF}",
                 f"PUSHI {divisor & 0xFF}",
                 f"PUSHI {(divisor >> 8) & 0xFF}",
-                f"LOADI 123",
-                f"CALL udiv16",
-                f"HALT",
+                "LOADI 123",
+                "CALL udiv16",
+                "HALT",
                 *dividelines,
                 *cmplines,
                 *addlines,
@@ -822,9 +822,9 @@ def verifyudiv32(only: Optional[List[str]], full: bool) -> None:
                 f"PUSHI {(divisor >> 8) & 0xFF}",
                 f"PUSHI {(divisor >> 16) & 0xFF}",
                 f"PUSHI {(divisor >> 24) & 0xFF}",
-                f"LOADI 123",
-                f"CALL udiv32",
-                f"HALT",
+                "LOADI 123",
+                "CALL udiv32",
+                "HALT",
                 *dividelines,
                 *cmplines,
                 *addlines,
@@ -888,8 +888,8 @@ def verifymathadd(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {x}",
                 f"PUSHI {y}",
-                f"CALL add",
-                f"HALT",
+                "CALL add",
+                "HALT",
                 *addlines,
             ]))
             cpu = CPUCore(memory)
@@ -933,9 +933,9 @@ def verifyadd16(only: Optional[List[str]], full: bool) -> None:
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {y & 0xFF}",
                 f"PUSHI {(y >> 8) & 0xFF}",
-                f"LOADI 123",
-                f"CALL add16",
-                f"HALT",
+                "LOADI 123",
+                "CALL add16",
+                "HALT",
                 *addlines,
             ]))
             cpu = CPUCore(memory)
@@ -987,9 +987,9 @@ def verifyadd32(only: Optional[List[str]], full: bool) -> None:
                 f"PUSHI {(y >> 8) & 0xFF}",
                 f"PUSHI {(y >> 16) & 0xFF}",
                 f"PUSHI {(y >> 24) & 0xFF}",
-                f"LOADI 123",
-                f"CALL add32",
-                f"HALT",
+                "LOADI 123",
+                "CALL add32",
+                "HALT",
                 *addlines,
             ]))
             cpu = CPUCore(memory)
@@ -1039,8 +1039,8 @@ def verifyabs(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             f"LOADI {x}",
-            f"CALL abs",
-            f"HALT",
+            "CALL abs",
+            "HALT",
             *neglines,
             *abslines,
         ]))
@@ -1081,9 +1081,9 @@ def verifyabs16(only: Optional[List[str]], full: bool) -> None:
             *initlines,
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
-            f"LOADI 123",
-            f"CALL abs16",
-            f"HALT",
+            "LOADI 123",
+            "CALL abs16",
+            "HALT",
             *neglines,
             *abslines,
         ]))
@@ -1140,9 +1140,9 @@ def verifyabs32(only: Optional[List[str]], full: bool) -> None:
             f"PUSHI {(xbin >> 8) & 0xFF}",
             f"PUSHI {(xbin >> 16) & 0xFF}",
             f"PUSHI {(xbin >> 24) & 0xFF}",
-            f"LOADI 123",
-            f"CALL abs32",
-            f"HALT",
+            "LOADI 123",
+            "CALL abs32",
+            "HALT",
             *neglines,
             *abslines,
         ]))
@@ -1168,7 +1168,7 @@ def verifyabs32(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
         print(
-            f"{CLEAR_LINE}{int(((x + (2 **31)) * 100) / (2**32))}% complete..."
+            f"{CLEAR_LINE}{int(((x + (2 ** 31)) * 100) / (2 ** 32))}% complete..."
         )
 
     print(f"{CLEAR_LINE}Average cycles for abs32: {int(cycles/count)}")
@@ -1196,8 +1196,8 @@ def verifyucmp(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {a}",
                 f"PUSHI {b}",
-                f"CALL ucmp",
-                f"HALT",
+                "CALL ucmp",
+                "HALT",
                 *cmplines,
             ]))
             cpu = CPUCore(memory)
@@ -1254,8 +1254,8 @@ def verifyucmp16(only: Optional[List[str]], full: bool) -> None:
                 f"PUSHI {(a >> 8) & 0xFF}",
                 f"PUSHI {b & 0xFF}",
                 f"PUSHI {(b >> 8) & 0xFF}",
-                f"CALL ucmp16",
-                f"HALT",
+                "CALL ucmp16",
+                "HALT",
                 *cmplines,
             ]))
             cpu = CPUCore(memory)
@@ -1313,8 +1313,8 @@ def verifyucmp32(only: Optional[List[str]], full: bool) -> None:
             f"PUSHI {(b >> 8) & 0xFF}",
             f"PUSHI {(b >> 16) & 0xFF}",
             f"PUSHI {(b >> 24) & 0xFF}",
-            f"CALL ucmp32",
-            f"HALT",
+            "CALL ucmp32",
+            "HALT",
             *cmplines,
         ]))
         cpu = CPUCore(memory)
@@ -1396,8 +1396,8 @@ def verifyumin(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {a}",
                 f"PUSHI {b}",
-                f"CALL umin",
-                f"HALT",
+                "CALL umin",
+                "HALT",
                 *cmplines,
             ]))
             cpu = CPUCore(memory)
@@ -1449,9 +1449,9 @@ def verifyumin16(only: Optional[List[str]], full: bool) -> None:
                 f"PUSHI {(a >> 8) & 0xFF}",
                 f"PUSHI {b & 0xFF}",
                 f"PUSHI {(b >> 8) & 0xFF}",
-                f"LOADI 123",
-                f"CALL umin16",
-                f"HALT",
+                "LOADI 123",
+                "CALL umin16",
+                "HALT",
                 *cmplines,
             ]))
             cpu = CPUCore(memory)
@@ -1499,9 +1499,9 @@ def verifyumin32(only: Optional[List[str]], full: bool) -> None:
             f"PUSHI {(b >> 8) & 0xFF}",
             f"PUSHI {(b >> 16) & 0xFF}",
             f"PUSHI {(b >> 24) & 0xFF}",
-            f"LOADI 123",
-            f"CALL umin32",
-            f"HALT",
+            "LOADI 123",
+            "CALL umin32",
+            "HALT",
             *cmplines,
         ]))
         cpu = CPUCore(memory)
@@ -1568,8 +1568,8 @@ def verifyumax(only: Optional[List[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {a}",
                 f"PUSHI {b}",
-                f"CALL umax",
-                f"HALT",
+                "CALL umax",
+                "HALT",
                 *cmplines,
             ]))
             cpu = CPUCore(memory)
@@ -1621,9 +1621,9 @@ def verifyumax16(only: Optional[List[str]], full: bool) -> None:
                 f"PUSHI {(a >> 8) & 0xFF}",
                 f"PUSHI {b & 0xFF}",
                 f"PUSHI {(b >> 8) & 0xFF}",
-                f"LOADI 123",
-                f"CALL umax16",
-                f"HALT",
+                "LOADI 123",
+                "CALL umax16",
+                "HALT",
                 *cmplines,
             ]))
             cpu = CPUCore(memory)
@@ -1671,9 +1671,9 @@ def verifyumax32(only: Optional[List[str]], full: bool) -> None:
             f"PUSHI {(b >> 8) & 0xFF}",
             f"PUSHI {(b >> 16) & 0xFF}",
             f"PUSHI {(b >> 24) & 0xFF}",
-            f"LOADI 123",
-            f"CALL umax32",
-            f"HALT",
+            "LOADI 123",
+            "CALL umax32",
+            "HALT",
             *cmplines,
         ]))
         cpu = CPUCore(memory)
@@ -1738,8 +1738,8 @@ def verifymathneg(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             f"PUSHI {x}",
-            f"CALL neg",
-            f"HALT",
+            "CALL neg",
+            "HALT",
             *neglines,
         ]))
         cpu = CPUCore(memory)
@@ -1781,9 +1781,9 @@ def verifyneg16(only: Optional[List[str]], full: bool) -> None:
             *initlines,
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
-            f"LOADI 123",
-            f"CALL neg16",
-            f"HALT",
+            "LOADI 123",
+            "CALL neg16",
+            "HALT",
             *neglines,
         ]))
         cpu = CPUCore(memory)
@@ -1837,9 +1837,9 @@ def verifyneg32(only: Optional[List[str]], full: bool) -> None:
             f"PUSHI {(xbin >> 8) & 0xFF}",
             f"PUSHI {(xbin >> 16) & 0xFF}",
             f"PUSHI {(xbin >> 24) & 0xFF}",
-            f"LOADI 123",
-            f"CALL neg32",
-            f"HALT",
+            "LOADI 123",
+            "CALL neg32",
+            "HALT",
             *neglines,
         ]))
         cpu = CPUCore(memory)
@@ -1864,7 +1864,7 @@ def verifyneg32(only: Optional[List[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
         print(
-            f"{CLEAR_LINE}{int(((x + (2 **31)) * 100) / (2**32))}% complete..."
+            f"{CLEAR_LINE}{int(((x + (2 ** 31)) * 100) / (2 ** 32))}% complete..."
         )
 
     print(f"{CLEAR_LINE}Average cycles for neg32: {int(cycles/count)}")
@@ -2193,11 +2193,11 @@ def verifyitoa(only: Optional[List[str]], full: bool) -> None:
     for x in sorted(chain([0], range(-128, 128, 1 if full else 7))):
         memory = getmemory(os.linesep.join([
             *initlines,
-            f"PUSHI 0x00",
-            f"PUSHI 0x10",
+            "PUSHI 0x00",
+            "PUSHI 0x10",
             f"LOADI {x}",
-            f"CALL itoa",
-            f"HALT",
+            "CALL itoa",
+            "HALT",
             *itoalines,
             *dividelines,
             *cmplines,
@@ -2259,11 +2259,11 @@ def verifyitoa16(only: Optional[List[str]], full: bool) -> None:
             *initlines,
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
-            f"PUSHI 0x00",
-            f"PUSHI 0x10",
-            f"LOADI 123",
-            f"CALL itoa16",
-            f"HALT",
+            "PUSHI 0x00",
+            "PUSHI 0x10",
+            "LOADI 123",
+            "CALL itoa16",
+            "HALT",
             *itoalines,
             *dividelines,
             *cmplines,
@@ -2335,11 +2335,11 @@ def verifyitoa32(only: Optional[List[str]], full: bool) -> None:
             f"PUSHI {(xbin >> 8) & 0xFF}",
             f"PUSHI {(xbin >> 16) & 0xFF}",
             f"PUSHI {(xbin >> 24) & 0xFF}",
-            f"PUSHI 0x00",
-            f"PUSHI 0x10",
-            f"LOADI 123",
-            f"CALL itoa32",
-            f"HALT",
+            "PUSHI 0x00",
+            "PUSHI 0x10",
+            "LOADI 123",
+            "CALL itoa32",
+            "HALT",
             *itoalines,
             *dividelines,
             *cmplines,
@@ -2674,13 +2674,13 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
         if x > 127:
             _assert(
                 result == x,
-                f"Failed to staticreturn, "
+                "Failed to staticreturn, "
                 + f"got {result} instead of {x}!",
             )
         else:
             _assert(
                 bintoint(result) == x,
-                f"Failed to staticreturn, "
+                "Failed to staticreturn, "
                 + f"got {bintoint(result)} instead of {x}!",
             )
         cycles += cpu.cycles
@@ -2720,13 +2720,13 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
         if x > 127:
             _assert(
                 result == x,
-                f"Failed to staticreturn, "
+                "Failed to staticreturn, "
                 + f"got {result} instead of {x}!",
             )
         else:
             _assert(
                 bintoint(result) == x,
-                f"Failed to staticreturn, "
+                "Failed to staticreturn, "
                 + f"got {bintoint(result)} instead of {x}!",
             )
         cycles += cpu.cycles
@@ -2753,7 +2753,7 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("echoparam", textwrap.dedent(f"""
+            *parse_and_compile_module("echoparam", textwrap.dedent("""
                 def echoparam(param1: int8) -> int8:
                     return param1
             """)),
@@ -2774,7 +2774,7 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         result = cpu.ram[cpu.pc + 0]
         _assert(
             bintoint(result) == x,
-            f"Failed to echoparam, "
+            "Failed to echoparam, "
             + f"got {bintoint(result)} instead of {x}!",
         )
         cycles += cpu.cycles
@@ -2793,7 +2793,7 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("echoparam", textwrap.dedent(f"""
+            *parse_and_compile_module("echoparam", textwrap.dedent("""
                 def echoparam(param1: int8) -> nopad[int8]:
                     return param1
             """)),
@@ -2814,7 +2814,7 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         result = cpu.ram[cpu.pc + 0]
         _assert(
             bintoint(result) == x,
-            f"Failed to echoparam, "
+            "Failed to echoparam, "
             + f"got {bintoint(result)} instead of {x}!",
         )
         cycles += cpu.cycles
@@ -2843,7 +2843,7 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("addandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int8) -> int8:
                     return param1 + 15
             """)),
@@ -2865,7 +2865,7 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         result = cpu.ram[cpu.pc + 0]
         _assert(
             bintoint(result) == x + 15,
-            f"Failed to addandreturn, "
+            "Failed to addandreturn, "
             + f"got {bintoint(result)} instead of {x + 15}!",
         )
         cycles += cpu.cycles
@@ -2883,7 +2883,7 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("addandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int8) -> int8:
                     return 15 + param1
             """)),
@@ -2905,7 +2905,7 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         result = cpu.ram[cpu.pc + 0]
         _assert(
             bintoint(result) == x + 15,
-            f"Failed to addandreturn, "
+            "Failed to addandreturn, "
             + f"got {bintoint(result)} instead of {x + 15}!",
         )
         cycles += cpu.cycles
@@ -2925,7 +2925,7 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("addandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int8) -> nopad[int8]:
                     return param1 + 15
             """)),
@@ -2948,13 +2948,13 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         if x > 127:
             _assert(
                 result == x,
-                f"Failed to addandreturn, "
+                "Failed to addandreturn, "
                 + f"got {result} instead of {x}!",
             )
         else:
             _assert(
                 bintoint(result) == x + 15,
-                f"Failed to addandreturn, "
+                "Failed to addandreturn, "
                 + f"got {bintoint(result)} instead of {x}!",
             )
         cycles += cpu.cycles
@@ -2983,7 +2983,7 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("subtractandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int8) -> int8:
                     return param1 - 15
             """)),
@@ -3005,7 +3005,7 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         result = cpu.ram[cpu.pc + 0]
         _assert(
             bintoint(result) == x - 15,
-            f"Failed to subtractandreturn, "
+            "Failed to subtractandreturn, "
             + f"got {bintoint(result)} instead of {x - 15}!",
         )
         cycles += cpu.cycles
@@ -3023,7 +3023,7 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("subtractandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int8) -> int8:
                     return 15 - param1
             """)),
@@ -3045,7 +3045,7 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         result = cpu.ram[cpu.pc + 0]
         _assert(
             bintoint(result) == 15 - x,
-            f"Failed to subtractandreturn, "
+            "Failed to subtractandreturn, "
             + f"got {bintoint(result)} instead of {15 - x}!",
         )
         cycles += cpu.cycles
@@ -3065,7 +3065,7 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("subtractandreturn", textwrap.dedent(f"""
+            *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int8) -> nopad[int8]:
                     return param1 - 15
             """)),
@@ -3088,13 +3088,13 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         if x > 127:
             _assert(
                 result == x,
-                f"Failed to subtractandreturn, "
+                "Failed to subtractandreturn, "
                 + f"got {result} instead of {x}!",
             )
         else:
             _assert(
                 bintoint(result) == x - 15,
-                f"Failed to subtractandreturn, "
+                "Failed to subtractandreturn, "
                 + f"got {bintoint(result)} instead of {x}!",
             )
         cycles += cpu.cycles
@@ -3125,7 +3125,7 @@ def verifycomplexexpression(only: Optional[List[str]], full: bool) -> None:
                 memory = getmemory(os.linesep.join([
                     *initlines,
                     "LNGJUMP code",
-                    *parse_and_compile_module("complexexpression", textwrap.dedent(f"""
+                    *parse_and_compile_module("complexexpression", textwrap.dedent("""
                         def complexexpression(param1: int8, param2: int8, param3: int8) -> int8:
                             return param1 + (param2 - param3) + 7
                     """)),
@@ -3152,7 +3152,7 @@ def verifycomplexexpression(only: Optional[List[str]], full: bool) -> None:
                 expected = x + (y - z) + 7
                 _assert(
                     bintoint(result) == expected,
-                    f"Failed to complexexpression, "
+                    "Failed to complexexpression, "
                     + f"got {bintoint(result)} instead of {expected}!",
                 )
                 cycles += cpu.cycles
@@ -3181,7 +3181,7 @@ def verifylocalvariables(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("localvariables", textwrap.dedent(f"""
+            *parse_and_compile_module("localvariables", textwrap.dedent("""
                 def localvariables(param1: int8) -> int8:
                     SOME_CONST: const[int8] = 10
 
@@ -3211,7 +3211,7 @@ def verifylocalvariables(only: Optional[List[str]], full: bool) -> None:
         expected = x + 15
         _assert(
             bintoint(result) == expected,
-            f"Failed to localvariables, "
+            "Failed to localvariables, "
             + f"got {bintoint(result)} instead of {expected}!",
         )
         cycles += cpu.cycles
@@ -3240,7 +3240,7 @@ def verifyfunctioncall(only: Optional[List[str]], full: bool) -> None:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
-            *parse_and_compile_module("functioncall", textwrap.dedent(f"""
+            *parse_and_compile_module("functioncall", textwrap.dedent("""
                 def add_10_to_two_params(param1: int8, param2: int8) -> int8:
                     CONST_VALUE: int8 = 10
                     return param1 + param2 + CONST_VALUE
@@ -3267,7 +3267,7 @@ def verifyfunctioncall(only: Optional[List[str]], full: bool) -> None:
         expected = x + 15
         _assert(
             bintoint(result) == expected,
-            f"Failed to functioncall, "
+            "Failed to functioncall, "
             + f"got {bintoint(result)} instead of {expected}!",
         )
         cycles += cpu.cycles
@@ -3276,6 +3276,65 @@ def verifyfunctioncall(only: Optional[List[str]], full: bool) -> None:
 
     print(f"Average cycles for functioncall: {int(cycles/count)}")
     print(f"Average instructions for functioncall: {int(instructions/count)}")
+
+
+def verifycomplexfunctioncall(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "complexfunctioncall" not in only:
+        return
+
+    print("Verifying complexfunctioncall...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 89, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("complexfunctioncall", textwrap.dedent("""
+                def add_10_to_two_params(param1: int8, param2: int8) -> int8:
+                    CONST_VALUE: int8 = 10
+                    return param1 + param2 + CONST_VALUE
+
+                def be_in_the_way(param1: int8, param2: int8) -> int8:
+                    return add_10_to_two_params(param1 + 2, param2 + 3)
+
+                def func(param1: int8) -> int8:
+                    return be_in_the_way(param1, 0)
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"complexfunctioncall changed accumulator value from {x} to {cpu.a}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        expected = x + 15
+        _assert(
+            bintoint(result) == expected,
+            "Failed to complexfunctioncall, "
+            + f"got {bintoint(result)} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for complexfunctioncall: {int(cycles/count)}")
+    print(f"Average instructions for complexfunctioncall: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -3370,3 +3429,4 @@ if __name__ == "__main__":
     verifycomplexexpression(only, args.full)
     verifylocalvariables(only, args.full)
     verifyfunctioncall(only, args.full)
+    verifycomplexfunctioncall(only, args.full)

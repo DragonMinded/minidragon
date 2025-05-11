@@ -1,11 +1,12 @@
 import textwrap
 import unittest
+from typing import Any
 
 from .core import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, NoneType, parse_forward_refs, parse_and_compile_module
 
 
 class TestCompiler(unittest.TestCase):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.maxDiff = None
 

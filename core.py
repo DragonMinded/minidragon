@@ -2,7 +2,7 @@
 import struct
 from ast import literal_eval
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple, TypeVar
 
 
 def sign_extend(val: int, msb: int) -> int:
@@ -41,7 +41,7 @@ def binstr(num: int, digits: int) -> str:
 
 
 def bintoint(binary: int) -> int:
-    return struct.unpack("b", struct.pack("B", binary))[0]
+    return int(struct.unpack("b", struct.pack("B", binary))[0])
 
 
 def _splitparams(blob: str) -> Tuple[str, ...]:
@@ -96,12 +96,12 @@ def _checkempty(mnemonic: str, parameters: Tuple[str, ...]) -> None:
 def _checkoneparam(mnemonic: str, parameters: Tuple[str, ...]) -> None:
     if len(parameters) == 0:
         raise ParameterOutOfRangeException(
-            f"Expected parameter for instruction "
+            "Expected parameter for instruction "
             + _insnrep(mnemonic, parameters)
         ) from None
     if len(parameters) > 1:
         raise ParameterOutOfRangeException(
-            f"Too many parameters for instruction "
+            "Too many parameters for instruction "
             + _insnrep(mnemonic, parameters)
         ) from None
 
@@ -109,17 +109,17 @@ def _checkoneparam(mnemonic: str, parameters: Tuple[str, ...]) -> None:
 def _checktwoparams(mnemonic: str, parameters: Tuple[str, ...]) -> None:
     if len(parameters) == 0:
         raise ParameterOutOfRangeException(
-            f"Expected parameters for instruction "
+            "Expected parameters for instruction "
             + _insnrep(mnemonic, parameters)
         ) from None
     if len(parameters) == 1:
         raise ParameterOutOfRangeException(
-            f"Too few parameters for instruction "
+            "Too few parameters for instruction "
             + _insnrep(mnemonic, parameters)
         ) from None
     if len(parameters) > 2:
         raise ParameterOutOfRangeException(
-            f"Too many parameters for instruction "
+            "Too many parameters for instruction "
             + _insnrep(mnemonic, parameters)
         ) from None
 
@@ -170,7 +170,10 @@ class BaseInstruction(ABC):
         ...
 
 
-def instruction(obj: Callable) -> Callable:
+CallableInstruction = TypeVar("CallableInstruction", bound=Callable[[], BaseInstruction])
+
+
+def instruction(obj: CallableInstruction) -> CallableInstruction:
     instructions.append(obj())
     return obj
 
@@ -191,8 +194,6 @@ class CodeOutOfRangeException(Exception):
 
 
 def disassemble(instruction: int) -> str:
-    global instructions
-
     for inst in instructions:
         if inst.handles(instruction):
             return inst.mnemonic(instruction)
@@ -200,8 +201,6 @@ def disassemble(instruction: int) -> str:
 
 
 def decode(instruction: int) -> Tuple[str, List["ControlSignals"]]:
-    global instructions
-
     for inst in instructions:
         if inst.handles(instruction):
             signals = inst.signals()
@@ -280,15 +279,13 @@ def getint(
         intval = struct.unpack("H", struct.pack("h", intval))[0]
 
     # Return it masked.
-    return intval & ((2 ** bits) - 1)
+    return int(intval & ((2 ** bits) - 1))
 
 
 def assemble(
     mnemonics: List[str],
     existing_labels: Optional[Dict[str, int]] = None,
 ) -> List[Tuple[int, int]]:
-    global instructions
-
     org = 0
     labels: Dict[str, int] = (
         existing_labels if existing_labels is not None else {}
@@ -693,12 +690,12 @@ class PUSHIP(BaseInstruction):
 
         if location < 0:
             raise ParameterOutOfRangeException(
-                f"Can only have a positive offset "
+                "Can only have a positive offset "
                 + f"for instruction {_insnrep(mnemonic, parameters)}"
             )
         if location > 7:
             raise ParameterOutOfRangeException(
-                f"Can only store an offset up to 7 "
+                "Can only store an offset up to 7 "
                 + f"for instruction {_insnrep(mnemonic, parameters)}"
             )
 
@@ -1538,7 +1535,7 @@ class ADDPCI(BaseInstruction):
         ) - 1
         if location > 31 or location < 0:
             raise ParameterOutOfRangeException(
-                f"Parameter out of range for "
+                "Parameter out of range for "
                 + f"instruction {_insnrep(mnemonic, parameters)}"
             )
         return [0b11000000 | (location & 0b11111)]
@@ -1611,7 +1608,7 @@ class SUBPCI(BaseInstruction):
         )
         if location > 32 or location < 1:
             raise ParameterOutOfRangeException(
-                f"Parameter out of range for "
+                "Parameter out of range for "
                 + f"instruction {_insnrep(mnemonic, parameters)}"
             )
         return [0b10100000 | ((-location) & 0b11111)]
@@ -2717,7 +2714,7 @@ class SETPC(BaseMacro):
                 # values into upper bits of the A register, so we must
                 # have already seen a label to use it.
                 raise ParameterOutOfRangeException(
-                    f"Cannot SETPC to a label not yet seen for "
+                    "Cannot SETPC to a label not yet seen for "
                     + f"instruction {_insnrep(mnemonic, parameters)}"
                 )
 

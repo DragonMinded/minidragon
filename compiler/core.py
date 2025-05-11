@@ -333,7 +333,7 @@ def codegen_eval(expr: cst.BaseExpression) -> object:
     code = fresh_module.code_for_node(
         cst.SimpleStatementLine(
             body=[
-                cst.Expr(value = expr),
+                cst.Expr(value=expr),
             ],
         )
     )
@@ -410,7 +410,7 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             for c in value:
                 compiled.append(f"  .char {c[0]!r}")
-            compiled.append(f"  .byte 0x00")
+            compiled.append("  .byte 0x00")
         else:
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
@@ -431,7 +431,6 @@ def generate_move_by(move_amt: int, stack: Stack, clobbers: Set[str], context: C
 
 
 def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
-    compiled: List[str] = []
     move_amt = stack.find(destination)
     if move_amt is None:
         raise Exception(f"Logic error, could not find {destination} on stack to move to!")
@@ -516,7 +515,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
         # Second, make sure the top of the stack is our return.
         top_spot = stack.at(0)
-        if top_spot != "builtin(retval)":
+        if top_spot is not None and top_spot.name != "builtin(retval)":
             compiled.append("  ; Moving return value to correct location in stack.")
 
             # We need to use the A register to move the value, so it's clobbered now.
@@ -578,16 +577,16 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             compiled += generate_move_by(move_amt, stack, clobbers, context)
 
             if name == "builtin(saved_a)":
-                compiled.append(f"  POP A")
+                compiled.append("  POP A")
                 stack.move(-1)
             elif name == "builtin(saved_u)":
-                compiled.append(f"  POP U")
+                compiled.append("  POP U")
                 stack.move(-1)
             elif name == "builtin(saved_v)":
-                compiled.append(f"  POP V")
+                compiled.append("  POP V")
                 stack.move(-1)
             elif name == "builtin(saved_spc)":
-                compiled.append(f"  POP SPC")
+                compiled.append("  POP SPC")
                 stack.move(-2)
             else:
                 raise Exception(f"Logic error, unexpected saved type {name}!")
@@ -597,7 +596,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
     # Now, if we need to, move past any temporary values we didn't pop but don't care about.
     final_move_to_ret = stack.diff(retptr_final_loc + 1)
     compiled += generate_move_by(final_move_to_ret, stack, clobbers, context)
-    compiled.append(f"  RET")
+    compiled.append("  RET")
 
     return compiled
 
@@ -847,7 +846,7 @@ def generate_function_call(
         if source_size == dest_size:
             compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
         else:
-            raise CompilerError(f"Unsupported byref assignment from different variable sizes", context)
+            raise CompilerError("Unsupported byref assignment from different variable sizes", context)
 
     # Now, if the return is in one of the parameters, copy that to our destination.
     if isinstance(function_prototype.return_type, ParamReturnCoreType):
@@ -867,7 +866,7 @@ def generate_function_call(
         if source_size == dest_size:
             compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
         else:
-            raise CompilerError(f"Unsupported function return from different variable sizes", context)
+            raise CompilerError("Unsupported function return from different variable sizes", context)
 
     # Now, fix up our view of the stack.
     for entry in reversed(temporary_stack_entries):
@@ -901,7 +900,7 @@ def generate_function_call(
             if source_size == dest_size:
                 compiled += generate_memcpy_unrolled(src_loc, dest_loc, dest_size, stack, clobbers, context)
             else:
-                raise CompilerError(f"Unsupported function return from different variable sizes", context)
+                raise CompilerError("Unsupported function return from different variable sizes", context)
     else:
         # Finally, calculate the true position of the stack after calling the function, so future
         # manipulations of the stack know where we really are.
@@ -939,7 +938,7 @@ def generate_expr_internal(
     compiled: List[str] = []
 
     destination_size = 1 if destination == "A" else stack.sizeof(destination)
-    if destination_size == None:
+    if destination_size is None:
         raise Exception("Logic error, could not calculate size of destination!")
 
     if isinstance(expression, cst.Integer):
@@ -971,7 +970,7 @@ def generate_expr_internal(
                 if source_size == dest_size:
                     compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
                 else:
-                    raise CompilerError(f"Unsupported assignment from different variable sizes", context)
+                    raise CompilerError("Unsupported assignment from different variable sizes", context)
 
     elif isinstance(expression, cst.UnaryOperation):
         if isinstance(expression.operator, cst.Minus):
@@ -981,7 +980,7 @@ def generate_expr_internal(
                 compiled += generate_const_load(intval, destination, stack, clobbers, context)
             else:
                 # TODO: Need to negate the expression.
-                raise CompilerError(f"Unsupported negation operator", context)
+                raise CompilerError("Unsupported negation operator", context)
         else:
             # TODO: What other expressions are there, NOT perhaps?
             raise CompilerError(f"Unsupported unary operation {expression}", context)
@@ -1067,7 +1066,7 @@ def generate_expr_internal(
 
         else:
             # TODO: Support other bit sizes than 8.
-            raise CompilerError(f"Unsupported addition size!", context)
+            raise CompilerError("Unsupported addition size!", context)
 
     elif isinstance(expression, cst.Call):
         compiled += generate_function_call(expression, destination, stack, clobbers, refs, context.wrap(expression))
@@ -1185,12 +1184,12 @@ def compile_chunk(
                     if simple_statement.value is None:
                         # Simple return by itself, doesn't update the retval.
                         if function_type is not NoneType:
-                            raise CompilerError(f"Returning nothing from a function marked with a return value", context)
+                            raise CompilerError("Returning nothing from a function marked with a return value", context)
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
                     else:
                         # Return of some sort of expression.
                         if function_type is NoneType:
-                            raise CompilerError(f"Returning something from a function marked with no return value", context)
+                            raise CompilerError("Returning something from a function marked with no return value", context)
 
                         compiled += generate_expr(simple_statement.value, "builtin(retval)", stack, clobbers, refs, context.wrap(simple_statement.value))
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
@@ -1383,7 +1382,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
     # Make sure that we have room on the stack for the return value. Don't move at this point
     # because we might not want to generate instructions to move.
     if function_type is not NoneType:
-        size = stack.alloc(StackVar("builtin(retval)", function_type))
+        stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
     compiled += compile_chunk(func.body, stack, set(), function_type, refs, local_consts, context)
@@ -1492,7 +1491,7 @@ def parse_forward_refs(module: str, code: str) -> List[Union[FunctionPrototype, 
     return prototypes
 
 
-def parse_and_compile_module(module: str, code:str) -> List[str]:
+def parse_and_compile_module(module: str, code: str) -> List[str]:
     forward_refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
     forward_refs += parse_forward_refs(module, code)
     return compile_module(module, code, forward_refs)
@@ -1543,4 +1542,3 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
     ]
 
     return prototypes
-
