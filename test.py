@@ -3305,7 +3305,9 @@ def verifycomplexfunctioncall(only: Optional[List[str]], full: bool) -> None:
                     return add_10_to_two_params(param1 + 2, param2 + 3)
 
                 def func(param1: int8) -> int8:
-                    return be_in_the_way(param1, 0)
+                    CONST_VALUE: int8 = 2
+                    local_var: int8 = be_in_the_way(param1, 7)
+                    return local_var - 5 - CONST_VALUE
             """)),
             "code:",
             f"LOADI {x}",
