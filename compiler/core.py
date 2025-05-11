@@ -897,7 +897,7 @@ def generate_function_call(
             if dest_loc is None or dest_size is None:
                 raise Exception(f"Logic error, cannot find destination {destination} to copy variable value to!")
 
-            if source_size == dest_size:
+            if src_size == dest_size:
                 compiled += generate_memcpy_unrolled(src_loc, dest_loc, dest_size, stack, clobbers, context)
             else:
                 raise CompilerError("Unsupported function return from different variable sizes", context)
