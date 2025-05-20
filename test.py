@@ -2658,6 +2658,10 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
                     return {x}
             """)),
             "code:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "DECPC",
             "CALL staticreturn",
@@ -2669,6 +2673,14 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"staticreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         if x > 127:
@@ -2705,6 +2717,10 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
                     return {x}
             """)),
             "code:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL staticreturn",
             "HALT",
@@ -2715,6 +2731,14 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"staticreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         if x > 127:
@@ -2735,6 +2759,332 @@ def verifystaticreturn(only: Optional[List[str]], full: bool) -> None:
 
     print(f"Average cycles for staticreturn: {int(cycles/count)}")
     print(f"Average instructions for staticreturn: {int(instructions/count)}")
+
+
+def verifydowncast(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "downcast" not in only:
+        return
+
+    print("Verifying downcast...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 54321]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("downcast", textwrap.dedent("""
+                def func(param1: int16) -> nopad[int8]:
+                    return param1
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"downcast changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = bintoint(x & 0xFF)
+        _assert(
+            result == expected,
+            "Failed to downcast, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 54321, 123456789, 987654321, 0xDEADBEEF, 0xCAFEBABE]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("downcast", textwrap.dedent("""
+                def func(param1: int32) -> nopad[int8]:
+                    return param1
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"downcast changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = bintoint(x & 0xFF)
+        _assert(
+            result == expected,
+            "Failed to downcast, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0xDEADBEEF, 37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 54321, 123456789, 987654321, 0xDEADBEEF, 0xCAFEBABE]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("downcast", textwrap.dedent("""
+                def func(param1: int32) -> nopad[int16]:
+                    return param1
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"downcast changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint16(
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        )
+        expected = bintoint16(x & 0xFFFF)
+        _assert(
+            result == expected,
+            "Failed to downcast, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for downcast: {int(cycles/count)}")
+    print(f"Average instructions for downcast: {int(instructions/count)}")
+
+
+def verifyupcast(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "upcast" not in only:
+        return
+
+    print("Verifying upcast...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    if True:
+        for x in [37, -37, 89, 0, 42, -42]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("upcast", textwrap.dedent("""
+                    def func(param1: int8) -> nopad[int16]:
+                        return param1
+                """)),
+                "code:",
+                f"LOADI {x}",
+                "PUSH A",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+                *addlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"upcast changed accumulator value from {x} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"staticreturn changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"staticreturn changed V value from {222} to {cpu.v}!",
+            )
+            result = bintoint16(
+                (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+            )
+            expected = x
+            _assert(
+                result == expected,
+                "Failed to upcast, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        for x in [37, -37, 89, 0, 42, -42]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("upcast", textwrap.dedent("""
+                    def func(param1: int8) -> nopad[int32]:
+                        return param1
+                """)),
+                "code:",
+                f"LOADI {x}",
+                "PUSH A",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+                *addlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"upcast changed accumulator value from {x} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"staticreturn changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"staticreturn changed V value from {222} to {cpu.v}!",
+            )
+            result = bintoint32(
+                (cpu.ram[cpu.pc + 0] << 24) +
+                (cpu.ram[cpu.pc + 1] << 16) +
+                (cpu.ram[cpu.pc + 2] << 8) +
+                (cpu.ram[cpu.pc + 3])
+            )
+            expected = x
+            _assert(
+                result == expected,
+                "Failed to upcast, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    for x in [-37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("upcast", textwrap.dedent("""
+                def func(param1: int16) -> nopad[int32]:
+                    return param1
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"upcast changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint32(
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3])
+        )
+        expected = x
+        _assert(
+            result == expected,
+            "Failed to upcast, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for upcast: {int(cycles/count)}")
+    print(f"Average instructions for upcast: {int(instructions/count)}")
 
 
 def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
@@ -2760,6 +3110,10 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL echoparam",
             "HALT",
@@ -2770,6 +3124,14 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"echoparam changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -2800,6 +3162,10 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL echoparam",
             "HALT",
@@ -2810,6 +3176,14 @@ def verifyechoparam(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"echoparam changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -2850,6 +3224,10 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL addandreturn",
             "HALT",
@@ -2861,6 +3239,14 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"addandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -2890,6 +3276,10 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL addandreturn",
             "HALT",
@@ -2901,6 +3291,14 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"addandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -2932,6 +3330,10 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL addandreturn",
             "HALT",
@@ -2943,6 +3345,14 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"addandreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         if x > 127:
@@ -2990,6 +3400,10 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL subtractandreturn",
             "HALT",
@@ -3001,6 +3415,14 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3030,6 +3452,10 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL subtractandreturn",
             "HALT",
@@ -3041,6 +3467,14 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3072,6 +3506,10 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL subtractandreturn",
             "HALT",
@@ -3083,6 +3521,14 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"subtractandreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         if x > 127:
@@ -3136,6 +3582,10 @@ def verifycomplexexpression(only: Optional[List[str]], full: bool) -> None:
                     "PUSH A",
                     f"LOADI {z}",
                     "PUSH A",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
                     "LOADI 123",
                     "CALL complexexpression",
                     "HALT",
@@ -3147,6 +3597,14 @@ def verifycomplexexpression(only: Optional[List[str]], full: bool) -> None:
                 _assert(
                     cpu.a == 123,
                     f"complexexpression changed accumulator value from {x} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"staticreturn changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"staticreturn changed V value from {222} to {cpu.v}!",
                 )
                 result = cpu.ram[cpu.pc + 0]
                 expected = x + (y - z) + 7
@@ -3195,6 +3653,10 @@ def verifylocalvariables(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL localvariables",
             "HALT",
@@ -3206,6 +3668,14 @@ def verifylocalvariables(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"localvariables changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         expected = x + 15
@@ -3251,6 +3721,10 @@ def verifyfunctioncall(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL func",
             "HALT",
@@ -3262,6 +3736,14 @@ def verifyfunctioncall(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"functioncall changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         expected = x + 15
@@ -3311,6 +3793,10 @@ def verifycomplexfunctioncall(only: Optional[List[str]], full: bool) -> None:
             "code:",
             f"LOADI {x}",
             "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "LOADI 123",
             "CALL func",
             "HALT",
@@ -3322,6 +3808,14 @@ def verifycomplexfunctioncall(only: Optional[List[str]], full: bool) -> None:
         _assert(
             cpu.a == 123,
             f"complexfunctioncall changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         expected = x + 15
@@ -3424,6 +3918,8 @@ if __name__ == "__main__":
 
     # Compiler verifications
     verifystaticreturn(only, args.full)
+    verifyupcast(only, args.full)
+    verifydowncast(only, args.full)
     verifyechoparam(only, args.full)
     verifyaddandreturn(only, args.full)
     verifysubtractandreturn(only, args.full)

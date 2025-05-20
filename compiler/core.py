@@ -455,7 +455,7 @@ def generate_memcpy_unrolled(src_loc: int, dst_loc: int, size: int, stack: Stack
             if i < size - 1:
                 compiled.append(f"  ADDPCI {(-shuffle_amount) - 1}")
 
-        stack.move((-shuffle_amount) - (size - 1))
+        stack.move((-shuffle_amount) + (size - 1))
     else:
         for i in range(size):
             compiled.append("  LOAD A")
@@ -604,7 +604,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 def generate_const_load(val: int, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
     compiled: List[str] = []
 
-    if destination == "A":
+    if destination == "register(A)":
         compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
     else:
         dest_loc = stack.find(destination)
@@ -640,9 +640,6 @@ def generate_const_load(val: int, destination: str, stack: Stack, clobbers: Set[
             raise CompilerError(f"Unsupported destination {destination} for const load", context)
 
     return compiled
-
-
-__expr_global_count: int = 0
 
 
 def generate_function_call(
@@ -879,7 +876,7 @@ def generate_function_call(
         stack_on_exit += function_prototype.return_type.size
         stack.location = stack_on_exit
 
-        if destination == "A":
+        if destination == "register(A)":
             # Pop the value from the stack, instead of copying.
             src_loc = normal_return_loc
             src_size = function_prototype.return_type.size
@@ -910,10 +907,28 @@ def generate_function_call(
     return compiled
 
 
+__expr_global_count: int = 0
+
+
 def expr_temp_name() -> str:
     global __expr_global_count
     __expr_global_count += 1
     return f"builtin(expr_temp_{__expr_global_count})"
+
+
+__local_label_count: int = 0
+
+
+def local_label_name(label: str = "") -> str:
+    global __local_label_count
+    __local_label_count += 1
+
+    if label:
+        label = f"_{label}_"
+    else:
+        label = "_"
+
+    return f"local{label}{__local_label_count}"
 
 
 def expr_integer_type(size: int) -> CoreType:
@@ -927,6 +942,74 @@ def expr_integer_type(size: int) -> CoreType:
         raise Exception("Logic error, unrecognized integer size!")
 
 
+def generate_variable_lookup(
+    source: str,
+    destination: str,
+    stack: Stack,
+    clobbers: Set[str],
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    context: Context,
+) -> List[str]:
+    compiled: List[str] = []
+
+    # TODO: This needs to support looking up global variables, for any variable that is defined globally and
+    # then locally marked with the "global" keyword.
+
+    if destination == "register(A)":
+        # Just need to load A with the value, which should always be the lowest 8 bits of any variable.
+        if stack.absfind(source) is None:
+            raise CompilerError(f"Undefined variable reference to {source!r}", context)
+        compiled += generate_move_to(source, stack, clobbers, context)
+        compiled.append("  LOAD A")
+    else:
+        source_loc = stack.absfind(source)
+        source_size = stack.sizeof(source)
+        dest_loc = stack.absfind(destination)
+        dest_size = stack.sizeof(destination)
+        if source_loc is None or source_size is None:
+            raise CompilerError(f"Undefined variable reference to {source!r}", context)
+        if dest_loc is None or dest_size is None:
+            raise Exception("Logic error, cannot find destination to copy variable value to!")
+
+        if source_size == dest_size:
+            # Direct copy from source stack to destination stack.
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+        elif source_size > dest_size:
+            # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+        else:
+            # We need to sign extend the top bit of the top byte for negative numbers, which requires the A register.
+            clobbers.add("A")
+
+            # First, go to the high byte and figure out if it needs to be zero or one extended.
+            move_amt = stack.diff(source_loc + (source_size - 1))
+            compiled += generate_move_by(move_amt, stack, clobbers, context)
+            compiled.append("  LOAD A")
+            compiled.append("  SHL")
+
+            set_branch = local_label_name("top_bit_set")
+            extend_branch = local_label_name("sign_extend")
+
+            compiled.append(f"  JRIC {set_branch}")
+            compiled.append("  LOADI 0")
+            compiled.append(f"  JRI {extend_branch}")
+            compiled.append(f"{set_branch}:")
+            compiled.append("  LOADI -1")
+            compiled.append(f"{extend_branch}:")
+
+            for pos in range(dest_size - source_size):
+                actual_pos = pos + dest_loc + source_size
+
+                move_amt = stack.diff(actual_pos)
+                compiled += generate_move_by(move_amt, stack, clobbers, context)
+                compiled.append("  STORE A")
+
+            # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_size, stack, clobbers, context)
+
+    return compiled
+
+
 def generate_expr_internal(
     expression: cst.BaseExpression,
     destination: str,
@@ -937,40 +1020,15 @@ def generate_expr_internal(
 ) -> List[str]:
     compiled: List[str] = []
 
-    destination_size = 1 if destination == "A" else stack.sizeof(destination)
+    destination_size = 1 if destination == "register(A)" else stack.sizeof(destination)
     if destination_size is None:
         raise Exception("Logic error, could not calculate size of destination!")
 
     if isinstance(expression, cst.Integer):
-        intval = int(expression.value)
-        compiled += generate_const_load(intval, destination, stack, clobbers, context)
+        compiled += generate_const_load(int(expression.value), destination, stack, clobbers, context)
 
     elif isinstance(expression, cst.Name):
-        # TODO: This needs to support looking up global variables, for any variable that is defined globally and
-        # then locally marked with the "global" keyword.
-
-        source = expression.value
-        if source != destination:
-            if destination == "A":
-                # Just need to load A with the value.
-                if stack.absfind(source) is None:
-                    raise CompilerError(f"Undefined variable reference to {source!r}", context)
-                compiled += generate_move_to(source, stack, clobbers, context)
-                compiled.append("  LOAD A")
-            else:
-                source_loc = stack.absfind(source)
-                source_size = stack.sizeof(source)
-                dest_loc = stack.absfind(destination)
-                dest_size = stack.sizeof(destination)
-                if source_loc is None or source_size is None:
-                    raise CompilerError(f"Undefined variable reference to {source!r}", context)
-                if dest_loc is None or dest_size is None:
-                    raise Exception("Logic error, cannot find destination to copy variable value to!")
-
-                if source_size == dest_size:
-                    compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
-                else:
-                    raise CompilerError("Unsupported assignment from different variable sizes", context)
+        compiled += generate_variable_lookup(expression.value, destination, stack, clobbers, refs, context)
 
     elif isinstance(expression, cst.UnaryOperation):
         if isinstance(expression.operator, cst.Minus):
@@ -998,7 +1056,7 @@ def generate_expr_internal(
                 # TODO: Support other operators than add/subtract.
                 raise CompilerError(f"Unsupported compile-time computation for {expression.operator}!", context)
 
-        if destination == "A" or stack.stack[-1].name != destination:
+        if destination == "register(A)" or stack.stack[-1].name != destination:
             # In order to ensure that it's possible to do stack math on this value, locate it in
             # a temporary location for the time being if the destination isn't the top of the stack.
             lhs_dest = expr_temp_name()
@@ -1025,7 +1083,7 @@ def generate_expr_internal(
                 compiled.append("  CALL add")
 
                 # This function puts the result in a, so check if that's what we want.
-                if destination == "A":
+                if destination == "register(A)":
                     # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
                     stack.free(rhs_dest)
                     stack.free(lhs_dest)
@@ -1050,7 +1108,7 @@ def generate_expr_internal(
                 compiled.append("  CALL add")
 
                 # This function puts the result in a, so check if that's what we want.
-                if destination == "A":
+                if destination == "register(A)":
                     # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
                     stack.free(rhs_dest)
                     stack.free(lhs_dest)
@@ -1094,7 +1152,7 @@ def generate_expr(
         # We can potentially keep the math in the A register!
         clobbers.add("A")
 
-        compiled += generate_expr_internal(expression, "A", stack, clobbers, refs, context)
+        compiled += generate_expr_internal(expression, "register(A)", stack, clobbers, refs, context)
         compiled += generate_move_to(destination, stack, clobbers, context)
         compiled.append("  STORE A")
     else:
