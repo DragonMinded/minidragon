@@ -1078,9 +1078,11 @@ def generate_expr_internal(
                 # The stdlib for add clobbers the A register
                 clobbers.add("A")
 
-                # Move to the right spot on the stack to call the add function, then call it.
+                # Move to the right spot on the stack and then add the two numbers.
                 compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-                compiled.append("  CALL add")
+                compiled.append("  LOAD A")
+                compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+                compiled.append("  ADD")
 
                 # This function puts the result in a, so check if that's what we want.
                 if destination == "register(A)":
@@ -1097,15 +1099,14 @@ def generate_expr_internal(
                 # The stdlib for add clobbers the A register. We also clobber by negating the second param.
                 clobbers.add("A")
 
-                # Move to the second parameter.
+                # Move to the second parameter and negate it.
                 compiled += generate_move_to(rhs_dest, stack, clobbers, context)
                 compiled.append("  LOAD A")
                 compiled.append("  NEG")
-                compiled.append("  STORE A")
 
-                # Move to the right spot on the stack to call the add function, then call it.
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-                compiled.append("  CALL add")
+                # Move to the right spot on the stack to add to the negated right hand side.
+                compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+                compiled.append("  ADD")
 
                 # This function puts the result in a, so check if that's what we want.
                 if destination == "register(A)":
