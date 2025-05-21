@@ -35,22 +35,30 @@ class CoreType:
     applied to it, and sometimes a nopad[] modifier applied to it.
     """
 
-    def __init__(self, base_type: str, const: bool = False, return_padding: bool = True) -> None:
-        # TODO: Need to allow pointers to have a base type of the memory location pointed at.
+    def __init__(self, base_type: str, pointed_type: Optional["CoreType"] = None, const: bool = False, return_padding: bool = True) -> None:
         self.type = base_type
+        self.pointed_type = pointed_type
         self.const = const
         self.return_padding = return_padding
+        if self.type == "pointer" and pointed_type is None:
+            raise Exception("Logic error, creating a pointer without a pointed type!")
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, str):
             return self.type == other
         if isinstance(other, CoreType):
-            return self.type == other.type
+            return self.type == other.type and self.pointed_type == other.pointed_type and self.const == other.const
         return False
 
     def __repr__(self) -> str:
         pre = ""
         post = ""
+        typestr = self.type
+
+        if self.type == "pointer":
+            pre = "pointer[" + pre
+            typestr = repr(self.pointed_type)
+            post = post + "]"
         if self.const:
             pre = "const[" + pre
             post = post + "]"
@@ -58,7 +66,7 @@ class CoreType:
             pre = "nopad[" + pre
             post = post + "]"
 
-        return pre + self.type + post
+        return pre + typestr + post
 
     @property
     def size(self) -> int:
@@ -81,7 +89,7 @@ class CoreType:
         raise NotImplementedError(f"Type {self.type} not implemented!")
 
 
-NoneType = CoreType("None", True, False)
+NoneType = CoreType("None", None, True, False)
 
 
 class PreservedCoreType(CoreType):
@@ -92,7 +100,7 @@ class PreservedCoreType(CoreType):
     from the stack upon function call.
     """
     def __init__(self, base_type: str) -> None:
-        super().__init__(base_type, True)
+        super().__init__(base_type, None, const=True)
 
 
 class InOutCoreType(CoreType):
@@ -103,7 +111,7 @@ class InOutCoreType(CoreType):
     """
 
     def __init__(self, base_type: str) -> None:
-        super().__init__(base_type, False)
+        super().__init__(base_type, None, const=False)
 
 
 class OutCoreType(CoreType):
@@ -115,7 +123,7 @@ class OutCoreType(CoreType):
     """
 
     def __init__(self, base_type: str) -> None:
-        super().__init__(base_type, False)
+        super().__init__(base_type, None, const=False)
 
 
 class RegisterCoreType(CoreType):
@@ -125,7 +133,7 @@ class RegisterCoreType(CoreType):
     """
 
     def __init__(self, register: str) -> None:
-        super().__init__(register, False)
+        super().__init__(register, None, const=False)
 
 
 class ParamReturnCoreType(CoreType):
@@ -135,7 +143,7 @@ class ParamReturnCoreType(CoreType):
     """
 
     def __init__(self, position: int) -> None:
-        super().__init__("position: " + str(position), False)
+        super().__init__("position: " + str(position), None, const=False)
 
     @property
     def position(self) -> int:
@@ -149,7 +157,7 @@ class PaddingCoreType(CoreType):
     """
 
     def __init__(self, padbytes: int) -> None:
-        super().__init__("padding: " + str(padbytes), False)
+        super().__init__("padding: " + str(padbytes), None, const=False)
 
     @property
     def padbytes(self) -> int:
@@ -202,11 +210,25 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
                 expr = sliceval.slice.value
                 continue
 
+            if qualifier.value == "pointer":
+                if len(expr.slice) != 1:
+                    return None
+
+                sliceval = expr.slice[0]
+                if not isinstance(sliceval, cst.SubscriptElement):
+                    return None
+                if not isinstance(sliceval.slice, cst.Index):
+                    return None
+
+                expr = sliceval.slice.value
+                pointed = get_type(expr)
+                return CoreType("pointer", pointed, const, not nopad)
+
         elif isinstance(expr, cst.Name):
             if expr.value == "None":
                 return NoneType
             else:
-                return CoreType(expr.value, const, not nopad)
+                return CoreType(expr.value, None, const, not nopad)
 
         else:
             return None
@@ -1131,8 +1153,8 @@ def generate_expr_internal(
         compiled += generate_function_call(expression, destination, stack, clobbers, refs, context.wrap(expression))
 
     else:
-        # TODO: What other expression types are we missing? Probably function calls and memory read operations.
-        # TODO: Looks like also string/character assignments and such.
+        # TODO: What other expression types are we missing? Probably array and memory operations.
+        # TODO: Looks like also string/character assignments and such, and everything with string manipulation.
         raise CompilerError(f"Unsupported expression type {expression} in expression compiler!", context)
 
     return compiled
@@ -1354,7 +1376,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
             stack.alloc(StackVar("builtin(padding)", CoreType('int8')))
 
     # Need a spot on the stack for our return pointer that is placed when called.
-    stack.alloc(StackVar("builtin(retptr)", CoreType("pointer")))
+    stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("None"))))
     stack.location = stack.size - 1
 
     # Generate before and after call stack documentation.
@@ -1375,7 +1397,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
     fake_stack: Stack = Stack()
     if function_type is not NoneType:
         fake_stack.alloc(StackVar("builtin(retval)", function_type))
-    fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer")))
+    fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("None"))))
     prevals = []
     for entry in fake_stack.stack:
         for i in range(entry.size):
@@ -1521,7 +1543,7 @@ def compile_module(module: str, code: str, refs: List[Union[FunctionPrototype, G
 
 
 def parse_forward_refs(module: str, code: str) -> List[Union[FunctionPrototype, GlobalVariable]]:
-    # TODO: This needs renaming and to also scan for globals so we have global types as well.
+    # TODO: This needs to scan for global variables so we have global type references as well.
 
     parsed_module = cst.parse_module(code)
 

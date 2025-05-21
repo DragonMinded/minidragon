@@ -1,14 +1,71 @@
+import libcst as cst
 import textwrap
 import unittest
 from typing import Any
 
-from .core import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, NoneType, parse_forward_refs, parse_and_compile_module
+from .core import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, NoneType, get_type, parse_forward_refs, parse_and_compile_module
 
 
 class TestCompiler(unittest.TestCase):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.maxDiff = None
+
+    def __get_expr(self, expr: str) -> cst.BaseExpression:
+        module = cst.parse_module(expr)
+        first_statement = module.body[0]
+        if not isinstance(first_statement, cst.SimpleStatementLine):
+            raise Exception(f"Logic error, expected SimpleStatementLine, got {type(first_statement)}!")
+        expr_node = first_statement.body[0]
+        if not isinstance(expr_node, cst.Expr):
+            raise Exception(f"Logic error, expected BaseExpression, got {type(expr_node)}!")
+        return expr_node.value
+
+    def test_get_type(self) -> None:
+        # First check for None handling.
+        self.assertEqual(CoreType("None", const=True), get_type(self.__get_expr("None")))
+        self.assertTrue(get_type(self.__get_expr("None")) is NoneType)
+
+        # Now, simple parsing.
+        self.assertEqual(CoreType("string"), get_type(self.__get_expr("string")))
+        self.assertEqual(CoreType("char"), get_type(self.__get_expr("char")))
+        self.assertEqual(CoreType("int8"), get_type(self.__get_expr("int8")))
+        self.assertEqual(CoreType("int16"), get_type(self.__get_expr("int16")))
+        self.assertEqual(CoreType("int32"), get_type(self.__get_expr("int32")))
+
+        # Now, make sure that constant parsing works.
+        self.assertEqual(CoreType("string", const=True), get_type(self.__get_expr("const[string]")))
+        self.assertEqual(CoreType("char", const=True), get_type(self.__get_expr("const[char]")))
+        self.assertEqual(CoreType("int8", const=True), get_type(self.__get_expr("const[int8]")))
+        self.assertEqual(CoreType("int16", const=True), get_type(self.__get_expr("const[int16]")))
+        self.assertEqual(CoreType("int32", const=True), get_type(self.__get_expr("const[int32]")))
+
+        # Now, make sure that pointers work.
+        self.assertEqual(CoreType("pointer", CoreType("char")), get_type(self.__get_expr("pointer[char]")))
+        self.assertEqual(CoreType("pointer", CoreType("int8")), get_type(self.__get_expr("pointer[int8]")))
+        self.assertEqual(CoreType("pointer", CoreType("int16")), get_type(self.__get_expr("pointer[int16]")))
+        self.assertEqual(CoreType("pointer", CoreType("int32")), get_type(self.__get_expr("pointer[int32]")))
+
+        # Pointers to constants should work.
+        self.assertEqual(CoreType("pointer", CoreType("char", const=True)), get_type(self.__get_expr("pointer[const[char]]")))
+        self.assertEqual(CoreType("pointer", CoreType("int8", const=True)), get_type(self.__get_expr("pointer[const[int8]]")))
+        self.assertEqual(CoreType("pointer", CoreType("int16", const=True)), get_type(self.__get_expr("pointer[const[int16]]")))
+        self.assertEqual(CoreType("pointer", CoreType("int32", const=True)), get_type(self.__get_expr("pointer[const[int32]]")))
+
+        # Constant pointers to non-constant types should work.
+        self.assertEqual(CoreType("pointer", CoreType("char"), const=True), get_type(self.__get_expr("const[pointer[char]]")))
+        self.assertEqual(CoreType("pointer", CoreType("int8"), const=True), get_type(self.__get_expr("const[pointer[int8]]")))
+        self.assertEqual(CoreType("pointer", CoreType("int16"), const=True), get_type(self.__get_expr("const[pointer[int16]]")))
+        self.assertEqual(CoreType("pointer", CoreType("int32"), const=True), get_type(self.__get_expr("const[pointer[int32]]")))
+
+        # Constant pointers to constant types should work.
+        self.assertEqual(CoreType("pointer", CoreType("char", const=True), const=True), get_type(self.__get_expr("const[pointer[const[char]]]")))
+        self.assertEqual(CoreType("pointer", CoreType("int8", const=True), const=True), get_type(self.__get_expr("const[pointer[const[int8]]]")))
+        self.assertEqual(CoreType("pointer", CoreType("int16", const=True), const=True), get_type(self.__get_expr("const[pointer[const[int16]]]")))
+        self.assertEqual(CoreType("pointer", CoreType("int32", const=True), const=True), get_type(self.__get_expr("const[pointer[const[int32]]]")))
+
+        # Now, make sure pointers of pointers work. Hopefully I don't need these but it should be possible to use them.
+        self.assertEqual(CoreType("pointer", CoreType("pointer", CoreType("int8"))), get_type(self.__get_expr("pointer[pointer[int8]]")))
 
     def test_empty(self) -> None:
         output = parse_and_compile_module("__test__", "")
