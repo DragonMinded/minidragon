@@ -3312,7 +3312,6 @@ def verifyaddandreturn(only: Optional[List[str]], full: bool) -> None:
 
     print(f"Average cycles for addandreturn: {int(cycles/count)}")
     print(f"Average instructions for addandreturn: {int(instructions/count)}")
-
     print("Verifying addandreturn without padding...")
 
     cycles = 0
@@ -3488,7 +3487,6 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
 
     print(f"Average cycles for subtractandreturn: {int(cycles/count)}")
     print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
-
     print("Verifying subtractandreturn without padding...")
 
     cycles = 0
@@ -3549,6 +3547,195 @@ def verifysubtractandreturn(only: Optional[List[str]], full: bool) -> None:
 
     print(f"Average cycles for subtractandreturn: {int(cycles/count)}")
     print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
+
+
+def verifybitwiseand(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "bitwiseand" not in only:
+        return
+
+    print("Verifying bitwiseand...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwiseand", textwrap.dedent("""
+                def bitwiseand(param1: int8) -> int8:
+                    return param1 & 0x3C
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwiseand",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwiseand changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            bintoint(result) == x & 0x3C,
+            "Failed to bitwiseand, "
+            + f"got {bintoint(result)} instead of {x & 0x3C}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for bitwiseand: {int(cycles/count)}")
+    print(f"Average instructions for bitwiseand: {int(instructions/count)}")
+
+
+def verifybitwiseor(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "bitwiseor" not in only:
+        return
+
+    print("Verifying bitwiseor...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwiseor", textwrap.dedent("""
+                def bitwiseor(param1: int8) -> int8:
+                    return param1 | 0x3C
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwiseor",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwiseor changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            bintoint(result) == x | 0x3C,
+            "Failed to bitwiseor, "
+            + f"got {bintoint(result)} instead of {x | 0x3C}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for bitwiseor: {int(cycles/count)}")
+    print(f"Average instructions for bitwiseor: {int(instructions/count)}")
+
+
+def verifybitwisexor(only: Optional[List[str]], full: bool) -> None:
+    if only is not None and "bitwisexor" not in only:
+        return
+
+    print("Verifying bitwisexor...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 99, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwisexor", textwrap.dedent("""
+                def bitwisexor(param1: int8) -> int8:
+                    return param1 ^ 0x3C
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwisexor",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwisexor changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"staticreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"staticreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            bintoint(result) == x ^ 0x3C,
+            "Failed to bitwisexor, "
+            + f"got {bintoint(result)} instead of {x ^ 0x3C}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for bitwisexor: {int(cycles/count)}")
+    print(f"Average instructions for bitwisexor: {int(instructions/count)}")
 
 
 def verifycomplexexpression(only: Optional[List[str]], full: bool) -> None:
@@ -3923,6 +4110,9 @@ if __name__ == "__main__":
     verifyechoparam(only, args.full)
     verifyaddandreturn(only, args.full)
     verifysubtractandreturn(only, args.full)
+    verifybitwiseand(only, args.full)
+    verifybitwiseor(only, args.full)
+    verifybitwisexor(only, args.full)
     verifycomplexexpression(only, args.full)
     verifylocalvariables(only, args.full)
     verifyfunctioncall(only, args.full)

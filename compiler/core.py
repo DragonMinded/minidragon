@@ -164,6 +164,18 @@ class PaddingCoreType(CoreType):
         return int(self.type[9:])
 
 
+def get_int(val: str) -> int:
+    # TODO: Throw correct CompilerError when the value is not an integer.
+    if val.startswith("0x"):
+        return int(val, 16)
+    elif val.startswith("0b"):
+        return int(val, 2)
+    elif val.startswith("0o"):
+        return int(val, 8)
+    else:
+        return int(val, 10)
+
+
 def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
     if expr is None:
         return None
@@ -222,6 +234,8 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
 
                 expr = sliceval.slice.value
                 pointed = get_type(expr)
+                if pointed is None:
+                    return None
                 return CoreType("pointer", pointed, const, not nopad)
 
         elif isinstance(expr, cst.Name):
@@ -1047,7 +1061,7 @@ def generate_expr_internal(
         raise Exception("Logic error, could not calculate size of destination!")
 
     if isinstance(expression, cst.Integer):
-        compiled += generate_const_load(int(expression.value), destination, stack, clobbers, context)
+        compiled += generate_const_load(get_int(expression.value), destination, stack, clobbers, context)
 
     elif isinstance(expression, cst.Name):
         compiled += generate_variable_lookup(expression.value, destination, stack, clobbers, refs, context)
@@ -1056,7 +1070,7 @@ def generate_expr_internal(
         if isinstance(expression.operator, cst.Minus):
             if isinstance(expression.expression, cst.Integer):
                 # Special case for negative integers.
-                intval = -int(expression.expression.value)
+                intval = -get_int(expression.expression.value)
                 compiled += generate_const_load(intval, destination, stack, clobbers, context)
             else:
                 # TODO: Need to negate the expression.
@@ -1069,10 +1083,19 @@ def generate_expr_internal(
         # Special case for operating on two constants. We could do full evalulation, but meh.
         if isinstance(expression.left, cst.Integer) and isinstance(expression.right, cst.Integer):
             if isinstance(expression.operator, cst.Add):
-                intval = int(expression.left.value) + int(expression.right.value)
+                intval = get_int(expression.left.value) + get_int(expression.right.value)
                 compiled += generate_const_load(intval, destination, stack, clobbers, context)
             elif isinstance(expression.operator, cst.Subtract):
-                intval = int(expression.left.value) - int(expression.right.value)
+                intval = get_int(expression.left.value) - get_int(expression.right.value)
+                compiled += generate_const_load(intval, destination, stack, clobbers, context)
+            elif isinstance(expression.operator, cst.BitAnd):
+                intval = get_int(expression.left.value) & get_int(expression.right.value)
+                compiled += generate_const_load(intval, destination, stack, clobbers, context)
+            elif isinstance(expression.operator, cst.BitOr):
+                intval = get_int(expression.left.value) | get_int(expression.right.value)
+                compiled += generate_const_load(intval, destination, stack, clobbers, context)
+            elif isinstance(expression.operator, cst.BitXor):
+                intval = get_int(expression.left.value) ^ get_int(expression.right.value)
                 compiled += generate_const_load(intval, destination, stack, clobbers, context)
             else:
                 # TODO: Support other operators than add/subtract.
@@ -1096,13 +1119,16 @@ def generate_expr_internal(
 
         # Now, perform some math of matics!
         if destination_size == 1:
-            if isinstance(expression.operator, cst.Add):
-                # The stdlib for add clobbers the A register
+            if isinstance(expression.operator, cst.Subtract):
+                # Subtracting clobbers the A register, since it is the accumulator.
                 clobbers.add("A")
 
-                # Move to the right spot on the stack and then add the two numbers.
+                # Move to the second parameter and negate it.
                 compiled += generate_move_to(rhs_dest, stack, clobbers, context)
                 compiled.append("  LOAD A")
+                compiled.append("  NEG")
+
+                # Move to the right spot on the stack to add to the negated right hand side.
                 compiled += generate_move_to(lhs_dest, stack, clobbers, context)
                 compiled.append("  ADD")
 
@@ -1117,18 +1143,25 @@ def generate_expr_internal(
                     compiled.append("  STORE A")
                     if lhs_dest != destination:
                         stack.free(lhs_dest)
-            elif isinstance(expression.operator, cst.Subtract):
-                # The stdlib for add clobbers the A register. We also clobber by negating the second param.
+            elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
+                # Adding clobbers the A register, since it is the accumulator.
                 clobbers.add("A")
 
-                # Move to the second parameter and negate it.
+                # Move to the right spot on the stack and then add the two numbers.
                 compiled += generate_move_to(rhs_dest, stack, clobbers, context)
                 compiled.append("  LOAD A")
-                compiled.append("  NEG")
-
-                # Move to the right spot on the stack to add to the negated right hand side.
                 compiled += generate_move_to(lhs_dest, stack, clobbers, context)
-                compiled.append("  ADD")
+
+                if isinstance(expression.operator, cst.Add):
+                    compiled.append("  ADD")
+                elif isinstance(expression.operator, cst.BitAnd):
+                    compiled.append("  AND")
+                elif isinstance(expression.operator, cst.BitOr):
+                    compiled.append("  OR")
+                elif isinstance(expression.operator, cst.BitXor):
+                    compiled.append("  XOR")
+                else:
+                    raise Exception("Logic error, unexpected operator {expression.operator)}")
 
                 # This function puts the result in a, so check if that's what we want.
                 if destination == "register(A)":
