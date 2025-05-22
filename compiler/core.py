@@ -89,7 +89,8 @@ class CoreType:
 
     @property
     def size(self) -> int:
-        if self.type == "None":
+        # Mostly a dummy type, for void returns.
+        if self.type == "void":
             return 0
         if self.type == "int8":
             return 1
@@ -97,7 +98,11 @@ class CoreType:
             return 2
         if self.type == "int32":
             return 4
+        # We do not support unicode because we talk to a VT-100 which is unaware of anything outside of English.
         if self.type == "char":
+            return 1
+        # Booleans are a single byte so we can compare with "ADDI".
+        if self.type == "boolean":
             return 1
         # Strings are passed by reference pointer.
         if self.type == "string":
@@ -108,7 +113,7 @@ class CoreType:
         raise NotImplementedError(f"Type {self.type} not implemented!")
 
 
-NoneType = CoreType("None", None, True, False)
+VoidType = CoreType("void", None, True, False)
 
 
 class PreservedCoreType(CoreType):
@@ -262,10 +267,15 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
                     return None
                 return CoreType("pointer", pointed, const, not nopad)
 
+            return None
+
         elif isinstance(expr, cst.Name):
-            if expr.value == "None":
-                return NoneType
+            if expr.value == "void":
+                return VoidType
             else:
+                if expr.value not in {"int8", "int16", "int32", "boolean", "char", "string"}:
+                    return None
+
                 return CoreType(expr.value, None, const, not nopad)
 
         else:
@@ -564,7 +574,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
     # Make sure to move the return value, the return pointer, and then pop all of our saved builtins.
     retptr_in_uv = False
     retptr_final_loc = 0
-    if function_type is not NoneType:
+    if function_type is not VoidType:
         # First, we need to figure out if where we're copying the return value will clobber the return pointer.
         # If so, we need to store that in the U/V registers. We could put it on the stack but that's way more
         # shuffling so much slower. Much better to just mark U/V as clobbered and use them.
@@ -955,7 +965,7 @@ def generate_function_call(
         stack.free(entry)
 
     # Now, if needed, copy the return value from the stack to its location.
-    if (not return_handled) and (not (function_prototype.return_type is NoneType)):
+    if (not return_handled) and (not (function_prototype.return_type is VoidType)):
         # We need to understand where we actually are on the stack, so add to the
         # location where this would have been put on the stack.
         stack_on_exit += function_prototype.return_type.size
@@ -1394,12 +1404,12 @@ def compile_chunk(
                 if isinstance(simple_statement, cst.Return):
                     if simple_statement.value is None:
                         # Simple return by itself, doesn't update the retval.
-                        if function_type is not NoneType:
+                        if function_type is not VoidType:
                             raise CompilerError("Returning nothing from a function marked with a return value", context)
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
                     else:
                         # Return of some sort of expression.
-                        if function_type is NoneType:
+                        if function_type is VoidType:
                             raise CompilerError("Returning something from a function marked with no return value", context)
 
                         compiled += generate_expr(simple_statement.value, "builtin(retval)", stack, clobbers, refs, context.wrap(simple_statement.value))
@@ -1506,7 +1516,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
             stack.alloc(StackVar("builtin(padding)", CoreType('int8')))
 
     # Need a spot on the stack for our return pointer that is placed when called.
-    stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("None"))))
+    stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void"))))
     stack.location = stack.size - 1
 
     # Generate before and after call stack documentation.
@@ -1525,9 +1535,9 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
 
     preamble.append("  ; Stack layout just before return:")
     fake_stack: Stack = Stack()
-    if function_type is not NoneType:
+    if function_type is not VoidType:
         fake_stack.alloc(StackVar("builtin(retval)", function_type))
-    fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("None"))))
+    fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void"))))
     prevals = []
     for entry in fake_stack.stack:
         for i in range(entry.size):
@@ -1541,7 +1551,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
     # Temporary room for the return value, which will be placed after clobbers, but we need
     # somewhere so clobber calculation can work.
     temp_size = 0
-    if function_type is not NoneType:
+    if function_type is not VoidType:
         temp_size = stack.alloc(StackVar("builtin(retval)", function_type))
         stack.move(temp_size)
 
@@ -1592,7 +1602,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
 
     # Make sure that we have room on the stack for the return value. Don't move at this point
     # because we might not want to generate instructions to move.
-    if function_type is not NoneType:
+    if function_type is not VoidType:
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
@@ -1711,18 +1721,18 @@ def parse_and_compile_module(module: str, code: str) -> List[str]:
 def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
     prototypes: List[Union[FunctionPrototype, GlobalVariable]] = [
         # STDLIB string functions.
-        FunctionPrototype("strcat", NoneType, [PreservedCoreType("string"), PreservedCoreType("string")]),
+        FunctionPrototype("strcat", VoidType, [PreservedCoreType("string"), PreservedCoreType("string")]),
         FunctionPrototype("strcmp", RegisterCoreType("A"), [PreservedCoreType("string"), PreservedCoreType("string")]),
-        FunctionPrototype("strcpy", NoneType, [PreservedCoreType("string"), PreservedCoreType("string")]),
+        FunctionPrototype("strcpy", VoidType, [PreservedCoreType("string"), PreservedCoreType("string")]),
         FunctionPrototype("strlen", RegisterCoreType("A"), [PreservedCoreType("string")]),
 
         # STDLIB string/integer conversion functions.
         FunctionPrototype("atoi", RegisterCoreType("A"), [InOutCoreType("string")]),
         FunctionPrototype("atoi16", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int16")]),
         FunctionPrototype("atoi32", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int32")]),
-        FunctionPrototype("itoa", NoneType, [RegisterCoreType("A"), PreservedCoreType("string")]),
-        FunctionPrototype("itoa16", NoneType, [PreservedCoreType("int16"), PreservedCoreType("string")]),
-        FunctionPrototype("itoa32", NoneType, [PreservedCoreType("int32"), PreservedCoreType("string")]),
+        FunctionPrototype("itoa", VoidType, [RegisterCoreType("A"), PreservedCoreType("string")]),
+        FunctionPrototype("itoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("string")]),
+        FunctionPrototype("itoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("string")]),
 
         # STDLIB integer math functions.
         FunctionPrototype("abs", RegisterCoreType("A"), [RegisterCoreType("A")]),

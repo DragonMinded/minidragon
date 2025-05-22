@@ -4,7 +4,7 @@ import textwrap
 import unittest
 from typing import Any
 
-from .core import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, NoneType, get_type, parse_forward_refs, parse_and_compile_module
+from .core import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, VoidType, get_type, parse_forward_refs, parse_and_compile_module
 
 
 class TestCompiler(unittest.TestCase):
@@ -28,8 +28,8 @@ class TestCompiler(unittest.TestCase):
 
     def test_get_type(self) -> None:
         # First check for None handling.
-        self.assertEqual(CoreType("None", const=True), get_type(self.__get_expr("None")))
-        self.assertTrue(get_type(self.__get_expr("None")) is NoneType)
+        self.assertEqual(CoreType("void", const=True), get_type(self.__get_expr("void")))
+        self.assertTrue(get_type(self.__get_expr("void")) is VoidType)
 
         # Now, simple parsing.
         self.assertEqual(CoreType("string"), get_type(self.__get_expr("string")))
@@ -145,12 +145,12 @@ class TestCompiler(unittest.TestCase):
 
     def test_define_simple_function(self) -> None:
         func = textwrap.dedent("""
-            def simple() -> None:
+            def simple() -> void:
                 return
         """)
 
         prototypes = parse_forward_refs("__test__", func)
-        self.assertEqual([FunctionPrototype("simple", NoneType)], prototypes)
+        self.assertEqual([FunctionPrototype("simple", VoidType)], prototypes)
 
         output = parse_and_compile_module("__test__", func)
         self.assertEqual([
