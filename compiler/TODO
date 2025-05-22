@@ -1,0 +1,22 @@
+16/32 bit addition.
+16/32 bit subtraction.
+8/16/32 bit multiplication.
+8/16/32 bit division.
+8/16/32 bit modulo.
+16/32 bit bitwise and/or/xor.
+8/16/32 bit bitwise not.
+boolean support, including and/or/not and coercing from a string/character/integer.
+global variable allocation and read/write support, including global keyword.
+support for an end of global variables pointer.
+string support, including initializing with constant values, concatenation, length, character indexing, etc.
+pointer support, including reading/writing values using array syntax.
+support for allocating local and global arrays using int[length], and treating the resulting allocation as pointer[int].
+support for allocating local and global string buffers using string[length].
+if statement control flow.
+while loop control flow.
+function call without being in an assignment expression support.
+function pointer support.
+function default parameter support.
+asm() block to allow inlining assembly.
+load/store purpose tracking, so redundant loads/stores and moves can be tracked.
+optimization passes for unnecessary store/load and side-by-side addpci/subpci calls.

@@ -702,6 +702,8 @@ def generate_const_load(val: int, destination: str, stack: Stack, clobbers: Set[
     if destination == "register(A)":
         compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
     else:
+        clobbers.add("A")
+
         dest_loc = stack.find(destination)
         dest_size = stack.sizeof(destination)
         if dest_loc is None or dest_size is None:
