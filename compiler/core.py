@@ -1150,7 +1150,7 @@ def generate_expr_internal(
                         compiled.append("  STORE A")
                         if internal_dest != destination:
                             stack.free(internal_dest)
-                elif destination_size == 2:
+                elif destination_size in {2, 4}:
                     # Calculate the expression inside the negation here, so we can send the temporary name to the function call
                     # and trigger its optimized case.
                     if stack.stack[-1].name != destination:
@@ -1161,25 +1161,9 @@ def generate_expr_internal(
 
                     compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
 
-                    # Using the neg16 function that's part of our stdlib.
-                    compiled += generate_function_call(create_call("neg16", [UnvalidatedName(internal_dest)]), destination, stack, clobbers, refs, context.wrap(expression))
-
-                    if internal_dest != destination:
-                        stack.free(internal_dest)
-
-                elif destination_size == 4:
-                    # Calculate the expression inside the negation here, so we can send the temporary name to the function call
-                    # and trigger its optimized case.
-                    if stack.stack[-1].name != destination:
-                        internal_dest = expr_temp_name()
-                        stack.alloc(StackVar(internal_dest, expr_integer_type(destination_size)))
-                    else:
-                        internal_dest = destination
-
-                    compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
-
-                    # Using the neg32 function that's part of our stdlib.
-                    compiled += generate_function_call(create_call("neg32", [UnvalidatedName(internal_dest)]), destination, stack, clobbers, refs, context.wrap(expression))
+                    # Using the neg16 or neg32 function that's part of our stdlib.
+                    function = "neg16" if destination_size == 2 else "neg32"
+                    compiled += generate_function_call(create_call(function, [UnvalidatedName(internal_dest)]), destination, stack, clobbers, refs, context.wrap(expression))
 
                     if internal_dest != destination:
                         stack.free(internal_dest)
