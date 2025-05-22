@@ -1,7 +1,26 @@
+import os
+import traceback
 import libcst as cst
 import libcst.metadata as meta
 
-from typing import Dict, List, Mapping, Optional, Set, Union
+from typing import Dict, Iterable, List, Mapping, Optional, Set, Union
+
+
+def comment_source(extra: Optional[str] = None) -> str:
+    if os.environ.get("SUPPRESS_CALLER_COMMENTS"):
+        return ""
+
+    lines = [line for line in traceback.format_stack() if line.strip().startswith("File")]
+
+    # We should be the first line, so our caller is the second.
+    relevant = lines[-2]
+    relevant, _ = relevant.split(os.linesep, 1)
+    _, details = relevant.split(", ", 1)
+
+    if extra:
+        details += f" ({extra})"
+
+    return f"  ; {details}"
 
 
 class Context:
@@ -253,6 +272,18 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
             return None
 
 
+class UnvalidatedName(cst.Name):
+    def _validate(self) -> None:
+        pass
+
+
+def create_call(name: str, params: Iterable[cst.BaseExpression]) -> cst.Call:
+    return cst.Call(
+        func=cst.Name(value=name),
+        args=[cst.Arg(value=param) for param in params],
+    )
+
+
 class FunctionPrototype:
     def __init__(self, name: str, return_type: CoreType, params: Optional[List[CoreType]] = None) -> None:
         self.name = name
@@ -461,50 +492,63 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
     return compiled
 
 
-def generate_move_by(move_amt: int, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
     compiled: List[str] = []
     if move_amt > 0:
-        compiled.append(f"  SUBPCI {move_amt}")
+        compiled.append(f"  SUBPCI {move_amt}" + comment_source(reason))
     elif move_amt < 0:
-        compiled.append(f"  ADDPCI {-move_amt}")
+        compiled.append(f"  ADDPCI {-move_amt}" + comment_source(reason))
     stack.move(move_amt)
     return compiled
 
 
 def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+    compiled: List[str] = []
     move_amt = stack.find(destination)
     if move_amt is None:
         raise Exception(f"Logic error, could not find {destination} on stack to move to!")
-    return generate_move_by(move_amt, stack, clobbers, context)
+
+    if move_amt > 0:
+        compiled.append(f"  SUBPCI {move_amt}" + comment_source(f"seeking {destination}"))
+    elif move_amt < 0:
+        compiled.append(f"  ADDPCI {-move_amt}" + comment_source(f"seeking {destination}"))
+    stack.move(move_amt)
+    return compiled
 
 
 def generate_memcpy_unrolled(src_loc: int, dst_loc: int, size: int, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
     compiled: List[str] = []
+    if src_loc == dst_loc:
+        return compiled
 
     from_rel = stack.diff(src_loc)
-    compiled += generate_move_by(from_rel, stack, clobbers, context)
+    compiled += generate_move_by("memcpy_unrolled", from_rel, stack, clobbers, context)
     shuffle_amount = stack.location - dst_loc
     if shuffle_amount == 0:
         return compiled
 
     if shuffle_amount < 0:
         for i in range(size):
+            clobbers.add("A")
+
             compiled.append("  LOAD A")
-            compiled.append(f"  SUBPCI {-shuffle_amount}")
+            compiled.append(f"  SUBPCI {-shuffle_amount}" + comment_source())
             compiled.append("  STORE A")
 
             if i < size - 1:
-                compiled.append(f"  ADDPCI {(-shuffle_amount) - 1}")
+                compiled.append(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
 
         stack.move((-shuffle_amount) + (size - 1))
     else:
         for i in range(size):
+            clobbers.add("A")
+
             compiled.append("  LOAD A")
-            compiled.append(f"  ADDPCI {shuffle_amount}")
+            compiled.append(f"  ADDPCI {shuffle_amount}" + comment_source())
             compiled.append("  STORE A")
 
             if i < size - 1:
-                compiled.append(f"  SUBPCI {shuffle_amount + 1}")
+                compiled.append(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
 
         stack.move(-(shuffle_amount - (size - 1)))
     return compiled
@@ -548,7 +592,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
                 raise Exception("Logic error, failed to get move amounts for builtin(retptr)!")
 
             # Generate code to move from our position to the first byte of the retval.
-            compiled += generate_move_by(first_move, stack, clobbers, context)
+            compiled += generate_move_by("seeking builtin(retptr)", first_move, stack, clobbers, context)
             compiled.append("  LOAD U")
             compiled.append("  DECPC")
             compiled.append("  LOAD V")
@@ -579,7 +623,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
         # Gotta grab it out of the saved U/V registers.
         restore_move_amt = retptr_final_loc - stack.location
-        compiled += generate_move_by(restore_move_amt, stack, clobbers, context)
+        compiled += generate_move_by("seeking return pointer restoration point", restore_move_amt, stack, clobbers, context)
         compiled.append("  STORE U")
         compiled.append("  DECPC")
         compiled.append("  STORE V")
@@ -615,7 +659,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             if move_amt is None:
                 raise Exception(f"Logic error, failed to get move amounts for {name}!")
 
-            compiled += generate_move_by(move_amt, stack, clobbers, context)
+            compiled += generate_move_by(f"seeking {name}", move_amt, stack, clobbers, context)
 
             if name == "builtin(saved_a)":
                 compiled.append("  POP A")
@@ -636,7 +680,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
     # Now, if we need to, move past any temporary values we didn't pop but don't care about.
     final_move_to_ret = stack.diff(retptr_final_loc + 1)
-    compiled += generate_move_by(final_move_to_ret, stack, clobbers, context)
+    compiled += generate_move_by("skipping past temporary locals", final_move_to_ret, stack, clobbers, context)
     compiled.append("  RET")
 
     return compiled
@@ -653,7 +697,7 @@ def generate_const_load(val: int, destination: str, stack: Stack, clobbers: Set[
         if dest_loc is None or dest_size is None:
             raise Exception("Logic error, cannot find destination to load constant to!")
 
-        compiled += generate_move_by(dest_loc, stack, clobbers, context)
+        compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
         if dest_size == 1:
             compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
             compiled.append("  STORE A")
@@ -855,7 +899,7 @@ def generate_function_call(
 
     # Now, we're ready to actually call the function. Move to the last byte of the last parameter on the stack.
     move_amount = stack.diff(stack.size - 1)
-    compiled += generate_move_by(move_amount, stack, clobbers, context)
+    compiled += generate_move_by("moving to last parameter", move_amount, stack, clobbers, context)
     compiled.append(f"  CALL {func_ref}")
 
     # Track whether we captured the return value or not.
@@ -925,7 +969,7 @@ def generate_function_call(
                 raise Exception(f"Logic error, trying to assign value of size {src_size} to A register")
 
             move_amt = stack.diff(src_loc)
-            compiled += generate_move_by(move_amt, stack, clobbers, context)
+            compiled += generate_move_by("seeking return location", move_amt, stack, clobbers, context)
             compiled.append("  LOAD A")
         else:
             src_loc = normal_return_loc
@@ -1024,7 +1068,7 @@ def generate_variable_lookup(
 
             # First, go to the high byte and figure out if it needs to be zero or one extended.
             move_amt = stack.diff(source_loc + (source_size - 1))
-            compiled += generate_move_by(move_amt, stack, clobbers, context)
+            compiled += generate_move_by("seeking {source}", move_amt, stack, clobbers, context)
             compiled.append("  LOAD A")
             compiled.append("  SHL")
 
@@ -1042,7 +1086,7 @@ def generate_variable_lookup(
                 actual_pos = pos + dest_loc + source_size
 
                 move_amt = stack.diff(actual_pos)
-                compiled += generate_move_by(move_amt, stack, clobbers, context)
+                compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
                 compiled.append("  STORE A")
 
             # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
@@ -1078,8 +1122,72 @@ def generate_expr_internal(
                 intval = -get_int(expression.expression.value, context)
                 compiled += generate_const_load(intval, destination, stack, clobbers, context)
             else:
-                # TODO: Need to negate the expression.
-                raise CompilerError("Unsupported negation operator", context)
+                if destination_size == 1:
+                    if destination == "register(A)" or stack.stack[-1].name != destination:
+                        # In order to ensure that it's possible to negate this value, locate the rest of the expression
+                        # in a temporary location.
+                        internal_dest = expr_temp_name()
+                        stack.alloc(StackVar(internal_dest, expr_integer_type(destination_size)))
+                    else:
+                        # Safe to put the expression evaluation in our destination because we're just going to negate it.
+                        internal_dest = destination
+
+                    compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
+
+                    # Negation clobbers the A register, since it is the accumulator.
+                    clobbers.add("A")
+
+                    # Move to the parameter and negate it.
+                    compiled += generate_move_to(internal_dest, stack, clobbers, context)
+                    compiled.append("  LOAD A")
+                    compiled.append("  NEG")
+
+                    # This call puts the result in a, so check if that's what we want.
+                    if destination == "register(A)":
+                        stack.free(internal_dest)
+                    else:
+                        compiled += generate_move_to(destination, stack, clobbers, context)
+                        compiled.append("  STORE A")
+                        if internal_dest != destination:
+                            stack.free(internal_dest)
+                elif destination_size == 2:
+                    # Calculate the expression inside the negation here, so we can send the temporary name to the function call
+                    # and trigger its optimized case.
+                    if stack.stack[-1].name != destination:
+                        internal_dest = expr_temp_name()
+                        stack.alloc(StackVar(internal_dest, expr_integer_type(destination_size)))
+                    else:
+                        internal_dest = destination
+
+                    compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
+
+                    # Using the neg16 function that's part of our stdlib.
+                    compiled += generate_function_call(create_call("neg16", [UnvalidatedName(internal_dest)]), destination, stack, clobbers, refs, context.wrap(expression))
+
+                    if internal_dest != destination:
+                        stack.free(internal_dest)
+
+                elif destination_size == 4:
+                    # Calculate the expression inside the negation here, so we can send the temporary name to the function call
+                    # and trigger its optimized case.
+                    if stack.stack[-1].name != destination:
+                        internal_dest = expr_temp_name()
+                        stack.alloc(StackVar(internal_dest, expr_integer_type(destination_size)))
+                    else:
+                        internal_dest = destination
+
+                    compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
+
+                    # Using the neg32 function that's part of our stdlib.
+                    compiled += generate_function_call(create_call("neg32", [UnvalidatedName(internal_dest)]), destination, stack, clobbers, refs, context.wrap(expression))
+
+                    if internal_dest != destination:
+                        stack.free(internal_dest)
+
+                else:
+                    # We don't support negation of this type.
+                    raise CompilerError("Cannot negate expression with destination size {destination_size}", context)
+
         else:
             # TODO: What other expressions are there, NOT perhaps?
             raise CompilerError(f"Unsupported unary operation {expression}", context)
@@ -1137,7 +1245,7 @@ def generate_expr_internal(
                 compiled += generate_move_to(lhs_dest, stack, clobbers, context)
                 compiled.append("  ADD")
 
-                # This function puts the result in a, so check if that's what we want.
+                # This call puts the result in a, so check if that's what we want.
                 if destination == "register(A)":
                     # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
                     stack.free(rhs_dest)
@@ -1168,7 +1276,7 @@ def generate_expr_internal(
                 else:
                     raise Exception("Logic error, unexpected operator {expression.operator)}")
 
-                # This function puts the result in a, so check if that's what we want.
+                # This call puts the result in a, so check if that's what we want.
                 if destination == "register(A)":
                     # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
                     stack.free(rhs_dest)
@@ -1472,7 +1580,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
         padding_move_amt += 1
 
     if padding_move_amt > 0:
-        compiled.append(f"  SUBPCI {padding_move_amt}")
+        compiled.append(f"  SUBPCI {padding_move_amt}" + comment_source("allocating padding"))
         stack.move(padding_move_amt)
 
     # Now, let's save all of our clobbered values.
@@ -1644,11 +1752,6 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("add32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
 
         # STDLIB integer comparison functions.
-    ]
-
-    # The following are special cases since we will be bridging to them when compiling
-    # math expressions. They're kept here for posterity.
-    [
         FunctionPrototype("ucmp", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("ucmp16", RegisterCoreType("A"), [InOutCoreType("int16"), InOutCoreType("int16")]),
         FunctionPrototype("ucmp32", RegisterCoreType("A"), [InOutCoreType("int32"), InOutCoreType("int32")]),

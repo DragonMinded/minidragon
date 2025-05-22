@@ -1,4 +1,5 @@
 import libcst as cst
+import os
 import textwrap
 import unittest
 from typing import Any
@@ -10,6 +11,10 @@ class TestCompiler(unittest.TestCase):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.maxDiff = None
+
+        # There could be a way better way to do this by making the compiler into a class instead of a module,
+        # and then passing options to it. But, eh. That's for later me, not now me.
+        os.environ["SUPPRESS_CALLER_COMMENTS"] = "1"
 
     def __get_expr(self, expr: str) -> cst.BaseExpression:
         module = cst.parse_module(expr)

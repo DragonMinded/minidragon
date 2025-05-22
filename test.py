@@ -2801,11 +2801,11 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"downcast changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"downcast changed V value from {222} to {cpu.v}!",
         )
         result = bintoint(cpu.ram[cpu.pc])
         expected = bintoint(x & 0xFF)
@@ -2848,11 +2848,11 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"downcast changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"downcast changed V value from {222} to {cpu.v}!",
         )
         result = bintoint(cpu.ram[cpu.pc])
         expected = bintoint(x & 0xFF)
@@ -2895,11 +2895,11 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"downcast changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"downcast changed V value from {222} to {cpu.v}!",
         )
         result = bintoint16(
             (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
@@ -2926,111 +2926,106 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/math/add.S", "r") as fp:
-        addlines = fp.readlines()
 
     cycles = 0
     instructions = 0
     count = 0
-    if True:
-        for x in [37, -37, 89, 0, 42, -42]:
-            memory = getmemory(os.linesep.join([
-                *initlines,
-                "LNGJUMP code",
-                *parse_and_compile_module("upcast", textwrap.dedent("""
-                    def func(param1: int8) -> nopad[int16]:
-                        return param1
-                """)),
-                "code:",
-                f"LOADI {x}",
-                "PUSH A",
-                "LOADI 111",
-                "MOV A, U",
-                "LOADI 222",
-                "MOV A, V",
-                "LOADI 123",
-                "CALL func",
-                "HALT",
-                *addlines,
-            ]))
-            cpu = CPUCore(memory)
-            rununtilhalt(cpu)
+    for x in [37, -37, 89, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("upcast", textwrap.dedent("""
+                def func(param1: int8) -> nopad[int16]:
+                    return param1
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
 
-            _assert(
-                cpu.a == 123,
-                f"upcast changed accumulator value from {x} to {cpu.a}!",
-            )
-            _assert(
-                cpu.u == 111,
-                f"staticreturn changed U value from {111} to {cpu.u}!",
-            )
-            _assert(
-                cpu.v == 222,
-                f"staticreturn changed V value from {222} to {cpu.v}!",
-            )
-            result = bintoint16(
-                (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
-            )
-            expected = x
-            _assert(
-                result == expected,
-                "Failed to upcast, "
-                + f"got {result} instead of {expected}!",
-            )
-            cycles += cpu.cycles
-            instructions += cpu.ticks
-            count += 1
+        _assert(
+            cpu.a == 123,
+            f"upcast changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"upcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"upcast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint16(
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        )
+        expected = x
+        _assert(
+            result == expected,
+            "Failed to upcast, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
 
-        for x in [37, -37, 89, 0, 42, -42]:
-            memory = getmemory(os.linesep.join([
-                *initlines,
-                "LNGJUMP code",
-                *parse_and_compile_module("upcast", textwrap.dedent("""
-                    def func(param1: int8) -> nopad[int32]:
-                        return param1
-                """)),
-                "code:",
-                f"LOADI {x}",
-                "PUSH A",
-                "LOADI 111",
-                "MOV A, U",
-                "LOADI 222",
-                "MOV A, V",
-                "LOADI 123",
-                "CALL func",
-                "HALT",
-                *addlines,
-            ]))
-            cpu = CPUCore(memory)
-            rununtilhalt(cpu)
+    for x in [37, -37, 89, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("upcast", textwrap.dedent("""
+                def func(param1: int8) -> nopad[int32]:
+                    return param1
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
 
-            _assert(
-                cpu.a == 123,
-                f"upcast changed accumulator value from {x} to {cpu.a}!",
-            )
-            _assert(
-                cpu.u == 111,
-                f"staticreturn changed U value from {111} to {cpu.u}!",
-            )
-            _assert(
-                cpu.v == 222,
-                f"staticreturn changed V value from {222} to {cpu.v}!",
-            )
-            result = bintoint32(
-                (cpu.ram[cpu.pc + 0] << 24) +
-                (cpu.ram[cpu.pc + 1] << 16) +
-                (cpu.ram[cpu.pc + 2] << 8) +
-                (cpu.ram[cpu.pc + 3])
-            )
-            expected = x
-            _assert(
-                result == expected,
-                "Failed to upcast, "
-                + f"got {result} instead of {expected}!",
-            )
-            cycles += cpu.cycles
-            instructions += cpu.ticks
-            count += 1
+        _assert(
+            cpu.a == 123,
+            f"upcast changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"upcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"upcast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint32(
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3])
+        )
+        expected = x
+        _assert(
+            result == expected,
+            "Failed to upcast, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
 
     for x in [-37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
         memory = getmemory(os.linesep.join([
@@ -3050,7 +3045,6 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
             "LOADI 123",
             "CALL func",
             "HALT",
-            *addlines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -3061,11 +3055,11 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"upcast changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"upcast changed V value from {222} to {cpu.v}!",
         )
         result = bintoint32(
             (cpu.ram[cpu.pc + 0] << 24) +
@@ -3127,11 +3121,11 @@ def verifyechoparam(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"echoparam changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"echoparam changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3179,11 +3173,11 @@ def verifyechoparam(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"echoparam changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"echoparam changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3242,11 +3236,11 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"addandreturn changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"addandreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3294,11 +3288,11 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"addandreturn changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"addandreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3347,11 +3341,11 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"addandreturn changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"addandreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         if x > 127:
@@ -3417,11 +3411,11 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"subtractandreturn changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"subtractandreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3469,11 +3463,11 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"subtractandreturn changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"subtractandreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3522,11 +3516,11 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"subtractandreturn changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"subtractandreturn changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         if x > 127:
@@ -3557,8 +3551,6 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/math/add.S", "r") as fp:
-        addlines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -3581,7 +3573,6 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
             "LOADI 123",
             "CALL bitwiseand",
             "HALT",
-            *addlines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -3592,11 +3583,11 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"bitwiseand changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"bitwiseand changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3620,8 +3611,6 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/math/add.S", "r") as fp:
-        addlines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -3644,7 +3633,6 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
             "LOADI 123",
             "CALL bitwiseor",
             "HALT",
-            *addlines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -3655,11 +3643,11 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"bitwiseor changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"bitwiseor changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3683,8 +3671,6 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/math/add.S", "r") as fp:
-        addlines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -3707,7 +3693,6 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
             "LOADI 123",
             "CALL bitwisexor",
             "HALT",
-            *addlines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -3718,11 +3703,11 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"bitwisexor changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"bitwisexor changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         _assert(
@@ -3736,6 +3721,171 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
 
     print(f"Average cycles for bitwisexor: {int(cycles/count)}")
     print(f"Average instructions for bitwisexor: {int(instructions/count)}")
+
+
+def verifynegation(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "negation" not in only and "compiler" not in only:
+        return
+
+    print("Verifying negation...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 89, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("negation", textwrap.dedent("""
+                def negation(param1: int8) -> int8:
+                    return -param1
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL negation",
+            "HALT",
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"negation changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"negation changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"negation changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        expected = -x
+        _assert(
+            bintoint(result) == expected,
+            "Failed to negation, "
+            + f"got {bintoint(result)} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [-37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("negation", textwrap.dedent("""
+                def negation(param1: int16) -> int16:
+                    return -param1
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL negation",
+            "HALT",
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"negation changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"negation changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"negation changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint16(
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        )
+        expected = -x
+        _assert(
+            result == expected,
+            "Failed to negation, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [-37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("negation", textwrap.dedent("""
+                def negation(param1: int32) -> int32:
+                    return -param1
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL negation",
+            "HALT",
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"negation changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"negation changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"negation changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint32(
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3] << 0)
+        )
+        expected = -x
+        _assert(
+            result == expected,
+            "Failed to negation, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for negation: {int(cycles/count)}")
+    print(f"Average instructions for negation: {int(instructions/count)}")
 
 
 def verifycomplexexpression(only: Optional[Container[str]], full: bool) -> None:
@@ -3787,11 +3937,11 @@ def verifycomplexexpression(only: Optional[Container[str]], full: bool) -> None:
                 )
                 _assert(
                     cpu.u == 111,
-                    f"staticreturn changed U value from {111} to {cpu.u}!",
+                    f"complexexpression changed U value from {111} to {cpu.u}!",
                 )
                 _assert(
                     cpu.v == 222,
-                    f"staticreturn changed V value from {222} to {cpu.v}!",
+                    f"complexexpression changed V value from {222} to {cpu.v}!",
                 )
                 result = cpu.ram[cpu.pc + 0]
                 expected = x + (y - z) + 7
@@ -3858,11 +4008,11 @@ def verifylocalvariables(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"localvariables changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"localvariables changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         expected = x + 15
@@ -3926,11 +4076,11 @@ def verifyfunctioncall(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"functioncall changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"functioncall changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         expected = x + 15
@@ -3998,11 +4148,11 @@ def verifycomplexfunctioncall(only: Optional[Container[str]], full: bool) -> Non
         )
         _assert(
             cpu.u == 111,
-            f"staticreturn changed U value from {111} to {cpu.u}!",
+            f"complexfunctioncall changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"staticreturn changed V value from {222} to {cpu.v}!",
+            f"complexfunctioncall changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
         expected = x + 15
@@ -4113,6 +4263,7 @@ if __name__ == "__main__":
     verifybitwiseand(only, args.full)
     verifybitwiseor(only, args.full)
     verifybitwisexor(only, args.full)
+    verifynegation(only, args.full)
     verifycomplexexpression(only, args.full)
     verifylocalvariables(only, args.full)
     verifyfunctioncall(only, args.full)
