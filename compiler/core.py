@@ -410,6 +410,15 @@ class Stack:
         return "\n".join(lines)
 
 
+def comment_stack(stack: Stack) -> List[str]:
+    if not os.environ.get("INSERT_STACK_COMMENTS"):
+        return []
+
+    return [
+        f"  ; Stack location: {stack.location}",
+    ]
+
+
 def codegen_eval(expr: cst.BaseExpression) -> object:
     fresh_module = cst.parse_module("")
     code = fresh_module.code_for_node(
@@ -504,11 +513,17 @@ def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
 
 def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
     compiled: List[str] = []
+    if move_amt == 0:
+        return compiled
+
     if move_amt > 0:
         compiled.append(f"  SUBPCI {move_amt}" + comment_source(reason))
     elif move_amt < 0:
         compiled.append(f"  ADDPCI {-move_amt}" + comment_source(reason))
+
     stack.move(move_amt)
+    compiled += comment_stack(stack)
+
     return compiled
 
 
@@ -517,16 +532,28 @@ def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context
     move_amt = stack.find(destination)
     if move_amt is None:
         raise Exception(f"Logic error, could not find {destination} on stack to move to!")
+    if move_amt == 0:
+        return compiled
 
     if move_amt > 0:
         compiled.append(f"  SUBPCI {move_amt}" + comment_source(f"seeking {destination}"))
     elif move_amt < 0:
         compiled.append(f"  ADDPCI {-move_amt}" + comment_source(f"seeking {destination}"))
+
     stack.move(move_amt)
+    compiled += comment_stack(stack)
+
     return compiled
 
 
-def generate_memcpy_unrolled(src_loc: int, dst_loc: int, size: int, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+def generate_memcpy_unrolled(
+    src_loc: int,
+    dst_loc: int,
+    size: int,
+    stack: Stack,
+    clobbers: Set[str],
+    context: Context,
+) -> List[str]:
     compiled: List[str] = []
     if src_loc == dst_loc:
         return compiled
@@ -543,24 +570,34 @@ def generate_memcpy_unrolled(src_loc: int, dst_loc: int, size: int, stack: Stack
 
             compiled.append("  LOAD A")
             compiled.append(f"  SUBPCI {-shuffle_amount}" + comment_source())
+
+            stack.move(-shuffle_amount)
+            compiled += comment_stack(stack)
+
             compiled.append("  STORE A")
 
             if i < size - 1:
                 compiled.append(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
+                stack.move(-((-shuffle_amount) - 1))
+                compiled += comment_stack(stack)
 
-        stack.move((-shuffle_amount) + (size - 1))
     else:
         for i in range(size):
             clobbers.add("A")
 
             compiled.append("  LOAD A")
             compiled.append(f"  ADDPCI {shuffle_amount}" + comment_source())
+
+            stack.move(-shuffle_amount)
+            compiled += comment_stack(stack)
+
             compiled.append("  STORE A")
 
             if i < size - 1:
                 compiled.append(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
+                stack.move(shuffle_amount + 1)
+                compiled += comment_stack(stack)
 
-        stack.move(-(shuffle_amount - (size - 1)))
     return compiled
 
 
@@ -605,8 +642,11 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             compiled += generate_move_by("seeking builtin(retptr)", first_move, stack, clobbers, context)
             compiled.append("  LOAD U")
             compiled.append("  DECPC")
-            compiled.append("  LOAD V")
+
             stack.move(1)
+            compiled += comment_stack(stack)
+
+            compiled.append("  LOAD V")
 
         # Second, make sure the top of the stack is our return.
         top_spot = stack.at(0)
@@ -636,8 +676,11 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
         compiled += generate_move_by("seeking return pointer restoration point", restore_move_amt, stack, clobbers, context)
         compiled.append("  STORE U")
         compiled.append("  DECPC")
-        compiled.append("  STORE V")
+
         stack.move(1)
+        compiled += comment_stack(stack)
+
+        compiled.append("  STORE V")
     else:
         retptr_abs = stack.absfind("builtin(retptr)")
         if retptr_abs is None:
@@ -714,25 +757,39 @@ def generate_const_load(val: int, destination: str, stack: Stack, clobbers: Set[
             compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
             compiled.append("  STORE A")
         elif dest_size == 2:
+            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+            compiled.append("  DECPC")
+
+            stack.move(1)
+            compiled += comment_stack(stack)
+
+            compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+        elif dest_size == 4:
+            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+            compiled.append("  DECPC")
+
+            stack.move(1)
+            compiled += comment_stack(stack)
+
             compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
             compiled.append("  STORE A")
             compiled.append("  DECPC")
-            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-            compiled.append("  STORE A")
+
             stack.move(1)
-        elif dest_size == 4:
-            compiled.append(f"  LOADI {_hex((val >> 24) & 0xFF, 2)}")
-            compiled.append("  STORE A")
-            compiled.append("  DECPC")
+            compiled += comment_stack(stack)
+
             compiled.append(f"  LOADI {_hex((val >> 16) & 0xFF, 2)}")
             compiled.append("  STORE A")
             compiled.append("  DECPC")
-            compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+
+            stack.move(1)
+            compiled += comment_stack(stack)
+
+            compiled.append(f"  LOADI {_hex((val >> 24) & 0xFF, 2)}")
             compiled.append("  STORE A")
-            compiled.append("  DECPC")
-            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-            compiled.append("  STORE A")
-            stack.move(3)
         else:
             raise CompilerError(f"Unsupported destination {destination} for const load", context)
 
@@ -972,6 +1029,7 @@ def generate_function_call(
         # location where this would have been put on the stack.
         stack_on_exit += function_prototype.return_type.size
         stack.location = stack_on_exit
+        compiled += comment_stack(stack)
 
         if destination == "register(A)":
             # Pop the value from the stack, instead of copying.
@@ -1000,6 +1058,7 @@ def generate_function_call(
         # manipulations of the stack know where we really are.
         # when we were called.
         stack.location = stack_on_exit
+        compiled += comment_stack(stack)
 
     return compiled
 
@@ -1284,12 +1343,39 @@ def generate_expr_internal(
                     if lhs_dest != destination:
                         stack.free(lhs_dest)
             else:
-                # TODO: Support other operators than add/subtract.
+                # TODO: Support other operators such as multiply/divide/modulo.
                 raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
 
         else:
-            # TODO: Support other bit sizes than 8.
-            raise CompilerError("Unsupported addition size!", context)
+            if isinstance(expression.operator, cst.Subtract):
+                # TODO: Support 16/32 bit subtraction.
+                raise CompilerError("Unsupported bit size for subtraction!", context)
+
+            elif isinstance(expression.operator, cst.Add):
+                # Using the add16 or add32 function that's part of our stdlib.
+                function = "add16" if destination_size == 2 else "add32"
+
+                # If we ever fix our argument overlapping in the function call, we should see
+                # surprising optimization here with no need to copy parameters around.
+                compiled += generate_function_call(
+                    create_call(
+                        function,
+                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                    ),
+                    destination,
+                    stack,
+                    clobbers,
+                    refs,
+                    context.wrap(expression),
+                )
+
+                stack.free(rhs_dest)
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
+
+            else:
+                # TODO: Support other operators such as multiply/divide/modulo.
+                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
 
     elif isinstance(expression, cst.Call):
         compiled += generate_function_call(expression, destination, stack, clobbers, refs, context.wrap(expression))
@@ -1575,9 +1661,13 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
         stack.alloc(StackVar("builtin(padding)", CoreType('int8')))
         padding_move_amt += 1
 
+    # Make sure we annotate the source with where we think we started on the stack.
+    compiled += comment_stack(stack)
+
     if padding_move_amt > 0:
         compiled.append(f"  SUBPCI {padding_move_amt}" + comment_source("allocating padding"))
         stack.move(padding_move_amt)
+        compiled += comment_stack(stack)
 
     # Now, let's save all of our clobbered values.
     if clobbers:
@@ -1587,18 +1677,22 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
             stack.alloc(StackVar("builtin(saved_a)", CoreType("int8")))
             compiled.append("  PUSH A")
             stack.move(1)
+            compiled += comment_stack(stack)
         elif clobber == "U":
             stack.alloc(StackVar("builtin(saved_u)", CoreType("int8")))
             compiled.append("  PUSH U")
             stack.move(1)
+            compiled += comment_stack(stack)
         elif clobber == "V":
             stack.alloc(StackVar("builtin(saved_v)", CoreType("int8")))
             compiled.append("  PUSH V")
             stack.move(1)
+            compiled += comment_stack(stack)
         elif clobber == "SPC":
             stack.alloc(StackVar("builtin(saved_spc)", CoreType("int8")))
             compiled.append("  PUSH SPC")
             stack.move(2)
+            compiled += comment_stack(stack)
         else:
             raise Exception(f"Logic error, unexpected clobber {clobber}!")
 

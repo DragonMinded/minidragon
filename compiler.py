@@ -1,8 +1,9 @@
 import argparse
 import os
+import sys
 from typing import List, Union
 
-from compiler.core import FunctionPrototype, GlobalVariable, builtin_forward_refs, parse_forward_refs, compile_module
+from compiler.core import CompilerError, FunctionPrototype, GlobalVariable, builtin_forward_refs, parse_forward_refs, compile_module
 
 
 if __name__ == "__main__":
@@ -25,17 +26,24 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
-    compiled: List[str] = []
-    for fname in args.file:
-        with open(fname, "r") as fp:
-            refs += parse_forward_refs(fname, fp.read())
+    try:
+        refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
+        compiled: List[str] = []
+        for fname in args.file:
+            with open(fname, "r") as fp:
+                refs += parse_forward_refs(fname, fp.read())
 
-    compiled: List[str] = []
-    for fname in args.file:
-        with open(fname, "r") as fp:
-            compiled += compile_module(fname, fp.read(), refs)
+        compiled: List[str] = []
+        for fname in args.file:
+            with open(fname, "r") as fp:
+                compiled += compile_module(fname, fp.read(), refs)
 
-    with open(args.destination, "w") as fp:
-        for line in compiled:
-            fp.write(line + os.linesep)
+        with open(args.destination, "w") as fp:
+            for line in compiled:
+                fp.write(line + os.linesep)
+
+        sys.exit(0)
+
+    except CompilerError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
