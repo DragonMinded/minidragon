@@ -4226,6 +4226,164 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for bitwisexor: {int(instructions/count)}")
 
 
+def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "bitwisenot" not in only and "compiler" not in only:
+        return
+
+    print("Verifying bitwisenot...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, -37, 89, 0, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwisenot", textwrap.dedent("""
+                def bitwisenot(param1: int8) -> int8:
+                    return ~param1
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwisenot",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwisenot changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bitwisenot changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bitwisenot changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        expected = (~x) & 0xFF
+        _assert(
+            result == expected,
+            "Failed to bitwisenot, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwisenot", textwrap.dedent("""
+                def bitwisenot(param1: int16) -> int16:
+                    return ~param1
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwisenot",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwisenot changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bitwisenot changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bitwisenot changed V value from {222} to {cpu.v}!",
+        )
+        result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+        expected = (~x) & 0xFFFF
+        _assert(
+            result == expected,
+            "Failed to bitwisenot, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwisenot", textwrap.dedent("""
+                def bitwisenot(param1: int32) -> int32:
+                    return ~param1
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwisenot",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwisenot changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bitwisenot changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bitwisenot changed V value from {222} to {cpu.v}!",
+        )
+        result = (
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3] << 0)
+        )
+        expected = (~x) & 0xFFFFFFFF
+        _assert(
+            result == expected,
+            "Failed to bitwisenot, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for bitwisenot: {int(cycles/count)}")
+    print(f"Average instructions for bitwisenot: {int(instructions/count)}")
+
+
 def verifynegation(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "negation" not in only and "compiler" not in only:
         return
@@ -4766,6 +4924,7 @@ if __name__ == "__main__":
     verifybitwiseand(only, args.full)
     verifybitwiseor(only, args.full)
     verifybitwisexor(only, args.full)
+    verifybitwisenot(only, args.full)
     verifynegation(only, args.full)
     verifycomplexexpression(only, args.full)
     verifylocalvariables(only, args.full)
