@@ -3479,11 +3479,13 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
         initlines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
 
     cycles = 0
     instructions = 0
     count = 0
-    for x in [37, -37, 99, 0, 42, -42]:
+    for x in [0, 37, -37, 99, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
             "LNGJUMP code",
@@ -3502,6 +3504,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
             "CALL subtractandreturn",
             "HALT",
             *addlines,
+            *neglines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -3523,6 +3526,109 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
             bintoint(result) == x - 15,
             "Failed to subtractandreturn, "
             + f"got {bintoint(result)} instead of {x - 15}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 9999, -9999]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
+                def subtractandreturn(param1: int16) -> int16:
+                    return param1 - 12345
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL subtractandreturn",
+            "HALT",
+            *addlines,
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"subtractandreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"subtractandreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint16(
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        )
+        expected = x - 12345
+        _assert(
+            result == expected,
+            "Failed to subtractandreturn, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
+                def subtractandreturn(param1: int32) -> int32:
+                    return param1 - 123456
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL subtractandreturn",
+            "HALT",
+            *addlines,
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"subtractandreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"subtractandreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint32(
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3] << 0)
+        )
+        expected = x - 123456
+        _assert(
+            result == expected,
+            "Failed to subtractandreturn, "
+            + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -3554,6 +3660,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
             "CALL subtractandreturn",
             "HALT",
             *addlines,
+            *neglines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -3607,6 +3714,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
             "CALL subtractandreturn",
             "HALT",
             *addlines,
+            *neglines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)

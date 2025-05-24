@@ -1348,8 +1348,40 @@ def generate_expr_internal(
 
         else:
             if isinstance(expression.operator, cst.Subtract):
-                # TODO: Support 16/32 bit subtraction.
-                raise CompilerError("Unsupported bit size for subtraction!", context)
+                # Using the neg16 or neg32 fnction that's part of our stdlib.
+                negfunc = "neg16" if destination_size == 2 else "neg32"
+                compiled += generate_function_call(
+                    create_call(
+                        negfunc,
+                        [UnvalidatedName(rhs_dest)],
+                    ),
+                    rhs_dest,
+                    stack,
+                    clobbers,
+                    refs,
+                    context.wrap(expression),
+                )
+
+                # Using the add16 or add32 function that's part of our stdlib.
+                addfunc = "add16" if destination_size == 2 else "add32"
+
+                # If we ever fix our argument overlapping in the function call, we should see
+                # surprising optimization here with no need to copy parameters around.
+                compiled += generate_function_call(
+                    create_call(
+                        addfunc,
+                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)],
+                    ),
+                    destination,
+                    stack,
+                    clobbers,
+                    refs,
+                    context.wrap(expression),
+                )
+
+                stack.free(rhs_dest)
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
 
             elif isinstance(expression.operator, cst.Add):
                 # Using the add16 or add32 function that's part of our stdlib.
