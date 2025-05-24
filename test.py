@@ -3799,10 +3799,108 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
             f"bitwiseand changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
+        expected = (x & 0x3C) & 0xFF
         _assert(
-            bintoint(result) == x & 0x3C,
+            result == expected,
             "Failed to bitwiseand, "
-            + f"got {bintoint(result)} instead of {x & 0x3C}!",
+            + f"got {bintoint(result)} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwiseand", textwrap.dedent("""
+                def bitwiseand(param1: int16) -> int16:
+                    return param1 & 0xA53C
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwiseand",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwiseand changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bitwiseand changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bitwiseand changed V value from {222} to {cpu.v}!",
+        )
+        result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+        expected = (x & 0xA53C) & 0xFFFF
+        _assert(
+            result == expected,
+            "Failed to bitwiseand, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwiseand", textwrap.dedent("""
+                def bitwiseand(param1: int32) -> int32:
+                    return param1 & 0x3CA5963C
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwiseand",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwiseand changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bitwiseand changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bitwiseand changed V value from {222} to {cpu.v}!",
+        )
+        result = (
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3] << 0)
+        )
+        expected = (x & 0x3CA5963C) & 0xFFFFFFFF
+        _assert(
+            result == expected,
+            "Failed to bitwiseand, "
+            + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -3859,10 +3957,108 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
             f"bitwiseor changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
+        expected = (x | 0x3C) & 0xFF
         _assert(
-            bintoint(result) == x | 0x3C,
+            result == expected,
             "Failed to bitwiseor, "
-            + f"got {bintoint(result)} instead of {x | 0x3C}!",
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwiseor", textwrap.dedent("""
+                def bitwiseor(param1: int16) -> int16:
+                    return param1 | 0xA53C
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwiseor",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwiseor changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bitwiseor changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bitwiseor changed V value from {222} to {cpu.v}!",
+        )
+        result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+        expected = (x | 0xA53C) & 0xFFFF
+        _assert(
+            result == expected,
+            "Failed to bitwiseor, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwiseor", textwrap.dedent("""
+                def bitwiseor(param1: int32) -> int32:
+                    return param1 | 0x3CA5963C
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwiseor",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwiseor changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bitwiseor changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bitwiseor changed V value from {222} to {cpu.v}!",
+        )
+        result = (
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3] << 0)
+        )
+        expected = (x | 0x3CA5963C) & 0xFFFFFFFF
+        _assert(
+            result == expected,
+            "Failed to bitwiseor, "
+            + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -3919,10 +4115,108 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
             f"bitwisexor changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc + 0]
+        expected = (x ^ 0x3C) & 0xFF
         _assert(
-            bintoint(result) == x ^ 0x3C,
+            result == expected,
             "Failed to bitwisexor, "
-            + f"got {bintoint(result)} instead of {x ^ 0x3C}!",
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwisexor", textwrap.dedent("""
+                def bitwisexor(param1: int16) -> int16:
+                    return param1 ^ 0xA53C
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwisexor",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwisexor changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bitwisexor changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bitwisexor changed V value from {222} to {cpu.v}!",
+        )
+        result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+        expected = (x ^ 0xA53C) & 0xFFFF
+        _assert(
+            result == expected,
+            "Failed to bitwisexor, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("bitwisexor", textwrap.dedent("""
+                def bitwisexor(param1: int32) -> int32:
+                    return param1 ^ 0x3CA5963C
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL bitwisexor",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bitwisexor changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bitwisexor changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bitwisexor changed V value from {222} to {cpu.v}!",
+        )
+        result = (
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3] << 0)
+        )
+        expected = (x ^ 0x3CA5963C) & 0xFFFFFFFF
+        _assert(
+            result == expected,
+            "Failed to bitwisexor, "
+            + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks

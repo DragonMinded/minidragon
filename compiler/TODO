@@ -1,7 +1,6 @@
 8/16/32 bit multiplication.
 8/16/32 bit division.
 8/16/32 bit modulo.
-16/32 bit bitwise and/or/xor.
 8/16/32 bit bitwise not.
 boolean support, including and/or/not and coercing from a string/character/integer.
 global variable allocation and read/write support, including global keyword.

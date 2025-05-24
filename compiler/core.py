@@ -527,11 +527,12 @@ def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str
     return compiled
 
 
-def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context, *, offset: int = 0) -> List[str]:
     compiled: List[str] = []
     move_amt = stack.find(destination)
     if move_amt is None:
         raise Exception(f"Logic error, could not find {destination} on stack to move to!")
+    move_amt += offset
     if move_amt == 0:
         return compiled
 
@@ -1400,6 +1401,34 @@ def generate_expr_internal(
                     refs,
                     context.wrap(expression),
                 )
+
+                stack.free(rhs_dest)
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
+
+            elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
+                # Adding clobbers the A register, since it is the accumulator.
+                clobbers.add("A")
+
+                # Compute our actual function that we will apply as we walk the stack.
+                if isinstance(expression.operator, cst.BitAnd):
+                    function = "  AND"
+                elif isinstance(expression.operator, cst.BitOr):
+                    function = "  OR"
+                elif isinstance(expression.operator, cst.BitXor):
+                    function = "  XOR"
+                else:
+                    raise Exception("Logic error, unexpected operator {expression.operator)}")
+
+                # Move to the right spot on the stack and then perform the operation on the two numbers.
+                # Since bitwise operations are independent we can just do this in a loop.
+                for offset in range(destination_size):
+                    compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=offset)
+                    compiled.append("  LOAD A")
+                    compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=offset)
+                    compiled.append(function)
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=offset)
+                    compiled.append("  STORE A")
 
                 stack.free(rhs_dest)
                 if lhs_dest != destination:
