@@ -283,6 +283,13 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
 
 
 class UnvalidatedName(cst.Name):
+    """
+    Exists solely to be able to call create_call() with builtin references which are
+    intentionally designed to include invalid characters for a python identifier. They
+    do this so that it isn't possible to name a variable an internal identifier in a
+    program you are attempting to compile.
+    """
+
     def _validate(self) -> None:
         pass
 
@@ -439,7 +446,7 @@ def _hex(val: int, pad: int) -> str:
     return "0x" + hexval
 
 
-def global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
+def generate_global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
     compiled: List[str] = [context.comment()]
 
     target_node = assign.target
@@ -545,6 +552,14 @@ def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context
     compiled += comment_stack(stack)
 
     return compiled
+
+
+def stack_is_at(destination: str, stack: Stack, *, offset: int = 0) -> bool:
+    move_amt = stack.find(destination)
+    if move_amt is None:
+        raise Exception(f"Logic error, could not find {destination} on stack to compare to!")
+    move_amt += offset
+    return move_amt == 0
 
 
 def generate_memcpy_unrolled(
@@ -1196,7 +1211,7 @@ def generate_expr_internal(
                 elif isinstance(expression.operator, cst.BitInvert):
                     intval = ~get_int(expression.expression.value, context)
                 else:
-                    raise CompilerException("Unsupported unary operation {expression}", context)
+                    raise CompilerError("Unsupported unary operation {expression}", context)
 
                 compiled += generate_const_load(intval, destination, stack, clobbers, context)
             else:
@@ -1224,7 +1239,7 @@ def generate_expr_internal(
                     elif isinstance(expression.operator, cst.BitInvert):
                         compiled.append("  INV")
                     else:
-                        raise CompilerException("Unsupported unary operation {expression}", context)
+                        raise CompilerError("Unsupported unary operation {expression}", context)
 
                     # This call puts the result in a, so check if that's what we want.
                     if destination == "register(A)":
@@ -1262,15 +1277,26 @@ def generate_expr_internal(
                     elif isinstance(expression.operator, cst.BitInvert):
                         # Move to the right spot on the stack and then perform the operation on the two numbers.
                         # Since bitwise operations are independent we can just do this in a loop.
+                        if stack_is_at(internal_dest, stack, offset=destination_size - 1):
+                            # We're already at the top of the stack, generate the load/inv/store loop downwards
+                            # instead of upwards to shave off a move instruction.
+                            def actual_neg_offset(offset: int) -> int:
+                                return (destination_size - offset) - 1
+                        else:
+                            # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+                            # to perform the first move.
+                            def actual_neg_offset(offset: int) -> int:
+                                return offset
+
                         for offset in range(destination_size):
-                            compiled += generate_move_to(internal_dest, stack, clobbers, context, offset=offset)
+                            compiled += generate_move_to(internal_dest, stack, clobbers, context, offset=actual_neg_offset(offset))
                             compiled.append("  LOAD A")
                             compiled.append("  INV")
-                            compiled += generate_move_to(destination, stack, clobbers, context, offset=offset)
+                            compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_neg_offset(offset))
                             compiled.append("  STORE A")
 
                     else:
-                        raise CompilerException("Unsupported unary operation {expression}", context)
+                        raise CompilerError("Unsupported unary operation {expression}", context)
 
                     if internal_dest != destination:
                         stack.free(internal_dest)
@@ -1455,14 +1481,25 @@ def generate_expr_internal(
                 else:
                     raise Exception("Logic error, unexpected operator {expression.operator)}")
 
+                if stack_is_at(rhs_dest, stack, offset=destination_size - 1):
+                    # We're already at the top of the stack, generate the load/func/store loop downwards
+                    # instead of upwards to shave off a move instruction.
+                    def actual_expr_offset(offset: int) -> int:
+                        return (destination_size - offset) - 1
+                else:
+                    # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+                    # to perform the first move.
+                    def actual_expr_offset(offset: int) -> int:
+                        return offset
+
                 # Move to the right spot on the stack and then perform the operation on the two numbers.
                 # Since bitwise operations are independent we can just do this in a loop.
                 for offset in range(destination_size):
-                    compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=offset)
+                    compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
                     compiled.append("  LOAD A")
-                    compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=offset)
+                    compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
                     compiled.append(function)
-                    compiled += generate_move_to(destination, stack, clobbers, context, offset=offset)
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
                     compiled.append("  STORE A")
 
                 stack.free(rhs_dest)
@@ -1857,7 +1894,7 @@ def compile_module(module: str, code: str, refs: List[Union[FunctionPrototype, G
                 if not is_type_definition(body):
                     raise CompilerError("Global variable declarations must have a type", context)
             elif isinstance(body, cst.AnnAssign):
-                compiled += global_variable(body, context)
+                compiled += generate_global_variable(body, context)
             else:
                 raise CompilerError("Arbitrary top-level statements are not supported", context)
         elif isinstance(statement, cst.FunctionDef):
