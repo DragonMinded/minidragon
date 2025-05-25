@@ -439,11 +439,11 @@ def verifyshift(only: Optional[Container[str]], full: bool) -> None:
             )
 
 
-def verifyumult(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "umult" not in only and "mathlib" not in only:
+def verifymult(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "mult" not in only and "mathlib" not in only:
         return
 
-    print("Verifying umult...")
+    print("Verifying mult...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -474,7 +474,7 @@ def verifyumult(only: Optional[Container[str]], full: bool) -> None:
                 *initlines,
                 f"PUSHI {x}",
                 f"PUSHI {y}",
-                "CALL umult",
+                "CALL mult",
                 "HALT",
                 *multiplylines,
                 *addlines,
@@ -483,7 +483,7 @@ def verifyumult(only: Optional[Container[str]], full: bool) -> None:
             rununtilhalt(cpu)
             _assert(
                 cpu.a == x * y,
-                f"Failed to umult {x} by {y}, "
+                f"Failed to mult {x} by {y}, "
                 + f"got {cpu.a} instead of {x * y}!",
             )
             cycles += cpu.cycles
@@ -491,15 +491,15 @@ def verifyumult(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for umult: {int(cycles/count)}")
-    print(f"Average instructions for umult: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for mult: {int(cycles/count)}")
+    print(f"Average instructions for mult: {int(instructions/count)}")
 
 
-def verifyumult16(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "umult16" not in only and "mathlib" not in only:
+def verifymult16(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "mult16" not in only and "mathlib" not in only:
         return
 
-    print("Verifying umult16...")
+    print("Verifying mult16...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -542,7 +542,7 @@ def verifyumult16(only: Optional[Container[str]], full: bool) -> None:
                 f"PUSHI {y & 0xFF}",
                 f"PUSHI {(y >> 8) & 0xFF}",
                 "LOADI 123",
-                "CALL umult16",
+                "CALL mult16",
                 "HALT",
                 *multiplylines,
                 *addlines,
@@ -558,7 +558,7 @@ def verifyumult16(only: Optional[Container[str]], full: bool) -> None:
             )
             _assert(
                 real == calculated,
-                f"Failed to umult16 {x} and {y}, "
+                f"Failed to mult16 {x} and {y}, "
                 + f"got {calculated} instead of {real}!",
             )
             cycles += cpu.cycles
@@ -566,15 +566,15 @@ def verifyumult16(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for umult16: {int(cycles/count)}")
-    print(f"Average instructions for umult16: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for mult16: {int(cycles/count)}")
+    print(f"Average instructions for mult16: {int(instructions/count)}")
 
 
-def verifyumult32(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "umult32" not in only and "mathlib" not in only:
+def verifymult32(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "mult32" not in only and "mathlib" not in only:
         return
 
-    print("Verifying umult32...")
+    print("Verifying mult32...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -622,7 +622,7 @@ def verifyumult32(only: Optional[Container[str]], full: bool) -> None:
                 f"PUSHI {(y >> 16) & 0xFF}",
                 f"PUSHI {(y >> 24) & 0xFF}",
                 "LOADI 123",
-                "CALL umult32",
+                "CALL mult32",
                 "HALT",
                 *multiplylines,
                 *addlines,
@@ -643,7 +643,7 @@ def verifyumult32(only: Optional[Container[str]], full: bool) -> None:
             )
             _assert(
                 real == calculated,
-                f"Failed to umult32 {x} and {y}, "
+                f"Failed to mult32 {x} and {y}, "
                 + f"got {calculated} instead of {real}!",
             )
             cycles += cpu.cycles
@@ -651,8 +651,8 @@ def verifyumult32(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 0x100000000)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for umult32: {int(cycles/count)}")
-    print(f"Average instructions for umult32: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for mult32: {int(cycles/count)}")
+    print(f"Average instructions for mult32: {int(instructions/count)}")
 
 
 def verifyudiv(only: Optional[Container[str]], full: bool) -> None:
@@ -3752,6 +3752,333 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for subtractandreturn: {int(instructions/count)}")
 
 
+def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "multiplyandreturn" not in only and "compiler" not in only:
+        return
+
+    print("Verifying multiplyandreturn unsigned...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/multiply.S", "r") as fp:
+        multiplylines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [0, 37, 99, 42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
+                def multiplyandreturn(param1: uint8) -> uint8:
+                    return param1 * 3
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL multiplyandreturn",
+            "HALT",
+            *addlines,
+            *multiplylines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"multiplyandreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"multiplyandreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        expected = (x * 3) & 0xFF
+        _assert(
+            result == expected,
+            "Failed to multiplyandreturn, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, 89, 42, 1024, 555, 12345, 9999]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
+                def multiplyandreturn(param1: uint16) -> uint16:
+                    return param1 * 31
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL multiplyandreturn",
+            "HALT",
+            *addlines,
+            *multiplylines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"multiplyandreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"multiplyandreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = (
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        )
+        expected = (x * 31) & 0xFFFF
+        _assert(
+            result == expected,
+            "Failed to multiplyandreturn, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, 89, 42, 1024, 555, 12345, 32000, 1234567890]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
+                def multiplyandreturn(param1: uint32) -> uint32:
+                    return param1 * 491
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL multiplyandreturn",
+            "HALT",
+            *addlines,
+            *multiplylines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"multiplyandreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"multiplyandreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = (
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3] << 0)
+        )
+        expected = (x * 491) & 0xFFFFFFFF
+        _assert(
+            result == expected,
+            "Failed to multiplyandreturn, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for multiplyandreturn: {int(cycles/count)}")
+    print(f"Average instructions for multiplyandreturn: {int(instructions/count)}")
+    print("Verifying multiplyandreturn signed...")
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [0, 37, -37, 99, 42, -42]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
+                def multiplyandreturn(param1: int8) -> int8:
+                    return param1 * 3
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL multiplyandreturn",
+            "HALT",
+            *addlines,
+            *multiplylines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"multiplyandreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"multiplyandreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc + 0])
+        expected = bintoint((x * 3) & 0xFF)
+        _assert(
+            result == expected,
+            "Failed to multiplyandreturn, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 9999, -9999]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
+                def multiplyandreturn(param1: int16) -> int16:
+                    return param1 * 31
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL multiplyandreturn",
+            "HALT",
+            *addlines,
+            *multiplylines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"multiplyandreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"multiplyandreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint16(
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        )
+        expected = bintoint16((x * 31) & 0xFFFF)
+        _assert(
+            result == expected,
+            "Failed to multiplyandreturn, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
+                def multiplyandreturn(param1: int32) -> int32:
+                    return param1 * 491
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL multiplyandreturn",
+            "HALT",
+            *addlines,
+            *multiplylines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"multiplyandreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"multiplyandreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint32(
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3] << 0)
+        )
+        expected = bintoint32((x * 491) & 0xFFFFFFFF)
+        _assert(
+            result == expected,
+            "Failed to multiplyandreturn, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for multiplyandreturn: {int(cycles/count)}")
+    print(f"Average instructions for multiplyandreturn: {int(instructions/count)}")
+
+
 def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "bitwiseand" not in only and "compiler" not in only:
         return
@@ -4878,9 +5205,9 @@ if __name__ == "__main__":
     verifymathadd(only, args.full)
     verifyadd16(only, args.full)
     verifyadd32(only, args.full)
-    verifyumult(only, args.full)
-    verifyumult16(only, args.full)
-    verifyumult32(only, args.full)
+    verifymult(only, args.full)
+    verifymult16(only, args.full)
+    verifymult32(only, args.full)
     verifyudiv(only, args.full)
     verifyudiv16(only, args.full)
     verifyudiv32(only, args.full)
@@ -4921,6 +5248,7 @@ if __name__ == "__main__":
     verifyechoparam(only, args.full)
     verifyaddandreturn(only, args.full)
     verifysubtractandreturn(only, args.full)
+    verifymultiplyandreturn(only, args.full)
     verifybitwiseand(only, args.full)
     verifybitwiseor(only, args.full)
     verifybitwisexor(only, args.full)

@@ -1,4 +1,3 @@
-8/16/32 bit multiplication.
 8/16/32 bit division.
 8/16/32 bit modulo.
 boolean support, including and/or/not and coercing from a string/character/integer.
@@ -18,3 +17,4 @@ load/store purpose tracking, so redundant loads/stores and moves can be tracked.
 optimization passes for unnecessary store/load and side-by-side addpci/subpci calls (many such cases).
 optimization passes for memcpy_unrolled for direction of copy in case we're already sitting on a value (add16 test case).
 function call matching for multiple stack values on the stack that line up with the function so we don't need to make copies.
+try using expression evaluator at every point in the expr generation to fold constant computations in better. couple this with constant unrolling instead of stack lookups.

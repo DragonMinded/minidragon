@@ -137,7 +137,7 @@ _atoi_number_loop:
 
     ; Multiply by 10, getting the result in A.
     PUSHI 10
-    CALL umult
+    CALL mult
     ADDPCI 10
     SWAP PC, SPC
 
@@ -314,7 +314,7 @@ _atoi16_number_loop:
     ; Swap back to our stack, which should point at the temporary number.
     SWAP PC, SPC
 
-    ; It's worth juggling the umult param order here since umult uses a looping multiply.
+    ; It's worth juggling the mult param order here since mult uses a looping multiply.
     LOAD A
     SUBPCI 2
     STORE A
@@ -329,7 +329,7 @@ _atoi16_number_loop:
     SUBPCI 3
 
     ; Multiply by 10, getting the result in our temporary location.
-    CALL umult16
+    CALL mult16
 
     ; Add lower 8 bits together.
     MOV V, A
@@ -529,7 +529,7 @@ _atoi32_number_loop:
     ; Swap back to our stack, which should point at the temporary number.
     SWAP PC, SPC
 
-    ; It's worth juggling the umult param order here since umult uses a looping multiply.
+    ; It's worth juggling the mult param order here since mult uses a looping multiply.
     LOAD A
     SUBPCI 4
     STORE A
@@ -557,7 +557,7 @@ _atoi32_number_loop:
     SUBPCI 7
 
     ; Multiply by 10, getting the result in our temporary location.
-    CALL umult32
+    CALL mult32
 
     ; Add lower 8 bits together.
     MOV V, A
