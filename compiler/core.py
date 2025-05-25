@@ -450,6 +450,10 @@ def comment_stack(stack: Stack) -> List[str]:
     ]
 
 
+class NonConstantExpressionException(Exception):
+    pass
+
+
 def codegen_eval(expr: cst.BaseExpression) -> object:
     fresh_module = cst.parse_module("")
     code = fresh_module.code_for_node(
@@ -459,7 +463,12 @@ def codegen_eval(expr: cst.BaseExpression) -> object:
             ],
         )
     )
-    return eval(code)
+    try:
+        return eval(code)
+    except Exception:
+        pass
+
+    raise NonConstantExpressionException(f"{expr} is not constant, cannot eval!")
 
 
 def _hex(val: int, pad: int) -> str:
@@ -491,7 +500,11 @@ def generate_global_variable(assign: cst.AnnAssign, context: Context) -> List[st
             raise CompilerError("Unsupported initialization value for global const definition", context)
 
         # Attempt to codegen and evaluate the python code.
-        value = codegen_eval(assign_value)
+        try:
+            value = codegen_eval(assign_value)
+        except NonConstantExpressionException:
+            raise CompilerError("Non-constant initialization value for global const definition", context)
+
         compiled.append(f"{assign_name}:")
 
         if assign_type.type in {"int8", "uint8"}:
@@ -1247,106 +1260,95 @@ def generate_unary_expr(
         raise Exception("Logic error, could not calculate size of destination!")
 
     if isinstance(expression.operator, (cst.Minus, cst.BitInvert)):
-        if isinstance(expression.expression, cst.Integer):
-            # Special case for negative integers.
+        if destination_size == 1:
+            if destination in {"register(A)", "uregister(A)"} or stack.stack[-1].name != destination:
+                # In order to ensure that it's possible to negate this value, locate the rest of the expression
+                # in a temporary location.
+                internal_dest = expr_temp_name()
+                stack.alloc(StackVar(internal_dest, expr_integer_type(destination_size)))
+            else:
+                # Safe to put the expression evaluation in our destination because we're just going to negate it.
+                internal_dest = destination
+
+            compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
+
+            # Negation clobbers the A register, since it is the accumulator.
+            clobbers.add("A")
+
+            # Move to the parameter and negate it.
+            compiled += generate_move_to(internal_dest, stack, clobbers, context)
+            compiled.append("  LOAD A")
+
             if isinstance(expression.operator, cst.Minus):
-                intval = -get_int(expression.expression.value, context)
+                compiled.append("  NEG")
             elif isinstance(expression.operator, cst.BitInvert):
-                intval = ~get_int(expression.expression.value, context)
+                compiled.append("  INV")
             else:
                 raise CompilerError("Unsupported unary operation {expression}", context)
 
-            compiled += generate_const_load(intval, destination, stack, clobbers, context)
-        else:
-            if destination_size == 1:
-                if destination in {"register(A)", "uregister(A)"} or stack.stack[-1].name != destination:
-                    # In order to ensure that it's possible to negate this value, locate the rest of the expression
-                    # in a temporary location.
-                    internal_dest = expr_temp_name()
-                    stack.alloc(StackVar(internal_dest, expr_integer_type(destination_size)))
-                else:
-                    # Safe to put the expression evaluation in our destination because we're just going to negate it.
-                    internal_dest = destination
-
-                compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
-
-                # Negation clobbers the A register, since it is the accumulator.
-                clobbers.add("A")
-
-                # Move to the parameter and negate it.
-                compiled += generate_move_to(internal_dest, stack, clobbers, context)
-                compiled.append("  LOAD A")
-
-                if isinstance(expression.operator, cst.Minus):
-                    compiled.append("  NEG")
-                elif isinstance(expression.operator, cst.BitInvert):
-                    compiled.append("  INV")
-                else:
-                    raise CompilerError("Unsupported unary operation {expression}", context)
-
-                # This call puts the result in a, so check if that's what we want.
-                if destination in {"register(A)", "uregister(A)"}:
-                    stack.free(internal_dest)
-                else:
-                    compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append("  STORE A")
-                    if internal_dest != destination:
-                        stack.free(internal_dest)
-            elif destination_size in {2, 4}:
-                # Calculate the expression inside the negation here, so we can send the temporary name to the function call
-                # and trigger its optimized case.
-                if stack.stack[-1].name != destination:
-                    internal_dest = expr_temp_name()
-                    stack.alloc(StackVar(internal_dest, expr_integer_type(destination_size)))
-                else:
-                    internal_dest = destination
-
-                compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
-
-                if isinstance(expression.operator, cst.Minus):
-                    # Using the neg16 or neg32 function that's part of our stdlib.
-                    function = "neg16" if destination_size == 2 else "neg32"
-                    compiled += generate_function_call(
-                        create_call(
-                            function,
-                            [UnvalidatedName(internal_dest)],
-                        ),
-                        destination,
-                        stack,
-                        clobbers,
-                        refs,
-                        context.wrap(expression),
-                    )
-                elif isinstance(expression.operator, cst.BitInvert):
-                    # Move to the right spot on the stack and then perform the operation on the two numbers.
-                    # Since bitwise operations are independent we can just do this in a loop.
-                    if stack_is_at(internal_dest, stack, offset=destination_size - 1):
-                        # We're already at the top of the stack, generate the load/inv/store loop downwards
-                        # instead of upwards to shave off a move instruction.
-                        def actual_neg_offset(offset: int) -> int:
-                            return (destination_size - offset) - 1
-                    else:
-                        # We're anywhere else in the stack, so it costs us no unnecessary move instructions
-                        # to perform the first move.
-                        def actual_neg_offset(offset: int) -> int:
-                            return offset
-
-                    for offset in range(destination_size):
-                        compiled += generate_move_to(internal_dest, stack, clobbers, context, offset=actual_neg_offset(offset))
-                        compiled.append("  LOAD A")
-                        compiled.append("  INV")
-                        compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_neg_offset(offset))
-                        compiled.append("  STORE A")
-
-                else:
-                    raise CompilerError("Unsupported unary operation {expression}", context)
-
+            # This call puts the result in a, so check if that's what we want.
+            if destination in {"register(A)", "uregister(A)"}:
+                stack.free(internal_dest)
+            else:
+                compiled += generate_move_to(destination, stack, clobbers, context)
+                compiled.append("  STORE A")
                 if internal_dest != destination:
                     stack.free(internal_dest)
+        elif destination_size in {2, 4}:
+            # Calculate the expression inside the negation here, so we can send the temporary name to the function call
+            # and trigger its optimized case.
+            if stack.stack[-1].name != destination:
+                internal_dest = expr_temp_name()
+                stack.alloc(StackVar(internal_dest, expr_integer_type(destination_size)))
+            else:
+                internal_dest = destination
+
+            compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
+
+            if isinstance(expression.operator, cst.Minus):
+                # Using the neg16 or neg32 function that's part of our stdlib.
+                function = "neg16" if destination_size == 2 else "neg32"
+                compiled += generate_function_call(
+                    create_call(
+                        function,
+                        [UnvalidatedName(internal_dest)],
+                    ),
+                    destination,
+                    stack,
+                    clobbers,
+                    refs,
+                    context.wrap(expression),
+                )
+            elif isinstance(expression.operator, cst.BitInvert):
+                # Move to the right spot on the stack and then perform the operation on the two numbers.
+                # Since bitwise operations are independent we can just do this in a loop.
+                if stack_is_at(internal_dest, stack, offset=destination_size - 1):
+                    # We're already at the top of the stack, generate the load/inv/store loop downwards
+                    # instead of upwards to shave off a move instruction.
+                    def actual_neg_offset(offset: int) -> int:
+                        return (destination_size - offset) - 1
+                else:
+                    # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+                    # to perform the first move.
+                    def actual_neg_offset(offset: int) -> int:
+                        return offset
+
+                for offset in range(destination_size):
+                    compiled += generate_move_to(internal_dest, stack, clobbers, context, offset=actual_neg_offset(offset))
+                    compiled.append("  LOAD A")
+                    compiled.append("  INV")
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_neg_offset(offset))
+                    compiled.append("  STORE A")
 
             else:
-                # We don't support negation of this type.
-                raise CompilerError("Cannot negate expression with destination size {destination_size}", context)
+                raise CompilerError("Unsupported unary operation {expression}", context)
+
+            if internal_dest != destination:
+                stack.free(internal_dest)
+
+        else:
+            # We don't support negation of this type.
+            raise CompilerError("Cannot negate expression with destination size {destination_size}", context)
 
     else:
         # TODO: Handle Plus (no-op, just call with the expression value), and Not, for booleans.
@@ -1371,30 +1373,6 @@ def generate_binary_expr(
     destination_type = stack.typeof(destination)
     if destination_type is None:
         raise Exception("Logic error, could not calculate type of destination!")
-
-    # Special case for operating on two constants. We could do full evalulation, but meh.
-    if isinstance(expression.left, cst.Integer) and isinstance(expression.right, cst.Integer):
-        if isinstance(expression.operator, cst.Add):
-            intval = get_int(expression.left.value, context) + get_int(expression.right.value, context)
-            compiled += generate_const_load(intval, destination, stack, clobbers, context)
-        elif isinstance(expression.operator, cst.Subtract):
-            intval = get_int(expression.left.value, context) - get_int(expression.right.value, context)
-            compiled += generate_const_load(intval, destination, stack, clobbers, context)
-        elif isinstance(expression.operator, cst.BitAnd):
-            intval = get_int(expression.left.value, context) & get_int(expression.right.value, context)
-            compiled += generate_const_load(intval, destination, stack, clobbers, context)
-        elif isinstance(expression.operator, cst.BitOr):
-            intval = get_int(expression.left.value, context) | get_int(expression.right.value, context)
-            compiled += generate_const_load(intval, destination, stack, clobbers, context)
-        elif isinstance(expression.operator, cst.BitXor):
-            intval = get_int(expression.left.value, context) ^ get_int(expression.right.value, context)
-            compiled += generate_const_load(intval, destination, stack, clobbers, context)
-        elif isinstance(expression.operator, cst.Multiply):
-            intval = get_int(expression.left.value, context) * get_int(expression.right.value, context)
-            compiled += generate_const_load(intval, destination, stack, clobbers, context)
-        else:
-            # TODO: Support other operators than add/subtract.
-            raise CompilerError(f"Unsupported compile-time computation for {expression.operator}!", context)
 
     if destination in {"register(A)", "uregister(A)"} or stack.stack[-1].name != destination:
         # In order to ensure that it's possible to do stack math on this value, locate it in
@@ -1605,10 +1583,18 @@ def generate_expr_internal(
     if destination_size is None:
         raise Exception("Logic error, could not calculate size of destination!")
 
-    if isinstance(expression, cst.Integer):
-        compiled += generate_const_load(get_int(expression.value, context), destination, stack, clobbers, context)
+    try:
+        # If we can evaluate this directly, do so!
+        value = codegen_eval(expression)
+        if isinstance(value, int):
+            compiled += generate_const_load(value, destination, stack, clobbers, context)
+            return compiled
 
-    elif isinstance(expression, cst.Name):
+    except NonConstantExpressionException:
+        # We must treat this as a non-unrolled expression.
+        pass
+
+    if isinstance(expression, cst.Name):
         compiled += generate_variable_lookup(expression.value, destination, stack, clobbers, refs, context)
 
     elif isinstance(expression, cst.UnaryOperation):
