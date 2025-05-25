@@ -249,11 +249,11 @@ Because of the complexity of designing such a system from scratch, there are a l
 
 ## Build Progress
 
-As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 61% finished with the whole project.
+As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 70% finished with the whole project.
 
 ### Hardware
 
-As a whole, the hardware side of MiniDragon is 53% complete.
+As a whole, the hardware side of MiniDragon is 67% complete.
 
  - instruction decoder: 5% complete
     - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 56 instructions (55 real instructions and a microcode board for the shared load instruction step) 3 instructions are fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
@@ -263,9 +263,9 @@ As a whole, the hardware side of MiniDragon is 53% complete.
    - All design work and diagramming for the eight general purpose registers is completed. Three registers (A, B and D) are built and fully integrated into the physical build.
  - ALU: 25% complete
    - The ALU core is completely designed, laid out and documented. Tested and fabricated designs for ADD, INV, OR, AND, and XOR exist, but only ADD has been integrated into the physical layout. The ALU is decomposed into seven core functions that each generate their own output and carry flag, along with a shared zero flag generator and a carry flag selector circuit.
- - memory interface: 0% complete
-   - MiniDragon CPU is designed to appear like a standard 80's CPU from external components' perspective. This means 16 output "pins" for address lines, 8 bidirectional "pins" for data lines, and a few crucial control signals brought out. These signals will include a bus enable (which determines when the CPU is attempting to use the address/data bus) and a read/write signal (which dictates whether the data pins should be seen as input or output). Its possible that I will instead bring out write enable and read enable bits which dictate that the bus should be active and either a read or a write should occur. It should be noted that all of these signals are asynchronous. System clock and reset lines may be brought out as external pins should that be necessary, but this was not normally done for period-accurate CPUs.
-   - Additional circuitry that is not technically part of MiniDragon but will be necessary for its execution include a serial chip for IO, glue logic to support address decoding, a ROM chip and an SRAM chip to provide nonvolatile and volatile storage. These will likely be built using off-the-shelf TTL-compatible 7400 logic since they aren't part of the CPU itself.
+ - memory interface: 100% complete
+   - The MiniDragon CPU is designed to appear like a standard 80's TTL CPU from external components' perspective. This means 16 output "pins" for address lines, 8 bidirectional "pins" for data lines, and a few crucial control signals brought out. These signals include a negated write enable and read enable signal, a negated reset signal and a buffered clock signal. It should be noted that all of these signals (save for the clock) are asynchronous, but the write enable line does pulse low with the clock transition since various memory chips use the low to high transition as their write signal. All signals are TTL level and impedance compatible, and the bidirectional data bus uses TTL-compatible tri-state logic.
+   - Additional circuitry that is not technically part of MiniDragon but will be necessary for its execution include a serial chip for IO, glue logic to support address decoding, a ROM chip and an SRAM chip to provide nonvolatile and volatile storage. These will likely be built using off-the-shelf TTL-compatible 7400 logic and ASICs since they aren't part of the CPU itself.
  - power distribution: 100% complete
    - I went with an adjustable 5V switching mode power supply that can supply the necessary amperage (5+ amps estimated at this point) along with a few digital readouts sprinkled across the board for fine adjustments. The circuits are fairly sensitive to core voltage being at or slightly above 4.75V so the main power supply is turned up to about 5.40V to accomodate voltage sag in the power distribution circuits.
  - debugging boards: 100% complete
