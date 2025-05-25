@@ -1305,6 +1305,223 @@ def generate_unary_expr(
     return compiled
 
 
+def generate_binary_expr(
+    expression: cst.BinaryOperation,
+    destination: str,
+    stack: Stack,
+    clobbers: Set[str],
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    context: Context,
+) -> List[str]:
+    compiled: List[str] = []
+
+    destination_size = 1 if destination == "register(A)" else stack.sizeof(destination)
+    if destination_size is None:
+        raise Exception("Logic error, could not calculate size of destination!")
+
+    # Special case for operating on two constants. We could do full evalulation, but meh.
+    if isinstance(expression.left, cst.Integer) and isinstance(expression.right, cst.Integer):
+        if isinstance(expression.operator, cst.Add):
+            intval = get_int(expression.left.value, context) + get_int(expression.right.value, context)
+            compiled += generate_const_load(intval, destination, stack, clobbers, context)
+        elif isinstance(expression.operator, cst.Subtract):
+            intval = get_int(expression.left.value, context) - get_int(expression.right.value, context)
+            compiled += generate_const_load(intval, destination, stack, clobbers, context)
+        elif isinstance(expression.operator, cst.BitAnd):
+            intval = get_int(expression.left.value, context) & get_int(expression.right.value, context)
+            compiled += generate_const_load(intval, destination, stack, clobbers, context)
+        elif isinstance(expression.operator, cst.BitOr):
+            intval = get_int(expression.left.value, context) | get_int(expression.right.value, context)
+            compiled += generate_const_load(intval, destination, stack, clobbers, context)
+        elif isinstance(expression.operator, cst.BitXor):
+            intval = get_int(expression.left.value, context) ^ get_int(expression.right.value, context)
+            compiled += generate_const_load(intval, destination, stack, clobbers, context)
+        else:
+            # TODO: Support other operators than add/subtract.
+            raise CompilerError(f"Unsupported compile-time computation for {expression.operator}!", context)
+
+    if destination == "register(A)" or stack.stack[-1].name != destination:
+        # In order to ensure that it's possible to do stack math on this value, locate it in
+        # a temporary location for the time being if the destination isn't the top of the stack.
+        lhs_dest = expr_temp_name()
+        stack.alloc(StackVar(lhs_dest, expr_integer_type(destination_size)))
+    else:
+        # Safe to put first parameter in the top of the stack where it already is useful for math.
+        lhs_dest = destination
+
+    compiled += generate_expr_internal(expression.left, lhs_dest, stack, clobbers, refs, context.wrap(expression.left))
+
+    # Now, get the second parameter onto the stack in the right spot.
+    rhs_dest = expr_temp_name()
+    stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
+    compiled += generate_expr_internal(expression.right, rhs_dest, stack, clobbers, refs, context.wrap(expression.right))
+
+    # Now, perform some math of matics!
+    if destination_size == 1:
+        if isinstance(expression.operator, cst.Subtract):
+            # Subtracting clobbers the A register, since it is the accumulator.
+            clobbers.add("A")
+
+            # Move to the second parameter and negate it.
+            compiled += generate_move_to(rhs_dest, stack, clobbers, context)
+            compiled.append("  LOAD A")
+            compiled.append("  NEG")
+
+            # Move to the right spot on the stack to add to the negated right hand side.
+            compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+            compiled.append("  ADD")
+
+            # This call puts the result in a, so check if that's what we want.
+            if destination == "register(A)":
+                # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
+                stack.free(rhs_dest)
+                stack.free(lhs_dest)
+            else:
+                stack.free(rhs_dest)
+                compiled += generate_move_to(destination, stack, clobbers, context)
+                compiled.append("  STORE A")
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
+        elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
+            # Adding clobbers the A register, since it is the accumulator.
+            clobbers.add("A")
+
+            # Move to the right spot on the stack and then add the two numbers.
+            compiled += generate_move_to(rhs_dest, stack, clobbers, context)
+            compiled.append("  LOAD A")
+            compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+
+            if isinstance(expression.operator, cst.Add):
+                compiled.append("  ADD")
+            elif isinstance(expression.operator, cst.BitAnd):
+                compiled.append("  AND")
+            elif isinstance(expression.operator, cst.BitOr):
+                compiled.append("  OR")
+            elif isinstance(expression.operator, cst.BitXor):
+                compiled.append("  XOR")
+            else:
+                raise Exception("Logic error, unexpected operator {expression.operator)}")
+
+            # This call puts the result in a, so check if that's what we want.
+            if destination == "register(A)":
+                # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
+                stack.free(rhs_dest)
+                stack.free(lhs_dest)
+            else:
+                stack.free(rhs_dest)
+                compiled += generate_move_to(destination, stack, clobbers, context)
+                compiled.append("  STORE A")
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
+        else:
+            # TODO: Support other operators such as multiply/divide/modulo.
+            raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+
+    else:
+        if isinstance(expression.operator, cst.Subtract):
+            # Using the neg16 or neg32 fnction that's part of our stdlib.
+            negfunc = "neg16" if destination_size == 2 else "neg32"
+            compiled += generate_function_call(
+                create_call(
+                    negfunc,
+                    [UnvalidatedName(rhs_dest)],
+                ),
+                rhs_dest,
+                stack,
+                clobbers,
+                refs,
+                context.wrap(expression),
+            )
+
+            # Using the add16 or add32 function that's part of our stdlib.
+            addfunc = "add16" if destination_size == 2 else "add32"
+
+            # If we ever fix our argument overlapping in the function call, we should see
+            # surprising optimization here with no need to copy parameters around.
+            compiled += generate_function_call(
+                create_call(
+                    addfunc,
+                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)],
+                ),
+                destination,
+                stack,
+                clobbers,
+                refs,
+                context.wrap(expression),
+            )
+
+            stack.free(rhs_dest)
+            if lhs_dest != destination:
+                stack.free(lhs_dest)
+
+        elif isinstance(expression.operator, cst.Add):
+            # Using the add16 or add32 function that's part of our stdlib.
+            function = "add16" if destination_size == 2 else "add32"
+
+            # If we ever fix our argument overlapping in the function call, we should see
+            # surprising optimization here with no need to copy parameters around.
+            compiled += generate_function_call(
+                create_call(
+                    function,
+                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                ),
+                destination,
+                stack,
+                clobbers,
+                refs,
+                context.wrap(expression),
+            )
+
+            stack.free(rhs_dest)
+            if lhs_dest != destination:
+                stack.free(lhs_dest)
+
+        elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
+            # Adding clobbers the A register, since it is the accumulator.
+            clobbers.add("A")
+
+            # Compute our actual function that we will apply as we walk the stack.
+            if isinstance(expression.operator, cst.BitAnd):
+                function = "  AND"
+            elif isinstance(expression.operator, cst.BitOr):
+                function = "  OR"
+            elif isinstance(expression.operator, cst.BitXor):
+                function = "  XOR"
+            else:
+                raise Exception("Logic error, unexpected operator {expression.operator)}")
+
+            if stack_is_at(rhs_dest, stack, offset=destination_size - 1):
+                # We're already at the top of the stack, generate the load/func/store loop downwards
+                # instead of upwards to shave off a move instruction.
+                def actual_expr_offset(offset: int) -> int:
+                    return (destination_size - offset) - 1
+            else:
+                # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+                # to perform the first move.
+                def actual_expr_offset(offset: int) -> int:
+                    return offset
+
+            # Move to the right spot on the stack and then perform the operation on the two numbers.
+            # Since bitwise operations are independent we can just do this in a loop.
+            for offset in range(destination_size):
+                compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
+                compiled.append("  LOAD A")
+                compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
+                compiled.append(function)
+                compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
+                compiled.append("  STORE A")
+
+            stack.free(rhs_dest)
+            if lhs_dest != destination:
+                stack.free(lhs_dest)
+
+        else:
+            # TODO: Support other operators such as multiply/divide/modulo.
+            raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+
+    return compiled
+
+
 def generate_expr_internal(
     expression: cst.BaseExpression,
     destination: str,
@@ -1329,205 +1546,7 @@ def generate_expr_internal(
         compiled += generate_unary_expr(expression, destination, stack, clobbers, refs, context)
 
     elif isinstance(expression, cst.BinaryOperation):
-        # Special case for operating on two constants. We could do full evalulation, but meh.
-        if isinstance(expression.left, cst.Integer) and isinstance(expression.right, cst.Integer):
-            if isinstance(expression.operator, cst.Add):
-                intval = get_int(expression.left.value, context) + get_int(expression.right.value, context)
-                compiled += generate_const_load(intval, destination, stack, clobbers, context)
-            elif isinstance(expression.operator, cst.Subtract):
-                intval = get_int(expression.left.value, context) - get_int(expression.right.value, context)
-                compiled += generate_const_load(intval, destination, stack, clobbers, context)
-            elif isinstance(expression.operator, cst.BitAnd):
-                intval = get_int(expression.left.value, context) & get_int(expression.right.value, context)
-                compiled += generate_const_load(intval, destination, stack, clobbers, context)
-            elif isinstance(expression.operator, cst.BitOr):
-                intval = get_int(expression.left.value, context) | get_int(expression.right.value, context)
-                compiled += generate_const_load(intval, destination, stack, clobbers, context)
-            elif isinstance(expression.operator, cst.BitXor):
-                intval = get_int(expression.left.value, context) ^ get_int(expression.right.value, context)
-                compiled += generate_const_load(intval, destination, stack, clobbers, context)
-            else:
-                # TODO: Support other operators than add/subtract.
-                raise CompilerError(f"Unsupported compile-time computation for {expression.operator}!", context)
-
-        if destination == "register(A)" or stack.stack[-1].name != destination:
-            # In order to ensure that it's possible to do stack math on this value, locate it in
-            # a temporary location for the time being if the destination isn't the top of the stack.
-            lhs_dest = expr_temp_name()
-            stack.alloc(StackVar(lhs_dest, expr_integer_type(destination_size)))
-        else:
-            # Safe to put first parameter in the top of the stack where it already is useful for math.
-            lhs_dest = destination
-
-        compiled += generate_expr_internal(expression.left, lhs_dest, stack, clobbers, refs, context.wrap(expression.left))
-
-        # Now, get the second parameter onto the stack in the right spot.
-        rhs_dest = expr_temp_name()
-        stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
-        compiled += generate_expr_internal(expression.right, rhs_dest, stack, clobbers, refs, context.wrap(expression.right))
-
-        # Now, perform some math of matics!
-        if destination_size == 1:
-            if isinstance(expression.operator, cst.Subtract):
-                # Subtracting clobbers the A register, since it is the accumulator.
-                clobbers.add("A")
-
-                # Move to the second parameter and negate it.
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-                compiled.append("  LOAD A")
-                compiled.append("  NEG")
-
-                # Move to the right spot on the stack to add to the negated right hand side.
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context)
-                compiled.append("  ADD")
-
-                # This call puts the result in a, so check if that's what we want.
-                if destination == "register(A)":
-                    # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
-                    stack.free(rhs_dest)
-                    stack.free(lhs_dest)
-                else:
-                    stack.free(rhs_dest)
-                    compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append("  STORE A")
-                    if lhs_dest != destination:
-                        stack.free(lhs_dest)
-            elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
-                # Adding clobbers the A register, since it is the accumulator.
-                clobbers.add("A")
-
-                # Move to the right spot on the stack and then add the two numbers.
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-                compiled.append("  LOAD A")
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context)
-
-                if isinstance(expression.operator, cst.Add):
-                    compiled.append("  ADD")
-                elif isinstance(expression.operator, cst.BitAnd):
-                    compiled.append("  AND")
-                elif isinstance(expression.operator, cst.BitOr):
-                    compiled.append("  OR")
-                elif isinstance(expression.operator, cst.BitXor):
-                    compiled.append("  XOR")
-                else:
-                    raise Exception("Logic error, unexpected operator {expression.operator)}")
-
-                # This call puts the result in a, so check if that's what we want.
-                if destination == "register(A)":
-                    # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
-                    stack.free(rhs_dest)
-                    stack.free(lhs_dest)
-                else:
-                    stack.free(rhs_dest)
-                    compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append("  STORE A")
-                    if lhs_dest != destination:
-                        stack.free(lhs_dest)
-            else:
-                # TODO: Support other operators such as multiply/divide/modulo.
-                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
-
-        else:
-            if isinstance(expression.operator, cst.Subtract):
-                # Using the neg16 or neg32 fnction that's part of our stdlib.
-                negfunc = "neg16" if destination_size == 2 else "neg32"
-                compiled += generate_function_call(
-                    create_call(
-                        negfunc,
-                        [UnvalidatedName(rhs_dest)],
-                    ),
-                    rhs_dest,
-                    stack,
-                    clobbers,
-                    refs,
-                    context.wrap(expression),
-                )
-
-                # Using the add16 or add32 function that's part of our stdlib.
-                addfunc = "add16" if destination_size == 2 else "add32"
-
-                # If we ever fix our argument overlapping in the function call, we should see
-                # surprising optimization here with no need to copy parameters around.
-                compiled += generate_function_call(
-                    create_call(
-                        addfunc,
-                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)],
-                    ),
-                    destination,
-                    stack,
-                    clobbers,
-                    refs,
-                    context.wrap(expression),
-                )
-
-                stack.free(rhs_dest)
-                if lhs_dest != destination:
-                    stack.free(lhs_dest)
-
-            elif isinstance(expression.operator, cst.Add):
-                # Using the add16 or add32 function that's part of our stdlib.
-                function = "add16" if destination_size == 2 else "add32"
-
-                # If we ever fix our argument overlapping in the function call, we should see
-                # surprising optimization here with no need to copy parameters around.
-                compiled += generate_function_call(
-                    create_call(
-                        function,
-                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
-                    ),
-                    destination,
-                    stack,
-                    clobbers,
-                    refs,
-                    context.wrap(expression),
-                )
-
-                stack.free(rhs_dest)
-                if lhs_dest != destination:
-                    stack.free(lhs_dest)
-
-            elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
-                # Adding clobbers the A register, since it is the accumulator.
-                clobbers.add("A")
-
-                # Compute our actual function that we will apply as we walk the stack.
-                if isinstance(expression.operator, cst.BitAnd):
-                    function = "  AND"
-                elif isinstance(expression.operator, cst.BitOr):
-                    function = "  OR"
-                elif isinstance(expression.operator, cst.BitXor):
-                    function = "  XOR"
-                else:
-                    raise Exception("Logic error, unexpected operator {expression.operator)}")
-
-                if stack_is_at(rhs_dest, stack, offset=destination_size - 1):
-                    # We're already at the top of the stack, generate the load/func/store loop downwards
-                    # instead of upwards to shave off a move instruction.
-                    def actual_expr_offset(offset: int) -> int:
-                        return (destination_size - offset) - 1
-                else:
-                    # We're anywhere else in the stack, so it costs us no unnecessary move instructions
-                    # to perform the first move.
-                    def actual_expr_offset(offset: int) -> int:
-                        return offset
-
-                # Move to the right spot on the stack and then perform the operation on the two numbers.
-                # Since bitwise operations are independent we can just do this in a loop.
-                for offset in range(destination_size):
-                    compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                    compiled.append("  LOAD A")
-                    compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                    compiled.append(function)
-                    compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
-                    compiled.append("  STORE A")
-
-                stack.free(rhs_dest)
-                if lhs_dest != destination:
-                    stack.free(lhs_dest)
-
-            else:
-                # TODO: Support other operators such as multiply/divide/modulo.
-                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+        compiled += generate_binary_expr(expression, destination, stack, clobbers, refs, context)
 
     elif isinstance(expression, cst.Call):
         compiled += generate_function_call(expression, destination, stack, clobbers, refs, context.wrap(expression))
