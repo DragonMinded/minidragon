@@ -17,4 +17,3 @@ load/store purpose tracking, so redundant loads/stores and moves can be tracked.
 optimization passes for unnecessary store/load and side-by-side addpci/subpci calls (many such cases).
 optimization passes for memcpy_unrolled for direction of copy in case we're already sitting on a value (add16 test case).
 function call matching for multiple stack values on the stack that line up with the function so we don't need to make copies.
-constant inlining instead of stack lookups for constants.
