@@ -113,12 +113,32 @@ class CoreType:
         raise NotImplementedError(f"Type {self.type} not implemented!")
 
     @property
-    def unsigned(self) -> bool:
+    def is_unsigned(self) -> bool:
         return self.type in {"uint8", "uint16", "uint32", "char", "boolean", "string", "pointer"}
 
     @property
-    def signed(self) -> bool:
-        return not self.unsigned
+    def is_signed(self) -> bool:
+        return not self.is_unsigned
+
+    @property
+    def is_integer(self) -> bool:
+        return self.type in {"uint8", "uint16", "uint32", "int8", "int16", "int32"}
+
+    @property
+    def is_char(self) -> bool:
+        return self.type == "char"
+
+    @property
+    def is_boolean(self) -> bool:
+        return self.type == "boolean"
+
+    @property
+    def is_string(self) -> bool:
+        return self.type == "string"
+
+    @property
+    def is_pointer(self) -> bool:
+        return self.type == "pointer"
 
 
 VoidType = CoreType("void", None, True, False)
@@ -818,7 +838,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
     if not isinstance(val, int):
         raise CompilerError("Unsupported non-integer constant load!", context)
 
-    if dtype.unsigned and val < 0:
+    if dtype.is_unsigned and val < 0:
         raise CompilerError("Cannot use a negative value in an unsigned expression!", context)
 
     if destination in {"register(A)", "uregister(A)"}:
@@ -1271,10 +1291,16 @@ def generate_unary_expr(
     compiled: List[str] = []
 
     destination_size = stack.sizeof(destination)
+    destination_type = stack.typeof(destination)
     if destination_size is None:
         raise Exception("Logic error, could not calculate size of destination!")
+    if destination_type is None:
+        raise Exception("Logic error, could not calculate type of destination!")
 
     if isinstance(expression.operator, (cst.Minus, cst.BitInvert)):
+        if not destination_type.is_integer:
+            raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
         if destination_size == 1:
             if destination in {"register(A)", "uregister(A)"} or stack.stack[-1].name != destination:
                 # In order to ensure that it's possible to negate this value, locate the rest of the expression
@@ -1410,6 +1436,9 @@ def generate_binary_expr(
     # Now, perform some math of matics!
     if destination_size == 1:
         if isinstance(expression.operator, cst.Subtract):
+            if not destination_type.is_integer:
+                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
             if destination not in {"register(A)", "uregister(A)"}:
                 # Subtracting clobbers the A register, since it is the accumulator.
                 clobbers.add("A")
@@ -1424,6 +1453,9 @@ def generate_binary_expr(
             compiled.append("  ADD")
 
         elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
+            if not destination_type.is_integer:
+                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
             if destination not in {"register(A)", "uregister(A)"}:
                 # Adding clobbers the A register, since it is the accumulator.
                 clobbers.add("A")
@@ -1445,6 +1477,9 @@ def generate_binary_expr(
                 raise Exception("Logic error, unexpected operator {expression.operator)}")
 
         elif isinstance(expression.operator, cst.Multiply):
+            if not destination_type.is_integer:
+                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
             # If we ever fix our argument overlapping in the function call, we should see
             # surprising optimization here with no need to copy parameters around.
             compiled += generate_function_call(
@@ -1461,6 +1496,9 @@ def generate_binary_expr(
             )
 
         elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide)):
+            if not (destination_type.is_integer and destination_type.is_unsigned):
+                raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
+
             # Division is weird, since the built-in stdlib function handles both modulo and division.
             # The stdlib function is setup to return both in the input stack locations, so we need to
             # copy the correct one out.
@@ -1498,6 +1536,9 @@ def generate_binary_expr(
 
     else:
         if isinstance(expression.operator, cst.Subtract):
+            if not destination_type.is_integer:
+                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
             # Using the neg16 or neg32 fnction that's part of our stdlib.
             negfunc = "neg16" if destination_size == 2 else "neg32"
             compiled += generate_function_call(
@@ -1536,6 +1577,9 @@ def generate_binary_expr(
                 stack.free(lhs_dest)
 
         elif isinstance(expression.operator, (cst.Add, cst.Multiply)):
+            if not destination_type.is_integer:
+                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
             if isinstance(expression.operator, cst.Add):
                 # Using the add16 or add32 function that's part of our stdlib.
                 function = "add16" if destination_size == 2 else "add32"
@@ -1565,6 +1609,9 @@ def generate_binary_expr(
                 stack.free(lhs_dest)
 
         elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide)):
+            if not (destination_type.is_integer and destination_type.is_unsigned):
+                raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
+
             # Division is weird, since the built-in stdlib function handles both modulo and division.
             # The stdlib function is setup to return both in the input stack locations, so we need to
             # copy the correct one out.
@@ -1609,6 +1656,9 @@ def generate_binary_expr(
                 stack.free(lhs_dest)
 
         elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
+            if not destination_type.is_integer:
+                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
             # Adding clobbers the A register, since it is the accumulator.
             clobbers.add("A")
 
@@ -1722,7 +1772,7 @@ def generate_expr(
         # We can potentially keep the math in the A register!
         clobbers.add("A")
 
-        compiled += generate_expr_internal(expression, "uregister(A)" if dtype.unsigned else "register(A)", stack, clobbers, refs, local_consts, context)
+        compiled += generate_expr_internal(expression, "uregister(A)" if dtype.is_unsigned else "register(A)", stack, clobbers, refs, local_consts, context)
         compiled += generate_move_to(destination, stack, clobbers, context)
         compiled.append("  STORE A")
     else:

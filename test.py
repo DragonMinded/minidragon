@@ -4258,6 +4258,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average cycles for divideandreturn: {int(cycles/count)}")
     print(f"Average instructions for divideandreturn: {int(instructions/count)}")
 
+    # If we support signed division, these tests can be enabled.
     if False:
         print("Verifying divideandreturn signed...")
 
