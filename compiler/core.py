@@ -877,7 +877,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
 def generate_function_call(
     call: cst.Call,
-    destination: str,
+    destination: Optional[str],
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
@@ -902,6 +902,10 @@ def generate_function_call(
     else:
         # TODO: Support function pointers here at some point. Maybe even objects or structs?
         raise CompilerError(f"Unsupported function call with expression node {call.func}", context)
+
+    # Ensure that we're not trying to assign a void function call to an expression.
+    if destination is not None and function_prototype.return_type is VoidType:
+        raise CompilerError(f"Cannot assign result of function {call.func} returning void", context)
 
     # Now, we must figure out how to set up the stack to call this function.
     args: List[cst.Arg] = []
@@ -1052,22 +1056,34 @@ def generate_function_call(
     compiled += generate_move_by("moving to last parameter", move_amount, stack, clobbers, context)
     compiled.append(f"  CALL {func_ref}")
 
+    # Now, calculate the true position of the stack after calling the function, so future manipulations of
+    # the stack know where we really are. It's important to do this here because some return cleanup bits
+    # below end up using the location of the stack.
+    if not isinstance(function_prototype.return_type, (RegisterCoreType, ParamReturnCoreType)):
+        # We need to understand where we actually are on the stack, so add to the
+        # location where the return would have been put on the stack.
+        stack_on_exit += function_prototype.return_type.size
+
+    stack.location = stack_on_exit
+    compiled += comment_stack(stack)
+
     # Track whether we captured the return value or not.
     return_handled = False
 
     # Now, if the return type is a register type, put it in the destination.
     if isinstance(function_prototype.return_type, RegisterCoreType):
         return_handled = True
-        if destination in {"register(A)", "uregister(A)"}:
-            # We're already returning to a register, so we're done here!
-            if function_prototype.return_type.type != "A":
-                raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
-        else:
-            compiled += generate_move_to(destination, stack, clobbers, context)
-            if function_prototype.return_type.type == "A":
-                compiled.append("  STORE A")
+        if destination is not None:
+            if destination in {"register(A)", "uregister(A)"}:
+                # We're already returning to a register, so we're done here!
+                if function_prototype.return_type.type != "A":
+                    raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
             else:
-                raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
+                compiled += generate_move_to(destination, stack, clobbers, context)
+                if function_prototype.return_type.type == "A":
+                    compiled.append("  STORE A")
+                else:
+                    raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
 
     # Now, do some bookkeeping, first copying anything that we need to copy that was an in-out param.
     for dst, src in copy_mapping.items():
@@ -1088,22 +1104,23 @@ def generate_function_call(
     # Now, if the return is in one of the parameters, copy that to our destination.
     if isinstance(function_prototype.return_type, ParamReturnCoreType):
         return_handled = True
-        src = out_mapping[function_prototype.return_type.position]
-        dst = destination
+        if destination is not None:
+            src = out_mapping[function_prototype.return_type.position]
+            dst = destination
 
-        source_loc = stack.absfind(src)
-        source_size = stack.sizeof(src)
-        dest_loc = stack.absfind(dst)
-        dest_size = stack.sizeof(dst)
-        if source_loc is None or source_size is None:
-            raise Exception(f"Logic error, undefined variable reference to {src!r}", context)
-        if dest_loc is None or dest_size is None:
-            raise Exception("Logic error, cannot find destination to copy variable value to!")
+            source_loc = stack.absfind(src)
+            source_size = stack.sizeof(src)
+            dest_loc = stack.absfind(dst)
+            dest_size = stack.sizeof(dst)
+            if source_loc is None or source_size is None:
+                raise Exception(f"Logic error, undefined variable reference to {src!r}", context)
+            if dest_loc is None or dest_size is None:
+                raise Exception("Logic error, cannot find destination to copy variable value to!")
 
-        if source_size == dest_size:
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
-        else:
-            raise CompilerError("Unsupported function return from different variable sizes", context)
+            if source_size == dest_size:
+                compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+            else:
+                raise CompilerError("Unsupported function return from different variable sizes", context)
 
     # Now, fix up our view of the stack.
     for entry in reversed(temporary_stack_entries):
@@ -1111,40 +1128,29 @@ def generate_function_call(
 
     # Now, if needed, copy the return value from the stack to its location.
     if (not return_handled) and (not (function_prototype.return_type is VoidType)):
-        # We need to understand where we actually are on the stack, so add to the
-        # location where this would have been put on the stack.
-        stack_on_exit += function_prototype.return_type.size
-        stack.location = stack_on_exit
-        compiled += comment_stack(stack)
+        if destination is not None:
+            if destination in {"register(A)", "uregister(A)"}:
+                # Pop the value from the stack, instead of copying.
+                src_loc = normal_return_loc
+                src_size = function_prototype.return_type.size
+                if src_size != 1:
+                    raise Exception(f"Logic error, trying to assign value of size {src_size} to A register")
 
-        if destination in {"register(A)", "uregister(A)"}:
-            # Pop the value from the stack, instead of copying.
-            src_loc = normal_return_loc
-            src_size = function_prototype.return_type.size
-            if src_size != 1:
-                raise Exception(f"Logic error, trying to assign value of size {src_size} to A register")
-
-            move_amt = stack.diff(src_loc)
-            compiled += generate_move_by("seeking return location", move_amt, stack, clobbers, context)
-            compiled.append("  LOAD A")
-        else:
-            src_loc = normal_return_loc
-            src_size = function_prototype.return_type.size
-            dest_loc = stack.absfind(destination)
-            dest_size = stack.sizeof(destination)
-            if dest_loc is None or dest_size is None:
-                raise Exception(f"Logic error, cannot find destination {destination} to copy variable value to!")
-
-            if src_size == dest_size:
-                compiled += generate_memcpy_unrolled(src_loc, dest_loc, dest_size, stack, clobbers, context)
+                move_amt = stack.diff(src_loc)
+                compiled += generate_move_by("seeking return location", move_amt, stack, clobbers, context)
+                compiled.append("  LOAD A")
             else:
-                raise CompilerError("Unsupported function return from different variable sizes", context)
-    else:
-        # Finally, calculate the true position of the stack after calling the function, so future
-        # manipulations of the stack know where we really are.
-        # when we were called.
-        stack.location = stack_on_exit
-        compiled += comment_stack(stack)
+                src_loc = normal_return_loc
+                src_size = function_prototype.return_type.size
+                dest_loc = stack.absfind(destination)
+                dest_size = stack.sizeof(destination)
+                if dest_loc is None or dest_size is None:
+                    raise Exception(f"Logic error, cannot find destination {destination} to copy variable value to!")
+
+                if src_size == dest_size:
+                    compiled += generate_memcpy_unrolled(src_loc, dest_loc, dest_size, stack, clobbers, context)
+                else:
+                    raise CompilerError("Unsupported function return from different variable sizes", context)
 
     return compiled
 
@@ -1454,6 +1460,26 @@ def generate_binary_expr(
                 context.wrap(expression),
             )
 
+        elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide)):
+            # Division is weird, since the built-in stdlib function handles both modulo and division.
+            # The stdlib function is setup to return both in the input stack locations, so we need to
+            # copy the correct one out.
+            compiled += generate_function_call(
+                create_call(
+                    "udiv",
+                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                ),
+                None,
+                stack,
+                clobbers,
+                refs,
+                local_consts,
+                context.wrap(expression),
+            )
+
+            compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+            compiled.append("  LOAD A")
+
         else:
             # TODO: Support other operators such as multiply/divide/modulo.
             raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
@@ -1536,6 +1562,50 @@ def generate_binary_expr(
 
             stack.free(rhs_dest)
             if lhs_dest != destination:
+                stack.free(lhs_dest)
+
+        elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide)):
+            # Division is weird, since the built-in stdlib function handles both modulo and division.
+            # The stdlib function is setup to return both in the input stack locations, so we need to
+            # copy the correct one out.
+            function = "udiv16" if destination_size == 2 else "udiv32"
+            compiled += generate_function_call(
+                create_call(
+                    function,
+                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                ),
+                None,
+                stack,
+                clobbers,
+                refs,
+                local_consts,
+                context.wrap(expression),
+            )
+
+            # This now contains the modulo of the division, which we don't need.
+            stack.free(rhs_dest)
+
+            if lhs_dest != destination:
+                if stack_is_at(lhs_dest, stack, offset=destination_size - 1):
+                    # We're already at the top of the stack, generate the load/func/store loop downwards
+                    # instead of upwards to shave off a move instruction.
+                    def actual_expr_offset(offset: int) -> int:
+                        return (destination_size - offset) - 1
+                else:
+                    # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+                    # to perform the first move.
+                    def actual_expr_offset(offset: int) -> int:
+                        return offset
+
+                # Move to the right spot on the stack and then perform the operation on the two numbers.
+                # Since bitwise operations are independent we can just do this in a loop.
+                for offset in range(destination_size):
+                    compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
+                    compiled.append("  LOAD A")
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
+                    compiled.append("  STORE A")
+
+                # Now that we copied this to the destination, this is useless.
                 stack.free(lhs_dest)
 
         elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
@@ -2119,6 +2189,9 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("mult", RegisterCoreType("A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
         FunctionPrototype("mult16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("mult32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
+        FunctionPrototype("udiv", VoidType, [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("udiv16", VoidType, [InOutCoreType("int16"), InOutCoreType("int16")]),
+        FunctionPrototype("udiv32", VoidType, [InOutCoreType("int32"), InOutCoreType("int32")]),
 
         # STDLIB integer comparison functions.
         FunctionPrototype("ucmp", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
