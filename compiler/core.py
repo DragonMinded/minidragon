@@ -454,7 +454,7 @@ class NonConstantExpressionException(Exception):
     pass
 
 
-def codegen_eval(expr: cst.BaseExpression) -> object:
+def codegen_eval(expr: cst.BaseExpression, constants: Dict[str, object]) -> object:
     fresh_module = cst.parse_module("")
     code = fresh_module.code_for_node(
         cst.SimpleStatementLine(
@@ -464,7 +464,7 @@ def codegen_eval(expr: cst.BaseExpression) -> object:
         )
     )
     try:
-        return eval(code)
+        return eval(code, {}, {k: v for k, v in constants.items()})
     except Exception:
         pass
 
@@ -479,7 +479,7 @@ def _hex(val: int, pad: int) -> str:
     return "0x" + hexval
 
 
-def generate_global_variable(assign: cst.AnnAssign, context: Context) -> List[str]:
+def generate_global_variable(assign: cst.AnnAssign, consts: Dict[str, object], context: Context) -> List[str]:
     compiled: List[str] = [context.comment()]
 
     target_node = assign.target
@@ -501,7 +501,7 @@ def generate_global_variable(assign: cst.AnnAssign, context: Context) -> List[st
 
         # Attempt to codegen and evaluate the python code.
         try:
-            value = codegen_eval(assign_value)
+            value = codegen_eval(assign_value, consts)
         except NonConstantExpressionException:
             raise CompilerError("Non-constant initialization value for global const definition", context)
 
@@ -561,6 +561,9 @@ def generate_global_variable(assign: cst.AnnAssign, context: Context) -> List[st
             compiled.append("  .byte 0x00")
         else:
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
+
+        # Since this was successfully handled, add it to our constants, so future constants may reference it as well.
+        consts[assign_name] = value
 
     else:
         # TODO: Support allocating variables in main RAM instead of constants in ROM.
@@ -805,12 +808,15 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
     return compiled
 
 
-def generate_const_load(val: int, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
+def generate_const_load(val: object, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
     compiled: List[str] = []
 
     dtype = stack.typeof(destination)
     if dtype is None:
         raise Exception("Logic error, could not determine type of destination to load constant to!")
+
+    if not isinstance(val, int):
+        raise CompilerError("Unsupported non-integer constant load!", context)
 
     if dtype.unsigned and val < 0:
         raise CompilerError("Cannot use a negative value in an unsigned expression!", context)
@@ -875,6 +881,7 @@ def generate_function_call(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: Dict[str, object],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = [context.comment()]
@@ -1001,7 +1008,7 @@ def generate_function_call(
                 copy_mapping[arg_in_question.value] = expr_dest
             stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg))
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(arg_in_question, expr_dest, stack, clobbers, refs, context.wrap(arg_in_question))
+            compiled += generate_expr_internal(arg_in_question, expr_dest, stack, clobbers, refs, local_consts, context.wrap(arg_in_question))
             which_arg += 1
 
         elif isinstance(needed_arg, PreservedCoreType):
@@ -1009,7 +1016,7 @@ def generate_function_call(
             expr_dest = expr_temp_name()
             stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg))
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(args[which_arg].value, expr_dest, stack, clobbers, refs, context.wrap(args[which_arg].value))
+            compiled += generate_expr_internal(args[which_arg].value, expr_dest, stack, clobbers, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
 
         else:
@@ -1018,7 +1025,7 @@ def generate_function_call(
             expr_dest = expr_temp_name()
             stack.alloc(StackVar(expr_dest, needed_arg))
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(args[which_arg].value, expr_dest, stack, clobbers, refs, context.wrap(args[which_arg].value))
+            compiled += generate_expr_internal(args[which_arg].value, expr_dest, stack, clobbers, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
 
     # Now, load our registers up with any register parameters.
@@ -1035,7 +1042,7 @@ def generate_function_call(
             raise Exception(f"Logic error, tried to assign a param to unsupported register {needed_arg.type} in function {func_ref}")
 
         stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.type])))
-        compiled += generate_expr_internal(provided_arg.value, reg_dest, stack, clobbers, refs, context.wrap(provided_arg.value))
+        compiled += generate_expr_internal(provided_arg.value, reg_dest, stack, clobbers, refs, local_consts, context.wrap(provided_arg.value))
         compiled += generate_move_to(reg_dest, stack, clobbers, context)
         compiled += f"POP {needed_arg.type}"
         stack.free(reg_dest)
@@ -1183,6 +1190,7 @@ def generate_variable_lookup(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: Dict[str, object],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = []
@@ -1251,6 +1259,7 @@ def generate_unary_expr(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: Dict[str, object],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = []
@@ -1270,7 +1279,7 @@ def generate_unary_expr(
                 # Safe to put the expression evaluation in our destination because we're just going to negate it.
                 internal_dest = destination
 
-            compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
+            compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, local_consts, context.wrap(expression.expression))
 
             # Negation clobbers the A register, since it is the accumulator.
             clobbers.add("A")
@@ -1303,7 +1312,7 @@ def generate_unary_expr(
             else:
                 internal_dest = destination
 
-            compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, context.wrap(expression.expression))
+            compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, local_consts, context.wrap(expression.expression))
 
             if isinstance(expression.operator, cst.Minus):
                 # Using the neg16 or neg32 function that's part of our stdlib.
@@ -1317,6 +1326,7 @@ def generate_unary_expr(
                     stack,
                     clobbers,
                     refs,
+                    local_consts,
                     context.wrap(expression),
                 )
             elif isinstance(expression.operator, cst.BitInvert):
@@ -1363,6 +1373,7 @@ def generate_binary_expr(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: Dict[str, object],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = []
@@ -1383,12 +1394,12 @@ def generate_binary_expr(
         # Safe to put first parameter in the top of the stack where it already is useful for math.
         lhs_dest = destination
 
-    compiled += generate_expr_internal(expression.left, lhs_dest, stack, clobbers, refs, context.wrap(expression.left))
+    compiled += generate_expr_internal(expression.left, lhs_dest, stack, clobbers, refs, local_consts, context.wrap(expression.left))
 
     # Now, get the second parameter onto the stack in the right spot.
     rhs_dest = expr_temp_name()
     stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
-    compiled += generate_expr_internal(expression.right, rhs_dest, stack, clobbers, refs, context.wrap(expression.right))
+    compiled += generate_expr_internal(expression.right, rhs_dest, stack, clobbers, refs, local_consts, context.wrap(expression.right))
 
     # Now, perform some math of matics!
     if destination_size == 1:
@@ -1439,6 +1450,7 @@ def generate_binary_expr(
                 stack,
                 clobbers,
                 refs,
+                local_consts,
                 context.wrap(expression),
             )
 
@@ -1471,6 +1483,7 @@ def generate_binary_expr(
                 stack,
                 clobbers,
                 refs,
+                local_consts,
                 context.wrap(expression),
             )
 
@@ -1488,6 +1501,7 @@ def generate_binary_expr(
                 stack,
                 clobbers,
                 refs,
+                local_consts,
                 context.wrap(expression),
             )
 
@@ -1516,6 +1530,7 @@ def generate_binary_expr(
                 stack,
                 clobbers,
                 refs,
+                local_consts,
                 context.wrap(expression),
             )
 
@@ -1575,6 +1590,7 @@ def generate_expr_internal(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: Dict[str, object],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = []
@@ -1585,7 +1601,7 @@ def generate_expr_internal(
 
     try:
         # If we can evaluate this directly, do so!
-        value = codegen_eval(expression)
+        value = codegen_eval(expression, local_consts)
         if isinstance(value, int):
             compiled += generate_const_load(value, destination, stack, clobbers, context)
             return compiled
@@ -1595,16 +1611,16 @@ def generate_expr_internal(
         pass
 
     if isinstance(expression, cst.Name):
-        compiled += generate_variable_lookup(expression.value, destination, stack, clobbers, refs, context)
+        compiled += generate_variable_lookup(expression.value, destination, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.UnaryOperation):
-        compiled += generate_unary_expr(expression, destination, stack, clobbers, refs, context)
+        compiled += generate_unary_expr(expression, destination, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.BinaryOperation):
-        compiled += generate_binary_expr(expression, destination, stack, clobbers, refs, context)
+        compiled += generate_binary_expr(expression, destination, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.Call):
-        compiled += generate_function_call(expression, destination, stack, clobbers, refs, context.wrap(expression))
+        compiled += generate_function_call(expression, destination, stack, clobbers, refs, local_consts, context.wrap(expression))
 
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
@@ -1620,6 +1636,7 @@ def generate_expr(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: Dict[str, object],
     context: Context
 ) -> List[str]:
     compiled: List[str] = [context.comment()]
@@ -1635,12 +1652,12 @@ def generate_expr(
         # We can potentially keep the math in the A register!
         clobbers.add("A")
 
-        compiled += generate_expr_internal(expression, "uregister(A)" if dtype.unsigned else "register(A)", stack, clobbers, refs, context)
+        compiled += generate_expr_internal(expression, "uregister(A)" if dtype.unsigned else "register(A)", stack, clobbers, refs, local_consts, context)
         compiled += generate_move_to(destination, stack, clobbers, context)
         compiled.append("  STORE A")
     else:
         # Just do stack-based operations.
-        compiled += generate_expr_internal(expression, destination, stack, clobbers, refs, context)
+        compiled += generate_expr_internal(expression, destination, stack, clobbers, refs, local_consts, context)
 
     return compiled
 
@@ -1652,7 +1669,8 @@ def local_variable(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: List[str],
+    local_consts: Dict[str, object],
+    local_data: List[str],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = [context.comment()]
@@ -1668,9 +1686,13 @@ def local_variable(
 
     # See if this is a re-assign or a definition.
     orig_loc = stack.absfind(assign_name)
+    needs_alloc = False
 
     if orig_loc is None:
         # For definitions, we need a type. For constants, we need an initial value.
+        if assign_name in local_consts:
+            raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
+
         if assign_type is None:
             raise CompilerError("Unsupported type for local variable definition", context)
 
@@ -1680,8 +1702,8 @@ def local_variable(
         if not assign_type.return_padding:
             raise CompilerError("Unsupported nopad attribute for local variable definition", context)
 
-        # Allocate space on the stack for this local variable.
-        stack.alloc(StackVar(assign_name, assign_type))
+        needs_alloc = True
+
     else:
         # Variables cannot be re-assigned with types. Variables cannot be re-assigned without values.
         if assign_type is not None:
@@ -1702,7 +1724,25 @@ def local_variable(
         if not isinstance(assign_value, cst.BaseExpression):
             raise CompilerError(f"Cannot assign local variable with results of {assign_value}", context)
 
-        compiled += generate_expr(assign_value, assign_name, stack, clobbers, refs, context.wrap(assign_value))
+        if assign_type is not None and assign_type.const:
+            try:
+                # Constant evaluation, make sure it's not redefined.
+                if assign_name in local_consts:
+                    raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
+
+                value = codegen_eval(assign_value, local_consts)
+                local_consts[assign_name] = value
+                return compiled
+            except NonConstantExpressionException:
+                pass
+
+        if needs_alloc:
+            # Allocate space on the stack for this local variable.
+            if assign_type is None:
+                raise Exception("Logic error, we should always have a type in this condition!")
+            stack.alloc(StackVar(assign_name, assign_type))
+
+        compiled += generate_expr(assign_value, assign_name, stack, clobbers, refs, local_consts, context.wrap(assign_value))
 
     return compiled
 
@@ -1713,7 +1753,8 @@ def compile_chunk(
     clobbers: Set[str],
     function_type: CoreType,
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: List[str],
+    local_consts: Dict[str, object],
+    local_data: List[str],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = []
@@ -1732,7 +1773,7 @@ def compile_chunk(
                         if function_type is VoidType:
                             raise CompilerError("Returning something from a function marked with no return value", context)
 
-                        compiled += generate_expr(simple_statement.value, "builtin(retval)", stack, clobbers, refs, context.wrap(simple_statement.value))
+                        compiled += generate_expr(simple_statement.value, "builtin(retval)", stack, clobbers, refs, local_consts, context.wrap(simple_statement.value))
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
                 elif isinstance(simple_statement, cst.AnnAssign):
                     compiled += local_variable(
@@ -1743,6 +1784,7 @@ def compile_chunk(
                         clobbers,
                         refs,
                         local_consts,
+                        local_data,
                         context.wrap(simple_statement),
                     )
                 elif isinstance(simple_statement, cst.Assign):
@@ -1757,6 +1799,7 @@ def compile_chunk(
                         clobbers,
                         refs,
                         local_consts,
+                        local_data,
                         context.wrap(simple_statement),
                     )
                 else:
@@ -1808,7 +1851,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
     function_type = get_type(func.returns)
     function_params = func.params.params
     stack: Stack = Stack()
-    local_consts: List[str] = []
+    local_data: List[str] = []
 
     if function_type is None:
         raise CompilerError("Unsupported return type for function definition", context)
@@ -1877,7 +1920,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
 
     # First pass to figure out clobbers
     clobbers: Set[str] = set()
-    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, [], context)
+    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, {}, [], context)
 
     # Unwind our temporary return value location.
     if temp_size > 0:
@@ -1934,12 +1977,12 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    compiled += compile_chunk(func.body, stack, set(), function_type, refs, local_consts, context)
+    compiled += compile_chunk(func.body, stack, set(), function_type, refs, {}, local_data, context)
 
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
 
     return [
-        *local_consts,
+        *local_data,
         f"{function_name}:",
         *preamble,
         *compiled,
@@ -1978,6 +2021,7 @@ def compile_module(module: str, code: str, refs: List[Union[FunctionPrototype, G
     parsed_module = wrapper.module
 
     compiled: List[str] = []
+    global_consts: Dict[str, object] = {}
 
     for statement in parsed_module.body:
         context = Context(module, statement, metadata)
@@ -1993,7 +2037,7 @@ def compile_module(module: str, code: str, refs: List[Union[FunctionPrototype, G
                 if not is_type_definition(body):
                     raise CompilerError("Global variable declarations must have a type", context)
             elif isinstance(body, cst.AnnAssign):
-                compiled += generate_global_variable(body, context)
+                compiled += generate_global_variable(body, global_consts, context)
             else:
                 raise CompilerError("Arbitrary top-level statements are not supported", context)
         elif isinstance(statement, cst.FunctionDef):
