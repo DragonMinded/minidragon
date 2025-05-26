@@ -1,5 +1,4 @@
 Things that I think I am going to need if I want to use this compiler:
- - 8/16/32 bit unsigned modulo.
  - boolean support, including and/or/not and coercing from a string/character/integer.
  - global variable allocation and read/write support, including global keyword.
  - function call without being in an assignment expression support.

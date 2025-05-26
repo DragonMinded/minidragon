@@ -1495,7 +1495,7 @@ def generate_binary_expr(
                 context.wrap(expression),
             )
 
-        elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide)):
+        elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
             if not (destination_type.is_integer and destination_type.is_unsigned):
                 raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
 
@@ -1515,7 +1515,12 @@ def generate_binary_expr(
                 context.wrap(expression),
             )
 
-            compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+            compiled += generate_move_to(
+                rhs_dest if isinstance(expression.operator, cst.Modulo) else lhs_dest,
+                stack,
+                clobbers,
+                context,
+            )
             compiled.append("  LOAD A")
 
         else:
@@ -1608,7 +1613,7 @@ def generate_binary_expr(
             if lhs_dest != destination:
                 stack.free(lhs_dest)
 
-        elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide)):
+        elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
             if not (destination_type.is_integer and destination_type.is_unsigned):
                 raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
 
@@ -1629,11 +1634,9 @@ def generate_binary_expr(
                 context.wrap(expression),
             )
 
-            # This now contains the modulo of the division, which we don't need.
-            stack.free(rhs_dest)
-
-            if lhs_dest != destination:
-                if stack_is_at(lhs_dest, stack, offset=destination_size - 1):
+            location = rhs_dest if isinstance(expression.operator, cst.Modulo) else lhs_dest
+            if location != destination:
+                if stack_is_at(location, stack, offset=destination_size - 1):
                     # We're already at the top of the stack, generate the load/func/store loop downwards
                     # instead of upwards to shave off a move instruction.
                     def actual_expr_offset(offset: int) -> int:
@@ -1647,12 +1650,14 @@ def generate_binary_expr(
                 # Move to the right spot on the stack and then perform the operation on the two numbers.
                 # Since bitwise operations are independent we can just do this in a loop.
                 for offset in range(destination_size):
-                    compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
+                    compiled += generate_move_to(location, stack, clobbers, context, offset=actual_expr_offset(offset))
                     compiled.append("  LOAD A")
                     compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
                     compiled.append("  STORE A")
 
-                # Now that we copied this to the destination, this is useless.
+            # Now that we copied this to the destination, this is useless.
+            stack.free(rhs_dest)
+            if lhs_dest != destination:
                 stack.free(lhs_dest)
 
         elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
