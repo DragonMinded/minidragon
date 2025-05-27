@@ -7,6 +7,7 @@ Things that I think I am going to need if I want to use this compiler:
  - support for allocating local and global string buffers using string[length].
  - if statement control flow.
  - while loop control flow.
+ - builtins that will be needed such as abs(), len(), bool(), chr(), ord(), str(), int(), min(), max()
 
 Things that would be nice to have for convenience:
  - function default parameter support.
