@@ -24,20 +24,21 @@ def comment_source(extra: Optional[str] = None) -> str:
 
 
 class Context:
-    def __init__(self, module: str, node: cst.CSTNode, meta: Mapping[cst.CSTNode, meta.CodeRange]) -> None:
+    def __init__(self, module: str, node: cst.CSTNode, meta: Mapping[cst.CSTNode, meta.CodeRange], extra: str = "") -> None:
         self.module = module
         self.node = node
         self.meta = meta
+        self.extra = extra
 
-    def wrap(self, node: cst.CSTNode) -> "Context":
-        return Context(self.module, node, self.meta)
+    def wrap(self, node: cst.CSTNode, extra: str = "") -> "Context":
+        return Context(self.module, node, self.meta, extra)
 
     def comment(self) -> str:
         fresh_module = cst.parse_module("")
         code = fresh_module.code_for_node(self.node)
         while code[-1] == "\n":
             code = code[:-1]
-        return f"  ; {self.module} line {self.meta[self.node].start.line}: " + code
+        return f"  ; {self.module} line {self.meta[self.node].start.line}: {self.extra}{code}"
 
 
 class CompilerError(Exception):
@@ -1672,7 +1673,7 @@ def generate_binary_expr(
                 clobbers,
                 refs,
                 local_consts,
-                context.wrap(expression),
+                context.wrap(expression.right, extra="-"),
             )
 
             # Using the add16 or add32 function that's part of our stdlib.
