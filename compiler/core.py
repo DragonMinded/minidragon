@@ -3,7 +3,7 @@ import traceback
 import libcst as cst
 import libcst.metadata as meta
 
-from typing import Dict, Iterable, List, Mapping, Optional, Set, Union
+from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Set, Union, overload
 
 
 def comment_source(extra: Optional[str] = None) -> str:
@@ -379,6 +379,21 @@ class Stack:
         self.stack: List[StackVar] = []
         self.size: int = 0
         self.location: int = 0
+
+    def __len__(self) -> int:
+        return len(self.stack)
+
+    @overload
+    def __getitem__(self, index: int) -> StackVar: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> List[StackVar]: ...
+
+    def __getitem__(self, index: Union[int, slice]) -> Union[StackVar, List[StackVar]]:
+        return self.stack[index]
+
+    def __iter__(self) -> Iterator[StackVar]:
+        yield from self.stack
 
     def clone(self) -> "Stack":
         stack = Stack()
@@ -795,7 +810,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
     if clobbers:
         compiled.append("  ; Restoring all clobbered registers.")
     while stack.size > 0:
-        name = stack.stack[-1].name
+        name = stack[-1].name
         if name[:13] == "builtin(saved":
             move_amt = stack.find(name)
             if move_amt is None:
@@ -927,6 +942,33 @@ def generate_function_call(
     if destination is not None and function_prototype.return_type is VoidType:
         raise CompilerError(f"Cannot assign result of function {call.func} returning void", context)
 
+    # Make sure that the prototype's params actually make sense.
+    seen_nonpreserved = False
+    seen_outtype = False
+    for pos, param in enumerate(function_prototype.params):
+        if isinstance(param, (InOutCoreType, PreservedCoreType)):
+            if seen_nonpreserved:
+                raise CompilerError(
+                    f"Function {function_prototype.name} includes preserved parameter {pos + 1} after unpreserved parameter",
+                    context,
+                )
+            if seen_outtype:
+                raise CompilerError(
+                    f"Function {function_prototype.name} includes preserved parameter {pos + 1} after out-only parameter",
+                    context,
+                )
+        elif isinstance(param, OutCoreType):
+            seen_outtype = True
+        else:
+            seen_nonpreserved = True
+            if seen_outtype:
+                raise CompilerError(
+                    f"Function {function_prototype.name} includes normal parameter {pos + 1} after out-only parameter",
+                    context,
+                )
+        if isinstance(param, ParamReturnCoreType):
+            raise Exception(f"Logic error, not expecting a return-only type for param {pos + 1} in {function_prototype.name}")
+
     # Now, we must figure out how to set up the stack to call this function.
     args: List[cst.Arg] = []
     for arg in call.args:
@@ -952,7 +994,8 @@ def generate_function_call(
         param_count += 1
 
     if param_count != len(args):
-        raise CompilerError(f"Function call to {func_ref} expects {param_count} args but {len(args)} were given", context)
+        # TODO: This is where we would possibly substitute default arguments.
+        raise CompilerError(f"Function {function_prototype.name} expects {param_count} args but {len(args)} were given", context)
 
     # Now, go through the requested parameters and set up the stack.
     copy_mapping: Dict[str, str] = {}
@@ -960,47 +1003,120 @@ def generate_function_call(
     delayed_params: List[RegisterCoreType] = []
     delayed_args: List[cst.Arg] = []
     temporary_stack_entries: List[str] = []
-    which_arg: int = 0
     stack_on_exit: int = stack.size - 1
     normal_return_loc: int = stack.size
+    optimized_offset: int = 0
 
-    for pos, needed_arg in enumerate(function_prototype.params):
-        # Special case for if the return location is already the top of the stack, and our first parameter is an out
-        # parameter, so we can skip copying the value after calling the function.
-        if pos == 0 and stack.stack[-1].name == destination:
-            stack_type = stack.stack[-1]
+    # First, pattern-match on the input parameters we were given to figure out if we can
+    # reuse the stack partially or fully.
+    for arglen in reversed(range(1, len(args) + 1)):
+        # Take the prefix of the arg list, see if they all line up with the stack.
+        if len(stack) < arglen:
+            # Can't possibly be a match
+            continue
 
-            if isinstance(needed_arg, OutCoreType) and isinstance(function_prototype.return_type, ParamReturnCoreType):
-                # We need to allocate space on the stack for the return value, but that's already our function call
-                # destination, so it's already allocated. Make sure the sizes match so we don't have to do anything else.
-                if function_prototype.return_type.position == pos and needed_arg.type == stack_type.type:
+        considered = args[:arglen]
+        stackvars = stack[-arglen:]
+        params = function_prototype.params[:arglen]
+
+        argnames: List[str] = []
+        argnodes: List[cst.CSTNode] = []
+        for arg in considered:
+            if isinstance(arg.value, cst.Name):
+                argnames.append(arg.value.value)
+                argnodes.append(arg.value)
+            else:
+                break
+
+        if len(argnames) != arglen or len(argnodes) != arglen:
+            continue
+
+        for i in range(arglen):
+            # If the names don't match, this isn't an overlay we can use.
+            if argnames[i] != stackvars[i].name:
+                break
+            # If the types don't match, then we can't do anything with this.
+            if stackvars[i].size != params[i].size:
+                break
+        else:
+            # All of the stack variables line up, let's double check that calling semantics
+            # allow for us to use these as-is instead of making copies.
+            if destination is not None and argnames[0] == destination:
+                # If the first parameter is also our return value, then we can only keep this
+                # optimization if the first parameter is a normal core type and the return
+                # value is a normal return type, or if the first parameter is in/out or out
+                # and the return value comes from this parameter.
+                if isinstance(stackvars[0], (PreservedCoreType, RegisterCoreType, PaddingCoreType)):
+                    # Cannot make these match under any circumstances.
                     continue
+                elif isinstance(stackvars[0], (InOutCoreType, OutCoreType)):
+                    # Can only match these if the return is this stack position.
+                    if isinstance(function_prototype.return_type, ParamReturnCoreType):
+                        if function_prototype.return_type.position != 0:
+                            # Not the right one, need to make space on the stack to not clobber
+                            # the values that are there.
+                            continue
+                    else:
+                        # Not the return value, need to make space so these don't clobber the
+                        # return value.
+                        continue
 
+            match = False
+            for i in range(arglen):
+                if isinstance(stackvars[i], (RegisterCoreType, PaddingCoreType)):
+                    # These can never match. We'd need to be even more clever with picking out
+                    # register types from the middle of the argument list, and padding needs to
+                    # be inserted in the stack at the right spot.
+                    break
+                elif isinstance(stackvars[i], OutCoreType):
+                    # This is added to the stack, and I genuinely don't know what to do in this
+                    # optimization case if this shows up here.
+                    break
+                elif isinstance(stackvars[i], (PreservedCoreType, InOutCoreType)):
+                    # These are a match, since they either preserve the value, or replace it.
+                    pass
+                else:
+                    # This is a conditional match, but ONLY if we're using internal temporaries
+                    # that we know we're good to throw away.
+                    if not isinstance(argnodes[i], UnvalidatedName):
+                        # It's a real variable, we can't throw it away, it needs to stay on the stack.
+                        break
+                    if destination is not None and argnames[i] == destination and i > 0:
+                        # It's our destination value, so it can't be thrown away, it needs to stay
+                        # on the stack. We already checked the first parameter above, however, so
+                        # don't bother flagging if that's a match.
+                        break
+            else:
+                match = True
+
+            if match:
+                # Need to fix up where the stack is going to be on exit based on paramst that will
+                # be "consumed" by the function call.
+                for i in range(arglen):
+                    if isinstance(params[i], (RegisterCoreType, PaddingCoreType, OutCoreType)):
+                        raise Exception("Logic error, unexpected stackvar type!")
+                    elif isinstance(params[i], PreservedCoreType):
+                        continue
+                    elif isinstance(params[i], InOutCoreType):
+                        out_mapping[i] = stackvars[i].name
+                        continue
+                    else:
+                        # The calling function is going to consume this.
+                        stack_on_exit -= stackvars[i].size
+                        normal_return_loc -= stackvars[i].size
+                optimized_offset = arglen
+                break
+
+    which_arg: int = optimized_offset
+
+    for rawpos, needed_arg in enumerate(function_prototype.params[optimized_offset:]):
         # Special case for if the first argument is already the top of the stack, and it's a preserved or in-out
         # argument. In this case, we don't have to do anything, because the function will do what it should do with
         # that stack location. In theory we should be able to do this with as many elements on the stack as possible
         # for in-out and preserved params but that's a lot of work to think through so we're not doing it for now.
-        if pos == 0 and args and isinstance(args[0].value, cst.Name):
-            stack_type = stack.stack[-1]
+        pos = rawpos + optimized_offset
 
-            if stack_type.name == args[0].value.value:
-                if isinstance(needed_arg, PreservedCoreType):
-                    # We have an argument that is preserved as-is, so we don't have to worry about making a temporary
-                    # copy on the stack. So, do nothing with it.
-                    if needed_arg.type == stack_type.type:
-                        continue
-
-                if isinstance(needed_arg, InOutCoreType):
-                    # We have an argument that gets modified by the function, but it's already on the top of the stack,
-                    # so no need to do nothing with it.
-                    if needed_arg.type == stack_type.type:
-                        out_mapping[pos] = stack_type.name
-                        continue
-
-        if isinstance(needed_arg, ParamReturnCoreType):
-            raise Exception(f"Logic error, not expecting a return-only type for param {pos + 1} in {func_ref}")
-
-        elif isinstance(needed_arg, PaddingCoreType):
+        if isinstance(needed_arg, PaddingCoreType):
             # Simple padding that the function will clean up on its own. Add that padding to the stack.
             for _ in range(needed_arg.padbytes):
                 stack.alloc(StackVar("builtin(padding)", CoreType('int8')))
@@ -1063,7 +1179,7 @@ def generate_function_call(
             "A": "int8",
         }
         if needed_arg.type not in reg_to_type:
-            raise Exception(f"Logic error, tried to assign a param to unsupported register {needed_arg.type} in function {func_ref}")
+            raise Exception(f"Logic error, tried to assign a param to unsupported register {needed_arg.type} in function {function_prototype.name}")
 
         stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.type])))
         compiled += generate_expr_internal(provided_arg.value, reg_dest, stack, clobbers, refs, local_consts, context.wrap(provided_arg.value))
@@ -1074,7 +1190,7 @@ def generate_function_call(
     # Now, we're ready to actually call the function. Move to the last byte of the last parameter on the stack.
     move_amount = stack.diff(stack.size - 1)
     compiled += generate_move_by("moving to last parameter", move_amount, stack, clobbers, context)
-    compiled.append(f"  CALL {func_ref}")
+    compiled.append(f"  CALL {function_prototype.name}")
 
     # Now, calculate the true position of the stack after calling the function, so future manipulations of
     # the stack know where we really are. It's important to do this here because some return cleanup bits
@@ -1302,7 +1418,7 @@ def generate_unary_expr(
             raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
         if destination_size == 1:
-            if destination in {"register(A)", "uregister(A)"} or stack.stack[-1].name != destination:
+            if destination in {"register(A)", "uregister(A)"} or stack[-1].name != destination:
                 # In order to ensure that it's possible to negate this value, locate the rest of the expression
                 # in a temporary location.
                 internal_dest = expr_temp_name()
@@ -1338,7 +1454,7 @@ def generate_unary_expr(
         elif destination_size in {2, 4}:
             # Calculate the expression inside the negation here, so we can send the temporary name to the function call
             # and trigger its optimized case.
-            if stack.stack[-1].name != destination:
+            if stack[-1].name != destination:
                 internal_dest = expr_temp_name()
                 stack.alloc(StackVar(internal_dest, expr_integer_type(destination_size)))
             else:
@@ -1417,7 +1533,7 @@ def generate_binary_expr(
     if destination_type is None:
         raise Exception("Logic error, could not calculate type of destination!")
 
-    if destination in {"register(A)", "uregister(A)"} or stack.stack[-1].name != destination:
+    if destination in {"register(A)", "uregister(A)"} or stack[-1].name != destination:
         # In order to ensure that it's possible to do stack math on this value, locate it in
         # a temporary location for the time being if the destination isn't the top of the stack.
         lhs_dest = expr_temp_name()
@@ -2012,7 +2128,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
     if stack.size > 0:
         preamble.append("  ; Stack layout just after call:")
     prevals: List[str] = []
-    for entry in stack.stack:
+    for entry in stack:
         for i in range(entry.size):
             if entry.location is None:
                 raise Exception("Logic error, expected stack entry to have location!")
@@ -2027,7 +2143,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
         fake_stack.alloc(StackVar("builtin(retval)", function_type))
     fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void"))))
     prevals = []
-    for entry in fake_stack.stack:
+    for entry in fake_stack:
         for i in range(entry.size):
             if entry.location is None:
                 raise Exception("Logic error, expected stack entry to have location!")
@@ -2049,7 +2165,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
 
     # Unwind our temporary return value location.
     if temp_size > 0:
-        if stack.stack[-1].name != "builtin(retval)":
+        if stack[-1].name != "builtin(retval)":
             raise Exception("Logic error, top of stack isn't the retval temporary!")
         stack.move(-temp_size)
         stack.free("builtin(retval)")
