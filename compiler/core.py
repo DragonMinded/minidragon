@@ -350,11 +350,29 @@ class FunctionPrototype:
 
 
 class GlobalVariable:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, vartype: CoreType) -> None:
         self.name = name
+        self.type = vartype
 
     def __repr__(self) -> str:
-        return f"Global variable {self.name!r}"
+        return f"Global variable {self.type!r} {self.name!r}"
+
+
+class Constant:
+    def __init__(self, name: str, vartype: CoreType, value: object) -> None:
+        self.name = name
+        self.type = vartype
+        self.value = value
+
+    def __repr__(self) -> str:
+        return f"Local constant {self.type!r} {self.name!r}: {self.value!r}"
+
+
+def const_by_name(consts: List[Constant], name: str) -> Optional[Constant]:
+    for const in consts:
+        if const.name == name:
+            return const
+    return None
 
 
 class StackVar:
@@ -490,7 +508,7 @@ class NonConstantExpressionException(Exception):
     pass
 
 
-def codegen_eval(expr: cst.BaseExpression, constants: Dict[str, object]) -> object:
+def codegen_eval(expr: cst.BaseExpression, constants: List[Constant]) -> object:
     fresh_module = cst.parse_module("")
     code = fresh_module.code_for_node(
         cst.SimpleStatementLine(
@@ -500,7 +518,7 @@ def codegen_eval(expr: cst.BaseExpression, constants: Dict[str, object]) -> obje
         )
     )
     try:
-        return eval(code, {}, {k: v for k, v in constants.items()})
+        return eval(code, {}, {c.name: c.value for c in constants})
     except Exception:
         pass
 
@@ -515,7 +533,7 @@ def _hex(val: int, pad: int) -> str:
     return "0x" + hexval
 
 
-def generate_global_variable(assign: cst.AnnAssign, consts: Dict[str, object], context: Context) -> List[str]:
+def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], context: Context) -> List[str]:
     compiled: List[str] = [context.comment()]
 
     target_node = assign.target
@@ -599,7 +617,7 @@ def generate_global_variable(assign: cst.AnnAssign, consts: Dict[str, object], c
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
         # Since this was successfully handled, add it to our constants, so future constants may reference it as well.
-        consts[assign_name] = value
+        consts.append(Constant(assign_name, assign_type, value))
 
     else:
         # TODO: Support allocating variables in main RAM instead of constants in ROM.
@@ -917,7 +935,7 @@ def generate_function_call(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: Dict[str, object],
+    local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = [context.comment()]
@@ -1333,7 +1351,7 @@ def generate_variable_lookup(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: Dict[str, object],
+    local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = []
@@ -1402,7 +1420,7 @@ def generate_unary_expr(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: Dict[str, object],
+    local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = []
@@ -1522,7 +1540,7 @@ def generate_binary_expr(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: Dict[str, object],
+    local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = []
@@ -1832,7 +1850,7 @@ def generate_expr_internal(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: Dict[str, object],
+    local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
     compiled: List[str] = []
@@ -1878,7 +1896,7 @@ def generate_expr(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: Dict[str, object],
+    local_consts: List[Constant],
     context: Context
 ) -> List[str]:
     compiled: List[str] = [context.comment()]
@@ -1911,7 +1929,7 @@ def local_variable(
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: Dict[str, object],
+    local_consts: List[Constant],
     local_data: List[str],
     context: Context,
 ) -> List[str]:
@@ -1932,7 +1950,7 @@ def local_variable(
 
     if orig_loc is None:
         # For definitions, we need a type. For constants, we need an initial value.
-        if assign_name in local_consts:
+        if const_by_name(local_consts, assign_name) is not None:
             raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
 
         if assign_type is None:
@@ -1969,11 +1987,11 @@ def local_variable(
         if assign_type is not None and assign_type.const:
             try:
                 # Constant evaluation, make sure it's not redefined.
-                if assign_name in local_consts:
+                if const_by_name(local_consts, assign_name) is not None:
                     raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
 
                 value = codegen_eval(assign_value, local_consts)
-                local_consts[assign_name] = value
+                local_consts.append(Constant(assign_name, assign_type, value))
                 return compiled
             except NonConstantExpressionException:
                 pass
@@ -1995,7 +2013,7 @@ def compile_chunk(
     clobbers: Set[str],
     function_type: CoreType,
     refs: List[Union[FunctionPrototype, GlobalVariable]],
-    local_consts: Dict[str, object],
+    local_consts: List[Constant],
     local_data: List[str],
     context: Context,
 ) -> List[str]:
@@ -2162,7 +2180,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
 
     # First pass to figure out clobbers
     clobbers: Set[str] = set()
-    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, {}, [], context)
+    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, [], [], context)
 
     # Unwind our temporary return value location.
     if temp_size > 0:
@@ -2219,7 +2237,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    compiled += compile_chunk(func.body, stack, set(), function_type, refs, {}, local_data, context)
+    compiled += compile_chunk(func.body, stack, set(), function_type, refs, [], local_data, context)
 
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
 
@@ -2263,7 +2281,7 @@ def compile_module(module: str, code: str, refs: List[Union[FunctionPrototype, G
     parsed_module = wrapper.module
 
     compiled: List[str] = []
-    global_consts: Dict[str, object] = {}
+    global_consts: List[Constant] = []
 
     for statement in parsed_module.body:
         context = Context(module, statement, metadata)
