@@ -929,9 +929,32 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
     return compiled
 
 
+def get_function_prototype(
+    call: cst.Call,
+    stack: Stack,
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> FunctionPrototype:
+    if isinstance(call.func, cst.Name):
+        # Simple reference to a function on the refs list. If it isn't in the refs list, then it could be
+        # a function pointer which needs to be supported but is not for now.
+        func_ref = call.func.value
+        for ref in refs:
+            if isinstance(ref, FunctionPrototype) and ref.name == func_ref:
+                return ref
+        else:
+            raise CompilerError(f"Unknown function {func_ref} in call", context)
+
+    else:
+        # TODO: Support function pointers here at some point. Maybe even objects or structs?
+        raise CompilerError(f"Unsupported function call with expression node {call.func}", context)
+
+
 def generate_function_call(
     call: cst.Call,
     destination: Optional[str],
+    types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
@@ -939,23 +962,7 @@ def generate_function_call(
     context: Context,
 ) -> List[str]:
     compiled: List[str] = [context.comment()]
-
-    function_prototype: Optional[FunctionPrototype] = None
-
-    if isinstance(call.func, cst.Name):
-        # Simple reference to a function on the refs list. If it isn't in the refs list, then it could be
-        # a function pointer which needs to be supported but is not for now.
-        func_ref = call.func.value
-        for ref in refs:
-            if isinstance(ref, FunctionPrototype) and ref.name == func_ref:
-                function_prototype = ref
-                break
-        else:
-            raise CompilerError(f"Unknown function {func_ref} in call", context)
-
-    else:
-        # TODO: Support function pointers here at some point. Maybe even objects or structs?
-        raise CompilerError(f"Unsupported function call with expression node {call.func}", context)
+    function_prototype = get_function_prototype(call, stack, refs, local_consts, context)
 
     # Ensure that we're not trying to assign a void function call to an expression.
     if destination is not None and function_prototype.return_type is VoidType:
@@ -1167,7 +1174,7 @@ def generate_function_call(
                 copy_mapping[arg_in_question.value] = expr_dest
             stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg))
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(arg_in_question, expr_dest, stack, clobbers, refs, local_consts, context.wrap(arg_in_question))
+            compiled += generate_expr_internal(arg_in_question, expr_dest, types, stack, clobbers, refs, local_consts, context.wrap(arg_in_question))
             which_arg += 1
 
         elif isinstance(needed_arg, PreservedCoreType):
@@ -1175,7 +1182,7 @@ def generate_function_call(
             expr_dest = expr_temp_name()
             stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg))
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(args[which_arg].value, expr_dest, stack, clobbers, refs, local_consts, context.wrap(args[which_arg].value))
+            compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
 
         else:
@@ -1184,7 +1191,7 @@ def generate_function_call(
             expr_dest = expr_temp_name()
             stack.alloc(StackVar(expr_dest, needed_arg))
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(args[which_arg].value, expr_dest, stack, clobbers, refs, local_consts, context.wrap(args[which_arg].value))
+            compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
 
     # Now, load our registers up with any register parameters.
@@ -1201,7 +1208,7 @@ def generate_function_call(
             raise Exception(f"Logic error, tried to assign a param to unsupported register {needed_arg.type} in function {function_prototype.name}")
 
         stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.type])))
-        compiled += generate_expr_internal(provided_arg.value, reg_dest, stack, clobbers, refs, local_consts, context.wrap(provided_arg.value))
+        compiled += generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, refs, local_consts, context.wrap(provided_arg.value))
         compiled += generate_move_to(reg_dest, stack, clobbers, context)
         compiled += f"POP {needed_arg.type}"
         stack.free(reg_dest)
@@ -1417,6 +1424,7 @@ def generate_variable_lookup(
 def generate_unary_expr(
     expression: cst.UnaryOperation,
     destination: str,
+    types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
@@ -1446,7 +1454,7 @@ def generate_unary_expr(
                 # Safe to put the expression evaluation in our destination because we're just going to negate it.
                 internal_dest = destination
 
-            compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, local_consts, context.wrap(expression.expression))
+            compiled += generate_expr_internal(expression.expression, internal_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.expression))
 
             # Negation clobbers the A register, since it is the accumulator.
             clobbers.add("A")
@@ -1479,7 +1487,7 @@ def generate_unary_expr(
             else:
                 internal_dest = destination
 
-            compiled += generate_expr_internal(expression.expression, internal_dest, stack, clobbers, refs, local_consts, context.wrap(expression.expression))
+            compiled += generate_expr_internal(expression.expression, internal_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.expression))
 
             if isinstance(expression.operator, cst.Minus):
                 # Using the neg16 or neg32 function that's part of our stdlib.
@@ -1490,6 +1498,7 @@ def generate_unary_expr(
                         [UnvalidatedName(internal_dest)],
                     ),
                     destination,
+                    types,
                     stack,
                     clobbers,
                     refs,
@@ -1537,6 +1546,7 @@ def generate_unary_expr(
 def generate_binary_expr(
     expression: cst.BinaryOperation,
     destination: str,
+    types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
@@ -1561,12 +1571,12 @@ def generate_binary_expr(
         # Safe to put first parameter in the top of the stack where it already is useful for math.
         lhs_dest = destination
 
-    compiled += generate_expr_internal(expression.left, lhs_dest, stack, clobbers, refs, local_consts, context.wrap(expression.left))
+    compiled += generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
 
     # Now, get the second parameter onto the stack in the right spot.
     rhs_dest = expr_temp_name()
     stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
-    compiled += generate_expr_internal(expression.right, rhs_dest, stack, clobbers, refs, local_consts, context.wrap(expression.right))
+    compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.right))
 
     # Now, perform some math of matics!
     if destination_size == 1:
@@ -1623,6 +1633,7 @@ def generate_binary_expr(
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
                 ),
                 destination,
+                types,
                 stack,
                 clobbers,
                 refs,
@@ -1643,6 +1654,7 @@ def generate_binary_expr(
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
                 ),
                 None,
+                types,
                 stack,
                 clobbers,
                 refs,
@@ -1687,6 +1699,7 @@ def generate_binary_expr(
                     [UnvalidatedName(rhs_dest)],
                 ),
                 rhs_dest,
+                types,
                 stack,
                 clobbers,
                 refs,
@@ -1705,6 +1718,7 @@ def generate_binary_expr(
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)],
                 ),
                 destination,
+                types,
                 stack,
                 clobbers,
                 refs,
@@ -1737,6 +1751,7 @@ def generate_binary_expr(
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
                 ),
                 destination,
+                types,
                 stack,
                 clobbers,
                 refs,
@@ -1762,6 +1777,7 @@ def generate_binary_expr(
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
                 ),
                 None,
+                types,
                 stack,
                 clobbers,
                 refs,
@@ -1847,6 +1863,7 @@ def generate_binary_expr(
 def generate_expr_internal(
     expression: cst.BaseExpression,
     destination: str,
+    types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
@@ -1874,13 +1891,13 @@ def generate_expr_internal(
         compiled += generate_variable_lookup(expression.value, destination, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.UnaryOperation):
-        compiled += generate_unary_expr(expression, destination, stack, clobbers, refs, local_consts, context)
+        compiled += generate_unary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.BinaryOperation):
-        compiled += generate_binary_expr(expression, destination, stack, clobbers, refs, local_consts, context)
+        compiled += generate_binary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.Call):
-        compiled += generate_function_call(expression, destination, stack, clobbers, refs, local_consts, context.wrap(expression))
+        compiled += generate_function_call(expression, destination, types, stack, clobbers, refs, local_consts, context.wrap(expression))
 
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
@@ -1890,6 +1907,73 @@ def generate_expr_internal(
     return compiled
 
 
+def infer_expr_types(
+    expression: cst.BaseExpression,
+    stack: Stack,
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> Dict[cst.CSTNode, CoreType]:
+    inferred: Dict[cst.CSTNode, CoreType] = {}
+
+    if isinstance(expression, cst.Name):
+        stack_type = stack.typeof(expression.value)
+        if stack_type is not None:
+            inferred[expression] = stack_type
+            return inferred
+
+        const_type = const_by_name(local_consts, expression.value)
+        if const_type is not None:
+            inferred[expression] = const_type.type
+            return inferred
+
+        raise CompilerError(f"Undefined variable reference to {expression.value!r}", context)
+
+    elif isinstance(expression, cst.Integer):
+        inferred[expression] = CoreType("int32")
+        return inferred
+
+    elif isinstance(expression, cst.UnaryOperation):
+        inferred.update(infer_expr_types(expression.expression, stack, refs, local_consts, context.wrap(expression.expression)))
+        inferred_type = inferred[expression.expression]
+        inferred[expression] = CoreType(inferred_type.type, inferred_type.pointed_type, inferred_type.const, inferred_type.return_padding)
+
+        if isinstance(expression.operator, (cst.Minus, cst.BitInvert)):
+            if not inferred_type.is_integer:
+                raise CompilerError(f"Unsupported unary operation for type {inferred_type.type}", context)
+        return inferred
+
+    elif isinstance(expression, cst.BinaryOperation):
+        inferred.update(infer_expr_types(expression.left, stack, refs, local_consts, context.wrap(expression.left)))
+        inferred.update(infer_expr_types(expression.right, stack, refs, local_consts, context.wrap(expression.right)))
+
+        left_inferred = inferred[expression.left]
+        right_inferred = inferred[expression.right]
+
+        if isinstance(expression.operator, (cst.Add, cst.Subtract, cst.BitAnd, cst.BitOr, cst.BitXor, cst.Multiply, cst.Divide, cst.FloorDivide, cst.Modulo)):
+            if not left_inferred.is_integer:
+                raise CompilerError(f"Unsupported binary operation for type {left_inferred.type}", context)
+            if not right_inferred.is_integer:
+                raise CompilerError(f"Unsupported binary operation for type {right_inferred.type}", context)
+
+            # Any math against two integers will result in an integer. Pick the wider of two types.
+            if left_inferred.size > right_inferred.size:
+                picked = left_inferred
+            else:
+                picked = right_inferred
+            inferred[expression] = CoreType(picked.type, picked.pointed_type, picked.const, picked.return_padding)
+
+        return inferred
+
+    elif isinstance(expression, cst.Call):
+        function_prototype = get_function_prototype(expression, stack, refs, local_consts, context)
+        inferred[expression] = function_prototype.return_type
+        return inferred
+
+    else:
+        raise CompilerError(f"Unsupported expression type {expression} in type inferencer!", context)
+
+
 def generate_expr(
     expression: cst.BaseExpression,
     destination: str,
@@ -1897,7 +1981,7 @@ def generate_expr(
     clobbers: Set[str],
     refs: List[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
-    context: Context
+    context: Context,
 ) -> List[str]:
     compiled: List[str] = [context.comment()]
 
@@ -1908,16 +1992,18 @@ def generate_expr(
     if dtype is None:
         raise Exception("Logic error, couldn't determine type of expression destination!")
 
+    types: Dict[cst.CSTNode, CoreType] = infer_expr_types(expression, stack, refs, local_consts, context)
+
     if dsize == 1:
         # We can potentially keep the math in the A register!
         clobbers.add("A")
 
-        compiled += generate_expr_internal(expression, "uregister(A)" if dtype.is_unsigned else "register(A)", stack, clobbers, refs, local_consts, context)
+        compiled += generate_expr_internal(expression, "uregister(A)" if dtype.is_unsigned else "register(A)", types, stack, clobbers, refs, local_consts, context)
         compiled += generate_move_to(destination, stack, clobbers, context)
         compiled.append("  STORE A")
     else:
         # Just do stack-based operations.
-        compiled += generate_expr_internal(expression, destination, stack, clobbers, refs, local_consts, context)
+        compiled += generate_expr_internal(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     return compiled
 
