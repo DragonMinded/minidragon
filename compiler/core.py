@@ -103,7 +103,7 @@ class CoreType:
         if self.type == "char":
             return 1
         # Booleans are a single byte so we can compare with "ADDI".
-        if self.type == "boolean":
+        if self.type == "bool":
             return 1
         # Strings are passed by reference pointer.
         if self.type == "string":
@@ -115,7 +115,7 @@ class CoreType:
 
     @property
     def is_unsigned(self) -> bool:
-        return self.type in {"uint8", "uint16", "uint32", "char", "boolean", "string", "pointer"}
+        return self.type in {"uint8", "uint16", "uint32", "char", "bool", "string", "pointer"}
 
     @property
     def is_signed(self) -> bool:
@@ -130,8 +130,8 @@ class CoreType:
         return self.type == "char"
 
     @property
-    def is_boolean(self) -> bool:
-        return self.type == "boolean"
+    def is_bool(self) -> bool:
+        return self.type == "bool"
 
     @property
     def is_string(self) -> bool:
@@ -234,6 +234,20 @@ def get_int(val: str, context: Context) -> int:
     raise CompilerError(f"Could not parse {val} as integer.", context)
 
 
+def type_comparison_compatible(left: CoreType, right: CoreType) -> bool:
+    if left.is_integer and right.is_integer:
+        return True
+    if left.is_char and right.is_char:
+        return True
+    if left.is_bool and right.is_bool:
+        return True
+    if left.is_string and right.is_string:
+        return True
+    if left.is_pointer and right.is_pointer:
+        return True
+    return False
+
+
 def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
     if expr is None:
         return None
@@ -302,7 +316,7 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
             if expr.value == "void":
                 return VoidType
             else:
-                if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "boolean", "char", "string"}:
+                if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "bool", "char", "string"}:
                     return None
 
                 return CoreType(expr.value, None, const, not nopad)
@@ -373,6 +387,18 @@ def const_by_name(consts: List[Constant], name: str) -> Optional[Constant]:
         if const.name == name:
             return const
     return None
+
+
+def is_register_destination(name: str) -> bool:
+    return name.startswith("register(") and name.endswith(")")
+
+
+def register_type(name: str) -> Optional[CoreType]:
+    if not is_register_destination(name):
+        return None
+
+    vals = name[9:-1].split(",", 1)
+    return CoreType(vals[1].strip())
 
 
 class StackVar:
@@ -456,8 +482,9 @@ class Stack:
 
     def sizeof(self, name: str) -> Optional[int]:
         # Special case handling
-        if name in {"register(A)", "uregister(A)"}:
-            return 1
+        if is_register_destination(name):
+            sentry = register_type(name)
+            return sentry.size if sentry is not None else None
 
         for entry in self.stack:
             if entry.name == name:
@@ -466,10 +493,8 @@ class Stack:
 
     def typeof(self, name: str) -> Optional[CoreType]:
         # Special case handling
-        if name == "register(A)":
-            return CoreType("int8", return_padding=False)
-        if name == "uregister(A)":
-            return CoreType("uint8", return_padding=False)
+        if is_register_destination(name):
+            return register_type(name)
 
         for entry in self.stack:
             if entry.name == name:
@@ -613,10 +638,10 @@ def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], cont
             for c in value:
                 compiled.append(f"  .char {c[0]!r}")
             compiled.append("  .byte 0x00")
-        elif assign_type == "boolean":
+        elif assign_type == "bool":
             if not isinstance(value, bool):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
-            compiled.append(f"  .byte {"0x01" if value else "0x00"}")
+            compiled.append(f"  .byte {"0xFF" if value else "0x00"}")
         else:
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
@@ -880,7 +905,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
         if dtype.is_unsigned and val < 0:
             raise CompilerError("Cannot use a negative value in an unsigned expression!", context)
 
-        if destination in {"register(A)", "uregister(A)"}:
+        if is_register_destination(destination):
             compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
         else:
             clobbers.add("A")
@@ -931,13 +956,13 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
             else:
                 raise CompilerError(f"Unsupported destination {destination} for const load", context)
 
-    elif dtype.is_boolean:
+    elif dtype.is_bool:
         if not isinstance(val, bool):
             raise CompilerError("Unsupported non-boolean constant load!", context)
 
-        intval = 0x01 if val else 0x00
+        intval = 0xFF if val else 0x00
 
-        if destination in {"register(A)", "uregister(A)"}:
+        if is_register_destination(destination):
             compiled.append(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
         else:
             clobbers.add("A")
@@ -1264,7 +1289,7 @@ def generate_function_call(
     if isinstance(function_prototype.return_type, RegisterCoreType):
         return_handled = True
         if destination is not None:
-            if destination in {"register(A)", "uregister(A)"}:
+            if is_register_destination(destination):
                 # We're already returning to a register, so we're done here!
                 if function_prototype.return_type.type != "A":
                     raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
@@ -1319,7 +1344,7 @@ def generate_function_call(
     # Now, if needed, copy the return value from the stack to its location.
     if (not return_handled) and (not (function_prototype.return_type is VoidType)):
         if destination is not None:
-            if destination in {"register(A)", "uregister(A)"}:
+            if is_register_destination(destination):
                 # Pop the value from the stack, instead of copying.
                 src_loc = normal_return_loc
                 src_size = function_prototype.return_type.size
@@ -1394,7 +1419,7 @@ def generate_variable_lookup(
     # TODO: This needs to support looking up global variables, for any variable that is defined globally and
     # then locally marked with the "global" keyword.
 
-    if destination in {"register(A)", "uregister(A)"}:
+    if is_register_destination(destination):
         # Just need to load A with the value, which should always be the lowest 8 bits of any variable.
         if stack.absfind(source) is None:
             raise CompilerError(f"Undefined variable reference to {source!r}", context)
@@ -1473,7 +1498,7 @@ def generate_unary_expr(
             raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
         if destination_size == 1:
-            if destination in {"register(A)", "uregister(A)"} or stack[-1].name != destination:
+            if is_register_destination(destination) or stack[-1].name != destination:
                 # In order to ensure that it's possible to negate this value, locate the rest of the expression
                 # in a temporary location.
                 internal_dest = expr_temp_name()
@@ -1499,7 +1524,7 @@ def generate_unary_expr(
                 raise CompilerError("Unsupported unary operation {expression}", context)
 
             # This call puts the result in a, so check if that's what we want.
-            if destination in {"register(A)", "uregister(A)"}:
+            if is_register_destination(destination):
                 stack.free(internal_dest)
             else:
                 compiled += generate_move_to(destination, stack, clobbers, context)
@@ -1590,7 +1615,7 @@ def generate_binary_expr(
     if destination_type is None:
         raise Exception("Logic error, could not calculate type of destination!")
 
-    if destination in {"register(A)", "uregister(A)"} or stack[-1].name != destination:
+    if is_register_destination(destination) or stack[-1].name != destination:
         # In order to ensure that it's possible to do stack math on this value, locate it in
         # a temporary location for the time being if the destination isn't the top of the stack.
         lhs_dest = expr_temp_name()
@@ -1612,7 +1637,7 @@ def generate_binary_expr(
             if not destination_type.is_integer:
                 raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
-            if destination not in {"register(A)", "uregister(A)"}:
+            if not is_register_destination(destination):
                 # Subtracting clobbers the A register, since it is the accumulator.
                 clobbers.add("A")
 
@@ -1629,7 +1654,7 @@ def generate_binary_expr(
             if not destination_type.is_integer:
                 raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
-            if destination not in {"register(A)", "uregister(A)"}:
+            if not is_register_destination(destination):
                 # Adding clobbers the A register, since it is the accumulator.
                 clobbers.add("A")
 
@@ -1703,7 +1728,7 @@ def generate_binary_expr(
             raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
 
         # This call puts the result in a, so check if that's what we want.
-        if destination in {"register(A)", "uregister(A)"}:
+        if is_register_destination(destination):
             # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
             stack.free(rhs_dest)
             stack.free(lhs_dest)
@@ -1888,6 +1913,62 @@ def generate_binary_expr(
     return compiled
 
 
+def generate_comparison_expr(
+    expression: cst.Comparison,
+    destination: str,
+    types: Dict[cst.CSTNode, CoreType],
+    stack: Stack,
+    clobbers: Set[str],
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> List[str]:
+    compiled: List[str] = []
+
+    destination_size = stack.sizeof(destination)
+    if destination_size is None:
+        raise Exception("Logic error, could not calculate size of destination!")
+    destination_type = stack.typeof(destination)
+    if destination_type is None:
+        raise Exception("Logic error, could not calculate type of destination!")
+
+    if destination_size != 1 or not destination_type.is_bool:
+        raise CompilerError("Cannot assign comparison operator to non-bool", context)
+
+    # Special case for is checks.
+    if isinstance(expression.comparisons[0].operator, cst.Is):
+        if len(expression.comparisons) != 1:
+            raise CompilerError("Unsupported multi-comparison for is check", context)
+
+        rhs_expr = expression.comparisons[0].comparator
+
+        try:
+            value = codegen_eval(rhs_expr, local_consts)
+        except NonConstantExpressionException:
+            value = None
+
+        if value is None:
+            raise CompilerError("Unsupported dynamic comparison for is check", context)
+        if not isinstance(value, bool):
+            raise CompilerError("Expecting comparison against True or False for is check", context)
+
+        # Okay, now that we have the value we care about, generate the expression, evaluate
+        # it for True/False, and set the destination accordingly. Clobber the A register because
+        # all conditional statements are based on it.
+        clobbers.add("A")
+
+        compiled += generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+        if value is False:
+            # Gotta invert our output since it's already a boolean.
+            compiled.append("  INV")
+
+        if not is_register_destination(destination):
+            compiled += generate_move_to(destination, stack, clobbers, context)
+            compiled.append("  STORE A")
+
+    return compiled
+
+
 def generate_expr_internal(
     expression: cst.BaseExpression,
     destination: str,
@@ -1937,6 +2018,9 @@ def generate_expr_internal(
             stack.free(return_temp)
         else:
             compiled += generate_function_call(expression, destination, types, stack, clobbers, refs, local_consts, context.wrap(expression))
+
+    elif isinstance(expression, cst.Comparison):
+        compiled += generate_comparison_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
@@ -2009,6 +2093,18 @@ def infer_expr_types(
         inferred[expression] = function_prototype.return_type
         return inferred
 
+    elif isinstance(expression, cst.Comparison):
+        inferred.update(infer_expr_types(expression.left, stack, refs, local_consts, context.wrap(expression.left)))
+        for comparison in expression.comparisons:
+            inferred.update(infer_expr_types(comparison.comparator, stack, refs, local_consts, context.wrap(comparison.comparator)))
+
+            # Verify that we're comparing two equivalent types.
+            if not type_comparison_compatible(inferred[expression.left], inferred[comparison.comparator]):
+                raise CompilerError(f"Unsupported comparison of types {inferred[expression.left].type} and {inferred[comparison.comparator].type}", context)
+
+        inferred[expression] = CoreType("bool")
+        return inferred
+
     else:
         raise CompilerError(f"Unsupported expression type {expression} in type inferencer!", context)
 
@@ -2037,7 +2133,21 @@ def generate_expr(
         # We can potentially keep the math in the A register!
         clobbers.add("A")
 
-        compiled += generate_expr_internal(expression, "uregister(A)" if dtype.is_unsigned else "register(A)", types, stack, clobbers, refs, local_consts, context)
+        if dtype.is_integer:
+            if dtype.is_unsigned:
+                dest = "register(A, uint8)"
+            elif dtype.is_signed:
+                dest = "register(A, int8)"
+            else:
+                raise Exception("Logic error, unexpected type {dtype} for register allocation!")
+        elif dtype.is_bool:
+            dest = "register(A, bool)"
+        elif dtype.is_char:
+            dest = "register(A, char)"
+        else:
+            raise Exception("Logic error, unexpected type {dtype} for register allocation!")
+
+        compiled += generate_expr_internal(expression, dest, types, stack, clobbers, refs, local_consts, context)
         compiled += generate_move_to(destination, stack, clobbers, context)
         compiled.append("  STORE A")
     else:
@@ -2382,7 +2492,7 @@ def is_type_definition(assign: cst.Assign) -> bool:
     if not isinstance(target.target, cst.Name):
         return False
 
-    if target.target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "string", "char", "boolean"}:
+    if target.target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "string", "char", "bool"}:
         return False
 
     if not isinstance(assign.value, cst.Name):
@@ -2477,8 +2587,8 @@ def parse_and_compile_module(module: str, code: str) -> List[str]:
 
 def builtin_consts() -> List[Constant]:
     return [
-        Constant("True", CoreType("boolean", const=True), value=True),
-        Constant("False", CoreType("boolean", const=True), value=False),
+        Constant("True", CoreType("bool", const=True), value=True),
+        Constant("False", CoreType("bool", const=True), value=False),
     ]
 
 

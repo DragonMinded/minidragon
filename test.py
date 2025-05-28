@@ -5860,8 +5860,6 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/math/add.S", "r") as fp:
-        addlines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -5871,7 +5869,7 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
             *initlines,
             "LNGJUMP code",
             *parse_and_compile_module("simplebooleans", textwrap.dedent(f"""
-                def func() -> boolean:
+                def func() -> bool:
                     return {val}
             """)),
             "code:",
@@ -5882,7 +5880,6 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
             "LOADI 123",
             "CALL func",
             "HALT",
-            *addlines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -5899,7 +5896,11 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"simplebooleans changed V value from {222} to {cpu.v}!",
         )
-        result = cpu.ram[cpu.pc + 0] != 0
+        _assert(
+            cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+            f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
         expected = val
         _assert(
             result == expected,
@@ -5912,6 +5913,71 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
 
     print(f"Average cycles for simplebooleans: {int(cycles/count)}")
     print(f"Average instructions for simplebooleans: {int(instructions/count)}")
+
+
+def verifybooleanischeck(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "booleanischeck" not in only and "compiler" not in only:
+        return
+
+    print("Verifying booleanischeck...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for res in [False, True]:
+        for val in [False, True]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("booleanischeck", textwrap.dedent(f"""
+                    def func(val: bool) -> bool:
+                        return val is {res}
+                """)),
+                "code:",
+                f"PUSHI {'0xFF' if val else '0x00'}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"booleanischeck changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"booleanischeck changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"booleanischeck changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = val == res
+            _assert(
+                result == expected,
+                "Failed to booleanischeck, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for booleanischeck: {int(cycles/count)}")
+    print(f"Average instructions for booleanischeck: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -6018,3 +6084,4 @@ if __name__ == "__main__":
     verifyfunctioncall(only, args.full)
     verifycomplexfunctioncall(only, args.full)
     verifysimplebooleans(only, args.full)
+    verifybooleanischeck(only, args.full)
