@@ -5732,12 +5732,13 @@ def verifyfunctioncall(only: Optional[Container[str]], full: bool) -> None:
                     CONST_VALUE: int8 = 10
                     return param1 + param2 + CONST_VALUE
 
-                def func(param1: int8) -> int8:
+                # Also verifying that types can be narrowed and expanded properly.
+                def func(param1: int16) -> int16:
                     return add_10_to_two_params(param1, 5)
             """)),
             "code:",
-            f"LOADI {x}",
-            "PUSH A",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
             "MOV A, U",
             "LOADI 222",
@@ -5762,12 +5763,14 @@ def verifyfunctioncall(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"functioncall changed V value from {222} to {cpu.v}!",
         )
-        result = cpu.ram[cpu.pc + 0]
+        result = bintoint16(
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        )
         expected = x + 15
         _assert(
-            bintoint(result) == expected,
+            result == expected,
             "Failed to functioncall, "
-            + f"got {bintoint(result)} instead of {expected}!",
+            + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks

@@ -1897,7 +1897,18 @@ def generate_expr_internal(
         compiled += generate_binary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.Call):
-        compiled += generate_function_call(expression, destination, types, stack, clobbers, refs, local_consts, context.wrap(expression))
+        function_return_type = types[expression]
+        if function_return_type.size != destination_size:
+            # We need to put this in a local temporary variable, and then copy it out.
+            return_temp = expr_temp_name()
+            stack.alloc(StackVar(return_temp, function_return_type))
+
+            compiled += generate_function_call(expression, return_temp, types, stack, clobbers, refs, local_consts, context.wrap(expression))
+            compiled += generate_variable_lookup(return_temp, destination, stack, clobbers, refs, local_consts, context.wrap(expression))
+
+            stack.free(return_temp)
+        else:
+            compiled += generate_function_call(expression, destination, types, stack, clobbers, refs, local_consts, context.wrap(expression))
 
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
