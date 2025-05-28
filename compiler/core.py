@@ -613,6 +613,10 @@ def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], cont
             for c in value:
                 compiled.append(f"  .char {c[0]!r}")
             compiled.append("  .byte 0x00")
+        elif assign_type == "boolean":
+            if not isinstance(value, bool):
+                raise CompilerError("Unsupported initialization value for global const definition", context)
+            compiled.append(f"  .byte {"0x01" if value else "0x00"}")
         else:
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
@@ -869,62 +873,86 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
     if dtype is None:
         raise Exception("Logic error, could not determine type of destination to load constant to!")
 
-    if not isinstance(val, int):
-        raise CompilerError("Unsupported non-integer constant load!", context)
+    if dtype.is_integer:
+        if not isinstance(val, int):
+            raise CompilerError("Unsupported non-integer constant load!", context)
 
-    if dtype.is_unsigned and val < 0:
-        raise CompilerError("Cannot use a negative value in an unsigned expression!", context)
+        if dtype.is_unsigned and val < 0:
+            raise CompilerError("Cannot use a negative value in an unsigned expression!", context)
 
-    if destination in {"register(A)", "uregister(A)"}:
-        compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-    else:
-        clobbers.add("A")
-
-        dest_loc = stack.find(destination)
-        dest_size = stack.sizeof(destination)
-        if dest_loc is None or dest_size is None:
-            raise Exception("Logic error, cannot find destination to load constant to!")
-
-        compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
-        if dest_size == 1:
+        if destination in {"register(A)", "uregister(A)"}:
             compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-            compiled.append("  STORE A")
-        elif dest_size == 2:
-            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-            compiled.append("  STORE A")
-            compiled.append("  DECPC")
-
-            stack.move(1)
-            compiled += comment_stack(stack)
-
-            compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
-            compiled.append("  STORE A")
-        elif dest_size == 4:
-            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-            compiled.append("  STORE A")
-            compiled.append("  DECPC")
-
-            stack.move(1)
-            compiled += comment_stack(stack)
-
-            compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
-            compiled.append("  STORE A")
-            compiled.append("  DECPC")
-
-            stack.move(1)
-            compiled += comment_stack(stack)
-
-            compiled.append(f"  LOADI {_hex((val >> 16) & 0xFF, 2)}")
-            compiled.append("  STORE A")
-            compiled.append("  DECPC")
-
-            stack.move(1)
-            compiled += comment_stack(stack)
-
-            compiled.append(f"  LOADI {_hex((val >> 24) & 0xFF, 2)}")
-            compiled.append("  STORE A")
         else:
-            raise CompilerError(f"Unsupported destination {destination} for const load", context)
+            clobbers.add("A")
+
+            dest_loc = stack.find(destination)
+            dest_size = stack.sizeof(destination)
+            if dest_loc is None or dest_size is None:
+                raise Exception("Logic error, cannot find destination to load constant to!")
+
+            compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
+            if dest_size == 1:
+                compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+                compiled.append("  STORE A")
+            elif dest_size == 2:
+                compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+                compiled.append("  STORE A")
+                compiled.append("  DECPC")
+
+                stack.move(1)
+                compiled += comment_stack(stack)
+
+                compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+                compiled.append("  STORE A")
+            elif dest_size == 4:
+                compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+                compiled.append("  STORE A")
+                compiled.append("  DECPC")
+
+                stack.move(1)
+                compiled += comment_stack(stack)
+
+                compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+                compiled.append("  STORE A")
+                compiled.append("  DECPC")
+
+                stack.move(1)
+                compiled += comment_stack(stack)
+
+                compiled.append(f"  LOADI {_hex((val >> 16) & 0xFF, 2)}")
+                compiled.append("  STORE A")
+                compiled.append("  DECPC")
+
+                stack.move(1)
+                compiled += comment_stack(stack)
+
+                compiled.append(f"  LOADI {_hex((val >> 24) & 0xFF, 2)}")
+                compiled.append("  STORE A")
+            else:
+                raise CompilerError(f"Unsupported destination {destination} for const load", context)
+
+    elif dtype.is_boolean:
+        if not isinstance(val, bool):
+            raise CompilerError("Unsupported non-boolean constant load!", context)
+
+        intval = 0x01 if val else 0x00
+
+        if destination in {"register(A)", "uregister(A)"}:
+            compiled.append(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
+        else:
+            clobbers.add("A")
+
+            dest_loc = stack.find(destination)
+            dest_size = stack.sizeof(destination)
+            if dest_loc is None or dest_size is None:
+                raise Exception("Logic error, cannot find destination to load constant to!")
+
+            compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
+            compiled.append(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
+            compiled.append("  STORE A")
+
+    else:
+        raise CompilerError("Unsupported constant load of type {dtype.type}!", context)
 
     return compiled
 
@@ -1879,7 +1907,7 @@ def generate_expr_internal(
     try:
         # If we can evaluate this directly, do so!
         value = codegen_eval(expression, local_consts)
-        if isinstance(value, int):
+        if isinstance(value, (bool, int)):
             compiled += generate_const_load(value, destination, stack, clobbers, context)
             return compiled
 
@@ -2277,7 +2305,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
 
     # First pass to figure out clobbers
     clobbers: Set[str] = set()
-    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, [], [], context)
+    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, builtin_consts(), [], context)
 
     # Unwind our temporary return value location.
     if temp_size > 0:
@@ -2334,7 +2362,7 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    compiled += compile_chunk(func.body, stack, set(), function_type, refs, [], local_data, context)
+    compiled += compile_chunk(func.body, stack, set(), function_type, refs, builtin_consts(), local_data, context)
 
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
 
@@ -2354,13 +2382,13 @@ def is_type_definition(assign: cst.Assign) -> bool:
     if not isinstance(target.target, cst.Name):
         return False
 
-    if target.target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "string"}:
+    if target.target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "string", "char", "boolean"}:
         return False
 
     if not isinstance(assign.value, cst.Name):
         return False
 
-    if assign.value.value not in {"int", "str"}:
+    if assign.value.value not in {"int", "str", "bool"}:
         return False
 
     return True
@@ -2378,7 +2406,7 @@ def compile_module(module: str, code: str, refs: List[Union[FunctionPrototype, G
     parsed_module = wrapper.module
 
     compiled: List[str] = []
-    global_consts: List[Constant] = []
+    global_consts: List[Constant] = builtin_consts()
 
     for statement in parsed_module.body:
         context = Context(module, statement, metadata)
@@ -2445,6 +2473,13 @@ def parse_and_compile_module(module: str, code: str) -> List[str]:
     forward_refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
     forward_refs += parse_forward_refs(module, code)
     return compile_module(module, code, forward_refs)
+
+
+def builtin_consts() -> List[Constant]:
+    return [
+        Constant("True", CoreType("boolean", const=True), value=True),
+        Constant("False", CoreType("boolean", const=True), value=False),
+    ]
 
 
 def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:

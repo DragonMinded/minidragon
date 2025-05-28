@@ -2797,7 +2797,7 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"downcast changed accumulator value from {x} to {cpu.a}!",
+            f"downcast changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -2844,7 +2844,7 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"downcast changed accumulator value from {x} to {cpu.a}!",
+            f"downcast changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -2891,7 +2891,7 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"downcast changed accumulator value from {x} to {cpu.a}!",
+            f"downcast changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -2954,7 +2954,7 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"upcast changed accumulator value from {x} to {cpu.a}!",
+            f"upcast changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3001,7 +3001,7 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"upcast changed accumulator value from {x} to {cpu.a}!",
+            f"upcast changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3051,7 +3051,7 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"upcast changed accumulator value from {x} to {cpu.a}!",
+            f"upcast changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3232,7 +3232,7 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"addandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"addandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3277,7 +3277,7 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"addandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"addandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3327,7 +3327,7 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"addandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"addandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3385,7 +3385,7 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"addandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"addandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3511,7 +3511,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"subtractandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3557,7 +3557,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"subtractandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3608,7 +3608,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"subtractandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3667,7 +3667,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"subtractandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"subtractandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3794,7 +3794,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"multiplyandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3841,7 +3841,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"multiplyandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3892,7 +3892,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"multiplyandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3951,7 +3951,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"multiplyandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -3998,7 +3998,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"multiplyandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4049,7 +4049,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"multiplyandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"multiplyandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4127,7 +4127,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"divideandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"divideandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4176,7 +4176,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"divideandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"divideandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4229,7 +4229,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"divideandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"divideandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4293,7 +4293,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
 
             _assert(
                 cpu.a == 123,
-                f"divideandreturn changed accumulator value from {x} to {cpu.a}!",
+                f"divideandreturn changed accumulator value from {123} to {cpu.a}!",
             )
             _assert(
                 cpu.u == 111,
@@ -4342,7 +4342,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
 
             _assert(
                 cpu.a == 123,
-                f"divideandreturn changed accumulator value from {x} to {cpu.a}!",
+                f"divideandreturn changed accumulator value from {123} to {cpu.a}!",
             )
             _assert(
                 cpu.u == 111,
@@ -4395,7 +4395,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
 
             _assert(
                 cpu.a == 123,
-                f"divideandreturn changed accumulator value from {x} to {cpu.a}!",
+                f"divideandreturn changed accumulator value from {123} to {cpu.a}!",
             )
             _assert(
                 cpu.u == 111,
@@ -4473,7 +4473,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"moduloandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"moduloandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4522,7 +4522,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"moduloandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"moduloandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4575,7 +4575,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"moduloandreturn changed accumulator value from {x} to {cpu.a}!",
+            f"moduloandreturn changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4639,7 +4639,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
 
             _assert(
                 cpu.a == 123,
-                f"moduloandreturn changed accumulator value from {x} to {cpu.a}!",
+                f"moduloandreturn changed accumulator value from {123} to {cpu.a}!",
             )
             _assert(
                 cpu.u == 111,
@@ -4688,7 +4688,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
 
             _assert(
                 cpu.a == 123,
-                f"moduloandreturn changed accumulator value from {x} to {cpu.a}!",
+                f"moduloandreturn changed accumulator value from {123} to {cpu.a}!",
             )
             _assert(
                 cpu.u == 111,
@@ -4741,7 +4741,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
 
             _assert(
                 cpu.a == 123,
-                f"moduloandreturn changed accumulator value from {x} to {cpu.a}!",
+                f"moduloandreturn changed accumulator value from {123} to {cpu.a}!",
             )
             _assert(
                 cpu.u == 111,
@@ -4807,7 +4807,7 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwiseand changed accumulator value from {x} to {cpu.a}!",
+            f"bitwiseand changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4852,7 +4852,7 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwiseand changed accumulator value from {x} to {cpu.a}!",
+            f"bitwiseand changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4899,7 +4899,7 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwiseand changed accumulator value from {x} to {cpu.a}!",
+            f"bitwiseand changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -4965,7 +4965,7 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwiseor changed accumulator value from {x} to {cpu.a}!",
+            f"bitwiseor changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5010,7 +5010,7 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwiseor changed accumulator value from {x} to {cpu.a}!",
+            f"bitwiseor changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5057,7 +5057,7 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwiseor changed accumulator value from {x} to {cpu.a}!",
+            f"bitwiseor changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5123,7 +5123,7 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwisexor changed accumulator value from {x} to {cpu.a}!",
+            f"bitwisexor changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5168,7 +5168,7 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwisexor changed accumulator value from {x} to {cpu.a}!",
+            f"bitwisexor changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5215,7 +5215,7 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwisexor changed accumulator value from {x} to {cpu.a}!",
+            f"bitwisexor changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5281,7 +5281,7 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwisenot changed accumulator value from {x} to {cpu.a}!",
+            f"bitwisenot changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5326,7 +5326,7 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwisenot changed accumulator value from {x} to {cpu.a}!",
+            f"bitwisenot changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5373,7 +5373,7 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"bitwisenot changed accumulator value from {x} to {cpu.a}!",
+            f"bitwisenot changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5442,7 +5442,7 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"negation changed accumulator value from {x} to {cpu.a}!",
+            f"negation changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5488,7 +5488,7 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"negation changed accumulator value from {x} to {cpu.a}!",
+            f"negation changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5538,7 +5538,7 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"negation changed accumulator value from {x} to {cpu.a}!",
+            f"negation changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5613,7 +5613,7 @@ def verifycomplexexpression(only: Optional[Container[str]], full: bool) -> None:
 
                 _assert(
                     cpu.a == 123,
-                    f"complexexpression changed accumulator value from {x} to {cpu.a}!",
+                    f"complexexpression changed accumulator value from {123} to {cpu.a}!",
                 )
                 _assert(
                     cpu.u == 111,
@@ -5684,7 +5684,7 @@ def verifylocalvariables(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"localvariables changed accumulator value from {x} to {cpu.a}!",
+            f"localvariables changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5753,7 +5753,7 @@ def verifyfunctioncall(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"functioncall changed accumulator value from {x} to {cpu.a}!",
+            f"functioncall changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5827,7 +5827,7 @@ def verifycomplexfunctioncall(only: Optional[Container[str]], full: bool) -> Non
 
         _assert(
             cpu.a == 123,
-            f"complexfunctioncall changed accumulator value from {x} to {cpu.a}!",
+            f"complexfunctioncall changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
@@ -5850,6 +5850,68 @@ def verifycomplexfunctioncall(only: Optional[Container[str]], full: bool) -> Non
 
     print(f"Average cycles for complexfunctioncall: {int(cycles/count)}")
     print(f"Average instructions for complexfunctioncall: {int(instructions/count)}")
+
+
+def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "simplebooleans" not in only and "compiler" not in only:
+        return
+
+    print("Verifying simplebooleans...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for val in [False, True]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("simplebooleans", textwrap.dedent(f"""
+                def func() -> boolean:
+                    return {val}
+            """)),
+            "code:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+            *addlines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"simplebooleans changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"simplebooleans changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"simplebooleans changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc + 0] != 0
+        expected = val
+        _assert(
+            result == expected,
+            "Failed to simplebooleans, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for simplebooleans: {int(cycles/count)}")
+    print(f"Average instructions for simplebooleans: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -5955,3 +6017,4 @@ if __name__ == "__main__":
     verifylocalvariables(only, args.full)
     verifyfunctioncall(only, args.full)
     verifycomplexfunctioncall(only, args.full)
+    verifysimplebooleans(only, args.full)
