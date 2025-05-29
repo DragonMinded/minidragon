@@ -4,7 +4,7 @@ import textwrap
 import unittest
 from typing import Any
 
-from .core import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, VoidType, get_type, parse_forward_refs, parse_and_compile_module
+from .compiler import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, VoidType, get_type, parse_forward_refs, parse_and_compile_module
 
 
 class TestCompiler(unittest.TestCase):

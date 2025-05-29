@@ -3,7 +3,7 @@ import os
 import sys
 from typing import List, Union
 
-from compiler.core import CompilerError, FunctionPrototype, GlobalVariable, builtin_forward_refs, parse_forward_refs, compile_module
+from core import CompilerError, FunctionPrototype, GlobalVariable, builtin_forward_refs, parse_forward_refs, compile_module
 
 
 if __name__ == "__main__":
@@ -28,7 +28,6 @@ if __name__ == "__main__":
 
     try:
         refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
-        compiled: List[str] = []
         for fname in args.file:
             with open(fname, "r") as fp:
                 refs += parse_forward_refs(fname, fp.read())

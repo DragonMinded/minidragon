@@ -5,6 +5,8 @@ import libcst.metadata as meta
 
 from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Set, Union, overload
 
+from .assembler import assemble
+
 
 def comment_source(extra: Optional[str] = None) -> str:
     if os.environ.get("SUPPRESS_CALLER_COMMENTS"):
@@ -323,6 +325,23 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
 
         else:
             return None
+
+
+def get_assembled_length(compiled: List[str]) -> int:
+    compiled = [c.split(";", 1)[0].strip() for c in compiled]
+    memory = assemble(compiled)
+    if not memory:
+        return 0
+
+    minval = memory[0][0]
+    maxval = minval
+    for loc, _ in memory:
+        if loc < minval:
+            minval = loc
+        if loc > maxval:
+            maxval = loc
+
+    return (maxval - minval) + 1
 
 
 class UnvalidatedName(cst.Name):
@@ -1724,7 +1743,6 @@ def generate_binary_expr(
             compiled.append("  LOAD A")
 
         else:
-            # TODO: Support other operators such as multiply/divide/modulo.
             raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
 
         # This call puts the result in a, so check if that's what we want.
@@ -1907,8 +1925,123 @@ def generate_binary_expr(
                 stack.free(lhs_dest)
 
         else:
-            # TODO: Support other operators such as multiply/divide/modulo.
             raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+
+    return compiled
+
+
+def generate_boolean_expression(
+    expression: cst.BooleanOperation,
+    destination: str,
+    types: Dict[cst.CSTNode, CoreType],
+    stack: Stack,
+    clobbers: Set[str],
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> List[str]:
+    compiled: List[str] = []
+
+    destination_size = stack.sizeof(destination)
+    if destination_size is None:
+        raise Exception("Logic error, could not calculate size of destination!")
+    destination_type = stack.typeof(destination)
+    if destination_type is None:
+        raise Exception("Logic error, could not calculate type of destination!")
+
+    if destination_size != 1 or not destination_type.is_bool:
+        raise CompilerError("Cannot assign comparison operator to non-bool", context)
+
+    if isinstance(expression.operator, cst.And):
+        # Perform short-circuiting AND, first by handling the left hand side, and if it
+        # is False immediately skipping the second half.
+        clobbers.add("A")
+
+        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+
+        cloned_stack = stack.clone()
+        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context)
+
+        if stack.size != cloned_stack.size:
+            raise Exception("Logic error, stacks on both expression not equal in size!")
+        if stack.location != cloned_stack.location:
+            # Need to make the right hand side move back to where it was before it started.
+            move_amount = stack.location - cloned_stack.location
+            right_compiled += generate_move_by("restore stack to start of expression", move_amount, cloned_stack, clobbers, context)
+
+        # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
+        right_length = get_assembled_length(right_compiled)
+        short_circuit = local_label_name("short_circuit")
+        if right_length > 32:
+            insn = "LNGJUMPZ"
+        else:
+            insn = "JRIZ"
+
+        # Now, perform the first boolean evaluation.
+        compiled += left_compiled
+
+        # Now, check it against False, to short circuit.
+        compiled += [
+            "  ADDI 0",
+            f"  {insn} {short_circuit}",
+        ]
+
+        # Now, perform the second boolean evaluation.
+        compiled += right_compiled
+
+        # Now, provide a place to jump to.
+        compiled.append(f"{short_circuit}:")
+
+        if not is_register_destination(destination):
+            compiled += generate_move_to(destination, stack, clobbers, context)
+            compiled.append("  STORE A")
+
+    elif isinstance(expression.operator, cst.Or):
+        # Perform short-circuiting OR, first by handling the left hand side, and if it
+        # is True immediately skipping the second half.
+        clobbers.add("A")
+
+        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+
+        cloned_stack = stack.clone()
+        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context)
+
+        if stack.size != cloned_stack.size:
+            raise Exception("Logic error, stacks on both expression not equal in size!")
+        if stack.location != cloned_stack.location:
+            # Need to make the right hand side move back to where it was before it started.
+            move_amount = stack.location - cloned_stack.location
+            right_compiled += generate_move_by("restore stack to start of expression", move_amount, cloned_stack, clobbers, context)
+
+        # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
+        right_length = get_assembled_length(right_compiled)
+        short_circuit = local_label_name("short_circuit")
+        if right_length > 32:
+            insn = "LNGJUMPNZ"
+        else:
+            insn = "JRINZ"
+
+        # Now, perform the first boolean evaluation.
+        compiled += left_compiled
+
+        # Now, check it against False, to short circuit.
+        compiled += [
+            "  ADDI 0",
+            f"  {insn} {short_circuit}",
+        ]
+
+        # Now, perform the second boolean evaluation.
+        compiled += right_compiled
+
+        # Now, provide a place to jump to.
+        compiled.append(f"{short_circuit}:")
+
+        if not is_register_destination(destination):
+            compiled += generate_move_to(destination, stack, clobbers, context)
+            compiled.append("  STORE A")
+
+    else:
+        raise CompilerError(f"Unsupported boolean operation {expression}!", context)
 
     return compiled
 
@@ -2022,6 +2155,9 @@ def generate_expr_internal(
     elif isinstance(expression, cst.Comparison):
         compiled += generate_comparison_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
+    elif isinstance(expression, cst.BooleanOperation):
+        compiled += generate_boolean_expression(expression, destination, types, stack, clobbers, refs, local_consts, context)
+
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
         # TODO: Looks like also string/character assignments and such, and everything with string manipulation.
@@ -2101,6 +2237,20 @@ def infer_expr_types(
             # Verify that we're comparing two equivalent types.
             if not type_comparison_compatible(inferred[expression.left], inferred[comparison.comparator]):
                 raise CompilerError(f"Unsupported comparison of types {inferred[expression.left].type} and {inferred[comparison.comparator].type}", context)
+
+        inferred[expression] = CoreType("bool")
+        return inferred
+
+    elif isinstance(expression, cst.BooleanOperation):
+        inferred.update(infer_expr_types(expression.left, stack, refs, local_consts, context.wrap(expression.left)))
+        inferred.update(infer_expr_types(expression.right, stack, refs, local_consts, context.wrap(expression.right)))
+
+        left_inferred = inferred[expression.left]
+        right_inferred = inferred[expression.right]
+        if not left_inferred.is_bool:
+            raise CompilerError(f"Unsupported non-boolean type {left_inferred.type} in boolean expression", context)
+        if not right_inferred.is_bool:
+            raise CompilerError(f"Unsupported non-boolean type {right_inferred.type} in boolean expression", context)
 
         inferred[expression] = CoreType("bool")
         return inferred

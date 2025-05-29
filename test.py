@@ -13,8 +13,8 @@ from core import (
     assemble,
     disassemble,
     bintoint,
+    parse_and_compile_module,
 )
-from compiler.core import parse_and_compile_module
 
 
 CLEAR_LINE = "\033[F\033[K"
@@ -5980,6 +5980,72 @@ def verifybooleanischeck(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for booleanischeck: {int(instructions/count)}")
 
 
+def verifybooleanexpressions(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "booleanexpressions" not in only and "compiler" not in only:
+        return
+
+    print("Verifying booleanexpressions...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for op in ["and", "or"]:
+        for a, b in [(False, False), (False, True), (True, False), (True, True)]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("booleanexpressions", textwrap.dedent(f"""
+                    def func(op1: bool, op2: bool) -> bool:
+                        return op1 {op} op2
+                """)),
+                "code:",
+                f"PUSHI {'0xFF' if a else '0x00'}",
+                f"PUSHI {'0xFF' if b else '0x00'}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"booleanexpressions changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"booleanexpressions changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"booleanexpressions changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = eval(f"{a} {op} {b}")
+            _assert(
+                result == expected,
+                "Failed to booleanexpressions, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for booleanexpressions: {int(cycles/count)}")
+    print(f"Average instructions for booleanexpressions: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -6085,3 +6151,4 @@ if __name__ == "__main__":
     verifycomplexfunctioncall(only, args.full)
     verifysimplebooleans(only, args.full)
     verifybooleanischeck(only, args.full)
+    verifybooleanexpressions(only, args.full)
