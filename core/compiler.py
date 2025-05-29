@@ -9,7 +9,7 @@ from .assembler import assemble
 
 
 def comment_source(extra: Optional[str] = None) -> str:
-    if os.environ.get("SUPPRESS_CALLER_COMMENTS"):
+    if not os.environ.get("INSERT_CALLER_COMMENTS"):
         return ""
 
     lines = [line for line in traceback.format_stack() if line.strip().startswith("File")]
