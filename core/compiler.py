@@ -3,7 +3,7 @@ import traceback
 import libcst as cst
 import libcst.metadata as meta
 
-from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Set, Union, overload
+from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, Union, overload
 
 from .assembler import assemble
 
@@ -798,7 +798,8 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
         retptr_locs = {retptr_abs + i for i in range(retptr_size)}
         overlap = retval_locs.intersection(retptr_locs)
         if overlap:
-            compiled.append("  ; Saving return pointer to U/V so it isn't overridden by return shuffle.")
+            cref = comment_ref()
+            compiled.append(f"  ; Saving return pointer to U/V so it isn't overridden by return shuffle. {cref}")
 
             # We need to actually save the retptr to U/V.
             clobbers.add("U")
@@ -818,11 +819,13 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             compiled += comment_stack(stack)
 
             compiled.append("  LOAD V")
+            compiled.append(f"  ; {cref}")
 
         # Second, make sure the top of the stack is our return.
         top_spot = stack.at(0)
         if top_spot is not None and top_spot.name != "builtin(retval)":
-            compiled.append("  ; Moving return value to correct location in stack.")
+            cref = comment_ref()
+            compiled.append(f"  ; Moving return value to correct location in stack. {cref}")
 
             # We need to use the A register to move the value, so it's clobbered now.
             clobbers.add("A")
@@ -837,10 +840,12 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             # Generate code to move from our position to the first byte of the retptr.
             retptr_final_loc = number_of_moves
             compiled += generate_memcpy_unrolled(src_loc, 0, number_of_moves, stack, clobbers, context)
+            compiled.append(f"  ; {cref}")
 
     # Now, move the return pointer if needed.
     if retptr_in_uv:
-        compiled.append("  ; Restoring the return pointer from U/V to the correct location.")
+        cref = comment_ref()
+        compiled.append(f"  ; Restoring the return pointer from U/V to the correct location. {cref}")
 
         # Gotta grab it out of the saved U/V registers.
         restore_move_amt = retptr_final_loc - stack.location
@@ -852,13 +857,15 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
         compiled += comment_stack(stack)
 
         compiled.append("  STORE V")
+        compiled.append(f"  ; {cref}")
     else:
         retptr_abs = stack.absfind("builtin(retptr)")
         if retptr_abs is None:
             raise Exception("Logic error, failed to calculate the source location of builtin(retptr)!")
 
         if retptr_abs != retptr_final_loc:
-            compiled.append("  ; Moving return pointer to correct location in stack.")
+            cref = comment_ref()
+            compiled.append(f"  ; Moving return pointer to correct location in stack. {cref}")
 
             # We need to use the A register to move the value, so it's clobbered now.
             clobbers.add("A")
@@ -872,10 +879,13 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
             # Generate code to move from our position to the first byte of the retptr.
             compiled += generate_memcpy_unrolled(src_loc, retptr_final_loc, number_of_moves, stack, clobbers, context)
+            compiled.append(f"  ; {cref}")
 
     # Now, pop all of our saved registers, and then return.
+    tlcref: Optional[str] = None
     if clobbers:
-        compiled.append("  ; Restoring all clobbered registers.")
+        tlcref = comment_ref()
+        compiled.append(f"  ; Restoring all clobbered registers. {tlcref}")
     while stack.size > 0:
         name = stack[-1].name
         if name[:13] == "builtin(saved":
@@ -901,6 +911,9 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
                 raise Exception(f"Logic error, unexpected saved type {name}!")
 
         stack.free(name)
+
+    if tlcref:
+        compiled.append(f"  ; {tlcref}")
 
     # Now, if we need to, move past any temporary values we didn't pop but don't care about.
     final_move_to_ret = stack.diff(retptr_final_loc + 1)
@@ -1389,6 +1402,15 @@ def generate_function_call(
     return compiled
 
 
+__comment_ref_count: int = 0
+
+
+def comment_ref() -> str:
+    global __comment_ref_count
+    __comment_ref_count += 1
+    return f"##comment_ref_{__comment_ref_count}##"
+
+
 __expr_global_count: int = 0
 
 
@@ -1411,6 +1433,24 @@ def local_label_name(label: str = "") -> str:
         label = "_"
 
     return f"local{label}{__local_label_count}"
+
+
+__saved_counts: List[Tuple[int, int]] = []
+
+
+def push_names() -> None:
+    __saved_counts.append((__expr_global_count, __local_label_count))
+
+
+def pop_names() -> None:
+    if not __saved_counts:
+        raise Exception("Logic error, popping saved counts without a push!")
+
+    global __expr_global_count
+    global __local_label_count
+    __expr_global_count = __saved_counts[-1][0]
+    __local_label_count = __saved_counts[-1][1]
+    __saved_counts.pop()
 
 
 def expr_integer_type(size: int) -> CoreType:
@@ -2685,9 +2725,12 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
         temp_size = stack.alloc(StackVar("builtin(retval)", function_type))
         stack.move(temp_size)
 
-    # First pass to figure out clobbers
+    # First pass to figure out clobbers, but don't use up any variable names or label names.
     clobbers: Set[str] = set()
+
+    push_names()
     compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, builtin_consts(), [], context)
+    pop_names()
 
     # Unwind our temporary return value location.
     if temp_size > 0:
@@ -2712,8 +2755,10 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
         compiled += comment_stack(stack)
 
     # Now, let's save all of our clobbered values.
+    cref = None
     if clobbers:
-        compiled.append("  ; Save clobbered registers")
+        cref = comment_ref()
+        compiled.append(f"  ; Save clobbered registers {cref}")
     for clobber in sorted(clobbers):
         if clobber == "A":
             stack.alloc(StackVar("builtin(saved_a)", CoreType("uint8")))
@@ -2738,6 +2783,9 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
         else:
             raise Exception(f"Logic error, unexpected clobber {clobber}!")
 
+    if cref:
+        compiled.append(f"  ; {cref}")
+
     # Make sure that we have room on the stack for the return value. Don't move at this point
     # because we might not want to generate instructions to move.
     if function_type is not VoidType:
@@ -2748,12 +2796,85 @@ def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVa
 
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
 
-    return [
+    # Finally, find any comments that comment on empty blocks after optimization, and remove them.
+    compiled = remove_empty_comments(compiled)
+
+    return remove_empty_lines([
         *local_data,
         f"{function_name}:",
         *preamble,
         *compiled,
-    ]
+    ])
+
+
+def remove_empty_comments(compiled: List[str]) -> List[str]:
+    # Clone this so we aren't mutating the input because that's bad form.
+    compiled = compiled[:]
+
+    pos = 0
+    length = len(compiled)
+    while pos < length:
+        line = compiled[pos]
+
+        if "##comment_ref_" in line:
+            # Grab the ref itself.
+            _, ref = line.split("##comment_ref_", 1)
+            ref = (f"##comment_ref_{ref}").strip()
+
+            # Find the closing ref.
+            for end in range(pos + 1, length):
+                if ref in compiled[end]:
+                    break
+            else:
+                raise Exception(f"Logic error, could not find end ref for {ref}!")
+
+            # Now, if the only thing between these two ref markers is comments, nuke all of it.
+            should_nuke = True
+            for check in range(pos, end):
+                checkline = compiled[check]
+                if not checkline.strip():
+                    # Empty line, this counts as a comment.
+                    continue
+
+                if ";" not in checkline:
+                    should_nuke = False
+                    break
+
+                meat, _ = checkline.split(";", 1)
+                if meat.strip():
+                    # There's an instruction here.
+                    should_nuke = False
+                    break
+
+            if should_nuke:
+                # Delete all of the lines including the start and end comment.
+                for _ in range((end - pos) + 1):
+                    compiled.pop(pos)
+            else:
+                # Just delete the end marker, and change the current line to not have the marker.
+                compiled.pop(end)
+                compiled[pos] = compiled[pos].replace(ref, "").rstrip()
+                pos += 1
+
+        else:
+            pos += 1
+
+        length = len(compiled)
+
+    return compiled
+
+
+def remove_empty_lines(compiled: List[str]) -> List[str]:
+    # Clone this so we aren't mutating the input because that's bad form.
+    compiled = compiled[:]
+
+    while compiled and (not compiled[0].strip()):
+        compiled.pop(0)
+
+    while compiled and (not compiled[-1].strip()):
+        compiled.pop(-1)
+
+    return compiled
 
 
 def is_type_definition(assign: cst.Assign) -> bool:
@@ -2815,10 +2936,7 @@ def compile_module(module: str, code: str, refs: List[Union[FunctionPrototype, G
 
         compiled.append("")
 
-    while compiled and compiled[-1] == "":
-        compiled = compiled[:-1]
-
-    return compiled
+    return remove_empty_lines(compiled)
 
 
 def parse_forward_refs(module: str, code: str) -> List[Union[FunctionPrototype, GlobalVariable]]:
