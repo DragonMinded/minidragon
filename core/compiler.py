@@ -1944,7 +1944,7 @@ def generate_binary_expr(
     return compiled
 
 
-def generate_boolean_expression(
+def generate_boolean_expr(
     expression: cst.BooleanOperation,
     destination: str,
     types: Dict[cst.CSTNode, CoreType],
@@ -1971,13 +1971,13 @@ def generate_boolean_expression(
         # is False immediately skipping the second half.
         clobbers.add("A")
 
-        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
 
         cloned_stack = stack.clone()
-        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context)
+        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context.wrap(expression.right))
 
         if stack.size != cloned_stack.size:
-            raise Exception("Logic error, stacks on both expression not equal in size!")
+            raise Exception("Logic error, stacks on both expressions not equal in size!")
         if stack.location != cloned_stack.location:
             # Need to make the right hand side move back to where it was before it started.
             move_amount = stack.location - cloned_stack.location
@@ -2015,10 +2015,10 @@ def generate_boolean_expression(
         # is True immediately skipping the second half.
         clobbers.add("A")
 
-        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
 
         cloned_stack = stack.clone()
-        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context)
+        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context.wrap(expression.right))
 
         if stack.size != cloned_stack.size:
             raise Exception("Logic error, stacks on both expression not equal in size!")
@@ -2116,6 +2116,90 @@ def generate_comparison_expr(
     return compiled
 
 
+def generate_ternary_expr(
+    expression: cst.IfExp,
+    destination: str,
+    types: Dict[cst.CSTNode, CoreType],
+    stack: Stack,
+    clobbers: Set[str],
+    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> List[str]:
+    compiled: List[str] = []
+
+    destination_size = stack.sizeof(destination)
+    if destination_size is None:
+        raise Exception("Logic error, could not calculate size of destination!")
+    destination_type = stack.typeof(destination)
+    if destination_type is None:
+        raise Exception("Logic error, could not calculate type of destination!")
+
+    # We clobber A by doing the boolean test.
+    clobbers.add("A")
+
+    # First, compile the boolean expression, putting the result in A, so we know which
+    # of the two expressions to evaluate.
+    compiled += generate_expr_internal(expression.test, "register(A, bool)", types, stack, clobbers, refs, local_consts, context.wrap(expression.test))
+
+    # Now, we need a place to jump to if the expression above is false, as well as a
+    # place to jump to at the end of the true expression.
+    false_expr = local_label_name("false_expr")
+    expr_end = local_label_name("expr_end")
+
+    # Now, compile the two expressions themselves, so that we can calculate whether
+    # we can JRI or LNGJUMP to the various locations.
+    left_stack = stack.clone()
+    left_compiled = generate_expr_internal(expression.body, destination, types, left_stack, clobbers, refs, local_consts, context.wrap(expression.body))
+
+    right_stack = stack.clone()
+    right_compiled = generate_expr_internal(expression.orelse, destination, types, right_stack, clobbers, refs, local_consts, context.wrap(expression.orelse))
+
+    # We could add this manually at the end of this function, but then we wouldn't be able
+    # to compile the left hand side to determine length since it would have an undefined
+    # jump location.
+    right_compiled.append(f"{expr_end}:")
+
+    if left_stack.size != right_stack.size:
+        raise Exception("Logic error, stacks on both expressions not equal in size!")
+    if left_stack.location != right_stack.location:
+        # Arbitrarily choose the left side expression to fix up to the right.
+        move_amount = right_stack.location - left_stack.location
+        left_compiled += generate_move_by("move stack to same spot as else expression", move_amount, left_stack, clobbers, context)
+
+    # Now, figure out the else size so we can jump past it in the body.
+    right_length = get_assembled_length(right_compiled)
+    if right_length > 32:
+        left_compiled.append(f"  LNGJUMP {expr_end}")
+    else:
+        left_compiled.append(f"  JRI {expr_end}")
+
+    # Now, figure out the body size. We can't just compile it because it
+    # would fail to find the jump at the end, which can be differently
+    # sized depending on if its a JRI or a LNGJUMP. So, compiled the left
+    # and right, and subtract the right length since we know it already.
+    left_length = get_assembled_length([*left_compiled, *right_compiled]) - right_length
+
+    # Now, generate the code to figure out if the expression is true/false and
+    # then jump to it.
+    compiled.append("  INV")
+    if left_length > 32:
+        compiled.append(f"  LNGJUMPNZ {false_expr}")
+    else:
+        compiled.append(f"  JRINZ {false_expr}")
+    compiled += left_compiled
+    compiled.append(f"{false_expr}:")
+    compiled += right_compiled
+
+    # Now, set the stack location for our current stack to the location that both
+    # expressions leave it at.
+    if left_stack.location != right_stack.location:
+        raise Exception("Logic error, stacks should have been the same location at this point!")
+    stack.location = left_stack.location
+
+    return compiled
+
+
 def generate_expr_internal(
     expression: cst.BaseExpression,
     destination: str,
@@ -2170,7 +2254,10 @@ def generate_expr_internal(
         compiled += generate_comparison_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.BooleanOperation):
-        compiled += generate_boolean_expression(expression, destination, types, stack, clobbers, refs, local_consts, context)
+        compiled += generate_boolean_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+
+    elif isinstance(expression, cst.IfExp):
+        compiled += generate_ternary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
@@ -2267,6 +2354,27 @@ def infer_expr_types(
             raise CompilerError(f"Unsupported non-boolean type {right_inferred.type} in boolean expression", context)
 
         inferred[expression] = CoreType("bool")
+        return inferred
+
+    elif isinstance(expression, cst.IfExp):
+        inferred.update(infer_expr_types(expression.body, stack, refs, local_consts, context.wrap(expression.body)))
+        inferred.update(infer_expr_types(expression.orelse, stack, refs, local_consts, context.wrap(expression.orelse)))
+        inferred.update(infer_expr_types(expression.test, stack, refs, local_consts, context.wrap(expression.test)))
+
+        test_inferred = inferred[expression.test]
+        if not test_inferred.is_bool:
+            raise CompilerError(f"Unsupported non-boolean type {test_inferred.type} in boolean expression", context)
+
+        body_inferred = inferred[expression.body]
+        orelse_inferred = inferred[expression.orelse]
+        if not type_comparison_compatible(body_inferred, orelse_inferred):
+            raise CompilerError(f"Unsupported mixed types {body_inferred.type} and {orelse_inferred.type} in if expression", context)
+
+        if body_inferred.size > orelse_inferred.size:
+            picked = body_inferred
+        else:
+            picked = orelse_inferred
+        inferred[expression] = CoreType(picked.type, picked.pointed_type, picked.const, picked.return_padding)
         return inferred
 
     else:

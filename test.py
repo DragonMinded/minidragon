@@ -6094,6 +6094,70 @@ def verifybooleanexpressions(only: Optional[Container[str]], full: bool) -> None
     print(f"Average instructions for booleanexpressions: {int(instructions/count)}")
 
 
+def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "ternaryexpressions" not in only and "compiler" not in only:
+        return
+
+    print("Verifying ternaryexpressions...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in [-5, 0, 5]:
+        for b in [-7, 0, 7]:
+            for val in [False, True]:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    "LNGJUMP code",
+                    *parse_and_compile_module("ternaryexpressions", textwrap.dedent("""
+                        def func(a: int8, b: int8, op: bool) -> int8:
+                            return (a + 5) if op else (b - 7)
+                    """)),
+                    "code:",
+                    f"PUSHI {a}",
+                    f"PUSHI {b}",
+                    f"PUSHI {'0xFF' if val else '0x00'}",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL func",
+                    "HALT",
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"ternaryexpressions changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"ternaryexpressions changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"ternaryexpressions changed V value from {222} to {cpu.v}!",
+                )
+                result = bintoint(cpu.ram[cpu.pc + 0])
+                expected = (a + 5) if val else (b - 7)
+                _assert(
+                    result == expected,
+                    "Failed to ternaryexpressions, "
+                    + f"got {result} instead of {expected}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+    print(f"Average cycles for ternaryexpressions: {int(cycles/count)}")
+    print(f"Average instructions for ternaryexpressions: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -6200,3 +6264,4 @@ if __name__ == "__main__":
     verifysimplebooleans(only, args.full)
     verifybooleanischeck(only, args.full)
     verifybooleanexpressions(only, args.full)
+    verifyternaryexpressions(only, args.full)
