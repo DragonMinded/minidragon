@@ -6042,6 +6042,54 @@ def verifybooleanexpressions(only: Optional[Container[str]], full: bool) -> None
             instructions += cpu.ticks
             count += 1
 
+    for val in [False, True]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("booleanexpressions", textwrap.dedent("""
+                def func(op: bool) -> bool:
+                    return not op
+            """)),
+            "code:",
+            f"PUSHI {'0xFF' if val else '0x00'}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"booleanexpressions changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"booleanexpressions changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"booleanexpressions changed V value from {222} to {cpu.v}!",
+        )
+        _assert(
+            cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+            f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = not val
+        _assert(
+            result == expected,
+            "Failed to booleanexpressions, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     print(f"Average cycles for booleanexpressions: {int(cycles/count)}")
     print(f"Average instructions for booleanexpressions: {int(instructions/count)}")
 

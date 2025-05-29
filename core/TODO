@@ -1,5 +1,7 @@
 Things that I think I am going to need if I want to use this compiler:
- - boolean support, including and/or/not and coercing from a string/character/integer.
+ - equality/inequality comparison support.
+ - greater than/greater than or equals/less than/less than or equals support.
+ - coercing a boolean from a string/character/integer.
  - global variable allocation and read/write support, including global keyword.
  - function call without being in an assignment expression support.
  - support for an end of global variables pointer, so a future memory allocator can be written.

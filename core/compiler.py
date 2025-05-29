@@ -1608,6 +1608,20 @@ def generate_unary_expr(
             # We don't support negation of this type.
             raise CompilerError("Cannot negate expression with destination size {destination_size}", context)
 
+    elif isinstance(expression.operator, cst.Not):
+        if destination_size != 1 or not destination_type.is_bool:
+            raise CompilerError("Cannot assign boolean expression result to non-bool", context)
+
+        # This one is simple, evaluate the operation and then invert it.
+        clobbers.add("A")
+
+        compiled += generate_expr_internal(expression.expression, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+        compiled.append("  INV")
+
+        if not is_register_destination(destination):
+            compiled += generate_move_to(destination, stack, clobbers, context)
+            compiled.append("  STORE A")
+
     else:
         # TODO: Handle Plus (no-op, just call with the expression value), and Not, for booleans.
         raise CompilerError(f"Unsupported unary operation {expression}", context)
@@ -1950,7 +1964,7 @@ def generate_boolean_expression(
         raise Exception("Logic error, could not calculate type of destination!")
 
     if destination_size != 1 or not destination_type.is_bool:
-        raise CompilerError("Cannot assign comparison operator to non-bool", context)
+        raise CompilerError("Cannot assign boolean expression result to non-bool", context)
 
     if isinstance(expression.operator, cst.And):
         # Perform short-circuiting AND, first by handling the left hand side, and if it
@@ -2066,7 +2080,7 @@ def generate_comparison_expr(
         raise Exception("Logic error, could not calculate type of destination!")
 
     if destination_size != 1 or not destination_type.is_bool:
-        raise CompilerError("Cannot assign comparison operator to non-bool", context)
+        raise CompilerError("Cannot assign comparison expression to non-bool", context)
 
     # Special case for is checks.
     if isinstance(expression.comparisons[0].operator, cst.Is):
