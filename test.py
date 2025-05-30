@@ -6158,6 +6158,354 @@ def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None
     print(f"Average instructions for ternaryexpressions: {int(instructions/count)}")
 
 
+def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "equalityexpression" not in only and "compiler" not in only:
+        return
+
+    print("Verifying equalityexpression...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for val1 in [-10, 0, 10, 57, -57, 123]:
+        for val2 in [-10, 0, 10, 57, -57, 123]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("equalityexpression", textwrap.dedent("""
+                    def func(val1: int8, val2: int8) -> bool:
+                        return val1 == val2
+                """)),
+                "code:",
+                f"PUSHI {val1}",
+                f"PUSHI {val2}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"equalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"equalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"equalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = val1 == val2
+            _assert(
+                result == expected,
+                "Failed to equalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    for val1 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
+        for val2 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("equalityexpression", textwrap.dedent("""
+                    def func(val1: int16, val2: int16) -> bool:
+                        return val1 == val2
+                """)),
+                "code:",
+                f"PUSHI {val1 & 0xFF}",
+                f"PUSHI {(val1 >> 8) & 0xFF}",
+                f"PUSHI {val2 & 0xFF}",
+                f"PUSHI {(val2 >> 8) & 0xFF}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"equalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"equalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"equalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = val1 == val2
+            _assert(
+                result == expected,
+                "Failed to equalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    for val1 in [0x0000, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xFF00FF00, 0x00FF00FF, 1234567890]:
+        for val2 in [0x0000, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xFF00FF00, 0x00FF00FF, 1234567890]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("equalityexpression", textwrap.dedent("""
+                    def func(val1: int32, val2: int32) -> bool:
+                        return val1 == val2
+                """)),
+                "code:",
+                f"PUSHI {val1 & 0xFF}",
+                f"PUSHI {(val1 >> 8) & 0xFF}",
+                f"PUSHI {(val1 >> 16) & 0xFF}",
+                f"PUSHI {(val1 >> 24) & 0xFF}",
+                f"PUSHI {val2 & 0xFF}",
+                f"PUSHI {(val2 >> 8) & 0xFF}",
+                f"PUSHI {(val2 >> 16) & 0xFF}",
+                f"PUSHI {(val2 >> 24) & 0xFF}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"equalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"equalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"equalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = val1 == val2
+            _assert(
+                result == expected,
+                "Failed to equalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for equalityexpression: {int(cycles/count)}")
+    print(f"Average instructions for equalityexpression: {int(instructions/count)}")
+
+
+def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "inequalityexpression" not in only and "compiler" not in only:
+        return
+
+    print("Verifying inequalityexpression...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for val1 in [-10, 0, 10, 57, -57, 123]:
+        for val2 in [-10, 0, 10, 57, -57, 123]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("inequalityexpression", textwrap.dedent("""
+                    def func(val1: int8, val2: int8) -> bool:
+                        return val1 != val2
+                """)),
+                "code:",
+                f"PUSHI {val1}",
+                f"PUSHI {val2}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"inequalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"inequalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"inequalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = val1 != val2
+            _assert(
+                result == expected,
+                "Failed to inequalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    for val1 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
+        for val2 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("inequalityexpression", textwrap.dedent("""
+                    def func(val1: int16, val2: int16) -> bool:
+                        return val1 != val2
+                """)),
+                "code:",
+                f"PUSHI {val1 & 0xFF}",
+                f"PUSHI {(val1 >> 8) & 0xFF}",
+                f"PUSHI {val2 & 0xFF}",
+                f"PUSHI {(val2 >> 8) & 0xFF}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"inequalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"inequalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"inequalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = val1 != val2
+            _assert(
+                result == expected,
+                "Failed to inequalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    for val1 in [0x0000, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xFF00FF00, 0x00FF00FF, 1234567890]:
+        for val2 in [0x0000, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xFF00FF00, 0x00FF00FF, 1234567890]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "LNGJUMP code",
+                *parse_and_compile_module("inequalityexpression", textwrap.dedent("""
+                    def func(val1: int32, val2: int32) -> bool:
+                        return val1 != val2
+                """)),
+                "code:",
+                f"PUSHI {val1 & 0xFF}",
+                f"PUSHI {(val1 >> 8) & 0xFF}",
+                f"PUSHI {(val1 >> 16) & 0xFF}",
+                f"PUSHI {(val1 >> 24) & 0xFF}",
+                f"PUSHI {val2 & 0xFF}",
+                f"PUSHI {(val2 >> 8) & 0xFF}",
+                f"PUSHI {(val2 >> 16) & 0xFF}",
+                f"PUSHI {(val2 >> 24) & 0xFF}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"inequalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"inequalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"inequalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = val1 != val2
+            _assert(
+                result == expected,
+                "Failed to inequalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for inequalityexpression: {int(cycles/count)}")
+    print(f"Average instructions for inequalityexpression: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -6265,3 +6613,5 @@ if __name__ == "__main__":
     verifybooleanischeck(only, args.full)
     verifybooleanexpressions(only, args.full)
     verifyternaryexpressions(only, args.full)
+    verifyequalityexpression(only, args.full)
+    verifyinequalityexpression(only, args.full)

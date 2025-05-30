@@ -20,6 +20,7 @@ Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
  - optimization passes for unnecessary store/load and side-by-side addpci/subpci calls (many such cases).
  - optimization passes for memcpy_unrolled for direction of copy in case we're already sitting on a value (add16 test case).
+ - duplicate instruction chain finder, replace with LNGJUMP to save on space.
 
 Things that would be good for a complete compiler that I probably will not need:
  - 8/16/32 bit signed division.
