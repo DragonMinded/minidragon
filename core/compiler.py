@@ -483,6 +483,16 @@ class Stack:
         self.size -= self.stack[-1].size
         self.stack = self.stack[:-1]
 
+    def relocate(self, name: str, location: int) -> None:
+        for entry in self.stack:
+            if entry.name == name:
+                entry.location = location
+                break
+        else:
+            raise Exception(f"Logic error, tried relocating stack entry {name!r} that doesn't exist!")
+
+        self.stack.sort(key=lambda s: s.location or 0)
+
     def find(self, name: str) -> Optional[int]:
         loc = self.absfind(name)
         if loc is None:
@@ -772,6 +782,25 @@ def generate_memcpy_unrolled(
     return compiled
 
 
+def can_relocate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], context: Context) -> bool:
+    if function_type is VoidType:
+        raise Exception("Logic error, cannot calculate overlap with void function!")
+
+    # Figure out if we need to move the retptr to make room for our final value on the stack.
+    retval_abs = 0
+    retval_size = stack.sizeof("builtin(retval)")
+    retptr_abs = stack.absfind("builtin(retptr)")
+    retptr_size = stack.sizeof("builtin(retptr)")
+
+    if retval_abs is None or retval_size is None or retptr_abs is None or retptr_size is None:
+        raise Exception("Logic error, failed to calculate return value and pointer overlap!")
+
+    retval_locs = {retval_abs + i for i in range(retval_size)}
+    retptr_locs = {retptr_abs + i for i in range(retptr_size)}
+    overlap = retval_locs.intersection(retptr_locs)
+    return not overlap
+
+
 def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
     compiled: List[str] = [context.comment()]
 
@@ -786,18 +815,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
         # First, we need to figure out if where we're copying the return value will clobber the return pointer.
         # If so, we need to store that in the U/V registers. We could put it on the stack but that's way more
         # shuffling so much slower. Much better to just mark U/V as clobbered and use them.
-        retval_abs = 0
-        retval_size = stack.sizeof("builtin(retval)")
-        retptr_abs = stack.absfind("builtin(retptr)")
-        retptr_size = stack.sizeof("builtin(retptr)")
-
-        if retval_abs is None or retval_size is None or retptr_abs is None or retptr_size is None:
-            raise Exception("Logic error, failed to calculate return value and pointer overlap!")
-
-        retval_locs = {retval_abs + i for i in range(retval_size)}
-        retptr_locs = {retptr_abs + i for i in range(retptr_size)}
-        overlap = retval_locs.intersection(retptr_locs)
-        if overlap:
+        if not can_relocate_return(function_type, stack, clobbers, context):
             cref = comment_ref()
             compiled.append(f"  ; Saving return pointer to U/V so it isn't overridden by return shuffle. {cref}")
 
@@ -2580,7 +2598,21 @@ def compile_chunk(
                         if function_type is VoidType:
                             raise CompilerError("Returning something from a function marked with no return value", context)
 
-                        compiled += generate_expr(simple_statement.value, "builtin(retval)", stack, clobbers, refs, local_consts, context.wrap(simple_statement.value))
+                        # Since we're performing one last expression before returning, we know that any
+                        # parameters we'd be overwriting can be overwritten safely. So, figure out if
+                        # we can relocate the retval.
+                        if can_relocate_return(function_type, stack, clobbers, context):
+                            stack.relocate("builtin(retval)", 0)
+
+                        compiled += generate_expr(
+                            simple_statement.value,
+                            "builtin(retval)",
+                            stack,
+                            clobbers,
+                            refs,
+                            local_consts,
+                            context.wrap(simple_statement.value),
+                        )
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
                 elif isinstance(simple_statement, cst.AnnAssign):
                     compiled += local_variable(
