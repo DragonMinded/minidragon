@@ -1,9 +1,22 @@
 import libcst as cst
 import textwrap
 import unittest
-from typing import Any
+from typing import Any, Dict
 
-from .compiler import CompilerError, FunctionPrototype, CoreType, PaddingCoreType, VoidType, get_type, parse_forward_refs, parse_and_compile_module
+from .compiler import (
+    CompilerError,
+    FunctionPrototype,
+    CoreType,
+    PaddingCoreType,
+    Stack,
+    StackVar,
+    Context,
+    VoidType,
+    get_type,
+    infer_expr_types,
+    parse_forward_refs,
+    parse_and_compile_module,
+)
 
 
 class TestCompiler(unittest.TestCase):
@@ -66,6 +79,108 @@ class TestCompiler(unittest.TestCase):
 
         # Now, make sure pointers of pointers work. Hopefully I don't need these but it should be possible to use them.
         self.assertEqual(CoreType("pointer", CoreType("pointer", CoreType("int8"))), get_type(self.__get_expr("pointer[pointer[int8]]")))
+
+    def assertTypesValid(self, types: Dict[cst.CSTNode, CoreType]) -> None:
+        for node, ctype in types.items():
+            if ctype.type not in {"void", "int8", "uint8", "int16", "uint16", "int32", "uint32", "char", "bool", "string", "pointer"}:
+                self.fail(f"Unexpected type {ctype.type} for node {node}")
+
+    def test_infer_types_const(self) -> None:
+        # Verify that we can infer a normal expression with just two variables.
+        expr = self.__get_expr("15")
+        stack = Stack()
+        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("int8"), types[expr])
+        self.assertTypesValid(types)
+
+    def test_infer_types_simple(self) -> None:
+        # Verify that we can infer a normal expression with just two variables.
+        expr = self.__get_expr("x + y")
+        stack = Stack()
+        stack.alloc(StackVar("x", CoreType("int8")))
+        stack.alloc(StackVar("y", CoreType("int8")))
+        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("int8"), types[expr])
+        self.assertTypesValid(types)
+
+    def test_infer_types_simple_const(self) -> None:
+        # Verify that we can infer a normal expression with just two variables.
+        expr = self.__get_expr("x + 12345")
+        stack = Stack()
+        stack.alloc(StackVar("x", CoreType("int16")))
+        types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("int16"), types[expr])
+        self.assertTypesValid(types)
+
+    def test_infer_types_different_types(self) -> None:
+        # Verify that we can infer an expression with different sized variables.
+        expr = self.__get_expr("x + y")
+        stack = Stack()
+        stack.alloc(StackVar("x", CoreType("int16")))
+        stack.alloc(StackVar("y", CoreType("int32")))
+        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("int32"), types[expr])
+        self.assertTypesValid(types)
+
+    def test_infer_types_comparison(self) -> None:
+        # Verify that we can infer a comparison expression type.
+        expr = self.__get_expr("x == y")
+        stack = Stack()
+        stack.alloc(StackVar("x", CoreType("int16")))
+        stack.alloc(StackVar("y", CoreType("int32")))
+        types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("bool"), types[expr])
+        self.assertTypesValid(types)
+
+    def test_infer_types_comparison_const(self) -> None:
+        # Verify that we can infer a comparison expression with a constant.
+        expr = self.__get_expr("x == 12345")
+        stack = Stack()
+        stack.alloc(StackVar("x", CoreType("int16")))
+        types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("bool"), types[expr])
+        self.assertTypesValid(types)
+
+    def test_infer_types_ifexpr(self) -> None:
+        # Verify that we can infer a comparison expression type.
+        expr = self.__get_expr("x if z else y")
+        stack = Stack()
+        stack.alloc(StackVar("x", CoreType("int16")))
+        stack.alloc(StackVar("y", CoreType("int32")))
+        stack.alloc(StackVar("z", CoreType("bool")))
+        types = infer_expr_types(expr, CoreType("int32"), stack, [], [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("int32"), types[expr])
+        self.assertTypesValid(types)
+
+    def test_infer_types_ifexpr_const(self) -> None:
+        # Verify that we can infer a comparison expression type.
+        expr = self.__get_expr("x if z else 12345")
+        stack = Stack()
+        stack.alloc(StackVar("x", CoreType("int16")))
+        stack.alloc(StackVar("z", CoreType("bool")))
+        types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("int16"), types[expr])
+        self.assertTypesValid(types)
+
+    def test_infer_types_function(self) -> None:
+        # Verify that we can infer a function call type.
+        expr = self.__get_expr("func(x, y)")
+        stack = Stack()
+        stack.alloc(StackVar("x", CoreType("int16")))
+        stack.alloc(StackVar("y", CoreType("int32")))
+        refs = [FunctionPrototype("func", CoreType("int8"), [CoreType("int16"), CoreType("int32")])]
+        types = infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("int8"), types[expr])
+        self.assertTypesValid(types)
+
+    def test_infer_types_function_const(self) -> None:
+        # Verify that we can infer a function call type with constants.
+        expr = self.__get_expr("func(5, 15)")
+        stack = Stack()
+        refs = [FunctionPrototype("func", CoreType("int8"), [CoreType("int16"), CoreType("int32")])]
+        types = infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", expr, {}))
+        self.assertEqual(CoreType("int8"), types[expr])
+        self.assertTypesValid(types)
 
     def test_empty(self) -> None:
         output = parse_and_compile_module("__test__", "")

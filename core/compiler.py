@@ -3,7 +3,7 @@ import traceback
 import libcst as cst
 import libcst.metadata as meta
 
-from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, Union, overload
+from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
 
 from .assembler import assemble
 
@@ -45,10 +45,13 @@ class Context:
 
 class CompilerError(Exception):
     def __init__(self, error: str, context: Context) -> None:
-        metaval = context.meta[context.node]
-        super().__init__(f"{context.module} line {metaval.start.line}: " + error)
+        metaval = context.meta.get(context.node)
+        if metaval:
+            super().__init__(f"{context.module} line {metaval.start.line}: " + error)
+        else:
+            super().__init__(f"{context.module} line unknown: " + error)
         self.module = context.module
-        self.line = metaval.start.line
+        self.line = metaval.start.line if metaval else None
 
 
 class CoreType:
@@ -125,7 +128,8 @@ class CoreType:
 
     @property
     def is_integer(self) -> bool:
-        return self.type in {"uint8", "uint16", "uint32", "int8", "int16", "int32"}
+        # int isn't a real type, but it is an integer from our perspective, we just haven't figured out the size yet.
+        return self.type in {"int", "uint8", "uint16", "uint32", "int8", "int16", "int32"}
 
     @property
     def is_char(self) -> bool:
@@ -1035,7 +1039,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 def get_function_prototype(
     call: cst.Call,
     stack: Stack,
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> FunctionPrototype:
@@ -1054,13 +1058,62 @@ def get_function_prototype(
         raise CompilerError(f"Unsupported function call with expression node {call.func}", context)
 
 
+def get_function_params_impl(
+    call: cst.Call,
+    function_prototype: FunctionPrototype,
+    context: Context,
+) -> Tuple[List[cst.Arg], List[CoreType]]:
+    # Gather up arguments, including any defaults and in the future respecting kwargs.
+    args: List[cst.Arg] = []
+    for arg in call.args:
+        # TODO: At some point, maybe we can support these, because it would just be extraction from a list
+        # in the star arg case, and choosing the correct argument order in the keyword argument case.
+        if arg.keyword is not None:
+            raise CompilerError("Unsupported keyword argument in function call", context)
+        if arg.star != "":
+            raise CompilerError("Unsupported star argument in function call", context)
+
+        args.append(arg)
+
+    # Make sure that the number of arguments supplied matches
+    param_count: int = 0
+    needed_args: List[CoreType] = []
+    for needed_arg in function_prototype.params:
+        needed_args.append(needed_arg)
+
+        if isinstance(needed_arg, PaddingCoreType):
+            # Not the responsibility of the caller, we will set this up.
+            continue
+        if isinstance(needed_arg, OutCoreType):
+            # Not the responsibility of the caller, we will set this up.
+            continue
+
+        param_count += 1
+
+    if param_count != len(args):
+        # TODO: This is where we would possibly substitute default arguments.
+        raise CompilerError(f"Function {function_prototype.name} expects {param_count} args but {len(args)} were given", context)
+
+    return args, needed_args
+
+
+def get_function_params(
+    call: cst.Call,
+    function_prototype: FunctionPrototype,
+    context: Context,
+) -> Tuple[List[cst.Arg], List[CoreType]]:
+    args, needed_args = get_function_params_impl(call, function_prototype, context)
+    needed_args = [na for na in needed_args if not isinstance(na, (PaddingCoreType, OutCoreType))]
+    return args, needed_args
+
+
 def generate_function_call(
     call: cst.Call,
     destination: Optional[str],
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
@@ -1099,32 +1152,7 @@ def generate_function_call(
             raise Exception(f"Logic error, not expecting a return-only type for param {pos + 1} in {function_prototype.name}")
 
     # Now, we must figure out how to set up the stack to call this function.
-    args: List[cst.Arg] = []
-    for arg in call.args:
-        # TODO: At some point, maybe we can support these, because it would just be extraction from a list
-        # in the star arg case, and choosing the correct argument order in the keyword argument case.
-        if arg.keyword is not None:
-            raise CompilerError("Unsupported keyword argument in function call", context)
-        if arg.star != "":
-            raise CompilerError("Unsupported star argument in function call", context)
-
-        args.append(arg)
-
-    # Make sure that the number of arguments supplied matches
-    param_count = 0
-    for needed_arg in function_prototype.params:
-        if isinstance(needed_arg, PaddingCoreType):
-            # Not the responsibility of the caller, we will set this up.
-            continue
-        if isinstance(needed_arg, OutCoreType):
-            # Not the responsibility of the caller, we will set this up.
-            continue
-
-        param_count += 1
-
-    if param_count != len(args):
-        # TODO: This is where we would possibly substitute default arguments.
-        raise CompilerError(f"Function {function_prototype.name} expects {param_count} args but {len(args)} were given", context)
+    args, computed_params = get_function_params(call, function_prototype, context)
 
     # Now, go through the requested parameters and set up the stack.
     copy_mapping: Dict[str, str] = {}
@@ -1146,7 +1174,7 @@ def generate_function_call(
 
         considered = args[:arglen]
         stackvars = stack[-arglen:]
-        params = function_prototype.params[:arglen]
+        params = computed_params[:arglen]
 
         argnames: List[str] = []
         argnodes: List[cst.CSTNode] = []
@@ -1238,7 +1266,7 @@ def generate_function_call(
 
     which_arg: int = optimized_offset
 
-    for rawpos, needed_arg in enumerate(function_prototype.params[optimized_offset:]):
+    for rawpos, needed_arg in enumerate(computed_params[optimized_offset:]):
         # Special case for if the first argument is already the top of the stack, and it's a preserved or in-out
         # argument. In this case, we don't have to do anything, because the function will do what it should do with
         # that stack location. In theory we should be able to do this with as many elements on the stack as possible
@@ -1487,7 +1515,7 @@ def generate_variable_lookup(
     destination: str,
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
@@ -1559,7 +1587,7 @@ def generate_unary_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
@@ -1695,7 +1723,7 @@ def generate_binary_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
@@ -2010,7 +2038,7 @@ def generate_boolean_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
@@ -2126,7 +2154,7 @@ def generate_comparison_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
@@ -2365,7 +2393,7 @@ def generate_ternary_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
@@ -2449,7 +2477,7 @@ def generate_expr_internal(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
@@ -2512,8 +2540,33 @@ def generate_expr_internal(
 
 def infer_expr_types(
     expression: cst.BaseExpression,
+    destination_type: CoreType,
     stack: Stack,
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> Dict[cst.CSTNode, CoreType]:
+    types = infer_expr_types_impl(expression, stack, refs, local_consts, context)
+    infer_tree(types, destination_type)
+    return types
+
+
+def infer_tree(
+    types: Dict[cst.CSTNode, CoreType],
+    concrete_type: CoreType,
+) -> None:
+    if concrete_type.type == "int":
+        raise Exception("Logic error, attempting to infer tree with unspecified type!")
+
+    for _, ctype in types.items():
+        if ctype.type == "int":
+            ctype.type = concrete_type.type
+
+
+def infer_expr_types_impl(
+    expression: cst.BaseExpression,
+    stack: Stack,
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> Dict[cst.CSTNode, CoreType]:
@@ -2533,11 +2586,11 @@ def infer_expr_types(
         raise CompilerError(f"Undefined variable reference to {expression.value!r}", context)
 
     elif isinstance(expression, cst.Integer):
-        inferred[expression] = CoreType("int32")
+        inferred[expression] = CoreType("int")
         return inferred
 
     elif isinstance(expression, cst.UnaryOperation):
-        inferred.update(infer_expr_types(expression.expression, stack, refs, local_consts, context.wrap(expression.expression)))
+        inferred.update(infer_expr_types_impl(expression.expression, stack, refs, local_consts, context.wrap(expression.expression)))
         inferred_type = inferred[expression.expression]
         inferred[expression] = CoreType(inferred_type.type, inferred_type.pointed_type, inferred_type.const, inferred_type.return_padding)
 
@@ -2547,11 +2600,11 @@ def infer_expr_types(
         return inferred
 
     elif isinstance(expression, cst.BinaryOperation):
-        inferred.update(infer_expr_types(expression.left, stack, refs, local_consts, context.wrap(expression.left)))
-        inferred.update(infer_expr_types(expression.right, stack, refs, local_consts, context.wrap(expression.right)))
+        left_tree = infer_expr_types_impl(expression.left, stack, refs, local_consts, context.wrap(expression.left))
+        right_tree = infer_expr_types_impl(expression.right, stack, refs, local_consts, context.wrap(expression.right))
 
-        left_inferred = inferred[expression.left]
-        right_inferred = inferred[expression.right]
+        left_inferred = left_tree[expression.left]
+        right_inferred = right_tree[expression.right]
 
         if isinstance(expression.operator, (cst.Add, cst.Subtract, cst.BitAnd, cst.BitOr, cst.BitXor, cst.Multiply, cst.Divide, cst.FloorDivide, cst.Modulo)):
             if not left_inferred.is_integer:
@@ -2560,36 +2613,74 @@ def infer_expr_types(
                 raise CompilerError(f"Unsupported binary operation for type {right_inferred.type}", context)
 
             # Any math against two integers will result in an integer. Pick the wider of two types.
-            if left_inferred.size > right_inferred.size:
+            if right_inferred.type == "int":
+                if left_inferred.type != "int":
+                    infer_tree(right_tree, left_inferred)
+
+                # Just arbitrarily pick the left, which could be an unspecified int as well.
                 picked = left_inferred
-            else:
+
+            elif left_inferred.type == "int" and right_inferred != "int":
+                # Pick the right since it is specified, the left will have to be filled in later.
+                infer_tree(left_tree, right_inferred)
                 picked = right_inferred
+
+            elif left_inferred.size > right_inferred.size:
+                # Pick the left because it's wider than the right.
+                picked = left_inferred
+
+            else:
+                # Pick the right because its either wider than the left, or equivalent in width.
+                picked = right_inferred
+
             inferred[expression] = CoreType(picked.type, picked.pointed_type, picked.const, picked.return_padding)
+            inferred.update(left_tree)
+            inferred.update(right_tree)
 
         return inferred
 
     elif isinstance(expression, cst.Call):
         function_prototype = get_function_prototype(expression, stack, refs, local_consts, context)
+        args, arg_types = get_function_params(expression, function_prototype, context)
+
+        for i, (arg, argtype) in enumerate(zip(args, arg_types)):
+            arg_inferred = infer_expr_types_impl(arg.value, stack, refs, local_consts, context.wrap(arg.value))
+
+            if not type_comparison_compatible(arg_inferred[arg.value], argtype):
+                raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type} in function call parameter {i + 1}", context)
+
+            infer_tree(arg_inferred, argtype)
+            inferred.update(arg_inferred)
+
         inferred[expression] = function_prototype.return_type
         return inferred
 
     elif isinstance(expression, cst.Comparison):
-        inferred.update(infer_expr_types(expression.left, stack, refs, local_consts, context.wrap(expression.left)))
+        left_tree = infer_expr_types_impl(expression.left, stack, refs, local_consts, context.wrap(expression.left))
         for comparison in expression.comparisons:
-            inferred.update(infer_expr_types(comparison.comparator, stack, refs, local_consts, context.wrap(comparison.comparator)))
+            right_tree = infer_expr_types_impl(comparison.comparator, stack, refs, local_consts, context.wrap(comparison.comparator))
+
+            # Infer constant widths based on comparison types.
+            if left_tree[expression.left].type == "int" and right_tree[comparison.comparator].type != "int":
+                infer_tree(left_tree, right_tree[comparison.comparator])
+            if left_tree[expression.left].type != "int" and right_tree[comparison.comparator].type == "int":
+                infer_tree(right_tree, left_tree[expression.left])
 
             # Verify that we're comparing two equivalent types.
-            if not type_comparison_compatible(inferred[expression.left], inferred[comparison.comparator]):
+            if not type_comparison_compatible(left_tree[expression.left], right_tree[comparison.comparator]):
                 raise CompilerError(f"Unsupported comparison of types {inferred[expression.left].type} and {inferred[comparison.comparator].type}", context)
-            if inferred[expression.left].is_unsigned != inferred[comparison.comparator].is_unsigned:
+            if left_tree[expression.left].is_unsigned != right_tree[comparison.comparator].is_unsigned:
                 raise CompilerError(f"Unsupported comparison of types {inferred[expression.left].type} and {inferred[comparison.comparator].type}", context)
 
+            inferred.update(right_tree)
+
         inferred[expression] = CoreType("bool")
+        inferred.update(left_tree)
         return inferred
 
     elif isinstance(expression, cst.BooleanOperation):
-        inferred.update(infer_expr_types(expression.left, stack, refs, local_consts, context.wrap(expression.left)))
-        inferred.update(infer_expr_types(expression.right, stack, refs, local_consts, context.wrap(expression.right)))
+        inferred.update(infer_expr_types_impl(expression.left, stack, refs, local_consts, context.wrap(expression.left)))
+        inferred.update(infer_expr_types_impl(expression.right, stack, refs, local_consts, context.wrap(expression.right)))
 
         left_inferred = inferred[expression.left]
         right_inferred = inferred[expression.right]
@@ -2602,23 +2693,40 @@ def infer_expr_types(
         return inferred
 
     elif isinstance(expression, cst.IfExp):
-        inferred.update(infer_expr_types(expression.body, stack, refs, local_consts, context.wrap(expression.body)))
-        inferred.update(infer_expr_types(expression.orelse, stack, refs, local_consts, context.wrap(expression.orelse)))
-        inferred.update(infer_expr_types(expression.test, stack, refs, local_consts, context.wrap(expression.test)))
+        body_tree = infer_expr_types_impl(expression.body, stack, refs, local_consts, context.wrap(expression.body))
+        orelse_tree = infer_expr_types_impl(expression.orelse, stack, refs, local_consts, context.wrap(expression.orelse))
+        inferred.update(infer_expr_types_impl(expression.test, stack, refs, local_consts, context.wrap(expression.test)))
 
         test_inferred = inferred[expression.test]
         if not test_inferred.is_bool:
             raise CompilerError(f"Unsupported non-boolean type {test_inferred.type} in boolean expression", context)
 
-        body_inferred = inferred[expression.body]
-        orelse_inferred = inferred[expression.orelse]
+        body_inferred = body_tree[expression.body]
+        orelse_inferred = orelse_tree[expression.orelse]
         if not type_comparison_compatible(body_inferred, orelse_inferred):
             raise CompilerError(f"Unsupported mixed types {body_inferred.type} and {orelse_inferred.type} in if expression", context)
 
-        if body_inferred.size > orelse_inferred.size:
+        # Infer constants and pick the widest of the two sides for this expression's type.
+        if orelse_inferred.type == "int":
+            if body_inferred.type != "int":
+                infer_tree(orelse_tree, body_inferred)
+
+            # Just arbitrarily pick the left, which could be an unspecified int as well.
             picked = body_inferred
-        else:
+
+        elif body_inferred.type == "int" and orelse_inferred != "int":
+            # Pick the right since it is specified, the left will have to be filled in later.
+            infer_tree(body_tree, orelse_inferred)
             picked = orelse_inferred
+
+        elif body_inferred.size > orelse_inferred.size:
+            # Pick the left because it's wider than the right.
+            picked = body_inferred
+
+        else:
+            # Pick the right because its either wider than the left, or equivalent in width.
+            picked = orelse_inferred
+
         inferred[expression] = CoreType(picked.type, picked.pointed_type, picked.const, picked.return_padding)
         return inferred
 
@@ -2631,7 +2739,7 @@ def generate_expr(
     destination: str,
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
 ) -> List[str]:
@@ -2644,7 +2752,7 @@ def generate_expr(
     if dtype is None:
         raise Exception("Logic error, couldn't determine type of expression destination!")
 
-    types: Dict[cst.CSTNode, CoreType] = infer_expr_types(expression, stack, refs, local_consts, context)
+    types: Dict[cst.CSTNode, CoreType] = infer_expr_types(expression, dtype, stack, refs, local_consts, context)
 
     if dsize == 1:
         # We can potentially keep the math in the A register!
@@ -2680,7 +2788,7 @@ def local_variable(
     assign_value: Optional[cst.BaseExpression],
     stack: Stack,
     clobbers: Set[str],
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     local_data: List[str],
     context: Context,
@@ -2764,7 +2872,7 @@ def compile_chunk(
     stack: Stack,
     clobbers: Set[str],
     function_type: CoreType,
-    refs: List[Union[FunctionPrototype, GlobalVariable]],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     local_data: List[str],
     context: Context,
@@ -2871,7 +2979,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
     return prototype
 
 
-def function(func: cst.FunctionDef, refs: List[Union[FunctionPrototype, GlobalVariable]], context: Context) -> List[str]:
+def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], context: Context) -> List[str]:
     compiled: List[str] = []
     function_name = func.name.value
     function_type = get_type(func.returns)
@@ -3116,7 +3224,7 @@ def is_type_definition(assign: cst.Assign) -> bool:
     return True
 
 
-def compile_module(module: str, code: str, refs: List[Union[FunctionPrototype, GlobalVariable]]) -> List[str]:
+def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototype, GlobalVariable]]) -> List[str]:
     parsed_module = cst.parse_module(code)
 
     # Make sure we have access to line/column numbers for errors.
