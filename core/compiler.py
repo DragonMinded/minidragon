@@ -1711,7 +1711,7 @@ def generate_unary_expr(
             compiled.append("  STORE A")
 
     else:
-        # TODO: Handle Plus (no-op, just call with the expression value), and Not, for booleans.
+        # TODO: Handle Plus (no-op, just call with the expression value).
         raise CompilerError(f"Unsupported unary operation {expression}", context)
 
     return compiled
