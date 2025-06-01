@@ -1547,36 +1547,52 @@ def generate_variable_lookup(
             # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
             compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
         else:
-            # TODO: We don't need to sign-extend unsigned integers.
-
             # We need to sign extend the top bit of the top byte for negative numbers, which requires the A register.
             clobbers.add("A")
 
-            # First, go to the high byte and figure out if it needs to be zero or one extended.
-            move_amt = stack.diff(source_loc + (source_size - 1))
-            compiled += generate_move_by("seeking {source}", move_amt, stack, clobbers, context)
-            compiled.append("  LOAD A")
-            compiled.append("  SHL")
+            dest_type = stack.typeof(destination)
+            if dest_type is None:
+                raise Exception("Logic error, cannot find destination to copy variable value to!")
+            if dest_type.is_unsigned:
+                # We always zero-extend unsigned types.
+                compiled.append("  LOADI 0")
 
-            set_branch = local_label_name("top_bit_set")
-            extend_branch = local_label_name("sign_extend")
+                for pos in range(dest_size - source_size):
+                    actual_pos = pos + dest_loc + source_size
 
-            compiled.append(f"  JRIC {set_branch}")
-            compiled.append("  LOADI 0")
-            compiled.append(f"  JRI {extend_branch}")
-            compiled.append(f"{set_branch}:")
-            compiled.append("  LOADI -1")
-            compiled.append(f"{extend_branch}:")
+                    move_amt = stack.diff(actual_pos)
+                    compiled += generate_move_by("seeking zero extend byte", move_amt, stack, clobbers, context)
+                    compiled.append("  STORE A")
 
-            for pos in range(dest_size - source_size):
-                actual_pos = pos + dest_loc + source_size
+                # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
+                compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_size, stack, clobbers, context)
 
-                move_amt = stack.diff(actual_pos)
-                compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
-                compiled.append("  STORE A")
+            else:
+                # First, go to the high byte and figure out if it needs to be zero or one extended.
+                move_amt = stack.diff(source_loc + (source_size - 1))
+                compiled += generate_move_by("seeking {source}", move_amt, stack, clobbers, context)
+                compiled.append("  LOAD A")
+                compiled.append("  SHL")
 
-            # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_size, stack, clobbers, context)
+                set_branch = local_label_name("top_bit_set")
+                extend_branch = local_label_name("sign_extend")
+
+                compiled.append(f"  JRIC {set_branch}")
+                compiled.append("  LOADI 0")
+                compiled.append(f"  JRI {extend_branch}")
+                compiled.append(f"{set_branch}:")
+                compiled.append("  LOADI -1")
+                compiled.append(f"{extend_branch}:")
+
+                for pos in range(dest_size - source_size):
+                    actual_pos = pos + dest_loc + source_size
+
+                    move_amt = stack.diff(actual_pos)
+                    compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
+                    compiled.append("  STORE A")
+
+                # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
+                compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_size, stack, clobbers, context)
 
     return compiled
 
@@ -2205,176 +2221,215 @@ def generate_comparison_expr(
         # Determine preload value based on the comparison type.
         preload_value = 0xFF if isinstance(expression.comparisons[0].operator, cst.NotEqual) else 0x00
 
-        # First, evaluate both expressions so that we can compare them.
-        lhs_dest = expr_temp_name()
-        left_type = types[expression.left]
-        stack.alloc(StackVar(lhs_dest, left_type))
-        compiled += generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
+        left_expr = expression.left
+        left_type = types[left_expr]
 
-        rhs_dest = expr_temp_name()
-        right_type = types[expression.comparisons[0].comparator]
-        stack.alloc(StackVar(rhs_dest, right_type))
-        compiled += generate_expr_internal(expression.comparisons[0].comparator, rhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.comparisons[0].comparator))
+        right_expr = expression.comparisons[0].comparator
+        right_type = types[right_expr]
+
+        cleanup: List[str] = []
+        if left_type.size == right_type.size:
+            # First, evaluate both expressions so that we can compare them.
+            first_dest = expr_temp_name()
+            cleanup.append(first_dest)
+            stack.alloc(StackVar(first_dest, left_type))
+            compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(left_expr))
+
+            second_dest = expr_temp_name()
+            cleanup.append(second_dest)
+            stack.alloc(StackVar(second_dest, right_type))
+            compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, refs, local_consts, context.wrap(right_expr))
+
+        else:
+            # Figure out which one is bigger, we'll evaluate that one first.
+            if left_type.size > right_type.size:
+                first_expr = left_expr
+                first_type = left_type
+                second_expr = right_expr
+                second_type = right_type
+            else:
+                first_expr = right_expr
+                first_type = right_type
+                second_expr = left_expr
+                second_type = left_type
+
+            # First, handle the expression that's the wider of the two already.
+            first_dest = expr_temp_name()
+            cleanup.append(first_dest)
+            stack.alloc(StackVar(first_dest, first_type))
+            compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(first_expr))
+
+            # Now, allocate a spot for the second to be sign extended into.
+            second_dest = expr_temp_name()
+            cleanup.append(second_dest)
+            stack.alloc(StackVar(second_dest, first_type))
+
+            # And allocate where we'll calculate it before sign-extending.
+            second_temp = expr_temp_name()
+            stack.alloc(StackVar(second_temp, second_type))
+            compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+
+            # Now, copy it with a sign extension.
+            compiled += generate_variable_lookup(second_temp, second_dest, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+
+            # Now, we don't need the temp location now that we've computed and sign extended.
+            stack.free(second_temp)
 
         # Doing the comparison itself requires the A register.
         clobbers.add("A")
 
-        if left_type.size == right_type.size:
-            if left_type.size == 1:
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-                compiled.append("  LOAD A")
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+        comparison_size = max(left_type.size, right_type.size)
+        if comparison_size == 1:
+            compiled += generate_move_to(second_dest, stack, clobbers, context)
+            compiled.append("  LOAD A")
+            compiled += generate_move_to(first_dest, stack, clobbers, context)
 
-                # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append("  XOR")
+            # XOR the two numbers, which will give us 0 if they equal.
+            compiled.append("  XOR")
 
-                # Preload condition result into A.
-                compiled.append(f"  LOADI {preload_value}")
+            # Preload condition result into A.
+            compiled.append(f"  LOADI {preload_value}")
 
-                # Skip the invert instruction if we were non-zero, which meant not equal.
-                compiled.append("  SKIPIF !ZF")
+            # Skip the invert instruction if we were non-zero, which meant not equal.
+            compiled.append("  SKIPIF !ZF")
 
-                # Set our output to true instead of false.
-                compiled.append("  INV")
+            # Set our output to true instead of false.
+            compiled.append("  INV")
 
-            elif left_type.size == 2:
-                if stack_is_at(rhs_dest, stack, offset=1):
-                    # We're already at the top of the stack, generate the load/func/store loop downwards
-                    # instead of upwards to shave off a move instruction.
-                    def actual_expr_offset(offset: int) -> int:
-                        return 1 - offset
-                else:
-                    # We're anywhere else in the stack, so it costs us no unnecessary move instructions
-                    # to perform the first move.
-                    def actual_expr_offset(offset: int) -> int:
-                        return offset
+        elif comparison_size == 2:
+            if stack_is_at(second_dest, stack, offset=1):
+                # We're already at the top of the stack, generate the load/func/store loop downwards
+                # instead of upwards to shave off a move instruction.
+                def actual_expr_offset(offset: int) -> int:
+                    return 1 - offset
+            else:
+                # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+                # to perform the first move.
+                def actual_expr_offset(offset: int) -> int:
+                    return offset
 
-                # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
-                second_byte_comparison = local_label_name("second_byte_comparison")
-                finished_comparison = local_label_name("finished_comparison")
+            # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
+            second_byte_comparison = local_label_name("second_byte_comparison")
+            finished_comparison = local_label_name("finished_comparison")
 
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-                compiled.append("  LOAD A")
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(0))
+            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
+            compiled.append("  LOAD A")
+            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
-                # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append("  XOR")
-                compiled.append(f"  JRIZ {second_byte_comparison}")
+            # XOR the two numbers, which will give us 0 if they equal.
+            compiled.append("  XOR")
+            compiled.append(f"  JRIZ {second_byte_comparison}")
 
-                # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
-                compiled += generate_move_to(lhs_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(1))
-                compiled.append(f"  LOADI {preload_value}")
-                compiled.append(f"  JRI {finished_comparison}")
+            # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
+            compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(1))
+            compiled.append(f"  LOADI {preload_value}")
+            compiled.append(f"  JRI {finished_comparison}")
 
-                # Now, do the second byte comparison.
-                compiled.append(f"{second_byte_comparison}:")
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-                compiled.append("  LOAD A")
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(1))
+            # Now, do the second byte comparison.
+            compiled.append(f"{second_byte_comparison}:")
+            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
+            compiled.append("  LOAD A")
+            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
-                # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append("  XOR")
+            # XOR the two numbers, which will give us 0 if they equal.
+            compiled.append("  XOR")
 
-                # Preload condition result into A.
-                compiled.append(f"  LOADI {preload_value}")
+            # Preload condition result into A.
+            compiled.append(f"  LOADI {preload_value}")
 
-                # Skip the invert instruction if we were non-zero, which meant not equal.
-                compiled.append("  SKIPIF !ZF")
+            # Skip the invert instruction if we were non-zero, which meant not equal.
+            compiled.append("  SKIPIF !ZF")
 
-                # Set our output to true instead of false.
-                compiled.append("  INV")
+            # Set our output to true instead of false.
+            compiled.append("  INV")
 
-                # Provide a jump point to get here from the first half comparison.
-                compiled.append(f"{finished_comparison}:")
+            # Provide a jump point to get here from the first half comparison.
+            compiled.append(f"{finished_comparison}:")
 
-            elif left_type.size == 4:
-                if stack_is_at(rhs_dest, stack, offset=3):
-                    # We're already at the top of the stack, generate the load/func/store loop downwards
-                    # instead of upwards to shave off a move instruction.
-                    def actual_expr_offset(offset: int) -> int:
-                        return 3 - offset
-                else:
-                    # We're anywhere else in the stack, so it costs us no unnecessary move instructions
-                    # to perform the first move.
-                    def actual_expr_offset(offset: int) -> int:
-                        return offset
+        elif comparison_size == 4:
+            if stack_is_at(second_dest, stack, offset=3):
+                # We're already at the top of the stack, generate the load/func/store loop downwards
+                # instead of upwards to shave off a move instruction.
+                def actual_expr_offset(offset: int) -> int:
+                    return 3 - offset
+            else:
+                # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+                # to perform the first move.
+                def actual_expr_offset(offset: int) -> int:
+                    return offset
 
-                # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
-                second_byte_comparison = local_label_name("second_byte_comparison")
-                third_byte_comparison = local_label_name("third_byte_comparison")
-                fourth_byte_comparison = local_label_name("fourth_byte_comparison")
-                finished_comparison = local_label_name("finished_comparison")
+            # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
+            second_byte_comparison = local_label_name("second_byte_comparison")
+            third_byte_comparison = local_label_name("third_byte_comparison")
+            fourth_byte_comparison = local_label_name("fourth_byte_comparison")
+            finished_comparison = local_label_name("finished_comparison")
 
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-                compiled.append("  LOAD A")
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(0))
+            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
+            compiled.append("  LOAD A")
+            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
-                # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append("  XOR")
-                compiled.append(f"  JRIZ {second_byte_comparison}")
+            # XOR the two numbers, which will give us 0 if they equal.
+            compiled.append("  XOR")
+            compiled.append(f"  JRIZ {second_byte_comparison}")
 
-                # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
-                compiled += generate_move_to(lhs_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
-                compiled.append(f"  LOADI {preload_value}")
-                compiled.append(f"  JRI {finished_comparison}")
+            # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
+            compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
+            compiled.append(f"  LOADI {preload_value}")
+            compiled.append(f"  JRI {finished_comparison}")
 
-                # Now, do the second byte comparison.
-                compiled.append(f"{second_byte_comparison}:")
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-                compiled.append("  LOAD A")
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(1))
+            # Now, do the second byte comparison.
+            compiled.append(f"{second_byte_comparison}:")
+            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
+            compiled.append("  LOAD A")
+            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
-                # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append("  XOR")
-                compiled.append(f"  JRIZ {third_byte_comparison}")
+            # XOR the two numbers, which will give us 0 if they equal.
+            compiled.append("  XOR")
+            compiled.append(f"  JRIZ {third_byte_comparison}")
 
-                # We failed the comparison on the second byte, move to where we would have moved to and set our result to False.
-                compiled += generate_move_to(lhs_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
-                compiled.append(f"  LOADI {preload_value}")
-                compiled.append(f"  JRI {finished_comparison}")
+            # We failed the comparison on the second byte, move to where we would have moved to and set our result to False.
+            compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
+            compiled.append(f"  LOADI {preload_value}")
+            compiled.append(f"  JRI {finished_comparison}")
 
-                # Now, do the third byte comparison.
-                compiled.append(f"{third_byte_comparison}:")
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(2))
-                compiled.append("  LOAD A")
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(2))
+            # Now, do the third byte comparison.
+            compiled.append(f"{third_byte_comparison}:")
+            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(2))
+            compiled.append("  LOAD A")
+            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(2))
 
-                # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append("  XOR")
-                compiled.append(f"  JRIZ {fourth_byte_comparison}")
+            # XOR the two numbers, which will give us 0 if they equal.
+            compiled.append("  XOR")
+            compiled.append(f"  JRIZ {fourth_byte_comparison}")
 
-                # We failed the comparison on the third byte, move to where we would have moved to and set our result to False.
-                compiled += generate_move_to(lhs_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
-                compiled.append(f"  LOADI {preload_value}")
-                compiled.append(f"  JRI {finished_comparison}")
+            # We failed the comparison on the third byte, move to where we would have moved to and set our result to False.
+            compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
+            compiled.append(f"  LOADI {preload_value}")
+            compiled.append(f"  JRI {finished_comparison}")
 
-                # Now, do the fourth byte comparison.
-                compiled.append(f"{fourth_byte_comparison}:")
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(3))
-                compiled.append("  LOAD A")
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(3))
+            # Now, do the fourth byte comparison.
+            compiled.append(f"{fourth_byte_comparison}:")
+            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(3))
+            compiled.append("  LOAD A")
+            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(3))
 
-                # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append("  XOR")
+            # XOR the two numbers, which will give us 0 if they equal.
+            compiled.append("  XOR")
 
-                # Preload condition result into A.
-                compiled.append(f"  LOADI {preload_value}")
+            # Preload condition result into A.
+            compiled.append(f"  LOADI {preload_value}")
 
-                # Skip the invert instruction if we were non-zero, which meant not equal.
-                compiled.append("  SKIPIF !ZF")
+            # Skip the invert instruction if we were non-zero, which meant not equal.
+            compiled.append("  SKIPIF !ZF")
 
-                # Set our output to true instead of false.
-                compiled.append("  INV")
+            # Set our output to true instead of false.
+            compiled.append("  INV")
 
-                # Provide a jump point to get here from the first half comparison.
-                compiled.append(f"{finished_comparison}:")
+            # Provide a jump point to get here from the first half comparison.
+            compiled.append(f"{finished_comparison}:")
 
-        else:
-            # TODO: Compare integers of different sizes depending on signed/unsigned.
-            raise CompilerError(f"Unsupported comparison expression {expression}!", context)
-
-        stack.free(rhs_dest)
-        stack.free(lhs_dest)
+        for entry in reversed(cleanup):
+            stack.free(entry)
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)

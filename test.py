@@ -3081,6 +3081,169 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for upcast: {int(instructions/count)}")
 
 
+def verifyunsignedupcast(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "unsignedupcast" not in only and "compiler" not in only:
+        return
+
+    print("Verifying unsignedupcast...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in [37, 89, 0, 42, 128, 255]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("unsignedupcast", textwrap.dedent("""
+                def func(param1: uint8) -> nopad[uint16]:
+                    return param1
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"unsignedupcast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"unsignedupcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"unsignedupcast changed V value from {222} to {cpu.v}!",
+        )
+        result = (
+            (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        )
+        expected = x
+        _assert(
+            result == expected,
+            "Failed to unsignedupcast, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [37, 89, 0, 42, 128, 255]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("unsignedupcast", textwrap.dedent("""
+                def func(param1: uint8) -> nopad[uint32]:
+                    return param1
+            """)),
+            "code:",
+            f"LOADI {x}",
+            "PUSH A",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"unsignedupcast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"unsignedupcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"unsignedupcast changed V value from {222} to {cpu.v}!",
+        )
+        result = (
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3])
+        )
+        expected = x
+        _assert(
+            result == expected,
+            "Failed to unsignedupcast, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for x in [37, 89, 0, 42, 128, 255, 1024, 555, 12345, 32768, 65535]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "LNGJUMP code",
+            *parse_and_compile_module("unsignedupcast", textwrap.dedent("""
+                def func(param1: uint16) -> nopad[uint32]:
+                    return param1
+            """)),
+            "code:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"unsignedupcast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"unsignedupcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"unsignedupcast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint32(
+            (cpu.ram[cpu.pc + 0] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            (cpu.ram[cpu.pc + 3])
+        )
+        expected = x
+        _assert(
+            result == expected,
+            "Failed to unsignedupcast, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for unsignedupcast: {int(cycles/count)}")
+    print(f"Average instructions for unsignedupcast: {int(instructions/count)}")
+
+
 def verifyechoparam(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "echoparam" not in only and "compiler" not in only:
         return
@@ -6172,53 +6335,57 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
     count = 0
     for val1 in [-10, 0, 10, 57, -57, 123]:
         for val2 in [-10, 0, 10, 57, -57, 123]:
-            memory = getmemory(os.linesep.join([
-                *initlines,
-                "LNGJUMP code",
-                *parse_and_compile_module("equalityexpression", textwrap.dedent("""
-                    def func(val1: int8, val2: int8) -> bool:
-                        return val1 == val2
-                """)),
-                "code:",
-                f"PUSHI {val1}",
-                f"PUSHI {val2}",
-                "LOADI 111",
-                "MOV A, U",
-                "LOADI 222",
-                "MOV A, V",
-                "LOADI 123",
-                "CALL func",
-                "HALT",
-            ]))
-            cpu = CPUCore(memory)
-            rununtilhalt(cpu)
+            for secondtype in ["int8", "int16", "int32"]:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    "LNGJUMP code",
+                    *parse_and_compile_module("equalityexpression", textwrap.dedent(f"""
+                        def func(val1: int8, val2: {secondtype}) -> bool:
+                            return val1 == val2
+                    """)),
+                    "code:",
+                    f"PUSHI {val1}",
+                    f"PUSHI {val2 & 0xFF}",
+                    f"PUSHI {(val2 >> 8) & 0xFF}" if secondtype in {"int16", "int32"} else "",
+                    f"PUSHI {(val2 >> 16) & 0xFF}" if secondtype == "int32" else "",
+                    f"PUSHI {(val2 >> 24) & 0xFF}" if secondtype == "int32" else "",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL func",
+                    "HALT",
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
 
-            _assert(
-                cpu.a == 123,
-                f"equalityexpression changed accumulator value from {123} to {cpu.a}!",
-            )
-            _assert(
-                cpu.u == 111,
-                f"equalityexpression changed U value from {111} to {cpu.u}!",
-            )
-            _assert(
-                cpu.v == 222,
-                f"equalityexpression changed V value from {222} to {cpu.v}!",
-            )
-            _assert(
-                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
-                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
-            )
-            result = bool(cpu.ram[cpu.pc + 0])
-            expected = val1 == val2
-            _assert(
-                result == expected,
-                "Failed to equalityexpression, "
-                + f"got {result} instead of {expected}!",
-            )
-            cycles += cpu.cycles
-            instructions += cpu.ticks
-            count += 1
+                _assert(
+                    cpu.a == 123,
+                    f"equalityexpression changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"equalityexpression changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"equalityexpression changed V value from {222} to {cpu.v}!",
+                )
+                _assert(
+                    cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                    f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+                )
+                result = bool(cpu.ram[cpu.pc + 0])
+                expected = val1 == val2
+                _assert(
+                    result == expected,
+                    "Failed to equalityexpression, "
+                    + f"got {result} instead of {expected}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
 
     for val1 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
         for val2 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
@@ -6895,6 +7062,7 @@ if __name__ == "__main__":
     # Compiler verifications
     verifystaticreturn(only, args.full)
     verifyupcast(only, args.full)
+    verifyunsignedupcast(only, args.full)
     verifydowncast(only, args.full)
     verifyechoparam(only, args.full)
     verifyaddandreturn(only, args.full)

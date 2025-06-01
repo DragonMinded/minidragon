@@ -1,5 +1,4 @@
 Things that I think I am going to need if I want to use this compiler:
- - equality/inequality comparison support.
  - greater than/greater than or equals/less than/less than or equals support.
  - coercing a boolean from a string/character/integer.
  - global variable allocation and read/write support, including global keyword.
@@ -15,6 +14,8 @@ Things that would be nice to have for convenience:
  - function default parameter support.
  - function keyword argument support.
  - asm() block to allow inlining assembly.
+ - auto-infer types for variables that can be inferred.
+ - walrus operator.
 
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
