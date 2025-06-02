@@ -1,5 +1,6 @@
 Things that I think I am going to need if I want to use this compiler:
  - greater than/greater than or equals/less than/less than or equals support.
+ - << and >> expressions, since we forgot about bit shifting.
  - coercing a boolean from a string/character/integer.
  - global variable allocation and read/write support, including global keyword.
  - function call without being in an assignment expression support.
