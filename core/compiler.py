@@ -2227,16 +2227,16 @@ def generate_comparison_expr(
         right_expr = expression.comparisons[0].comparator
         right_type = types[right_expr]
 
-        cleanup: List[str] = []
+        equal_cleanup: List[str] = []
         if left_type.size == right_type.size:
             # First, evaluate both expressions so that we can compare them.
             first_dest = expr_temp_name()
-            cleanup.append(first_dest)
+            equal_cleanup.append(first_dest)
             stack.alloc(StackVar(first_dest, left_type))
             compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(left_expr))
 
             second_dest = expr_temp_name()
-            cleanup.append(second_dest)
+            equal_cleanup.append(second_dest)
             stack.alloc(StackVar(second_dest, right_type))
             compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, refs, local_consts, context.wrap(right_expr))
 
@@ -2255,13 +2255,13 @@ def generate_comparison_expr(
 
             # First, handle the expression that's the wider of the two already.
             first_dest = expr_temp_name()
-            cleanup.append(first_dest)
+            equal_cleanup.append(first_dest)
             stack.alloc(StackVar(first_dest, first_type))
             compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(first_expr))
 
             # Now, allocate a spot for the second to be sign extended into.
             second_dest = expr_temp_name()
-            cleanup.append(second_dest)
+            equal_cleanup.append(second_dest)
             stack.alloc(StackVar(second_dest, first_type))
 
             # And allocate where we'll calculate it before sign-extending.
@@ -2428,8 +2428,156 @@ def generate_comparison_expr(
             # Provide a jump point to get here from the first half comparison.
             compiled.append(f"{finished_comparison}:")
 
-        for entry in reversed(cleanup):
+        for entry in reversed(equal_cleanup):
             stack.free(entry)
+
+        if not is_register_destination(destination):
+            compiled += generate_move_to(destination, stack, clobbers, context)
+            compiled.append("  STORE A")
+
+    elif isinstance(expression.comparisons[0].operator, (cst.GreaterThan, cst.GreaterThanEqual, cst.LessThan, cst.LessThanEqual)):
+        # Determine preload value based on the comparison type.
+        preload_value = 0xFF if isinstance(expression.comparisons[0].operator, cst.NotEqual) else 0x00
+
+        left_expr = expression.left
+        left_type = types[left_expr]
+
+        right_expr = expression.comparisons[0].comparator
+        right_type = types[right_expr]
+
+        if isinstance(expression.comparisons[0].operator, cst.GreaterThan):
+            op = ">"
+        elif isinstance(expression.comparisons[0].operator, cst.LessThan):
+            op = "<"
+        elif isinstance(expression.comparisons[0].operator, cst.GreaterThanEqual):
+            op = ">="
+        elif isinstance(expression.comparisons[0].operator, cst.LessThanEqual):
+            op = "<="
+        else:
+            raise Exception("Logic error, unexpected comparison type!")
+
+        unequal_cleanup: List[str] = []
+        if left_type.size == right_type.size:
+            # First, evaluate both expressions so that we can compare them.
+            first_dest = expr_temp_name()
+            unequal_cleanup.append(first_dest)
+            stack.alloc(StackVar(first_dest, left_type))
+            compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(left_expr))
+
+            second_dest = expr_temp_name()
+            unequal_cleanup.append(second_dest)
+            stack.alloc(StackVar(second_dest, right_type))
+            compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, refs, local_consts, context.wrap(right_expr))
+
+        else:
+            # Figure out which one is bigger, we'll evaluate that one first.
+            if left_type.size > right_type.size:
+                first_expr = left_expr
+                first_type = left_type
+                second_expr = right_expr
+                second_type = right_type
+            else:
+                first_expr = right_expr
+                first_type = right_type
+                second_expr = left_expr
+                second_type = left_type
+
+                # Since the two params are swapped, we must swap the op as well.
+                op = {
+                    ">": "<",
+                    "<": ">",
+                    ">=": "<=",
+                    "<=": ">=",
+                }[op]
+
+            # First, handle the expression that's the wider of the two already.
+            first_dest = expr_temp_name()
+            unequal_cleanup.append(first_dest)
+            stack.alloc(StackVar(first_dest, first_type))
+            compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(first_expr))
+
+            # Now, allocate a spot for the second to be sign extended into.
+            second_dest = expr_temp_name()
+            unequal_cleanup.append(second_dest)
+            stack.alloc(StackVar(second_dest, first_type))
+
+            # And allocate where we'll calculate it before sign-extending.
+            second_temp = expr_temp_name()
+            stack.alloc(StackVar(second_temp, second_type))
+            compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+
+            # Now, copy it with a sign extension.
+            compiled += generate_variable_lookup(second_temp, second_dest, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+
+            # Now, we don't need the temp location now that we've computed and sign extended.
+            stack.free(second_temp)
+
+        # Doing the comparison itself requires the A register.
+        clobbers.add("A")
+
+        comparison_size = max(left_type.size, right_type.size)
+        if comparison_size == 1:
+            if left_type.is_unsigned:
+                func_name = "ucmp"
+            else:
+                func_name = "cmp"
+        elif comparison_size == 2:
+            if left_type.is_unsigned:
+                func_name = "ucmp16"
+            else:
+                func_name = "cmp16"
+        elif comparison_size == 4:
+            if left_type.is_unsigned:
+                func_name = "ucmp32"
+            else:
+                func_name = "cmp32"
+        else:
+            raise Exception(f"Logic error, unexpected comparison size {comparison_size}!")
+
+        compiled += generate_function_call(
+            create_call(
+                func_name,
+                [UnvalidatedName(x) for x in unequal_cleanup],
+            ),
+            "register(A, int8)",
+            types,
+            stack,
+            clobbers,
+            refs,
+            local_consts,
+            context.wrap(expression),
+        )
+
+        for entry in reversed(unequal_cleanup):
+            stack.free(entry)
+
+        # Now, set the output to True or False depending on which comparison we wanted.
+        if op == ">":
+            # We want the result to be equal to 1.
+            compiled.append("  ADDI -1")
+            compiled.append("  ZERO")
+            compiled.append("  SKIPIF !ZF")
+            compiled.append("  INV")
+        elif op == "<":
+            # We want the result to be equal to -1.
+            compiled.append("  ADDI 1")
+            compiled.append("  ZERO")
+            compiled.append("  SKIPIF !ZF")
+            compiled.append("  INV")
+        elif op == ">=":
+            # We want the result to be not equal to -1.
+            compiled.append("  ADDI 1")
+            compiled.append("  ZERO")
+            compiled.append("  SKIPIF ZF")
+            compiled.append("  INV")
+        elif op == "<=":
+            # We want the result to be not equal to 1.
+            compiled.append("  ADDI -1")
+            compiled.append("  ZERO")
+            compiled.append("  SKIPIF ZF")
+            compiled.append("  INV")
+        else:
+            raise Exception("Logic error, unexpected comparison type!")
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
@@ -3398,9 +3546,12 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("udiv32", VoidType, [InOutCoreType("int32"), InOutCoreType("int32")]),
 
         # STDLIB integer comparison functions.
-        FunctionPrototype("ucmp", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
-        FunctionPrototype("ucmp16", RegisterCoreType("A"), [InOutCoreType("int16"), InOutCoreType("int16")]),
-        FunctionPrototype("ucmp32", RegisterCoreType("A"), [InOutCoreType("int32"), InOutCoreType("int32")]),
+        FunctionPrototype("ucmp", RegisterCoreType("A"), [InOutCoreType("uint8"), InOutCoreType("uint8")]),
+        FunctionPrototype("ucmp16", RegisterCoreType("A"), [InOutCoreType("uint16"), InOutCoreType("uint16")]),
+        FunctionPrototype("ucmp32", RegisterCoreType("A"), [InOutCoreType("uint32"), InOutCoreType("uint32")]),
+        FunctionPrototype("cmp", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("cmp16", RegisterCoreType("A"), [InOutCoreType("int16"), InOutCoreType("int16")]),
+        FunctionPrototype("cmp32", RegisterCoreType("A"), [InOutCoreType("int32"), InOutCoreType("int32")]),
         FunctionPrototype("umin", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("umin16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("umin32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),

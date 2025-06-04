@@ -1,3 +1,51 @@
+cmp:
+    ; Given two signed integers on the stack, return -1 if the first is less
+    ; than the second, 0 if the first equals the second, and 1 if the
+    ; first is greater than the second. Returns the value in the A
+    ; register. Does not clobber the U, V or SPC registers. Does not clobber
+    ; the numbers on the stack.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to see if 5 is less than, equal to or greater than 7,
+    ; call this similar to:
+    ;     PUSHI 5
+    ;     PUSHI 7
+    ;     CALL ucmp
+    ;
+    ; Stack layout:
+    ; PC + 1 - return address
+    ; PC + 2 - return address
+    ; PC + 3 - second number
+    ; PC + 4 - first number
+
+    ; First, figure out if their signs differ. If so, then we already know
+    ; the answer.
+    ADDPCI 2
+    LOAD A
+    SHL
+    ADDPCI 1
+    LOAD A
+    SUBPCI 3
+    JRINC _cmp_second_positive
+
+    ; Second is negative. First is indeterminate.
+    SHL
+    JRIC ucmp
+
+    ; First is positive, second is negative.
+    LOADI 1
+    RET
+
+_cmp_second_positive:
+    SHL
+    JRINC ucmp
+
+    ; First is negative, second is positive.
+    LOADI -1
+    RET
+
+
 ucmp:
     ; Given two unsigned integers on the stack, return -1 if the first is less
     ; than the second, 0 if the first equals the second, and 1 if the
@@ -97,6 +145,58 @@ _ucmp_second_larger:
     RET
 
 
+cmp16:
+    ; Given two 16-bit signed integers on the stack, return -1 if the first
+    ; is less than the second, 0 if the first equals the second, and 1 if the
+    ; first is greater than the second. Returns the value in the A
+    ; register. Does not clobber the U, V or SPC registers. Does not clobber
+    ; the numbers on the stack.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to see if 0x1234 is less than, equal to or greater than
+    ; 0x5678, call this similar to:
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     CALL ucmp16
+    ;
+    ; Stack layout:
+    ; PC + 1 - return address
+    ; PC + 2 - return address
+    ; PC + 3 - second number high byte
+    ; PC + 4 - second number low byte
+    ; PC + 5 - first number high byte
+    ; PC + 6 - first number low byte
+
+    ; First, figure out if their signs differ. If so, then we already know
+    ; the answer.
+    ADDPCI 2
+    LOAD A
+    SHL
+    ADDPCI 2
+    LOAD A
+    SUBPCI 4
+    JRINC _cmp16_second_positive
+
+    ; Second is negative. First is indeterminate.
+    SHL
+    JRIC ucmp16
+
+    ; First is positive, second is negative.
+    LOADI 1
+    RET
+
+_cmp16_second_positive:
+    SHL
+    JRINC ucmp16
+
+    ; Fisrt is negative, second is positive.
+    LOADI -1
+    RET
+
+
 ucmp16:
     ; Given two 16-bit unsigned integers on the stack, return -1 if the first
     ; is less than the second, 0 if the first equals the second, and 1 if the
@@ -167,6 +267,66 @@ _ucmp16_low_ne:
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
     LNGJUMP _ucmp_loop
+
+
+cmp32:
+    ; Given two 32-bit signed integers on the stack, return -1 if the first
+    ; is less than the second, 0 if the first equals the second, and 1 if the
+    ; first is greater than the second. Returns the value in the A
+    ; register. Does not clobber the U, V or SPC registers. Does not clobber
+    ; the numbers on the stack.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to see if 0x12345678 is less than, equal to or greater than
+    ; 0x56789101, call this similar to:
+    ;     PUSHI 0x01
+    ;     PUSHI 0x91
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     CALL ucmp32
+    ;
+    ; Stack layout:
+    ; PC + 1  - return address
+    ; PC + 2  - return address
+    ; PC + 3  - second number first byte
+    ; PC + 4  - second number
+    ; PC + 5  - second number
+    ; PC + 6  - second number last byte
+    ; PC + 7  - first number first byte
+    ; PC + 8  - first number
+    ; PC + 9  - first number
+    ; PC + 10 - first number last byte
+
+    ; First, figure out if their signs differ. If so, then we already know
+    ; the answer.
+    ADDPCI 2
+    LOAD A
+    SHL
+    ADDPCI 4
+    LOAD A
+    SUBPCI 6
+    JRINC _cmp32_second_positive
+
+    ; Second is negative. First is indeterminate.
+    SHL
+    JRIC ucmp32
+
+    ; First is positive, second is negative.
+    LOADI 1
+    RET
+
+_cmp32_second_positive:
+    SHL
+    JRINC ucmp32
+
+    ; First is negative, second is positive.
+    LOADI -1
+    RET
 
 
 ucmp32:

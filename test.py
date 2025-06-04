@@ -1375,6 +1375,198 @@ def verifyucmp32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for ucmp32: {int(instructions/count)}")
 
 
+def verifycmp(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "cmp" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying cmp...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(-128, 127, 5 if full else 11):
+        for b in range(-128, 127, 3 if full else 7):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {a}",
+                f"PUSHI {b}",
+                "CALL cmp",
+                "HALT",
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            if a < b:
+                answer = -1
+            elif a == b:
+                answer = 0
+            elif a > b:
+                answer = 1
+            _assert(
+                bintoint(cpu.ram[cpu.pc + 1]) == a,
+                f"cmp changed stack value from {a} "
+                + f"to {bintoint(cpu.ram[cpu.pc + 1])}!",
+            )
+            _assert(
+                bintoint(cpu.ram[cpu.pc]) == b,
+                f"cmp changed stack value from {b} to {bintoint(cpu.ram[cpu.pc])}!",
+            )
+            _assert(
+                bintoint(cpu.a) == answer,
+                f"Failed to cmp({a}, {b}), "
+                + f"got {bintoint(cpu.a)} instead of {answer}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int(((a + 128) * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for cmp: {int(cycles/count)}")
+    print(f"Average instructions for cmp: {int(instructions/count)}")
+
+
+def verifycmp16(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "cmp16" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying cmp16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(-32768, 32767, 1281 if full else 2817):
+        for b in range(-32768, 32767, 767 if full else 1791):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {a & 0xFF}",
+                f"PUSHI {(a >> 8) & 0xFF}",
+                f"PUSHI {b & 0xFF}",
+                f"PUSHI {(b >> 8) & 0xFF}",
+                "CALL cmp16",
+                "HALT",
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            if a < b:
+                answer = -1
+            elif a == b:
+                answer = 0
+            elif a > b:
+                answer = 1
+            astack = bintoint16((cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3])
+            _assert(
+                astack == a,
+                f"cmp16 changed stack value from {a} to {astack}!",
+            )
+            bstack = bintoint16((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
+            _assert(
+                bstack == b,
+                f"cmp16 changed stack value from {b} to {bstack}!",
+            )
+            _assert(
+                bintoint(cpu.a) == answer,
+                f"Failed to cmp16({a}, {b}), "
+                + f"got {bintoint(cpu.a)} instead of {answer}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int(((a + 32768) * 100) / 65536)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for cmp16: {int(cycles/count)}")
+    print(f"Average instructions for cmp16: {int(instructions/count)}")
+
+
+def verifycmp32(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "cmp32" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying cmp32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    def _verify_cmp32(a: int, b: int) -> CPUCore:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            f"PUSHI {a & 0xFF}",
+            f"PUSHI {(a >> 8) & 0xFF}",
+            f"PUSHI {(a >> 16) & 0xFF}",
+            f"PUSHI {(a >> 24) & 0xFF}",
+            f"PUSHI {b & 0xFF}",
+            f"PUSHI {(b >> 8) & 0xFF}",
+            f"PUSHI {(b >> 16) & 0xFF}",
+            f"PUSHI {(b >> 24) & 0xFF}",
+            "CALL cmp32",
+            "HALT",
+            *cmplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        if a < b:
+            answer = -1
+        elif a == b:
+            answer = 0
+        elif a > b:
+            answer = 1
+        astack = bintoint32(
+            (cpu.ram[cpu.pc + 4] << 24) +
+            (cpu.ram[cpu.pc + 5] << 16) +
+            (cpu.ram[cpu.pc + 6] << 8) +
+            cpu.ram[cpu.pc + 7]
+        )
+        _assert(
+            astack == a,
+            f"cmp32 changed stack value from {a} to {astack}!",
+        )
+        bstack = bintoint32(
+            (cpu.ram[cpu.pc] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            cpu.ram[cpu.pc + 3]
+        )
+        _assert(
+            bstack == b,
+            f"cmp32 changed stack value from {b} to {bstack}!",
+        )
+        _assert(
+            bintoint(cpu.a) == answer,
+            f"Failed to cmp32({a}, {b}), "
+            + f"got {bintoint(cpu.a)} instead of {answer}!",
+        )
+        return cpu
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in [-2**29, -2**21, -2**13, -2**6, 0, 2**6, 2**13, 2**21, 2**29]:
+        for b in [-2**29, -2**21, -2**13, -2**6, 0, 2**6, 2**13, 2**21, 2**29]:
+            cpu = _verify_cmp32(a, b)
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+            print(f"{CLEAR_LINE}{int(((a + 2**31) * 100) / (2**32))}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for cmp32: {int(cycles/count)}")
+    print(f"Average instructions for ucmp32: {int(instructions/count)}")
+
+
 def verifyumin(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "umin" not in only and "mathlib" not in only:
         return
@@ -6975,6 +7167,136 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
     print(f"Average instructions for inequalityexpression: {int(instructions/count)}")
 
 
+def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "alligatorexpression" not in only and "compiler" not in only:
+        return
+
+    print("Verifying alligatorexpression...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for val1 in [0, 10, 57, 123, 234, 255]:
+        for val2 in [0, 10, 57, 123, 234, 255]:
+            for secondtype in ["uint8", "uint16", "uint32"]:
+                for operator in ["<=", "<", ">=", ">="]:
+                    memory = getmemory(os.linesep.join([
+                        *initlines,
+                        "LNGJUMP code",
+                        *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
+                            def func(val1: uint8, val2: {secondtype}) -> bool:
+                                return val1 {operator} val2
+                        """)),
+                        "code:",
+                        f"PUSHI {val1}",
+                        f"PUSHI {val2 & 0xFF}",
+                        f"PUSHI {(val2 >> 8) & 0xFF}" if secondtype in {"uint16", "uint32"} else "",
+                        f"PUSHI {(val2 >> 16) & 0xFF}" if secondtype == "uint32" else "",
+                        f"PUSHI {(val2 >> 24) & 0xFF}" if secondtype == "uint32" else "",
+                        "LOADI 111",
+                        "MOV A, U",
+                        "LOADI 222",
+                        "MOV A, V",
+                        "LOADI 123",
+                        "CALL func",
+                        "HALT",
+                        *cmplines,
+                    ]))
+                    cpu = CPUCore(memory)
+                    rununtilhalt(cpu)
+
+                    _assert(
+                        cpu.a == 123,
+                        f"alligatorexpression changed accumulator value from {123} to {cpu.a}!",
+                    )
+                    _assert(
+                        cpu.u == 111,
+                        f"alligatorexpression changed U value from {111} to {cpu.u}!",
+                    )
+                    _assert(
+                        cpu.v == 222,
+                        f"alligatorexpression changed V value from {222} to {cpu.v}!",
+                    )
+                    _assert(
+                        cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                        f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+                    )
+                    result = bool(cpu.ram[cpu.pc + 0])
+                    expected = eval(f"{val1} {operator} {val2}")
+                    _assert(
+                        result == expected,
+                        "Failed to alligatorexpression, "
+                        + f"got {result} instead of {expected} for {val1} {operator} {val2}!",
+                    )
+                    cycles += cpu.cycles
+                    instructions += cpu.ticks
+                    count += 1
+
+    for val1 in [-10, 0, 10, 57, -57, 123]:
+        for val2 in [-10, 0, 10, 57, -57, 123]:
+            for secondtype in ["int8", "int16", "int32"]:
+                for operator in ["<=", "<", ">=", ">="]:
+                    memory = getmemory(os.linesep.join([
+                        *initlines,
+                        "LNGJUMP code",
+                        *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
+                            def func(val1: int8, val2: {secondtype}) -> bool:
+                                return val1 {operator} val2
+                        """)),
+                        "code:",
+                        f"PUSHI {val1}",
+                        f"PUSHI {val2 & 0xFF}",
+                        f"PUSHI {(val2 >> 8) & 0xFF}" if secondtype in {"int16", "int32"} else "",
+                        f"PUSHI {(val2 >> 16) & 0xFF}" if secondtype == "int32" else "",
+                        f"PUSHI {(val2 >> 24) & 0xFF}" if secondtype == "int32" else "",
+                        "LOADI 111",
+                        "MOV A, U",
+                        "LOADI 222",
+                        "MOV A, V",
+                        "LOADI 123",
+                        "CALL func",
+                        "HALT",
+                        *cmplines,
+                    ]))
+                    cpu = CPUCore(memory)
+                    rununtilhalt(cpu)
+
+                    _assert(
+                        cpu.a == 123,
+                        f"alligatorexpression changed accumulator value from {123} to {cpu.a}!",
+                    )
+                    _assert(
+                        cpu.u == 111,
+                        f"alligatorexpression changed U value from {111} to {cpu.u}!",
+                    )
+                    _assert(
+                        cpu.v == 222,
+                        f"alligatorexpression changed V value from {222} to {cpu.v}!",
+                    )
+                    _assert(
+                        cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                        f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+                    )
+                    result = bool(cpu.ram[cpu.pc + 0])
+                    expected = eval(f"{val1} {operator} {val2}")
+                    _assert(
+                        result == expected,
+                        "Failed to alligatorexpression, "
+                        + f"got {result} instead of {expected} for {val1} {operator} {val2}!",
+                    )
+                    cycles += cpu.cycles
+                    instructions += cpu.ticks
+                    count += 1
+
+    print(f"Average cycles for alligatorexpression: {int(cycles/count)}")
+    print(f"Average instructions for alligatorexpression: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -7035,6 +7357,9 @@ if __name__ == "__main__":
     verifyucmp(only, args.full)
     verifyucmp16(only, args.full)
     verifyucmp32(only, args.full)
+    verifycmp(only, args.full)
+    verifycmp16(only, args.full)
+    verifycmp32(only, args.full)
     verifyumin(only, args.full)
     verifyumin16(only, args.full)
     verifyumin32(only, args.full)
@@ -7085,3 +7410,4 @@ if __name__ == "__main__":
     verifyternaryexpressions(only, args.full)
     verifyequalityexpression(only, args.full)
     verifyinequalityexpression(only, args.full)
+    verifyalligatorexpression(only, args.full)
