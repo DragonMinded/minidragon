@@ -16,7 +16,4 @@ init:
     ; adjust for this and add a NOP as the first instruction we run.
     NOP
 
-    ; Set up the call stack
-    SETPC stack
-
-    ; TODO: Possibly initialize HW registers for support HW.
+    ; Various init files should be assembled after this point.

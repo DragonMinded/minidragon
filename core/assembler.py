@@ -106,6 +106,19 @@ def _checkoneparam(mnemonic: str, parameters: Tuple[str, ...]) -> None:
         ) from None
 
 
+def _checkoneortwoparams(mnemonic: str, parameters: Tuple[str, ...]) -> None:
+    if len(parameters) == 0:
+        raise ParameterOutOfRangeException(
+            "Expected parameter for instruction "
+            + _insnrep(mnemonic, parameters)
+        ) from None
+    if len(parameters) > 2:
+        raise ParameterOutOfRangeException(
+            "Too many parameters for instruction "
+            + _insnrep(mnemonic, parameters)
+        ) from None
+
+
 def _checktwoparams(mnemonic: str, parameters: Tuple[str, ...]) -> None:
     if len(parameters) == 0:
         raise ParameterOutOfRangeException(
@@ -307,6 +320,9 @@ def assemble(
         if mnemonic.startswith(".org "):
             # Origin directive
             org = getint(mnemonic[5:], 16, allow_unsigned=True)
+        elif mnemonic.startswith(".pad "):
+            val = int(mnemonic[5:])
+            org += val
         elif mnemonic.startswith(".byte "):
             # Data directive
             val = getint(mnemonic[6:], 8, allow_unsigned=True)
@@ -374,6 +390,9 @@ def assemble(
         # Preprocessor directives.
         if mnemonic.startswith(".org "):
             org = getint(mnemonic[5:], 16, allow_unsigned=True)
+        elif mnemonic.startswith(".pad "):
+            val = int(mnemonic[5:])
+            org += val
         elif mnemonic.startswith(".byte "):
             org += 1
         elif mnemonic.startswith(".char "):
@@ -2687,8 +2706,17 @@ class SETPC(BaseMacro):
         labels: Dict[str, int],
         loose: bool,
     ) -> List[int]:
-        _checkoneparam(mnemonic, parameters)
+        _checkoneortwoparams(mnemonic, parameters)
         parameter = parameters[0]
+        if len(parameters) == 2:
+            offset = getint(
+                parameters[1],
+                16,
+                allow_unsigned=True,
+                hint=_insnrep(mnemonic, parameters),
+            )
+        else:
+            offset = 0
 
         # Load immediate value into PC.
         # First, try to get this as an integer.
@@ -2709,14 +2737,20 @@ class SETPC(BaseMacro):
                     hint=_insnrep(mnemonic, parameters),
                 )
             else:
-                # Unfortunately this macro takes a variable number of
-                # instructions, due to us needing to potentially shift
-                # values into upper bits of the A register, so we must
-                # have already seen a label to use it.
-                raise ParameterOutOfRangeException(
-                    "Cannot SETPC to a label not yet seen for "
-                    + f"instruction {_insnrep(mnemonic, parameters)}"
-                )
+                if " " in parameter:
+                    raise ParameterOutOfRangeException(
+                        "Cannot SETPC to an invalid label for "
+                        + f"instruction {_insnrep(mnemonic, parameters)}"
+                    )
+                else:
+                    # Verify that we do or don't need labels.
+                    _checklabel(mnemonic, parameters, loose)
+
+                    # We don't care what value we use here, it'll get filled on the second pass.
+                    location = 0xDEADBEEF
+
+        # Now, add any offset.
+        location += offset
 
         # Now, split the location into two halves.
         pval = (location >> 8) & 0xFF

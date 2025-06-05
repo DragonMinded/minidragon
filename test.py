@@ -448,6 +448,8 @@ def verifymult(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
@@ -472,6 +474,7 @@ def verifymult(only: Optional[Container[str]], full: bool) -> None:
                 break
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {x}",
                 f"PUSHI {y}",
                 "CALL mult",
@@ -504,6 +507,8 @@ def verifymult16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
@@ -537,6 +542,7 @@ def verifymult16(only: Optional[Container[str]], full: bool) -> None:
                 break
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {y & 0xFF}",
@@ -579,6 +585,8 @@ def verifymult32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
@@ -613,6 +621,7 @@ def verifymult32(only: Optional[Container[str]], full: bool) -> None:
                 break
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {(x >> 16) & 0xFF}",
@@ -664,6 +673,8 @@ def verifyudiv(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
@@ -680,6 +691,7 @@ def verifyudiv(only: Optional[Container[str]], full: bool) -> None:
         for divisor in range(1, 256, 5 if full else 23):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {dividend}",
                 f"PUSHI {divisor}",
                 "LOADI 123",
@@ -726,6 +738,8 @@ def verifyudiv16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
@@ -746,6 +760,7 @@ def verifyudiv16(only: Optional[Container[str]], full: bool) -> None:
         ):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {dividend & 0xFF}",
                 f"PUSHI {(dividend >> 8) & 0xFF}",
                 f"PUSHI {divisor & 0xFF}",
@@ -794,6 +809,8 @@ def verifyudiv32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
@@ -814,6 +831,7 @@ def verifyudiv32(only: Optional[Container[str]], full: bool) -> None:
         ):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {dividend & 0xFF}",
                 f"PUSHI {(dividend >> 8) & 0xFF}",
                 f"PUSHI {(dividend >> 16) & 0xFF}",
@@ -876,6 +894,8 @@ def verifymathadd(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
 
@@ -886,6 +906,7 @@ def verifymathadd(only: Optional[Container[str]], full: bool) -> None:
         for y in range(0, 256, 3 if full else 7):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {x}",
                 f"PUSHI {y}",
                 "CALL add",
@@ -919,6 +940,8 @@ def verifyadd16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
 
@@ -929,6 +952,7 @@ def verifyadd16(only: Optional[Container[str]], full: bool) -> None:
         for y in range(0, 65536, 987 if full else 1876):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {y & 0xFF}",
@@ -969,6 +993,8 @@ def verifyadd32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
 
@@ -979,6 +1005,7 @@ def verifyadd32(only: Optional[Container[str]], full: bool) -> None:
         for y in range(0, 2**32, 61472769 if full else 122945537):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {(x >> 16) & 0xFF}",
@@ -1027,6 +1054,8 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
     with open("lib/math/abs.S", "r") as fp:
@@ -1038,6 +1067,7 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
     for x in range(-127, 128):
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"LOADI {x}",
             "CALL abs",
             "HALT",
@@ -1067,6 +1097,8 @@ def verifyabs16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
     with open("lib/math/abs.S", "r") as fp:
@@ -1079,6 +1111,7 @@ def verifyabs16(only: Optional[Container[str]], full: bool) -> None:
         xbin = inttobin16(x)
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
             "LOADI 123",
@@ -1120,6 +1153,8 @@ def verifyabs32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
     with open("lib/math/abs.S", "r") as fp:
@@ -1136,6 +1171,7 @@ def verifyabs32(only: Optional[Container[str]], full: bool) -> None:
         xbin = inttobin32(x)
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
             f"PUSHI {(xbin >> 16) & 0xFF}",
@@ -1184,6 +1220,8 @@ def verifyucmp(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
@@ -1194,6 +1232,7 @@ def verifyucmp(only: Optional[Container[str]], full: bool) -> None:
         for b in range(0, 256, 3 if full else 7):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {a}",
                 f"PUSHI {b}",
                 "CALL ucmp",
@@ -1240,6 +1279,8 @@ def verifyucmp16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
@@ -1250,6 +1291,7 @@ def verifyucmp16(only: Optional[Container[str]], full: bool) -> None:
         for b in range(0, 65536, 767 if full else 1791):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {a & 0xFF}",
                 f"PUSHI {(a >> 8) & 0xFF}",
                 f"PUSHI {b & 0xFF}",
@@ -1299,12 +1341,15 @@ def verifyucmp32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
     def _verify_ucmp32(a: int, b: int) -> CPUCore:
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {a & 0xFF}",
             f"PUSHI {(a >> 8) & 0xFF}",
             f"PUSHI {(a >> 16) & 0xFF}",
@@ -1384,6 +1429,8 @@ def verifycmp(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
@@ -1394,6 +1441,7 @@ def verifycmp(only: Optional[Container[str]], full: bool) -> None:
         for b in range(-128, 127, 3 if full else 7):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {a}",
                 f"PUSHI {b}",
                 "CALL cmp",
@@ -1440,6 +1488,8 @@ def verifycmp16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
@@ -1450,6 +1500,7 @@ def verifycmp16(only: Optional[Container[str]], full: bool) -> None:
         for b in range(-32768, 32767, 767 if full else 1791):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {a & 0xFF}",
                 f"PUSHI {(a >> 8) & 0xFF}",
                 f"PUSHI {b & 0xFF}",
@@ -1499,12 +1550,15 @@ def verifycmp32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
     def _verify_cmp32(a: int, b: int) -> CPUCore:
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {a & 0xFF}",
             f"PUSHI {(a >> 8) & 0xFF}",
             f"PUSHI {(a >> 16) & 0xFF}",
@@ -1576,6 +1630,8 @@ def verifyumin(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
@@ -1586,6 +1642,7 @@ def verifyumin(only: Optional[Container[str]], full: bool) -> None:
         for b in range(0, 256, 3 if full else 7):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {a}",
                 f"PUSHI {b}",
                 "CALL umin",
@@ -1627,6 +1684,8 @@ def verifyumin16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
@@ -1637,6 +1696,7 @@ def verifyumin16(only: Optional[Container[str]], full: bool) -> None:
         for b in range(0, 65536, 767 if full else 1791):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {a & 0xFF}",
                 f"PUSHI {(a >> 8) & 0xFF}",
                 f"PUSHI {b & 0xFF}",
@@ -1677,12 +1737,15 @@ def verifyumin32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
     def _verify_umin32(a: int, b: int) -> CPUCore:
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {a & 0xFF}",
             f"PUSHI {(a >> 8) & 0xFF}",
             f"PUSHI {(a >> 16) & 0xFF}",
@@ -1748,6 +1811,8 @@ def verifyumax(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
@@ -1758,6 +1823,7 @@ def verifyumax(only: Optional[Container[str]], full: bool) -> None:
         for b in range(0, 256, 3 if full else 7):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {a}",
                 f"PUSHI {b}",
                 "CALL umax",
@@ -1799,6 +1865,8 @@ def verifyumax16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
@@ -1809,6 +1877,7 @@ def verifyumax16(only: Optional[Container[str]], full: bool) -> None:
         for b in range(0, 65536, 767 if full else 1791):
             memory = getmemory(os.linesep.join([
                 *initlines,
+                "main:",
                 f"PUSHI {a & 0xFF}",
                 f"PUSHI {(a >> 8) & 0xFF}",
                 f"PUSHI {b & 0xFF}",
@@ -1849,12 +1918,15 @@ def verifyumax32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
     def _verify_umax32(a: int, b: int) -> CPUCore:
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {a & 0xFF}",
             f"PUSHI {(a >> 8) & 0xFF}",
             f"PUSHI {(a >> 16) & 0xFF}",
@@ -1920,6 +1992,8 @@ def verifymathneg(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
 
@@ -1929,6 +2003,7 @@ def verifymathneg(only: Optional[Container[str]], full: bool) -> None:
     for x in range(-127, 128):
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {x}",
             "CALL neg",
             "HALT",
@@ -1961,6 +2036,8 @@ def verifyneg16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
 
@@ -1971,6 +2048,7 @@ def verifyneg16(only: Optional[Container[str]], full: bool) -> None:
         xbin = inttobin16(x)
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
             "LOADI 123",
@@ -2011,6 +2089,8 @@ def verifyneg32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
 
@@ -2025,6 +2105,7 @@ def verifyneg32(only: Optional[Container[str]], full: bool) -> None:
         xbin = inttobin32(x)
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
             f"PUSHI {(xbin >> 16) & 0xFF}",
@@ -2071,6 +2152,8 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/string/strlen.S", "r") as fp:
         liblines = fp.readlines()
 
@@ -2085,12 +2168,11 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
     ]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             ".org 0x1000",
             "string:",
             *[f".char {c!r}" for c in string],
             ".byte 0x00",
-            "code:",
+            "main:",
             "SWAP PC, SPC",
             "SETPC string",
             "SWAP PC, SPC",
@@ -2127,6 +2209,8 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         liblines = fp.readlines()
 
@@ -2141,12 +2225,11 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
     ]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             ".org 0x1000",
             "string:",
             *[f".char {c!r}" for c in string],
             ".byte 0x00",
-            "code:",
+            "main:",
             "SWAP PC, SPC",
             "SETPC string",
             "SWAP PC, SPC",
@@ -2195,6 +2278,8 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/string/strcat.S", "r") as fp:
         liblines = fp.readlines()
 
@@ -2213,7 +2298,6 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
         ]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 ".org 0x1000",
                 "concatenation:",
                 *[f".char {c!r}" for c in concatenation],
@@ -2223,7 +2307,7 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
                 *[f".char {c!r}" for c in string],
                 ".byte 0x00",
                 ".org 0x3000",
-                "code:",
+                "main:",
                 "SWAP PC, SPC",
                 "SETPC concatenation",
                 "SWAP PC, SPC",
@@ -2278,6 +2362,8 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
     with open("lib/string/strcmp.S", "r") as fp:
@@ -2300,7 +2386,6 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
         ]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 ".org 0x1000",
                 "source:",
                 *[f".char {c!r}" for c in source],
@@ -2310,7 +2395,7 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
                 *[f".char {c!r}" for c in destination],
                 ".byte 0x00",
                 ".org 0x3000",
-                "code:",
+                "main:",
                 "SWAP PC, SPC",
                 "SETPC source",
                 "SWAP PC, SPC",
@@ -2368,6 +2453,8 @@ def verifyitoa(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
     with open("lib/conversion/itoa.S", "r") as fp:
@@ -2385,6 +2472,7 @@ def verifyitoa(only: Optional[Container[str]], full: bool) -> None:
     for x in sorted(chain([0], range(-128, 128, 1 if full else 7))):
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             "PUSHI 0x00",
             "PUSHI 0x10",
             f"LOADI {x}",
@@ -2431,6 +2519,8 @@ def verifyitoa16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
     with open("lib/conversion/itoa.S", "r") as fp:
@@ -2449,6 +2539,7 @@ def verifyitoa16(only: Optional[Container[str]], full: bool) -> None:
         xbin = inttobin16(x)
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
             "PUSHI 0x00",
@@ -2505,6 +2596,8 @@ def verifyitoa32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
     with open("lib/conversion/itoa.S", "r") as fp:
@@ -2523,6 +2616,7 @@ def verifyitoa32(only: Optional[Container[str]], full: bool) -> None:
         xbin = inttobin32(x)
         memory = getmemory(os.linesep.join([
             *initlines,
+            "main:",
             f"PUSHI {xbin & 0xFF}",
             f"PUSHI {(xbin >> 8) & 0xFF}",
             f"PUSHI {(xbin >> 16) & 0xFF}",
@@ -2584,6 +2678,8 @@ def verifyatoi(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
@@ -2607,13 +2703,12 @@ def verifyatoi(only: Optional[Container[str]], full: bool) -> None:
             for suffix in {"", " and some", "!"}:
                 memory = getmemory(os.linesep.join([
                     *initlines,
-                    "LNGJUMP code",
                     ".org 0x1000",
                     "string:",
                     *[f".char {c!r}" for c in numstr],
                     *[f".char {c!r}" for c in suffix],
                     ".byte 0x00",
-                    "code:",
+                    "main:",
                     "SWAP PC, SPC",
                     "SETPC string",
                     "SWAP PC, SPC",
@@ -2660,6 +2755,8 @@ def verifyatoi16(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
@@ -2683,13 +2780,12 @@ def verifyatoi16(only: Optional[Container[str]], full: bool) -> None:
             for suffix in {"", " and some", "!"}:
                 memory = getmemory(os.linesep.join([
                     *initlines,
-                    "LNGJUMP code",
                     ".org 0x1000",
                     "string:",
                     *[f".char {c!r}" for c in numstr],
                     *[f".char {c!r}" for c in suffix],
                     ".byte 0x00",
-                    "code:",
+                    "main:",
                     "SWAP PC, SPC",
                     "SETPC string",
                     "SWAP PC, SPC",
@@ -2745,6 +2841,8 @@ def verifyatoi32(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
@@ -2768,13 +2866,12 @@ def verifyatoi32(only: Optional[Container[str]], full: bool) -> None:
             for suffix in {"", " and some", "!"}:
                 memory = getmemory(os.linesep.join([
                     *initlines,
-                    "LNGJUMP code",
                     ".org 0x1000",
                     "string:",
                     *[f".char {c!r}" for c in numstr],
                     *[f".char {c!r}" for c in suffix],
                     ".byte 0x00",
-                    "code:",
+                    "main:",
                     "SWAP PC, SPC",
                     "SETPC string",
                     "SWAP PC, SPC",
@@ -2835,6 +2932,8 @@ def verifystaticreturn(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -2844,12 +2943,11 @@ def verifystaticreturn(only: Optional[Container[str]], full: bool) -> None:
         # return value pieces that don't fit in the original parameters.
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("staticreturn", textwrap.dedent(f"""
                 def staticreturn() -> int8:
                     return {x}
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             "LOADI 111",
             "MOV A, U",
             "LOADI 222",
@@ -2903,12 +3001,11 @@ def verifystaticreturn(only: Optional[Container[str]], full: bool) -> None:
         # A nopad return shuffles things in place to ensure that the return value gets moved properly.
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("staticreturn", textwrap.dedent(f"""
                 def staticreturn() -> nopad[int8]:
                     return {x}
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             "LOADI 111",
             "MOV A, U",
             "LOADI 222",
@@ -2961,6 +3058,8 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -2968,12 +3067,11 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 54321]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("downcast", textwrap.dedent("""
                 def func(param1: int16) -> nopad[int8]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -3013,12 +3111,11 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 54321, 123456789, 987654321, 0xDEADBEEF, 0xCAFEBABE]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("downcast", textwrap.dedent("""
                 def func(param1: int32) -> nopad[int8]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -3060,12 +3157,11 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
     for x in [0xDEADBEEF, 37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 54321, 123456789, 987654321, 0xDEADBEEF, 0xCAFEBABE]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("downcast", textwrap.dedent("""
                 def func(param1: int32) -> nopad[int16]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -3118,6 +3214,8 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -3125,12 +3223,11 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("upcast", textwrap.dedent("""
                 def func(param1: int8) -> nopad[int16]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3172,12 +3269,11 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("upcast", textwrap.dedent("""
                 def func(param1: int8) -> nopad[int32]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3222,12 +3318,11 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("upcast", textwrap.dedent("""
                 def func(param1: int16) -> nopad[int32]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -3281,6 +3376,8 @@ def verifyunsignedupcast(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -3288,12 +3385,11 @@ def verifyunsignedupcast(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, 89, 0, 42, 128, 255]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("unsignedupcast", textwrap.dedent("""
                 def func(param1: uint8) -> nopad[uint16]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3335,12 +3431,11 @@ def verifyunsignedupcast(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, 89, 0, 42, 128, 255]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("unsignedupcast", textwrap.dedent("""
                 def func(param1: uint8) -> nopad[uint32]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3385,12 +3480,11 @@ def verifyunsignedupcast(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, 89, 0, 42, 128, 255, 1024, 555, 12345, 32768, 65535]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("unsignedupcast", textwrap.dedent("""
                 def func(param1: uint16) -> nopad[uint32]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -3444,6 +3538,8 @@ def verifyechoparam(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -3451,12 +3547,11 @@ def verifyechoparam(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 99, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("echoparam", textwrap.dedent("""
                 def echoparam(param1: int8) -> int8:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3503,12 +3598,11 @@ def verifyechoparam(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 99, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("echoparam", textwrap.dedent("""
                 def echoparam(param1: int8) -> nopad[int8]:
                     return param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3556,6 +3650,8 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
 
@@ -3565,12 +3661,11 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 99, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int8) -> int8:
                     return param1 + 15
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3610,12 +3705,11 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 9999, -9999]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int16) -> int16:
                     return param1 + 12345
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -3658,12 +3752,11 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int32) -> int32:
                     return param1 + 123456
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -3718,12 +3811,11 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 99, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int8) -> int8:
                     return 15 + param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3771,12 +3863,11 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
         # A nopad return shuffles things in place to ensure that the return value gets moved properly.
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int8) -> nopad[int8]:
                     return param1 + 15
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3832,6 +3923,8 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
@@ -3843,12 +3936,11 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 99, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int8) -> int8:
                     return param1 - 15
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -3889,12 +3981,11 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 9999, -9999]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int16) -> int16:
                     return param1 - 12345
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -3938,12 +4029,11 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int32) -> int32:
                     return param1 - 123456
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -3999,12 +4089,11 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 99, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int8) -> int8:
                     return 15 - param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -4053,12 +4142,11 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
         # A nopad return shuffles things in place to ensure that the return value gets moved properly.
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int8) -> nopad[int8]:
                     return param1 - 15
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -4115,6 +4203,8 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
@@ -4126,12 +4216,11 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, 99, 42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: uint8) -> uint8:
                     return param1 * 3
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -4173,12 +4262,11 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, 89, 42, 1024, 555, 12345, 9999]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: uint16) -> uint16:
                     return param1 * 31
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -4222,12 +4310,11 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, 89, 42, 1024, 555, 12345, 32000, 1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: uint32) -> uint32:
                     return param1 * 491
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -4283,12 +4370,11 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 99, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: int8) -> int8:
                     return param1 * 3
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -4330,12 +4416,11 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 9999, -9999]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: int16) -> int16:
                     return param1 * 31
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -4379,12 +4464,11 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: int32) -> int32:
                     return param1 * 491
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -4442,6 +4526,8 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
@@ -4457,12 +4543,11 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, 99, 42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                 def divideandreturn(param1: uint8) -> uint8:
                     return param1 // 3
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -4506,12 +4591,11 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, 89, 42, 1024, 555, 12345, 9999]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                 def divideandreturn(param1: uint16) -> uint16:
                     return param1 // 31
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -4557,12 +4641,11 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, 89, 42, 1024, 555, 12345, 32000, 1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                 def divideandreturn(param1: uint32) -> uint32:
                     return param1 // 491
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -4623,12 +4706,11 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
         for x in [0, 37, -37, 99, 42, -42]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                     def divideandreturn(param1: int8) -> int8:
                         return param1 // 3
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"LOADI {x}",
                 "PUSH A",
                 "LOADI 111",
@@ -4672,12 +4754,11 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
         for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 9999, -9999]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                     def divideandreturn(param1: int16) -> int16:
                         return param1 // 31
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
                 "LOADI 111",
@@ -4723,12 +4804,11 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
         for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                     def divideandreturn(param1: int32) -> int32:
                         return param1 // 491
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {(x >> 16) & 0xFF}",
@@ -4788,6 +4868,8 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
@@ -4803,12 +4885,11 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, 99, 42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                 def moduloandreturn(param1: uint8) -> uint8:
                     return param1 % 3
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -4852,12 +4933,11 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, 89, 42, 1024, 555, 12345, 9999]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                 def moduloandreturn(param1: uint16) -> uint16:
                     return param1 % 31
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -4903,12 +4983,11 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, 89, 42, 1024, 555, 12345, 32000, 1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                 def moduloandreturn(param1: uint32) -> uint32:
                     return param1 % 491
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -4969,12 +5048,11 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
         for x in [0, 37, -37, 99, 42, -42]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                     def moduloandreturn(param1: int8) -> int8:
                         return param1 % 3
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"LOADI {x}",
                 "PUSH A",
                 "LOADI 111",
@@ -5018,12 +5096,11 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
         for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 9999, -9999]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                     def moduloandreturn(param1: int16) -> int16:
                         return param1 % 31
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
                 "LOADI 111",
@@ -5069,12 +5146,11 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
         for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                     def moduloandreturn(param1: int32) -> int32:
                         return param1 % 491
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
                 f"PUSHI {(x >> 16) & 0xFF}",
@@ -5134,6 +5210,8 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -5141,12 +5219,11 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 99, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwiseand", textwrap.dedent("""
                 def bitwiseand(param1: int8) -> int8:
                     return param1 & 0x3C
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -5186,12 +5263,11 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwiseand", textwrap.dedent("""
                 def bitwiseand(param1: int16) -> int16:
                     return param1 & 0xA53C
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -5231,12 +5307,11 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwiseand", textwrap.dedent("""
                 def bitwiseand(param1: int32) -> int32:
                     return param1 & 0x3CA5963C
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -5292,6 +5367,8 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -5299,12 +5376,11 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 99, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwiseor", textwrap.dedent("""
                 def bitwiseor(param1: int8) -> int8:
                     return param1 | 0x3C
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -5344,12 +5420,11 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwiseor", textwrap.dedent("""
                 def bitwiseor(param1: int16) -> int16:
                     return param1 | 0xA53C
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -5389,12 +5464,11 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwiseor", textwrap.dedent("""
                 def bitwiseor(param1: int32) -> int32:
                     return param1 | 0x3CA5963C
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -5450,6 +5524,8 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -5457,12 +5533,11 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 99, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwisexor", textwrap.dedent("""
                 def bitwisexor(param1: int8) -> int8:
                     return param1 ^ 0x3C
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -5502,12 +5577,11 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwisexor", textwrap.dedent("""
                 def bitwisexor(param1: int16) -> int16:
                     return param1 ^ 0xA53C
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -5547,12 +5621,11 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
     for x in [0, 37, -37, 89, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwisexor", textwrap.dedent("""
                 def bitwisexor(param1: int32) -> int32:
                     return param1 ^ 0x3CA5963C
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -5608,6 +5681,8 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -5615,12 +5690,11 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwisenot", textwrap.dedent("""
                 def bitwisenot(param1: int8) -> int8:
                     return ~param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -5660,12 +5734,11 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwisenot", textwrap.dedent("""
                 def bitwisenot(param1: int16) -> int16:
                     return ~param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -5705,12 +5778,11 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("bitwisenot", textwrap.dedent("""
                 def bitwisenot(param1: int32) -> int32:
                     return ~param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -5766,6 +5838,8 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
 
@@ -5775,12 +5849,11 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("negation", textwrap.dedent("""
                 def negation(param1: int8) -> int8:
                     return -param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -5821,12 +5894,11 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("negation", textwrap.dedent("""
                 def negation(param1: int16) -> int16:
                     return -param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -5869,12 +5941,11 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42, -1024, 1024, 555, -555, 12345, -12345, 32000, -32000, 1234567890, -1234567890]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("negation", textwrap.dedent("""
                 def negation(param1: int32) -> int32:
                     return -param1
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             f"PUSHI {(x >> 16) & 0xFF}",
@@ -5931,6 +6002,8 @@ def verifycomplexexpression(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
 
@@ -5942,12 +6015,11 @@ def verifycomplexexpression(only: Optional[Container[str]], full: bool) -> None:
             for z in [13, -13, 22, -22]:
                 memory = getmemory(os.linesep.join([
                     *initlines,
-                    "LNGJUMP code",
                     *parse_and_compile_module("complexexpression", textwrap.dedent("""
                         def complexexpression(param1: int8, param2: int8, param3: int8) -> int8:
                             return param1 + (param2 - param3) + 7
-                    """)),
-                    "code:",
+                    """)).code,
+                    "main:",
                     f"LOADI {x}",
                     "PUSH A",
                     f"LOADI {y}",
@@ -6001,6 +6073,8 @@ def verifylocalvariables(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
 
@@ -6010,7 +6084,6 @@ def verifylocalvariables(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("localvariables", textwrap.dedent("""
                 def localvariables(param1: int8) -> int8:
                     SOME_CONST: const[int8] = 10
@@ -6021,8 +6094,8 @@ def verifylocalvariables(only: Optional[Container[str]], full: bool) -> None:
 
                     # Return it.
                     return var + 3
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -6072,6 +6145,8 @@ def verifyfunctioncall(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
 
@@ -6081,7 +6156,6 @@ def verifyfunctioncall(only: Optional[Container[str]], full: bool) -> None:
     for x in [37, -37, 89, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("functioncall", textwrap.dedent("""
                 def add_10_to_two_params(param1: int8, param2: int8) -> int8:
                     CONST_VALUE: int8 = 10
@@ -6090,8 +6164,8 @@ def verifyfunctioncall(only: Optional[Container[str]], full: bool) -> None:
                 # Also verifying that types can be narrowed and expanded properly.
                 def func(param1: int16) -> int16:
                     return add_10_to_two_params(param1, 5)
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
             "LOADI 111",
@@ -6143,6 +6217,8 @@ def verifycomplexfunctioncall(only: Optional[Container[str]], full: bool) -> Non
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
 
@@ -6152,7 +6228,6 @@ def verifycomplexfunctioncall(only: Optional[Container[str]], full: bool) -> Non
     for x in [37, -37, 89, 0, 42, -42]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("complexfunctioncall", textwrap.dedent("""
                 def add_10_to_two_params(param1: int8, param2: int8) -> int8:
                     CONST_VALUE: int8 = 10
@@ -6164,8 +6239,8 @@ def verifycomplexfunctioncall(only: Optional[Container[str]], full: bool) -> Non
                 def func(param1: int8) -> int8:
                     local_var: int8 = be_in_the_way(param1, 7) - 2
                     return local_var - 5
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"LOADI {x}",
             "PUSH A",
             "LOADI 111",
@@ -6215,6 +6290,8 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -6222,12 +6299,11 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
     for val in [False, True]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("simplebooleans", textwrap.dedent(f"""
                 def func() -> bool:
                     return {val}
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             "LOADI 111",
             "MOV A, U",
             "LOADI 222",
@@ -6278,6 +6354,8 @@ def verifybooleanischeck(only: Optional[Container[str]], full: bool) -> None:
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -6286,12 +6364,11 @@ def verifybooleanischeck(only: Optional[Container[str]], full: bool) -> None:
         for val in [False, True]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("booleanischeck", textwrap.dedent(f"""
                     def func(val: bool) -> bool:
                         return val is {res}
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {'0xFF' if val else '0x00'}",
                 "LOADI 111",
                 "MOV A, U",
@@ -6343,6 +6420,8 @@ def verifybooleanexpressions(only: Optional[Container[str]], full: bool) -> None
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -6351,12 +6430,11 @@ def verifybooleanexpressions(only: Optional[Container[str]], full: bool) -> None
         for a, b in [(False, False), (False, True), (True, False), (True, True)]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("booleanexpressions", textwrap.dedent(f"""
                     def func(op1: bool, op2: bool) -> bool:
                         return op1 {op} op2
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {'0xFF' if a else '0x00'}",
                 f"PUSHI {'0xFF' if b else '0x00'}",
                 "LOADI 111",
@@ -6400,12 +6478,11 @@ def verifybooleanexpressions(only: Optional[Container[str]], full: bool) -> None
     for val in [False, True]:
         memory = getmemory(os.linesep.join([
             *initlines,
-            "LNGJUMP code",
             *parse_and_compile_module("booleanexpressions", textwrap.dedent("""
                 def func(op: bool) -> bool:
                     return not op
-            """)),
-            "code:",
+            """)).code,
+            "main:",
             f"PUSHI {'0xFF' if val else '0x00'}",
             "LOADI 111",
             "MOV A, U",
@@ -6457,6 +6534,8 @@ def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -6466,12 +6545,11 @@ def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None
             for val in [False, True]:
                 memory = getmemory(os.linesep.join([
                     *initlines,
-                    "LNGJUMP code",
                     *parse_and_compile_module("ternaryexpressions", textwrap.dedent("""
                         def func(a: int8, b: int8, op: bool) -> int8:
                             return (a + 5) if op else (b - 7)
-                    """)),
-                    "code:",
+                    """)).code,
+                    "main:",
                     f"PUSHI {a}",
                     f"PUSHI {b}",
                     f"PUSHI {'0xFF' if val else '0x00'}",
@@ -6521,6 +6599,8 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -6530,12 +6610,11 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
             for secondtype in ["int8", "int16", "int32"]:
                 memory = getmemory(os.linesep.join([
                     *initlines,
-                    "LNGJUMP code",
                     *parse_and_compile_module("equalityexpression", textwrap.dedent(f"""
                         def func(val1: int8, val2: {secondtype}) -> bool:
                             return val1 == val2
-                    """)),
-                    "code:",
+                    """)).code,
+                    "main:",
                     f"PUSHI {val1}",
                     f"PUSHI {val2 & 0xFF}",
                     f"PUSHI {(val2 >> 8) & 0xFF}" if secondtype in {"int16", "int32"} else "",
@@ -6583,12 +6662,11 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
         for val2 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
                     def func(val1: int16, val2: int16) -> bool:
                         return val1 == val2
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
                 f"PUSHI {val2 & 0xFF}",
@@ -6635,12 +6713,11 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
         for val2 in [0x0000, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xFF00FF00, 0x00FF00FF, 1234567890]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
                     def func(val1: int32, val2: int32) -> bool:
                         return val1 == val2
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
                 f"PUSHI {(val1 >> 16) & 0xFF}",
@@ -6691,12 +6768,11 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
         for val2 in [-10, 0, 10, 57, -57, 123]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("equalityexpression", textwrap.dedent(f"""
                     def func(val1: int8) -> bool:
                         return val1 == {val2}
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1}",
                 "LOADI 111",
                 "MOV A, U",
@@ -6740,12 +6816,11 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
         for val2 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("equalityexpression", textwrap.dedent(f"""
                     def func(val1: int16) -> bool:
                         return val1 == {val2}
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
                 "LOADI 111",
@@ -6790,12 +6865,11 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
         for val2 in [0x0000, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xFF00FF00, 0x00FF00FF, 1234567890]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("equalityexpression", textwrap.dedent(f"""
                     def func(val1: int32) -> bool:
                         return val1 == {val2}
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
                 f"PUSHI {(val1 >> 16) & 0xFF}",
@@ -6850,6 +6924,8 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -6858,12 +6934,11 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
         for val2 in [-10, 0, 10, 57, -57, 123]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent("""
                     def func(val1: int8, val2: int8) -> bool:
                         return val1 != val2
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1}",
                 f"PUSHI {val2}",
                 "LOADI 111",
@@ -6908,12 +6983,11 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
         for val2 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent("""
                     def func(val1: int16, val2: int16) -> bool:
                         return val1 != val2
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
                 f"PUSHI {val2 & 0xFF}",
@@ -6960,12 +7034,11 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
         for val2 in [0x0000, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xFF00FF00, 0x00FF00FF, 1234567890]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent("""
                     def func(val1: int32, val2: int32) -> bool:
                         return val1 != val2
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
                 f"PUSHI {(val1 >> 16) & 0xFF}",
@@ -7016,12 +7089,11 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
         for val2 in [-10, 0, 10, 57, -57, 123]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent(f"""
                     def func(val1: int8) -> bool:
                         return val1 != {val2}
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1}",
                 "LOADI 111",
                 "MOV A, U",
@@ -7065,12 +7137,11 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
         for val2 in [0x0000, 0x00FF, 0xFF00, 0xFFFF, 12345]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent(f"""
                     def func(val1: int16) -> bool:
                         return val1 != {val2}
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
                 "LOADI 111",
@@ -7115,12 +7186,11 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
         for val2 in [0x0000, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xFF00FF00, 0x00FF00FF, 1234567890]:
             memory = getmemory(os.linesep.join([
                 *initlines,
-                "LNGJUMP code",
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent(f"""
                     def func(val1: int32) -> bool:
                         return val1 != {val2}
-                """)),
-                "code:",
+                """)).code,
+                "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
                 f"PUSHI {(val1 >> 16) & 0xFF}",
@@ -7175,6 +7245,8 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
 
@@ -7187,12 +7259,11 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
                 for operator in ["<=", "<", ">=", ">="]:
                     memory = getmemory(os.linesep.join([
                         *initlines,
-                        "LNGJUMP code",
                         *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
                             def func(val1: uint8, val2: {secondtype}) -> bool:
                                 return val1 {operator} val2
-                        """)),
-                        "code:",
+                        """)).code,
+                        "main:",
                         f"PUSHI {val1}",
                         f"PUSHI {val2 & 0xFF}",
                         f"PUSHI {(val2 >> 8) & 0xFF}" if secondtype in {"uint16", "uint32"} else "",
@@ -7243,12 +7314,11 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
                 for operator in ["<=", "<", ">=", ">="]:
                     memory = getmemory(os.linesep.join([
                         *initlines,
-                        "LNGJUMP code",
                         *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
                             def func(val1: int8, val2: {secondtype}) -> bool:
                                 return val1 {operator} val2
-                        """)),
-                        "code:",
+                        """)).code,
+                        "main:",
                         f"PUSHI {val1}",
                         f"PUSHI {val2 & 0xFF}",
                         f"PUSHI {(val2 >> 8) & 0xFF}" if secondtype in {"int16", "int32"} else "",
@@ -7295,6 +7365,276 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
 
     print(f"Average cycles for alligatorexpression: {int(cycles/count)}")
     print(f"Average instructions for alligatorexpression: {int(instructions/count)}")
+
+
+def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "globalvariableread" not in only and "compiler" not in only:
+        return
+
+    print("Verifying globalvariableread...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    for val in [0, 37, -37, 42, -42]:
+        # First, attempt to initialize a global variable and then read it's value later.
+        # This code should trigger an 8-bit register read of the variable instead of using
+        # the stack.
+        sections = parse_and_compile_module("globalvariableread", textwrap.dedent(f"""
+            global_variable: int8 = {val}
+            def get_global_variable() -> nopad[int8]:
+                return global_variable
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL get_global_variable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"globalvariableread changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"globalvariableread changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"globalvariableread changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc + 0])
+        _assert(
+            result == val,
+            "Failed to globalvariableread, "
+            + f"got {result} instead of {val}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for val in [0, 37, 42, 123, 234, 255]:
+        # First, attempt to initialize a global variable and then read it's value later.
+        # This code should trigger an 8-bit register read of the variable instead of using
+        # the stack.
+        sections = parse_and_compile_module("globalvariableread", textwrap.dedent(f"""
+            global_variable: uint8 = {val}
+            def get_global_variable() -> nopad[uint8]:
+                return global_variable
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL get_global_variable",
+            "HALT",
+            *datalines,
+            *sections.data,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"globalvariableread changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"globalvariableread changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"globalvariableread changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            result == val,
+            "Failed to globalvariableread, "
+            + f"got {result} instead of {val}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for global_width in ["int8", "int16", "int32"]:
+        for function_width in ["int8", "int16", "int32"]:
+            for val in [0, 37, -37, 42, -42]:
+                add_val = {
+                    "int8": 15,
+                    "int16": 1337,
+                    "int32": 123456789,
+                }[function_width]
+
+                # Now, attempt to read an initialized global variable and perform math against it.
+                sections = parse_and_compile_module("globalvariableread", textwrap.dedent(f"""
+                    global_variable: {global_width} = {val}
+                    def get_global_variable() -> nopad[{function_width}]:
+                        return global_variable + {add_val}
+                """))
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    *sections.init,
+                    *startlines,
+                    *addlines,
+                    *sections.code,
+                    "main:",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL get_global_variable",
+                    "HALT",
+                    *datalines,
+                    *sections.data,
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"globalvariableread changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"globalvariableread changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"globalvariableread changed V value from {222} to {cpu.v}!",
+                )
+                if function_width == "int8":
+                    result = bintoint(cpu.ram[cpu.pc + 0])
+                elif function_width == "int16":
+                    result = bintoint16(
+                        (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+                    )
+                elif function_width == "int32":
+                    result = bintoint32(
+                        (cpu.ram[cpu.pc] << 24) +
+                        (cpu.ram[cpu.pc + 1] << 16) +
+                        (cpu.ram[cpu.pc + 2] << 8) +
+                        cpu.ram[cpu.pc + 3]
+                    )
+                else:
+                    result = 0xDEADBEEF
+                expected = val + add_val
+                _assert(
+                    result == expected,
+                    f"Failed to globalvariableread from {global_width} to {function_width}, "
+                    + f"got {result} instead of {expected}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+    for global_width in ["uint8", "uint16", "uint32"]:
+        for function_width in ["uint8", "uint16", "uint32"]:
+            for val in [0, 37, 42, 69, 123, 234]:
+                add_val = {
+                    "uint8": 15,
+                    "uint16": 1337,
+                    "uint32": 123456789,
+                }[function_width]
+
+                # Now, attempt to read an initialized global variable and perform math against it.
+                sections = parse_and_compile_module("globalvariableread", textwrap.dedent(f"""
+                    global_variable: {global_width} = {val}
+                    def get_global_variable() -> nopad[{function_width}]:
+                        return global_variable + {add_val}
+                """))
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    *sections.init,
+                    *startlines,
+                    *addlines,
+                    *sections.code,
+                    "main:",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL get_global_variable",
+                    "HALT",
+                    *datalines,
+                    *sections.data,
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"globalvariableread changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"globalvariableread changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"globalvariableread changed V value from {222} to {cpu.v}!",
+                )
+                if function_width == "uint8":
+                    result = (cpu.ram[cpu.pc + 0])
+                elif function_width == "uint16":
+                    result = (
+                        (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+                    )
+                elif function_width == "uint32":
+                    result = (
+                        (cpu.ram[cpu.pc] << 24) +
+                        (cpu.ram[cpu.pc + 1] << 16) +
+                        (cpu.ram[cpu.pc + 2] << 8) +
+                        cpu.ram[cpu.pc + 3]
+                    )
+                else:
+                    result = 0xDEADBEEF
+                expected = val + add_val
+                _assert(
+                    result == expected,
+                    f"Failed to globalvariableread from {global_width} to {function_width}, "
+                    + f"got {result} instead of {expected}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+    print(f"Average cycles for globalvariableread: {int(cycles/count)}")
+    print(f"Average instructions for globalvariableread: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -7411,3 +7751,4 @@ if __name__ == "__main__":
     verifyequalityexpression(only, args.full)
     verifyinequalityexpression(only, args.full)
     verifyalligatorexpression(only, args.full)
+    verifyglobalvariableread(only, args.full)

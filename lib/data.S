@@ -1,2 +1,3 @@
+    .org 0x8000
 data:
-    ; This should point to the end of code in the bootROM.
+    ; This should point to the beginning of RAM.

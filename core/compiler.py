@@ -54,6 +54,28 @@ class CompilerError(Exception):
         self.line = metaval.start.line if metaval else None
 
 
+class Sections:
+    def __init__(self, code: Optional[List[str]] = None, data: Optional[List[str]] = None, init: Optional[List[str]] = None) -> None:
+        self.code: List[str] = code or []
+        self.data: List[str] = data or []
+        self.init: List[str] = init or []
+
+    def __iadd__(self, other: "Sections") -> "Sections":
+        self.code += other.code
+        self.data += other.data
+        self.init += other.init
+        return self
+
+    def append_code(self, line: str) -> None:
+        self.code.append(line)
+
+    def append_data(self, line: str) -> None:
+        self.data.append(line)
+
+    def append_init(self, line: str) -> None:
+        self.init.append(line)
+
+
 class CoreType:
     """
     A standard type reference. Depending on where it's encountered, it can have a const[] modifier
@@ -390,9 +412,20 @@ class GlobalVariable:
     def __init__(self, name: str, vartype: CoreType) -> None:
         self.name = name
         self.type = vartype
+        self.marked = False
+
+    def mark(self) -> None:
+        self.marked = True
 
     def __repr__(self) -> str:
         return f"Global variable {self.type!r} {self.name!r}"
+
+
+def global_by_name(globs: Sequence[Union[FunctionPrototype, GlobalVariable]], name: str) -> Optional[GlobalVariable]:
+    for glob in globs:
+        if isinstance(glob, GlobalVariable) and glob.name == name:
+            return glob
+    return None
 
 
 class Constant:
@@ -591,8 +624,8 @@ def _hex(val: int, pad: int) -> str:
     return "0x" + hexval
 
 
-def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], context: Context) -> List[str]:
-    compiled: List[str] = [context.comment()]
+def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable], consts: List[Constant], context: Context) -> Sections:
+    compiled = Sections(code=[context.comment()])
 
     target_node = assign.target
     if not isinstance(target_node, cst.Name):
@@ -604,6 +637,13 @@ def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], cont
 
     if assign_type is None:
         raise CompilerError("Unsupported type for global variable definition", context)
+
+    for const in consts:
+        if const.name == assign_name:
+            raise CompilerError("Cannot reassign global variable", context)
+    for glob in globs:
+        if glob.name == assign_name:
+            raise CompilerError("Cannot reassign global variable", context)
 
     if assign_type.const:
         if assign_value is None:
@@ -617,7 +657,7 @@ def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], cont
         except NonConstantExpressionException:
             raise CompilerError("Non-constant initialization value for global const definition", context)
 
-        compiled.append(f"{assign_name}:")
+        compiled.append_code(f"{assign_name}:")
 
         if assign_type.type in {"int8", "uint8"}:
             if not isinstance(value, int):
@@ -630,7 +670,7 @@ def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], cont
                     raise CompilerError("Initialization out of bounds", context)
 
             value = value & 0xFF
-            compiled.append(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
         elif assign_type.type in {"int16", "uint16"}:
             if not isinstance(value, int):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
@@ -642,8 +682,8 @@ def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], cont
                     raise CompilerError("Initialization out of bounds", context)
 
             value = value & 0xFFFF
-            compiled.append(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
-            compiled.append(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
         elif assign_type.type in {"int32", "uint32"}:
             if not isinstance(value, int):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
@@ -655,26 +695,26 @@ def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], cont
                     raise CompilerError("Initialization out of bounds", context)
 
             value = value & 0xFFFFFFFF
-            compiled.append(f"  .byte {_hex((value >> 24) & 0xFF, 2)}")
-            compiled.append(f"  .byte {_hex((value >> 16) & 0xFF, 2)}")
-            compiled.append(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
-            compiled.append(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {_hex((value >> 24) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {_hex((value >> 16) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
         elif assign_type == "char":
             if not isinstance(value, str):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             if len(value) != 1:
                 raise CompilerError("Unsupported initialization value for global const definition", context)
-            compiled.append(f"  .char {value[0]!r}")
+            compiled.append_code(f"  .char {value[0]!r}")
         elif assign_type == "string":
             if not isinstance(value, str):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             for c in value:
-                compiled.append(f"  .char {c[0]!r}")
-            compiled.append("  .byte 0x00")
+                compiled.append_code(f"  .char {c[0]!r}")
+            compiled.append_code("  .byte 0x00")
         elif assign_type == "bool":
             if not isinstance(value, bool):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
-            compiled.append(f"  .byte {"0xFF" if value else "0x00"}")
+            compiled.append_code(f"  .byte {"0xFF" if value else "0x00"}")
         else:
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
@@ -682,29 +722,125 @@ def generate_global_variable(assign: cst.AnnAssign, consts: List[Constant], cont
         consts.append(Constant(assign_name, assign_type, value))
 
     else:
-        # TODO: Support allocating variables in main RAM instead of constants in ROM.
-        raise CompilerError("Unsupported type for global variable definition", context)
+        if assign_value is not None:
+            # Attempt to codegen and evaluate the python code.
+            try:
+                value = codegen_eval(assign_value, consts)
+            except NonConstantExpressionException:
+                raise CompilerError("Non-constant initialization value for global const definition", context)
+        else:
+            value = None
+
+        compiled.append_data(f"{assign_name}:")
+        compiled.append_init(f"  SETPC {assign_name}")
+
+        if assign_type.type in {"int8", "uint8"}:
+            if value is not None:
+                if not isinstance(value, int):
+                    raise CompilerError("Unsupported initialization value for global variable definition", context)
+                if assign_type == "uint8":
+                    if value < 0 or value > 255:
+                        raise CompilerError("Initialization out of bounds", context)
+                else:
+                    if value < -128 or value > 255:
+                        raise CompilerError("Initialization out of bounds", context)
+
+                value = value & 0xFF
+                compiled.append_init(f"  STOREI {_hex((value >> 0) & 0xFF, 2)}")
+
+            compiled.append_data("  .pad 1")
+        elif assign_type.type in {"int16", "uint16"}:
+            if value is not None:
+                if not isinstance(value, int):
+                    raise CompilerError("Unsupported initialization value for global variable definition", context)
+                if assign_type == "uint16":
+                    if value < 0 or value > 65535:
+                        raise CompilerError("Initialization out of bounds", context)
+                else:
+                    if value < -32768 or value > 65535:
+                        raise CompilerError("Initialization out of bounds", context)
+
+                value = value & 0xFFFF
+                compiled.append_init(f"  STOREI {_hex((value >> 8) & 0xFF, 2)}")
+                compiled.append_init("  INCPC")
+                compiled.append_init(f"  STOREI {_hex((value >> 0) & 0xFF, 2)}")
+
+            compiled.append_data("  .pad 2")
+        elif assign_type.type in {"int32", "uint32"}:
+            if value is not None:
+                if not isinstance(value, int):
+                    raise CompilerError("Unsupported initialization value for global variable definition", context)
+                if assign_type == "uint32":
+                    if value < 0 or value > 4294967295:
+                        raise CompilerError("Initialization out of bounds", context)
+                else:
+                    if value < -2147483648 or value > 4294967295:
+                        raise CompilerError("Initialization out of bounds", context)
+
+                value = value & 0xFFFFFFFF
+                compiled.append_init(f"  STOREI {_hex((value >> 24) & 0xFF, 2)}")
+                compiled.append_init("  INCPC")
+                compiled.append_init(f"  STOREI {_hex((value >> 16) & 0xFF, 2)}")
+                compiled.append_init("  INCPC")
+                compiled.append_init(f"  STOREI {_hex((value >> 8) & 0xFF, 2)}")
+                compiled.append_init("  INCPC")
+                compiled.append_init(f"  STOREI {_hex((value >> 0) & 0xFF, 2)}")
+
+            compiled.append_data("  .pad 4")
+        elif assign_type == "char":
+            if value is not None:
+                if not isinstance(value, str):
+                    raise CompilerError("Unsupported initialization value for global variable definition", context)
+                if len(value) != 1:
+                    raise CompilerError("Unsupported initialization value for global variable definition", context)
+                compiled.append_init(f"  STOREI {value[0]!r}")
+
+            compiled.append_data("  .pad 1")
+        elif assign_type == "string":
+            if value is not None:
+                # TODO: Need to allow specifying string length and check that here.
+                if not isinstance(value, str):
+                    raise CompilerError("Unsupported initialization value for global variable definition", context)
+                for c in value:
+                    compiled.append_init(f"  STOREI {c[0]!r}")
+                    compiled.append_init("  INCPC")
+                compiled.append_init("  STOREI 0x00")
+
+            # TODO: Don't just make all global variable strings 128 bytes.
+            compiled.append_data("  .pad 128")
+        elif assign_type == "bool":
+            if value is not None:
+                if not isinstance(value, bool):
+                    raise CompilerError("Unsupported initialization value for global variable definition", context)
+                compiled.append_init(f"  STOREI {"0xFF" if value else "0x00"}")
+
+            compiled.append_data("  .pad 1")
+        else:
+            raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
+
+        globs.append(GlobalVariable(assign_name, assign_type))
+
     return compiled
 
 
-def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
-    compiled: List[str] = []
+def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str], context: Context) -> Sections:
+    compiled = Sections()
     if move_amt == 0:
         return compiled
 
     if move_amt > 0:
-        compiled.append(f"  SUBPCI {move_amt}" + comment_source(reason))
+        compiled.append_code(f"  SUBPCI {move_amt}" + comment_source(reason))
     elif move_amt < 0:
-        compiled.append(f"  ADDPCI {-move_amt}" + comment_source(reason))
+        compiled.append_code(f"  ADDPCI {-move_amt}" + comment_source(reason))
 
     stack.move(move_amt)
-    compiled += comment_stack(stack)
+    compiled.code += comment_stack(stack)
 
     return compiled
 
 
-def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context, *, offset: int = 0) -> List[str]:
-    compiled: List[str] = []
+def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context, *, offset: int = 0) -> Sections:
+    compiled = Sections()
     move_amt = stack.find(destination)
     if move_amt is None:
         raise Exception(f"Logic error, could not find {destination} on stack to move to!")
@@ -713,12 +849,12 @@ def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context
         return compiled
 
     if move_amt > 0:
-        compiled.append(f"  SUBPCI {move_amt}" + comment_source(f"seeking {destination}"))
+        compiled.append_code(f"  SUBPCI {move_amt}" + comment_source(f"seeking {destination}"))
     elif move_amt < 0:
-        compiled.append(f"  ADDPCI {-move_amt}" + comment_source(f"seeking {destination}"))
+        compiled.append_code(f"  ADDPCI {-move_amt}" + comment_source(f"seeking {destination}"))
 
     stack.move(move_amt)
-    compiled += comment_stack(stack)
+    compiled.code += comment_stack(stack)
 
     return compiled
 
@@ -738,8 +874,8 @@ def generate_memcpy_unrolled(
     stack: Stack,
     clobbers: Set[str],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = []
+) -> Sections:
+    compiled = Sections()
     if src_loc == dst_loc:
         return compiled
 
@@ -753,35 +889,35 @@ def generate_memcpy_unrolled(
         for i in range(size):
             clobbers.add("A")
 
-            compiled.append("  LOAD A")
-            compiled.append(f"  SUBPCI {-shuffle_amount}" + comment_source())
+            compiled.append_code("  LOAD A")
+            compiled.append_code(f"  SUBPCI {-shuffle_amount}" + comment_source())
 
             stack.move(-shuffle_amount)
-            compiled += comment_stack(stack)
+            compiled.code += comment_stack(stack)
 
-            compiled.append("  STORE A")
+            compiled.append_code("  STORE A")
 
             if i < size - 1:
-                compiled.append(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
+                compiled.append_code(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
                 stack.move(-((-shuffle_amount) - 1))
-                compiled += comment_stack(stack)
+                compiled.code += comment_stack(stack)
 
     else:
         for i in range(size):
             clobbers.add("A")
 
-            compiled.append("  LOAD A")
-            compiled.append(f"  ADDPCI {shuffle_amount}" + comment_source())
+            compiled.append_code("  LOAD A")
+            compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
 
             stack.move(-shuffle_amount)
-            compiled += comment_stack(stack)
+            compiled.code += comment_stack(stack)
 
-            compiled.append("  STORE A")
+            compiled.append_code("  STORE A")
 
             if i < size - 1:
-                compiled.append(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
+                compiled.append_code(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
                 stack.move(shuffle_amount + 1)
-                compiled += comment_stack(stack)
+                compiled.code += comment_stack(stack)
 
     return compiled
 
@@ -805,8 +941,8 @@ def can_relocate_return(function_type: CoreType, stack: Stack, clobbers: Set[str
     return not overlap
 
 
-def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
-    compiled: List[str] = [context.comment()]
+def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], context: Context) -> Sections:
+    compiled = Sections(code=[context.comment()])
 
     # Because we could have more than one return, make sure we clone the stack to not mess with the rest of the function.
     stack = stack.clone()
@@ -821,7 +957,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
         # shuffling so much slower. Much better to just mark U/V as clobbered and use them.
         if not can_relocate_return(function_type, stack, clobbers, context):
             cref = comment_ref()
-            compiled.append(f"  ; Saving return pointer to U/V so it isn't overridden by return shuffle. {cref}")
+            compiled.append_code(f"  ; Saving return pointer to U/V so it isn't overridden by return shuffle. {cref}")
 
             # We need to actually save the retptr to U/V.
             clobbers.add("U")
@@ -834,20 +970,20 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
             # Generate code to move from our position to the first byte of the retval.
             compiled += generate_move_by("seeking builtin(retptr)", first_move, stack, clobbers, context)
-            compiled.append("  LOAD U")
-            compiled.append("  DECPC")
+            compiled.append_code("  LOAD U")
+            compiled.append_code("  DECPC")
 
             stack.move(1)
-            compiled += comment_stack(stack)
+            compiled.code += comment_stack(stack)
 
-            compiled.append("  LOAD V")
-            compiled.append(f"  ; {cref}")
+            compiled.append_code("  LOAD V")
+            compiled.append_code(f"  ; {cref}")
 
         # Second, make sure the top of the stack is our return.
         top_spot = stack.at(0)
         if top_spot is not None and top_spot.name != "builtin(retval)":
             cref = comment_ref()
-            compiled.append(f"  ; Moving return value to correct location in stack. {cref}")
+            compiled.append_code(f"  ; Moving return value to correct location in stack. {cref}")
 
             # We need to use the A register to move the value, so it's clobbered now.
             clobbers.add("A")
@@ -862,24 +998,24 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             # Generate code to move from our position to the first byte of the retptr.
             retptr_final_loc = number_of_moves
             compiled += generate_memcpy_unrolled(src_loc, 0, number_of_moves, stack, clobbers, context)
-            compiled.append(f"  ; {cref}")
+            compiled.append_code(f"  ; {cref}")
 
     # Now, move the return pointer if needed.
     if retptr_in_uv:
         cref = comment_ref()
-        compiled.append(f"  ; Restoring the return pointer from U/V to the correct location. {cref}")
+        compiled.append_code(f"  ; Restoring the return pointer from U/V to the correct location. {cref}")
 
         # Gotta grab it out of the saved U/V registers.
         restore_move_amt = retptr_final_loc - stack.location
         compiled += generate_move_by("seeking return pointer restoration point", restore_move_amt, stack, clobbers, context)
-        compiled.append("  STORE U")
-        compiled.append("  DECPC")
+        compiled.append_code("  STORE U")
+        compiled.append_code("  DECPC")
 
         stack.move(1)
-        compiled += comment_stack(stack)
+        compiled.code += comment_stack(stack)
 
-        compiled.append("  STORE V")
-        compiled.append(f"  ; {cref}")
+        compiled.append_code("  STORE V")
+        compiled.append_code(f"  ; {cref}")
     else:
         retptr_abs = stack.absfind("builtin(retptr)")
         if retptr_abs is None:
@@ -887,7 +1023,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
         if retptr_abs != retptr_final_loc:
             cref = comment_ref()
-            compiled.append(f"  ; Moving return pointer to correct location in stack. {cref}")
+            compiled.append_code(f"  ; Moving return pointer to correct location in stack. {cref}")
 
             # We need to use the A register to move the value, so it's clobbered now.
             clobbers.add("A")
@@ -901,13 +1037,13 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
             # Generate code to move from our position to the first byte of the retptr.
             compiled += generate_memcpy_unrolled(src_loc, retptr_final_loc, number_of_moves, stack, clobbers, context)
-            compiled.append(f"  ; {cref}")
+            compiled.append_code(f"  ; {cref}")
 
     # Now, pop all of our saved registers, and then return.
     tlcref: Optional[str] = None
     if clobbers:
         tlcref = comment_ref()
-        compiled.append(f"  ; Restoring all clobbered registers. {tlcref}")
+        compiled.append_code(f"  ; Restoring all clobbered registers. {tlcref}")
     while stack.size > 0:
         name = stack[-1].name
         if name[:13] == "builtin(saved":
@@ -915,38 +1051,44 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             if move_amt is None:
                 raise Exception(f"Logic error, failed to get move amounts for {name}!")
 
+            if name == "builtin(saved_spc)":
+                move_amt += 1
             compiled += generate_move_by(f"seeking {name}", move_amt, stack, clobbers, context)
 
             if name == "builtin(saved_a)":
-                compiled.append("  POP A")
+                compiled.append_code("  POP A")
                 stack.move(-1)
+                compiled.code += comment_stack(stack)
             elif name == "builtin(saved_u)":
-                compiled.append("  POP U")
+                compiled.append_code("  POP U")
                 stack.move(-1)
+                compiled.code += comment_stack(stack)
             elif name == "builtin(saved_v)":
-                compiled.append("  POP V")
+                compiled.append_code("  POP V")
                 stack.move(-1)
+                compiled.code += comment_stack(stack)
             elif name == "builtin(saved_spc)":
-                compiled.append("  POP SPC")
+                compiled.append_code("  POP SPC")
                 stack.move(-2)
+                compiled.code += comment_stack(stack)
             else:
                 raise Exception(f"Logic error, unexpected saved type {name}!")
 
         stack.free(name)
 
     if tlcref:
-        compiled.append(f"  ; {tlcref}")
+        compiled.append_code(f"  ; {tlcref}")
 
     # Now, if we need to, move past any temporary values we didn't pop but don't care about.
     final_move_to_ret = stack.diff(retptr_final_loc + 1)
     compiled += generate_move_by("skipping past temporary locals", final_move_to_ret, stack, clobbers, context)
-    compiled.append("  RET")
+    compiled.append_code("  RET")
 
     return compiled
 
 
-def generate_const_load(val: object, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> List[str]:
-    compiled: List[str] = []
+def generate_const_load(val: object, destination: str, stack: Stack, clobbers: Set[str], context: Context) -> Sections:
+    compiled = Sections()
 
     dtype = stack.typeof(destination)
     if dtype is None:
@@ -960,7 +1102,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
             raise CompilerError("Cannot use a negative value in an unsigned expression!", context)
 
         if is_register_destination(destination):
-            compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
         else:
             clobbers.add("A")
 
@@ -971,42 +1113,42 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
             compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
             if dest_size == 1:
-                compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-                compiled.append("  STORE A")
+                compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+                compiled.append_code("  STORE A")
             elif dest_size == 2:
-                compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-                compiled.append("  STORE A")
-                compiled.append("  DECPC")
+                compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  DECPC")
 
                 stack.move(1)
-                compiled += comment_stack(stack)
+                compiled.code += comment_stack(stack)
 
-                compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
-                compiled.append("  STORE A")
+                compiled.append_code(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+                compiled.append_code("  STORE A")
             elif dest_size == 4:
-                compiled.append(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-                compiled.append("  STORE A")
-                compiled.append("  DECPC")
+                compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  DECPC")
 
                 stack.move(1)
-                compiled += comment_stack(stack)
+                compiled.code += comment_stack(stack)
 
-                compiled.append(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
-                compiled.append("  STORE A")
-                compiled.append("  DECPC")
-
-                stack.move(1)
-                compiled += comment_stack(stack)
-
-                compiled.append(f"  LOADI {_hex((val >> 16) & 0xFF, 2)}")
-                compiled.append("  STORE A")
-                compiled.append("  DECPC")
+                compiled.append_code(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  DECPC")
 
                 stack.move(1)
-                compiled += comment_stack(stack)
+                compiled.code += comment_stack(stack)
 
-                compiled.append(f"  LOADI {_hex((val >> 24) & 0xFF, 2)}")
-                compiled.append("  STORE A")
+                compiled.append_code(f"  LOADI {_hex((val >> 16) & 0xFF, 2)}")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  DECPC")
+
+                stack.move(1)
+                compiled.code += comment_stack(stack)
+
+                compiled.append_code(f"  LOADI {_hex((val >> 24) & 0xFF, 2)}")
+                compiled.append_code("  STORE A")
             else:
                 raise CompilerError(f"Unsupported destination {destination} for const load", context)
 
@@ -1017,7 +1159,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
         intval = 0xFF if val else 0x00
 
         if is_register_destination(destination):
-            compiled.append(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
         else:
             clobbers.add("A")
 
@@ -1027,8 +1169,8 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
                 raise Exception("Logic error, cannot find destination to load constant to!")
 
             compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
-            compiled.append(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
-            compiled.append("  STORE A")
+            compiled.append_code(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
+            compiled.append_code("  STORE A")
 
     else:
         raise CompilerError("Unsupported constant load of type {dtype.type}!", context)
@@ -1116,8 +1258,8 @@ def generate_function_call(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = [context.comment()]
+) -> Sections:
+    compiled = Sections(code=[context.comment()])
     function_prototype = get_function_prototype(call, stack, refs, local_consts, context)
 
     # Ensure that we're not trying to assign a void function call to an expression.
@@ -1341,13 +1483,13 @@ def generate_function_call(
         stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.type])))
         compiled += generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, refs, local_consts, context.wrap(provided_arg.value))
         compiled += generate_move_to(reg_dest, stack, clobbers, context)
-        compiled += f"POP {needed_arg.type}"
+        compiled.append_code(f"POP {needed_arg.type}")
         stack.free(reg_dest)
 
     # Now, we're ready to actually call the function. Move to the last byte of the last parameter on the stack.
     move_amount = stack.diff(stack.size - 1)
     compiled += generate_move_by("moving to last parameter", move_amount, stack, clobbers, context)
-    compiled.append(f"  CALL {function_prototype.name}")
+    compiled.append_code(f"  CALL {function_prototype.name}")
 
     # Now, calculate the true position of the stack after calling the function, so future manipulations of
     # the stack know where we really are. It's important to do this here because some return cleanup bits
@@ -1358,7 +1500,7 @@ def generate_function_call(
         stack_on_exit += function_prototype.return_type.size
 
     stack.location = stack_on_exit
-    compiled += comment_stack(stack)
+    compiled.code += comment_stack(stack)
 
     # Track whether we captured the return value or not.
     return_handled = False
@@ -1374,7 +1516,7 @@ def generate_function_call(
             else:
                 compiled += generate_move_to(destination, stack, clobbers, context)
                 if function_prototype.return_type.type == "A":
-                    compiled.append("  STORE A")
+                    compiled.append_code("  STORE A")
                 else:
                     raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
 
@@ -1431,7 +1573,7 @@ def generate_function_call(
 
                 move_amt = stack.diff(src_loc)
                 compiled += generate_move_by("seeking return location", move_amt, stack, clobbers, context)
-                compiled.append("  LOAD A")
+                compiled.append_code("  LOAD A")
             else:
                 src_loc = normal_return_loc
                 src_size = function_prototype.return_type.size
@@ -1518,18 +1660,125 @@ def generate_variable_lookup(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = []
-
-    # TODO: This needs to support looking up global variables, for any variable that is defined globally and
-    # then locally marked with the "global" keyword.
+) -> Sections:
+    compiled = Sections()
 
     if is_register_destination(destination):
         # Just need to load A with the value, which should always be the lowest 8 bits of any variable.
         if stack.absfind(source) is None:
-            raise CompilerError(f"Undefined variable reference to {source!r}", context)
-        compiled += generate_move_to(source, stack, clobbers, context)
-        compiled.append("  LOAD A")
+            if (global_var := global_by_name(refs, source)) is not None:
+                # We clobber the SPC to be able to point at the variable.
+                clobbers.add("SPC")
+
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+
+            else:
+                raise CompilerError(f"Undefined variable reference to {source!r}", context)
+
+        else:
+            compiled += generate_move_to(source, stack, clobbers, context)
+            compiled.append_code("  LOAD A")
+    elif stack.absfind(source) is None and (global_var := global_by_name(refs, source)) is not None:
+        # Global variable lookup.
+        dest_size = stack.sizeof(destination)
+        if dest_size is None:
+            raise Exception("Logic error, cannot find destination to copy variable value to!")
+
+        # We clobber the SPC to be able to point at the variable. We clobber the A register for copies.
+        clobbers.add("SPC")
+        clobbers.add("A")
+
+        if global_var.type.size == dest_size:
+            # Direct copy from source stack to destination stack.
+            for i in range(global_var.type.size):
+                # First, we need to set the SPC to our variable pointer, which clobbers A.
+                if i == 0:
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+                else:
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  DECPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
+                compiled.append_code("  STORE A")
+
+        elif global_var.type.size > dest_size:
+            # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
+            for i in range(dest_size):
+                # First, we need to set the SPC to our variable pointer, which clobbers A.
+                if i == 0:
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+                else:
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  DECPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
+                compiled.append_code("  STORE A")
+
+        else:
+            # Copy, but with either sign extension or zero extension for the missing upper bytes.
+            dest_type = stack.typeof(destination)
+            dest_loc = stack.absfind(destination)
+            if dest_type is None or dest_loc is None:
+                raise Exception("Logic error, cannot find destination to copy variable value to!")
+
+            if dest_type.is_unsigned:
+                # We always zero-extend unsigned types.
+                compiled.append_code("  LOADI 0")
+            else:
+                # First, go to the high byte and figure out if it needs to be zero or one extended.
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code(f"  SETPC {global_var.name}")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  SHL")
+                compiled.append_code("  LOADI 0")
+                compiled.append_code("  SKIPIF !CF")
+                compiled.append_code("  INV")
+
+            extend_amount = dest_size - global_var.type.size
+            for pos in range(extend_amount):
+                actual_pos = pos + dest_loc + global_var.type.size
+
+                move_amt = stack.diff(actual_pos)
+                compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
+                compiled.append_code("  STORE A")
+
+            # Need to copy the whole source, but to the correct location in the destination.
+            for i in range(global_var.type.size):
+                # First, we need to set the SPC to our variable pointer, which clobbers A.
+                if i == 0:
+                    compiled.append_code("  SWAP PC, SPC")
+                    # We set this above for the case where we need to check for sign extension.
+                    # That doesn't happen for unsigned integers, so we need to set the PC here.
+                    if dest_type.is_unsigned:
+                        compiled.append_code(f"  SETPC {global_var.name}")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+                else:
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                actual_pos = (dest_loc + global_var.type.size) - (i + 1)
+
+                move_amt = stack.diff(actual_pos)
+                compiled += generate_move_by("seeking copy byte", move_amt, stack, clobbers, context)
+                compiled.append_code("  STORE A")
+
     else:
         source_loc = stack.absfind(source)
         source_size = stack.sizeof(source)
@@ -1555,44 +1804,26 @@ def generate_variable_lookup(
                 raise Exception("Logic error, cannot find destination to copy variable value to!")
             if dest_type.is_unsigned:
                 # We always zero-extend unsigned types.
-                compiled.append("  LOADI 0")
-
-                for pos in range(dest_size - source_size):
-                    actual_pos = pos + dest_loc + source_size
-
-                    move_amt = stack.diff(actual_pos)
-                    compiled += generate_move_by("seeking zero extend byte", move_amt, stack, clobbers, context)
-                    compiled.append("  STORE A")
-
-                # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
-                compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_size, stack, clobbers, context)
-
+                compiled.append_code("  LOADI 0")
             else:
                 # First, go to the high byte and figure out if it needs to be zero or one extended.
                 move_amt = stack.diff(source_loc + (source_size - 1))
                 compiled += generate_move_by("seeking {source}", move_amt, stack, clobbers, context)
-                compiled.append("  LOAD A")
-                compiled.append("  SHL")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SHL")
+                compiled.append_code("  LOADI 0")
+                compiled.append_code("  SKIPIF !CF")
+                compiled.append_code("  INV")
 
-                set_branch = local_label_name("top_bit_set")
-                extend_branch = local_label_name("sign_extend")
+            for pos in range(dest_size - source_size):
+                actual_pos = pos + dest_loc + source_size
 
-                compiled.append(f"  JRIC {set_branch}")
-                compiled.append("  LOADI 0")
-                compiled.append(f"  JRI {extend_branch}")
-                compiled.append(f"{set_branch}:")
-                compiled.append("  LOADI -1")
-                compiled.append(f"{extend_branch}:")
+                move_amt = stack.diff(actual_pos)
+                compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
+                compiled.append_code("  STORE A")
 
-                for pos in range(dest_size - source_size):
-                    actual_pos = pos + dest_loc + source_size
-
-                    move_amt = stack.diff(actual_pos)
-                    compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
-                    compiled.append("  STORE A")
-
-                # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
-                compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_size, stack, clobbers, context)
+            # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_size, stack, clobbers, context)
 
     return compiled
 
@@ -1606,8 +1837,8 @@ def generate_unary_expr(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = []
+) -> Sections:
+    compiled = Sections()
 
     destination_size = stack.sizeof(destination)
     destination_type = stack.typeof(destination)
@@ -1637,12 +1868,12 @@ def generate_unary_expr(
 
             # Move to the parameter and negate it.
             compiled += generate_move_to(internal_dest, stack, clobbers, context)
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
 
             if isinstance(expression.operator, cst.Minus):
-                compiled.append("  NEG")
+                compiled.append_code("  NEG")
             elif isinstance(expression.operator, cst.BitInvert):
-                compiled.append("  INV")
+                compiled.append_code("  INV")
             else:
                 raise CompilerError("Unsupported unary operation {expression}", context)
 
@@ -1651,7 +1882,7 @@ def generate_unary_expr(
                 stack.free(internal_dest)
             else:
                 compiled += generate_move_to(destination, stack, clobbers, context)
-                compiled.append("  STORE A")
+                compiled.append_code("  STORE A")
                 if internal_dest != destination:
                     stack.free(internal_dest)
         elif destination_size in {2, 4}:
@@ -1697,10 +1928,10 @@ def generate_unary_expr(
 
                 for offset in range(destination_size):
                     compiled += generate_move_to(internal_dest, stack, clobbers, context, offset=actual_neg_offset(offset))
-                    compiled.append("  LOAD A")
-                    compiled.append("  INV")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  INV")
                     compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_neg_offset(offset))
-                    compiled.append("  STORE A")
+                    compiled.append_code("  STORE A")
 
             else:
                 raise CompilerError("Unsupported unary operation {expression}", context)
@@ -1720,11 +1951,11 @@ def generate_unary_expr(
         clobbers.add("A")
 
         compiled += generate_expr_internal(expression.expression, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
-        compiled.append("  INV")
+        compiled.append_code("  INV")
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append("  STORE A")
+            compiled.append_code("  STORE A")
 
     else:
         # TODO: Handle Plus (no-op, just call with the expression value).
@@ -1742,8 +1973,8 @@ def generate_binary_expr(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = []
+) -> Sections:
+    compiled = Sections()
 
     destination_size = stack.sizeof(destination)
     if destination_size is None:
@@ -1780,12 +2011,12 @@ def generate_binary_expr(
 
             # Move to the second parameter and negate it.
             compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-            compiled.append("  LOAD A")
-            compiled.append("  NEG")
+            compiled.append_code("  LOAD A")
+            compiled.append_code("  NEG")
 
             # Move to the right spot on the stack to add to the negated right hand side.
             compiled += generate_move_to(lhs_dest, stack, clobbers, context)
-            compiled.append("  ADD")
+            compiled.append_code("  ADD")
 
         elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
             if not destination_type.is_integer:
@@ -1797,17 +2028,17 @@ def generate_binary_expr(
 
             # Move to the right spot on the stack and then add the two numbers.
             compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
             compiled += generate_move_to(lhs_dest, stack, clobbers, context)
 
             if isinstance(expression.operator, cst.Add):
-                compiled.append("  ADD")
+                compiled.append_code("  ADD")
             elif isinstance(expression.operator, cst.BitAnd):
-                compiled.append("  AND")
+                compiled.append_code("  AND")
             elif isinstance(expression.operator, cst.BitOr):
-                compiled.append("  OR")
+                compiled.append_code("  OR")
             elif isinstance(expression.operator, cst.BitXor):
-                compiled.append("  XOR")
+                compiled.append_code("  XOR")
             else:
                 raise Exception("Logic error, unexpected operator {expression.operator)}")
 
@@ -1858,7 +2089,7 @@ def generate_binary_expr(
                 clobbers,
                 context,
             )
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
 
         else:
             raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
@@ -1871,7 +2102,7 @@ def generate_binary_expr(
         else:
             stack.free(rhs_dest)
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append("  STORE A")
+            compiled.append_code("  STORE A")
             if lhs_dest != destination:
                 stack.free(lhs_dest)
 
@@ -1991,9 +2222,9 @@ def generate_binary_expr(
                 # Since bitwise operations are independent we can just do this in a loop.
                 for offset in range(destination_size):
                     compiled += generate_move_to(location, stack, clobbers, context, offset=actual_expr_offset(offset))
-                    compiled.append("  LOAD A")
+                    compiled.append_code("  LOAD A")
                     compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
-                    compiled.append("  STORE A")
+                    compiled.append_code("  STORE A")
 
             # Now that we copied this to the destination, this is useless.
             stack.free(rhs_dest)
@@ -2032,11 +2263,11 @@ def generate_binary_expr(
             # Since bitwise operations are independent we can just do this in a loop.
             for offset in range(destination_size):
                 compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                compiled.append("  LOAD A")
+                compiled.append_code("  LOAD A")
                 compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                compiled.append(function)
+                compiled.append_code(function)
                 compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
-                compiled.append("  STORE A")
+                compiled.append_code("  STORE A")
 
             stack.free(rhs_dest)
             if lhs_dest != destination:
@@ -2057,8 +2288,8 @@ def generate_boolean_expr(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = []
+) -> Sections:
+    compiled = Sections()
 
     destination_size = stack.sizeof(destination)
     if destination_size is None:
@@ -2088,7 +2319,7 @@ def generate_boolean_expr(
             right_compiled += generate_move_by("restore stack to start of expression", move_amount, cloned_stack, clobbers, context)
 
         # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
-        right_length = get_assembled_length(right_compiled)
+        right_length = get_assembled_length(right_compiled.code)
         short_circuit = local_label_name("short_circuit")
         if right_length > 32:
             insn = "LNGJUMPZ"
@@ -2099,7 +2330,7 @@ def generate_boolean_expr(
         compiled += left_compiled
 
         # Now, check it against False, to short circuit.
-        compiled += [
+        compiled.code += [
             "  ADDI 0",
             f"  {insn} {short_circuit}",
         ]
@@ -2108,11 +2339,11 @@ def generate_boolean_expr(
         compiled += right_compiled
 
         # Now, provide a place to jump to.
-        compiled.append(f"{short_circuit}:")
+        compiled.append_code(f"{short_circuit}:")
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append("  STORE A")
+            compiled.append_code("  STORE A")
 
     elif isinstance(expression.operator, cst.Or):
         # Perform short-circuiting OR, first by handling the left hand side, and if it
@@ -2132,7 +2363,7 @@ def generate_boolean_expr(
             right_compiled += generate_move_by("restore stack to start of expression", move_amount, cloned_stack, clobbers, context)
 
         # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
-        right_length = get_assembled_length(right_compiled)
+        right_length = get_assembled_length(right_compiled.code)
         short_circuit = local_label_name("short_circuit")
         if right_length > 32:
             insn = "LNGJUMPNZ"
@@ -2143,7 +2374,7 @@ def generate_boolean_expr(
         compiled += left_compiled
 
         # Now, check it against False, to short circuit.
-        compiled += [
+        compiled.code += [
             "  ADDI 0",
             f"  {insn} {short_circuit}",
         ]
@@ -2152,11 +2383,11 @@ def generate_boolean_expr(
         compiled += right_compiled
 
         # Now, provide a place to jump to.
-        compiled.append(f"{short_circuit}:")
+        compiled.append_code(f"{short_circuit}:")
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append("  STORE A")
+            compiled.append_code("  STORE A")
 
     else:
         raise CompilerError(f"Unsupported boolean operation {expression}!", context)
@@ -2173,8 +2404,8 @@ def generate_comparison_expr(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = []
+) -> Sections:
+    compiled = Sections()
 
     destination_size = stack.sizeof(destination)
     if destination_size is None:
@@ -2211,11 +2442,11 @@ def generate_comparison_expr(
         compiled += generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
         if value is False:
             # Gotta invert our output since it's already a boolean.
-            compiled.append("  INV")
+            compiled.append_code("  INV")
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append("  STORE A")
+            compiled.append_code("  STORE A")
 
     elif isinstance(expression.comparisons[0].operator, (cst.Equal, cst.NotEqual)):
         # Determine preload value based on the comparison type.
@@ -2281,20 +2512,20 @@ def generate_comparison_expr(
         comparison_size = max(left_type.size, right_type.size)
         if comparison_size == 1:
             compiled += generate_move_to(second_dest, stack, clobbers, context)
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
             compiled += generate_move_to(first_dest, stack, clobbers, context)
 
             # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append("  XOR")
+            compiled.append_code("  XOR")
 
             # Preload condition result into A.
-            compiled.append(f"  LOADI {preload_value}")
+            compiled.append_code(f"  LOADI {preload_value}")
 
             # Skip the invert instruction if we were non-zero, which meant not equal.
-            compiled.append("  SKIPIF !ZF")
+            compiled.append_code("  SKIPIF !ZF")
 
             # Set our output to true instead of false.
-            compiled.append("  INV")
+            compiled.append_code("  INV")
 
         elif comparison_size == 2:
             if stack_is_at(second_dest, stack, offset=1):
@@ -2313,38 +2544,38 @@ def generate_comparison_expr(
             finished_comparison = local_label_name("finished_comparison")
 
             compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
             compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
             # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append("  XOR")
-            compiled.append(f"  JRIZ {second_byte_comparison}")
+            compiled.append_code("  XOR")
+            compiled.append_code(f"  JRIZ {second_byte_comparison}")
 
             # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
             compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(1))
-            compiled.append(f"  LOADI {preload_value}")
-            compiled.append(f"  JRI {finished_comparison}")
+            compiled.append_code(f"  LOADI {preload_value}")
+            compiled.append_code(f"  JRI {finished_comparison}")
 
             # Now, do the second byte comparison.
-            compiled.append(f"{second_byte_comparison}:")
+            compiled.append_code(f"{second_byte_comparison}:")
             compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
             compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
             # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append("  XOR")
+            compiled.append_code("  XOR")
 
             # Preload condition result into A.
-            compiled.append(f"  LOADI {preload_value}")
+            compiled.append_code(f"  LOADI {preload_value}")
 
             # Skip the invert instruction if we were non-zero, which meant not equal.
-            compiled.append("  SKIPIF !ZF")
+            compiled.append_code("  SKIPIF !ZF")
 
             # Set our output to true instead of false.
-            compiled.append("  INV")
+            compiled.append_code("  INV")
 
             # Provide a jump point to get here from the first half comparison.
-            compiled.append(f"{finished_comparison}:")
+            compiled.append_code(f"{finished_comparison}:")
 
         elif comparison_size == 4:
             if stack_is_at(second_dest, stack, offset=3):
@@ -2365,75 +2596,75 @@ def generate_comparison_expr(
             finished_comparison = local_label_name("finished_comparison")
 
             compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
             compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
             # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append("  XOR")
-            compiled.append(f"  JRIZ {second_byte_comparison}")
+            compiled.append_code("  XOR")
+            compiled.append_code(f"  JRIZ {second_byte_comparison}")
 
             # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
             compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
-            compiled.append(f"  LOADI {preload_value}")
-            compiled.append(f"  JRI {finished_comparison}")
+            compiled.append_code(f"  LOADI {preload_value}")
+            compiled.append_code(f"  JRI {finished_comparison}")
 
             # Now, do the second byte comparison.
-            compiled.append(f"{second_byte_comparison}:")
+            compiled.append_code(f"{second_byte_comparison}:")
             compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
             compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
             # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append("  XOR")
-            compiled.append(f"  JRIZ {third_byte_comparison}")
+            compiled.append_code("  XOR")
+            compiled.append_code(f"  JRIZ {third_byte_comparison}")
 
             # We failed the comparison on the second byte, move to where we would have moved to and set our result to False.
             compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
-            compiled.append(f"  LOADI {preload_value}")
-            compiled.append(f"  JRI {finished_comparison}")
+            compiled.append_code(f"  LOADI {preload_value}")
+            compiled.append_code(f"  JRI {finished_comparison}")
 
             # Now, do the third byte comparison.
-            compiled.append(f"{third_byte_comparison}:")
+            compiled.append_code(f"{third_byte_comparison}:")
             compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(2))
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
             compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(2))
 
             # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append("  XOR")
-            compiled.append(f"  JRIZ {fourth_byte_comparison}")
+            compiled.append_code("  XOR")
+            compiled.append_code(f"  JRIZ {fourth_byte_comparison}")
 
             # We failed the comparison on the third byte, move to where we would have moved to and set our result to False.
             compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
-            compiled.append(f"  LOADI {preload_value}")
-            compiled.append(f"  JRI {finished_comparison}")
+            compiled.append_code(f"  LOADI {preload_value}")
+            compiled.append_code(f"  JRI {finished_comparison}")
 
             # Now, do the fourth byte comparison.
-            compiled.append(f"{fourth_byte_comparison}:")
+            compiled.append_code(f"{fourth_byte_comparison}:")
             compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(3))
-            compiled.append("  LOAD A")
+            compiled.append_code("  LOAD A")
             compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(3))
 
             # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append("  XOR")
+            compiled.append_code("  XOR")
 
             # Preload condition result into A.
-            compiled.append(f"  LOADI {preload_value}")
+            compiled.append_code(f"  LOADI {preload_value}")
 
             # Skip the invert instruction if we were non-zero, which meant not equal.
-            compiled.append("  SKIPIF !ZF")
+            compiled.append_code("  SKIPIF !ZF")
 
             # Set our output to true instead of false.
-            compiled.append("  INV")
+            compiled.append_code("  INV")
 
             # Provide a jump point to get here from the first half comparison.
-            compiled.append(f"{finished_comparison}:")
+            compiled.append_code(f"{finished_comparison}:")
 
         for entry in reversed(equal_cleanup):
             stack.free(entry)
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append("  STORE A")
+            compiled.append_code("  STORE A")
 
     elif isinstance(expression.comparisons[0].operator, (cst.GreaterThan, cst.GreaterThanEqual, cst.LessThan, cst.LessThanEqual)):
         # Determine preload value based on the comparison type.
@@ -2554,34 +2785,34 @@ def generate_comparison_expr(
         # Now, set the output to True or False depending on which comparison we wanted.
         if op == ">":
             # We want the result to be equal to 1.
-            compiled.append("  ADDI -1")
-            compiled.append("  ZERO")
-            compiled.append("  SKIPIF !ZF")
-            compiled.append("  INV")
+            compiled.append_code("  ADDI -1")
+            compiled.append_code("  ZERO")
+            compiled.append_code("  SKIPIF !ZF")
+            compiled.append_code("  INV")
         elif op == "<":
             # We want the result to be equal to -1.
-            compiled.append("  ADDI 1")
-            compiled.append("  ZERO")
-            compiled.append("  SKIPIF !ZF")
-            compiled.append("  INV")
+            compiled.append_code("  ADDI 1")
+            compiled.append_code("  ZERO")
+            compiled.append_code("  SKIPIF !ZF")
+            compiled.append_code("  INV")
         elif op == ">=":
             # We want the result to be not equal to -1.
-            compiled.append("  ADDI 1")
-            compiled.append("  ZERO")
-            compiled.append("  SKIPIF ZF")
-            compiled.append("  INV")
+            compiled.append_code("  ADDI 1")
+            compiled.append_code("  ZERO")
+            compiled.append_code("  SKIPIF ZF")
+            compiled.append_code("  INV")
         elif op == "<=":
             # We want the result to be not equal to 1.
-            compiled.append("  ADDI -1")
-            compiled.append("  ZERO")
-            compiled.append("  SKIPIF ZF")
-            compiled.append("  INV")
+            compiled.append_code("  ADDI -1")
+            compiled.append_code("  ZERO")
+            compiled.append_code("  SKIPIF ZF")
+            compiled.append_code("  INV")
         else:
             raise Exception("Logic error, unexpected comparison type!")
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append("  STORE A")
+            compiled.append_code("  STORE A")
 
     else:
         # TODO: Additional comparisons.
@@ -2599,8 +2830,8 @@ def generate_ternary_expr(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = []
+) -> Sections:
+    compiled = Sections()
 
     destination_size = stack.sizeof(destination)
     if destination_size is None:
@@ -2632,7 +2863,7 @@ def generate_ternary_expr(
     # We could add this manually at the end of this function, but then we wouldn't be able
     # to compile the left hand side to determine length since it would have an undefined
     # jump location.
-    right_compiled.append(f"{expr_end}:")
+    right_compiled.append_code(f"{expr_end}:")
 
     if left_stack.size != right_stack.size:
         raise Exception("Logic error, stacks on both expressions not equal in size!")
@@ -2642,27 +2873,27 @@ def generate_ternary_expr(
         left_compiled += generate_move_by("move stack to same spot as else expression", move_amount, left_stack, clobbers, context)
 
     # Now, figure out the else size so we can jump past it in the body.
-    right_length = get_assembled_length(right_compiled)
+    right_length = get_assembled_length(right_compiled.code)
     if right_length > 32:
-        left_compiled.append(f"  LNGJUMP {expr_end}")
+        left_compiled.append_code(f"  LNGJUMP {expr_end}")
     else:
-        left_compiled.append(f"  JRI {expr_end}")
+        left_compiled.append_code(f"  JRI {expr_end}")
 
     # Now, figure out the body size. We can't just compile it because it
     # would fail to find the jump at the end, which can be differently
     # sized depending on if its a JRI or a LNGJUMP. So, compiled the left
     # and right, and subtract the right length since we know it already.
-    left_length = get_assembled_length([*left_compiled, *right_compiled]) - right_length
+    left_length = get_assembled_length([*left_compiled.code, *right_compiled.code]) - right_length
 
     # Now, generate the code to figure out if the expression is true/false and
     # then jump to it.
-    compiled.append("  INV")
+    compiled.append_code("  INV")
     if left_length > 32:
-        compiled.append(f"  LNGJUMPNZ {false_expr}")
+        compiled.append_code(f"  LNGJUMPNZ {false_expr}")
     else:
-        compiled.append(f"  JRINZ {false_expr}")
+        compiled.append_code(f"  JRINZ {false_expr}")
     compiled += left_compiled
-    compiled.append(f"{false_expr}:")
+    compiled.append_code(f"{false_expr}:")
     compiled += right_compiled
 
     # Now, set the stack location for our current stack to the location that both
@@ -2683,8 +2914,8 @@ def generate_expr_internal(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = []
+) -> Sections:
+    compiled = Sections()
 
     destination_size = stack.sizeof(destination)
     if destination_size is None:
@@ -2784,6 +3015,11 @@ def infer_expr_types_impl(
         const_type = const_by_name(local_consts, expression.value)
         if const_type is not None:
             inferred[expression] = const_type.type
+            return inferred
+
+        global_var = global_by_name(refs, expression.value)
+        if global_var is not None:
+            inferred[expression] = global_var.type
             return inferred
 
         raise CompilerError(f"Undefined variable reference to {expression.value!r}", context)
@@ -2945,8 +3181,8 @@ def generate_expr(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = [context.comment()]
+) -> Sections:
+    compiled = Sections(code=[context.comment()])
 
     dsize = stack.sizeof(destination)
     dtype = stack.typeof(destination)
@@ -2977,7 +3213,7 @@ def generate_expr(
 
         compiled += generate_expr_internal(expression, dest, types, stack, clobbers, refs, local_consts, context)
         compiled += generate_move_to(destination, stack, clobbers, context)
-        compiled.append("  STORE A")
+        compiled.append_code("  STORE A")
     else:
         # Just do stack-based operations.
         compiled += generate_expr_internal(expression, destination, types, stack, clobbers, refs, local_consts, context)
@@ -2985,7 +3221,52 @@ def generate_expr(
     return compiled
 
 
-def local_variable(
+def global_variable_assign(
+    assign_target: GlobalVariable,
+    assign_value: cst.BaseExpression,
+    stack: Stack,
+    clobbers: Set[str],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    local_data: List[str],
+    context: Context,
+) -> Sections:
+    compiled = Sections(code=[context.comment()])
+
+    # To grab a global variable offset, we need to use the SPC. To copy we need A.
+    clobbers.add("SPC")
+    clobbers.add("A")
+
+    expr_temp = expr_temp_name()
+    stack.alloc(StackVar(expr_temp, assign_target.type))
+
+    compiled += generate_expr(assign_value, expr_temp, stack, clobbers, refs, local_consts, context.wrap(assign_value))
+
+    for i in range(assign_target.type.size):
+        # First, we need to set the SPC to our variable pointer, which clobbers A.
+        if i == 0:
+            compiled.append_code("  SWAP PC, SPC")
+            compiled.append_code(f"  SETPC {assign_target.name}")
+            compiled.append_code("  SWAP PC, SPC")
+
+        compiled += generate_move_to(expr_temp, stack, clobbers, context, offset=i)
+        compiled.append_code("  LOAD A")
+
+        # Now, we need to copy the loaded A from our current expression result to the global value.
+        if i == 0:
+            compiled.append_code("  SWAP PC, SPC")
+            compiled.append_code("  STORE A")
+            compiled.append_code("  SWAP PC, SPC")
+        else:
+            compiled.append_code("  SWAP PC, SPC")
+            compiled.append_code("  INCPC")
+            compiled.append_code("  STORE A")
+            compiled.append_code("  SWAP PC, SPC")
+
+    return compiled
+
+
+def generate_assign_expr(
     assign_target: cst.BaseExpression,
     assign_annotation: Optional[cst.Annotation],
     assign_value: Optional[cst.BaseExpression],
@@ -2995,10 +3276,8 @@ def local_variable(
     local_consts: List[Constant],
     local_data: List[str],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = [context.comment()]
-
-    # TODO: We need to support globals as well, not sure if in here, but somewhere, as long as they aren't constants.
+) -> Sections:
+    compiled = Sections(code=[context.comment()])
 
     if not isinstance(assign_target, cst.Name):
         # TODO: This is where we would handle memory writes and arrays.
@@ -3006,6 +3285,15 @@ def local_variable(
 
     assign_name = assign_target.value
     assign_type = get_type(assign_annotation.annotation) if assign_annotation is not None else None
+
+    global_var = global_by_name(refs, assign_name)
+    if global_var is not None and global_var.marked:
+        # This is a global variable assignment.
+        if assign_value is None:
+            raise CompilerError("Unsupported global variable assignment", context)
+
+        compiled += global_variable_assign(global_var, assign_value, stack, clobbers, refs, local_consts, local_data, context)
+        return compiled
 
     # See if this is a re-assign or a definition.
     orig_loc = stack.absfind(assign_name)
@@ -3079,8 +3367,15 @@ def compile_chunk(
     local_consts: List[Constant],
     local_data: List[str],
     context: Context,
-) -> List[str]:
-    compiled: List[str] = []
+) -> Sections:
+    compiled = Sections()
+
+    # We need to track which global variables we know about, so that we can support local assignment over global names.
+    refs_copy: List[Union[FunctionPrototype, GlobalVariable]] = [x for x in refs if isinstance(x, FunctionPrototype)]
+    globals_copy: List[GlobalVariable] = [GlobalVariable(x.name, x.type) for x in refs if isinstance(x, GlobalVariable)]
+    refs_copy += globals_copy
+
+    last_statement_was_return = False
 
     for statement in chunk.body:
         if isinstance(statement, cst.SimpleStatementLine):
@@ -3107,44 +3402,69 @@ def compile_chunk(
                             "builtin(retval)",
                             stack,
                             clobbers,
-                            refs,
+                            refs_copy,
                             local_consts,
                             context.wrap(simple_statement.value),
                         )
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
+                    last_statement_was_return = True
                 elif isinstance(simple_statement, cst.AnnAssign):
-                    compiled += local_variable(
+                    compiled += generate_assign_expr(
                         simple_statement.target,
                         simple_statement.annotation,
                         simple_statement.value,
                         stack,
                         clobbers,
-                        refs,
+                        refs_copy,
                         local_consts,
                         local_data,
                         context.wrap(simple_statement),
                     )
+                    last_statement_was_return = False
                 elif isinstance(simple_statement, cst.Assign):
                     if len(simple_statement.targets) != 1:
                         raise CompilerError("Unsupported multi-variable assignment", context.wrap(simple_statement))
 
-                    compiled += local_variable(
+                    compiled += generate_assign_expr(
                         simple_statement.targets[0].target,
                         None,
                         simple_statement.value,
                         stack,
                         clobbers,
-                        refs,
+                        refs_copy,
                         local_consts,
                         local_data,
                         context.wrap(simple_statement),
                     )
+                    last_statement_was_return = False
+                elif isinstance(simple_statement, cst.Global):
+                    for name in simple_statement.names:
+                        global_name = name.name.value
+                        for i, ref in enumerate(refs_copy):
+                            if isinstance(ref, GlobalVariable) and ref.name == global_name:
+                                if ref.marked:
+                                    raise CompilerError(f"Duplicate global declaration for {global_name}", context.wrap(simple_statement))
+                                else:
+                                    ref.mark()
+                                break
+                        else:
+                            raise CompilerError(f"Unknown global variable {global_name}", context.wrap(simple_statement))
+
+                    last_statement_was_return = False
+
                 else:
                     # TODO: Assignment expressions, function calls, memory assignments.
                     raise CompilerError(f"Unsupported node to compile {simple_statement}", context)
+
         else:
             # TODO: Control flow statements, etc.
             raise CompilerError(f"Unsupported node to compile {statement}", context)
+
+    if not last_statement_was_return:
+        # Simple return by itself, doesn't update the retval.
+        if function_type is not VoidType:
+            raise CompilerError("Function is missing a return statement", context)
+        compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
 
     return compiled
 
@@ -3182,8 +3502,8 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
     return prototype
 
 
-def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], context: Context) -> List[str]:
-    compiled: List[str] = []
+def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], context: Context) -> Sections:
+    compiled = Sections()
     function_name = func.name.value
     function_type = get_type(func.returns)
     function_params = func.params.params
@@ -3277,44 +3597,44 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         padding_move_amt += 1
 
     # Make sure we annotate the source with where we think we started on the stack.
-    compiled += comment_stack(stack)
+    compiled.code += comment_stack(stack)
 
     if padding_move_amt > 0:
-        compiled.append(f"  SUBPCI {padding_move_amt}" + comment_source("allocating padding"))
+        compiled.append_code(f"  SUBPCI {padding_move_amt}" + comment_source("allocating padding"))
         stack.move(padding_move_amt)
-        compiled += comment_stack(stack)
+        compiled.code += comment_stack(stack)
 
     # Now, let's save all of our clobbered values.
     cref = None
     if clobbers:
         cref = comment_ref()
-        compiled.append(f"  ; Save clobbered registers {cref}")
+        compiled.append_code(f"  ; Save clobbered registers {cref}")
     for clobber in sorted(clobbers):
         if clobber == "A":
             stack.alloc(StackVar("builtin(saved_a)", CoreType("uint8")))
-            compiled.append("  PUSH A")
+            compiled.append_code("  PUSH A")
             stack.move(1)
-            compiled += comment_stack(stack)
+            compiled.code += comment_stack(stack)
         elif clobber == "U":
             stack.alloc(StackVar("builtin(saved_u)", CoreType("uint8")))
-            compiled.append("  PUSH U")
+            compiled.append_code("  PUSH U")
             stack.move(1)
-            compiled += comment_stack(stack)
+            compiled.code += comment_stack(stack)
         elif clobber == "V":
             stack.alloc(StackVar("builtin(saved_v)", CoreType("uint8")))
-            compiled.append("  PUSH V")
+            compiled.append_code("  PUSH V")
             stack.move(1)
-            compiled += comment_stack(stack)
+            compiled.code += comment_stack(stack)
         elif clobber == "SPC":
-            stack.alloc(StackVar("builtin(saved_spc)", CoreType("uint8")))
-            compiled.append("  PUSH SPC")
+            stack.alloc(StackVar("builtin(saved_spc)", CoreType("uint16")))
+            compiled.append_code("  PUSH SPC")
             stack.move(2)
-            compiled += comment_stack(stack)
+            compiled.code += comment_stack(stack)
         else:
             raise Exception(f"Logic error, unexpected clobber {clobber}!")
 
     if cref:
-        compiled.append(f"  ; {cref}")
+        compiled.append_code(f"  ; {cref}")
 
     # Make sure that we have room on the stack for the return value. Don't move at this point
     # because we might not want to generate instructions to move.
@@ -3327,24 +3647,28 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
 
     # Finally, find any comments that comment on empty blocks after optimization, and remove them.
-    compiled = remove_empty_comments(compiled)
+    compiled.code = remove_empty_comments(compiled.code)
 
-    return remove_empty_lines([
-        *local_data,
-        f"{function_name}:",
-        *preamble,
-        *compiled,
-    ])
+    return Sections(
+        code=remove_empty_lines([
+            *local_data,
+            f"{function_name}:",
+            *preamble,
+            *compiled.code,
+        ]),
+        data=compiled.data,
+        init=compiled.init,
+    )
 
 
-def remove_empty_comments(compiled: List[str]) -> List[str]:
+def remove_empty_comments(code: List[str]) -> List[str]:
     # Clone this so we aren't mutating the input because that's bad form.
-    compiled = compiled[:]
+    code = code[:]
 
     pos = 0
-    length = len(compiled)
+    length = len(code)
     while pos < length:
-        line = compiled[pos]
+        line = code[pos]
 
         if "##comment_ref_" in line:
             # Grab the ref itself.
@@ -3353,7 +3677,7 @@ def remove_empty_comments(compiled: List[str]) -> List[str]:
 
             # Find the closing ref.
             for end in range(pos + 1, length):
-                if ref in compiled[end]:
+                if ref in code[end]:
                     break
             else:
                 raise Exception(f"Logic error, could not find end ref for {ref}!")
@@ -3361,7 +3685,7 @@ def remove_empty_comments(compiled: List[str]) -> List[str]:
             # Now, if the only thing between these two ref markers is comments, nuke all of it.
             should_nuke = True
             for check in range(pos, end):
-                checkline = compiled[check]
+                checkline = code[check]
                 if not checkline.strip():
                     # Empty line, this counts as a comment.
                     continue
@@ -3379,35 +3703,35 @@ def remove_empty_comments(compiled: List[str]) -> List[str]:
             if should_nuke:
                 # Delete all of the lines including the start and end comment.
                 for _ in range((end - pos) + 1):
-                    compiled.pop(pos)
+                    code.pop(pos)
             else:
                 # Just delete the end marker, and change the current line to not have the marker.
-                compiled.pop(end)
-                compiled[pos] = compiled[pos].replace(ref, "").rstrip()
+                code.pop(end)
+                code[pos] = code[pos].replace(ref, "").rstrip()
                 pos += 1
 
         else:
             pos += 1
 
-        length = len(compiled)
+        length = len(code)
 
-    return compiled
+    return code
 
 
-def remove_empty_lines(compiled: List[str]) -> List[str]:
+def remove_empty_lines(code: List[str]) -> List[str]:
     # Clone this so we aren't mutating the input because that's bad form.
-    compiled = compiled[:]
+    code = code[:]
 
-    while compiled and (not compiled[0].strip()):
-        compiled.pop(0)
+    while code and (not code[0].strip()):
+        code.pop(0)
 
-    while compiled and (not compiled[-1].strip()):
-        compiled.pop(-1)
+    while code and (not code[-1].strip()):
+        code.pop(-1)
 
-    return compiled
+    return code
 
 
-def is_type_definition(assign: cst.Assign) -> bool:
+def is_assign_type_definition(assign: cst.Assign) -> bool:
     if len(assign.targets) != 1:
         return False
 
@@ -3415,19 +3739,36 @@ def is_type_definition(assign: cst.Assign) -> bool:
     if not isinstance(target.target, cst.Name):
         return False
 
-    if target.target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "string", "char", "bool"}:
+    if target.target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "string", "char", "bool", "void"}:
         return False
 
     if not isinstance(assign.value, cst.Name):
         return False
 
-    if assign.value.value not in {"int", "str", "bool"}:
+    if assign.value.value not in {"int", "str", "bool", "None"}:
         return False
 
     return True
 
 
-def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototype, GlobalVariable]]) -> List[str]:
+def is_annassign_type_definition(assign: cst.AnnAssign) -> bool:
+    target = assign.target
+    if not isinstance(target, cst.Name):
+        return False
+
+    if target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "string", "char", "bool", "void"}:
+        return False
+
+    if not isinstance(assign.value, cst.Name):
+        return False
+
+    if assign.value.value not in {"int", "str", "bool", "None"}:
+        return False
+
+    return True
+
+
+def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototype, GlobalVariable]]) -> Sections:
     parsed_module = cst.parse_module(code)
 
     # Make sure we have access to line/column numbers for errors.
@@ -3438,8 +3779,9 @@ def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototyp
     # and only need a read-only copy.
     parsed_module = wrapper.module
 
-    compiled: List[str] = []
+    compiled = Sections()
     global_consts: List[Constant] = builtin_consts()
+    global_vars: List[GlobalVariable] = []
 
     for statement in parsed_module.body:
         context = Context(module, statement, metadata)
@@ -3452,10 +3794,19 @@ def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototyp
             body = bodylines[0]
             if isinstance(body, cst.Assign):
                 # This could be a mypy type assignment so that the python source files can be typechecked.
-                if not is_type_definition(body):
+                if not is_assign_type_definition(body):
                     raise CompilerError("Global variable declarations must have a type", context)
             elif isinstance(body, cst.AnnAssign):
-                compiled += generate_global_variable(body, global_consts, context)
+                if not is_annassign_type_definition(body):
+                    compiled += generate_global_variable(body, global_vars, global_consts, context)
+            elif isinstance(body, cst.ImportFrom):
+                is_typing_import = False
+
+                if isinstance(body.module, cst.Name) and body.module.value == "typing":
+                    is_typing_import = True
+
+                if not is_typing_import:
+                    raise CompilerError("Arbitrary top-level statements are not supported", context)
             else:
                 raise CompilerError("Arbitrary top-level statements are not supported", context)
         elif isinstance(statement, cst.FunctionDef):
@@ -3464,14 +3815,13 @@ def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototyp
             # TODO: What other statement types are we missing here?
             raise CompilerError("Unsupported statement {statement}", context)
 
-        compiled.append("")
+        compiled.append_code("")
 
-    return remove_empty_lines(compiled)
+    compiled.code = remove_empty_lines(compiled.code)
+    return compiled
 
 
 def parse_forward_refs(module: str, code: str) -> List[Union[FunctionPrototype, GlobalVariable]]:
-    # TODO: This needs to scan for global variables so we have global type references as well.
-
     parsed_module = cst.parse_module(code)
 
     # Make sure we have access to line/column numbers for errors.
@@ -3495,11 +3845,22 @@ def parse_forward_refs(module: str, code: str) -> List[Union[FunctionPrototype, 
             names.add(prototype.name)
 
             prototypes.append(prototype)
+        elif isinstance(statement, cst.SimpleStatementLine):
+            bodylines = statement.body
+            if len(bodylines) != 1:
+                raise CompilerError("Multi-statement lines are not supported", context)
+
+            body = bodylines[0]
+            if isinstance(body, cst.AnnAssign):
+                if not is_annassign_type_definition(body):
+                    global_vars: List[GlobalVariable] = []
+                    generate_global_variable(body, global_vars, [], context)
+                    prototypes += global_vars
 
     return prototypes
 
 
-def parse_and_compile_module(module: str, code: str) -> List[str]:
+def parse_and_compile_module(module: str, code: str) -> Sections:
     forward_refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
     forward_refs += parse_forward_refs(module, code)
     return compile_module(module, code, forward_refs)

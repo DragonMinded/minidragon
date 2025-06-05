@@ -184,7 +184,9 @@ class TestCompiler(unittest.TestCase):
 
     def test_empty(self) -> None:
         output = parse_and_compile_module("__test__", "")
-        assert len(output) == 0
+        self.assertTrue(len(output.code) == 0)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
     def test_throw_on_top_level_statement(self) -> None:
         with self.assertRaises(CompilerError) as cm:
@@ -197,7 +199,9 @@ class TestCompiler(unittest.TestCase):
             '  ; __test__ line 1: UINT8_CONST: const[int8] = 123',
             'UINT8_CONST:',
             '  .byte 0x7b',
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
         output = parse_and_compile_module("__test__", 'UINT16_CONST: const[int16] = 0xCAFE')
         self.assertEqual([
@@ -205,7 +209,9 @@ class TestCompiler(unittest.TestCase):
             'UINT16_CONST:',
             '  .byte 0xca',
             '  .byte 0xfe',
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
         output = parse_and_compile_module("__test__", 'UINT32_CONST: const[int32] = 0xDEADBEEF')
         self.assertEqual([
@@ -215,14 +221,18 @@ class TestCompiler(unittest.TestCase):
             '  .byte 0xad',
             '  .byte 0xbe',
             '  .byte 0xef',
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
         output = parse_and_compile_module("__test__", "UINT8_CONST: const[char] = 'c'")
         self.assertEqual([
             "  ; __test__ line 1: UINT8_CONST: const[char] = 'c'",
             "UINT8_CONST:",
             "  .char 'c'",
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
         output = parse_and_compile_module("__test__", 'UINT8_CONST: const[string] = "test"')
         self.assertEqual([
@@ -233,7 +243,9 @@ class TestCompiler(unittest.TestCase):
             "  .char 's'",
             "  .char 't'",
             "  .byte 0x00",
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
     def test_allow_global_const_declaration_init_expr(self) -> None:
         output = parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = (7 * 2) + 1')
@@ -241,7 +253,9 @@ class TestCompiler(unittest.TestCase):
             '  ; __test__ line 1: UINT8_CONST: const[int8] = (7 * 2) + 1',
             'UINT8_CONST:',
             '  .byte 0x0f'
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
     def test_throw_on_global_const_declaration(self) -> None:
         with self.assertRaises(CompilerError) as cm:
@@ -275,7 +289,9 @@ class TestCompiler(unittest.TestCase):
             "  ;",
             "  ; __test__ line 3: return",
             "  RET",
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
     def test_define_simple_return_function(self) -> None:
         func = textwrap.dedent("""
@@ -310,7 +326,9 @@ class TestCompiler(unittest.TestCase):
             '  SUBPCI 3',
             '  POP A',
             '  RET',
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
     def test_define_simple_unpadded_return_function(self) -> None:
         func = textwrap.dedent("""
@@ -364,7 +382,9 @@ class TestCompiler(unittest.TestCase):
             '  POP U',
             '  POP A',
             '  RET',
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
     def test_define_simple_input_and_return_function(self) -> None:
         func = textwrap.dedent("""
@@ -408,7 +428,9 @@ class TestCompiler(unittest.TestCase):
             '  SUBPCI 3',
             '  POP A',
             '  RET'
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
     def test_define_use_const(self) -> None:
         func = textwrap.dedent("""
@@ -454,7 +476,9 @@ class TestCompiler(unittest.TestCase):
             '  SUBPCI 3',
             '  POP A',
             '  RET'
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
     def test_define_use_variable(self) -> None:
         func = textwrap.dedent("""
@@ -511,7 +535,9 @@ class TestCompiler(unittest.TestCase):
             '  SUBPCI 3',
             '  POP A',
             '  RET'
-        ], output)
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
 
     def test_throw_on_local_definition_no_type(self) -> None:
         func = textwrap.dedent("""
