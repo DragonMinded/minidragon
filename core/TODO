@@ -1,13 +1,11 @@
 Things that I think I am going to need if I want to use this compiler:
- - << and >> expressions, since we forgot about bit shifting.
- - coercing a boolean from a string/character/integer.
- - global variable allocation and read/write support, including global keyword.
  - function call without being in an assignment expression support.
- - support for an end of global variables pointer, so a future memory allocator can be written.
- - string support, including initializing with constant values, concatenation, length, character indexing, etc.
- - support for allocating local and global string buffers using string[length].
  - if statement control flow.
  - while loop control flow.
+ - string support, including initializing with constant values, concatenation, length, character indexing, etc.
+ - support for allocating local and global string buffers using string[length].
+ - << and >> expressions, since we forgot about bit shifting.
+ - coercing a boolean from a string/character/integer.
  - builtins that will be needed such as abs(), len(), bool(), chr(), ord(), str(), int(), min(), max()
 
 Things that would be nice to have for convenience:

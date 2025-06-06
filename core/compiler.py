@@ -82,10 +82,11 @@ class CoreType:
     applied to it, and sometimes a nopad[] modifier applied to it.
     """
 
-    def __init__(self, base_type: str, pointed_type: Optional["CoreType"] = None, const: bool = False, return_padding: bool = True) -> None:
+    def __init__(self, base_type: str, pointed_type: Optional["CoreType"] = None, *, const: bool = False, extern: bool = False, return_padding: bool = True) -> None:
         self.type = base_type
         self.pointed_type = pointed_type
         self.const = const
+        self.extern = extern
         self.return_padding = return_padding
         if self.type == "pointer" and pointed_type is None:
             raise Exception("Logic error, creating a pointer without a pointed type!")
@@ -111,6 +112,9 @@ class CoreType:
             post = post + "]"
         if not self.return_padding:
             pre = "nopad[" + pre
+            post = post + "]"
+        if self.extern:
+            pre = "extern[" + pre
             post = post + "]"
 
         return pre + typestr + post
@@ -170,7 +174,7 @@ class CoreType:
         return self.type == "pointer"
 
 
-VoidType = CoreType("void", None, True, False)
+VoidType = CoreType("void", None, const=True, extern=False, return_padding=False)
 
 
 class PreservedCoreType(CoreType):
@@ -276,7 +280,7 @@ def type_comparison_compatible(left: CoreType, right: CoreType) -> bool:
     return False
 
 
-def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
+def get_type(expr: Optional[cst.CSTNode], *, allow_nopad: bool = False, allow_extern: bool = False) -> Optional[CoreType]:
     if expr is None:
         return None
     if isinstance(expr, cst.Annotation):
@@ -285,6 +289,7 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
         return None
 
     const: bool = False
+    extern: bool = False
     nopad: bool = False
 
     while True:
@@ -305,6 +310,20 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
                     return None
 
                 const = True
+                expr = sliceval.slice.value
+                continue
+
+            if qualifier.value == "extern":
+                if len(expr.slice) != 1:
+                    return None
+
+                sliceval = expr.slice[0]
+                if not isinstance(sliceval, cst.SubscriptElement):
+                    return None
+                if not isinstance(sliceval.slice, cst.Index):
+                    return None
+
+                extern = True
                 expr = sliceval.slice.value
                 continue
 
@@ -336,18 +355,23 @@ def get_type(expr: Optional[cst.CSTNode]) -> Optional[CoreType]:
                 pointed = get_type(expr)
                 if pointed is None:
                     return None
-                return CoreType("pointer", pointed, const, not nopad)
+                return CoreType("pointer", pointed, const=const, extern=extern, return_padding=not nopad)
 
             return None
 
         elif isinstance(expr, cst.Name):
+            if nopad and not allow_nopad:
+                return None
+            if extern and not allow_extern:
+                return None
+
             if expr.value == "void":
                 return VoidType
             else:
                 if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "bool", "char", "string"}:
                     return None
 
-                return CoreType(expr.value, None, const, not nopad)
+                return CoreType(expr.value, None, const=const, extern=extern, return_padding=not nopad)
 
         else:
             return None
@@ -632,11 +656,14 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
         raise CompilerError("Unsupported name for global variable definition", context)
 
     assign_name = target_node.value
-    assign_type = get_type(assign.annotation.annotation)
+    assign_type = get_type(assign.annotation.annotation, allow_extern=True)
     assign_value = assign.value
 
     if assign_type is None:
         raise CompilerError("Unsupported type for global variable definition", context)
+
+    if assign_type.const and assign_type.extern:
+        raise CompilerError("Cannot have a const extern global variable", context)
 
     for const in consts:
         if const.name == assign_name:
@@ -731,8 +758,11 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
         else:
             value = None
 
-        compiled.append_data(f"{assign_name}:")
-        compiled.append_init(f"  SETPC {assign_name}")
+        if not assign_type.extern:
+            compiled.append_data(f"{assign_name}:")
+
+        if value is not None:
+            compiled.append_init(f"  SETPC {assign_name}")
 
         if assign_type.type in {"int8", "uint8"}:
             if value is not None:
@@ -748,7 +778,8 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                 value = value & 0xFF
                 compiled.append_init(f"  STOREI {_hex((value >> 0) & 0xFF, 2)}")
 
-            compiled.append_data("  .pad 1")
+            if not assign_type.extern:
+                compiled.append_data("  .pad 1")
         elif assign_type.type in {"int16", "uint16"}:
             if value is not None:
                 if not isinstance(value, int):
@@ -765,7 +796,8 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                 compiled.append_init("  INCPC")
                 compiled.append_init(f"  STOREI {_hex((value >> 0) & 0xFF, 2)}")
 
-            compiled.append_data("  .pad 2")
+            if not assign_type.extern:
+                compiled.append_data("  .pad 2")
         elif assign_type.type in {"int32", "uint32"}:
             if value is not None:
                 if not isinstance(value, int):
@@ -786,7 +818,8 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                 compiled.append_init("  INCPC")
                 compiled.append_init(f"  STOREI {_hex((value >> 0) & 0xFF, 2)}")
 
-            compiled.append_data("  .pad 4")
+            if not assign_type.extern:
+                compiled.append_data("  .pad 4")
         elif assign_type == "char":
             if value is not None:
                 if not isinstance(value, str):
@@ -795,7 +828,8 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                     raise CompilerError("Unsupported initialization value for global variable definition", context)
                 compiled.append_init(f"  STOREI {value[0]!r}")
 
-            compiled.append_data("  .pad 1")
+            if not assign_type.extern:
+                compiled.append_data("  .pad 1")
         elif assign_type == "string":
             if value is not None:
                 # TODO: Need to allow specifying string length and check that here.
@@ -806,15 +840,17 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                     compiled.append_init("  INCPC")
                 compiled.append_init("  STOREI 0x00")
 
-            # TODO: Don't just make all global variable strings 128 bytes.
-            compiled.append_data("  .pad 128")
+            if not assign_type.extern:
+                # TODO: Don't just make all global variable strings 128 bytes.
+                compiled.append_data("  .pad 128")
         elif assign_type == "bool":
             if value is not None:
                 if not isinstance(value, bool):
                     raise CompilerError("Unsupported initialization value for global variable definition", context)
                 compiled.append_init(f"  STOREI {"0xFF" if value else "0x00"}")
 
-            compiled.append_data("  .pad 1")
+            if not assign_type.extern:
+                compiled.append_data("  .pad 1")
         else:
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
@@ -3031,7 +3067,7 @@ def infer_expr_types_impl(
     elif isinstance(expression, cst.UnaryOperation):
         inferred.update(infer_expr_types_impl(expression.expression, stack, refs, local_consts, context.wrap(expression.expression)))
         inferred_type = inferred[expression.expression]
-        inferred[expression] = CoreType(inferred_type.type, inferred_type.pointed_type, inferred_type.const, inferred_type.return_padding)
+        inferred[expression] = CoreType(inferred_type.type, inferred_type.pointed_type, const=inferred_type.const, extern=inferred_type.extern, return_padding=inferred_type.return_padding)
 
         if isinstance(expression.operator, (cst.Minus, cst.BitInvert)):
             if not inferred_type.is_integer:
@@ -3072,7 +3108,7 @@ def infer_expr_types_impl(
                 # Pick the right because its either wider than the left, or equivalent in width.
                 picked = right_inferred
 
-            inferred[expression] = CoreType(picked.type, picked.pointed_type, picked.const, picked.return_padding)
+            inferred[expression] = CoreType(picked.type, picked.pointed_type, const=picked.const, extern=picked.extern, return_padding=picked.return_padding)
             inferred.update(left_tree)
             inferred.update(right_tree)
 
@@ -3166,7 +3202,7 @@ def infer_expr_types_impl(
             # Pick the right because its either wider than the left, or equivalent in width.
             picked = orelse_inferred
 
-        inferred[expression] = CoreType(picked.type, picked.pointed_type, picked.const, picked.return_padding)
+        inferred[expression] = CoreType(picked.type, picked.pointed_type, const=picked.const, extern=picked.extern, return_padding=picked.return_padding)
         return inferred
 
     else:
@@ -3246,7 +3282,7 @@ def global_variable_assign(
         # First, we need to set the SPC to our variable pointer, which clobbers A.
         if i == 0:
             compiled.append_code("  SWAP PC, SPC")
-            compiled.append_code(f"  SETPC {assign_target.name}")
+            compiled.append_code(f"  SETPC {assign_target.name}, {assign_target.type.size - 1}")
             compiled.append_code("  SWAP PC, SPC")
 
         compiled += generate_move_to(expr_temp, stack, clobbers, context, offset=i)
@@ -3259,7 +3295,7 @@ def global_variable_assign(
             compiled.append_code("  SWAP PC, SPC")
         else:
             compiled.append_code("  SWAP PC, SPC")
-            compiled.append_code("  INCPC")
+            compiled.append_code("  DECPC")
             compiled.append_code("  STORE A")
             compiled.append_code("  SWAP PC, SPC")
 
@@ -3309,9 +3345,6 @@ def generate_assign_expr(
 
         if assign_type.const and assign_value is None:
             raise CompilerError("Expecting initialization value for local const definition", context)
-
-        if not assign_type.return_padding:
-            raise CompilerError("Unsupported nopad attribute for local variable definition", context)
 
         needs_alloc = True
 
@@ -3470,7 +3503,7 @@ def compile_chunk(
 
 
 def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionPrototype:
-    function_type = get_type(func.returns)
+    function_type = get_type(func.returns, allow_nopad=True)
     function_params = func.params.params
 
     if function_type is None:
@@ -3505,7 +3538,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
 def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], context: Context) -> Sections:
     compiled = Sections()
     function_name = func.name.value
-    function_type = get_type(func.returns)
+    function_type = get_type(func.returns, allow_nopad=True)
     function_params = func.params.params
     stack: Stack = Stack()
     local_data: List[str] = []

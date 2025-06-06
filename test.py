@@ -7463,6 +7463,7 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
             "HALT",
             *datalines,
             *sections.data,
+            *heaplines,
         ]))
         cpu = CPUCore(memory)
         rununtilhalt(cpu)
@@ -7520,6 +7521,7 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
                     "HALT",
                     *datalines,
                     *sections.data,
+                    *heaplines,
                 ]))
                 cpu = CPUCore(memory)
                 rununtilhalt(cpu)
@@ -7592,6 +7594,7 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
                     "HALT",
                     *datalines,
                     *sections.data,
+                    *heaplines,
                 ]))
                 cpu = CPUCore(memory)
                 rununtilhalt(cpu)
@@ -7635,6 +7638,231 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
 
     print(f"Average cycles for globalvariableread: {int(cycles/count)}")
     print(f"Average instructions for globalvariableread: {int(instructions/count)}")
+
+
+def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "globalvariablewrite" not in only and "compiler" not in only:
+        return
+
+    print("Verifying globalvariablewrite...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    for global_width in ["int8", "int16", "int32"]:
+        for val in [0, 37, -37, 42, -42]:
+            sections = parse_and_compile_module("globalvariablewrite", textwrap.dedent(f"""
+                global_variable: {global_width} = 0
+                def set_global_variable() -> void:
+                    global global_variable
+                    global_variable = {val}
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *addlines,
+                *sections.code,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL set_global_variable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"globalvariablewrite changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"globalvariablewrite changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"globalvariablewrite changed V value from {222} to {cpu.v}!",
+            )
+            if global_width == "int8":
+                result = bintoint(cpu.ram[0x8000])
+            elif global_width == "int16":
+                result = bintoint16(
+                    (cpu.ram[0x8000] << 8) + cpu.ram[0x8001]
+                )
+            elif global_width == "int32":
+                result = bintoint32(
+                    (cpu.ram[0x8000] << 24) +
+                    (cpu.ram[0x8001] << 16) +
+                    (cpu.ram[0x8002] << 8) +
+                    cpu.ram[0x8003]
+                )
+            else:
+                result = 0xDEADBEEF
+            expected = val
+            _assert(
+                result == expected,
+                f"Failed to globalvariablewrite at {global_width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    for global_width in ["uint8", "uint16", "uint32"]:
+        for val in [0, 37, 42, 69, 123, 234]:
+            sections = parse_and_compile_module("globalvariablewrite", textwrap.dedent(f"""
+                global_variable: {global_width} = 0
+                def set_global_variable() -> void:
+                    global global_variable
+                    global_variable = {val}
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *addlines,
+                *sections.code,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL set_global_variable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"globalvariablewrite changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"globalvariablewrite changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"globalvariablewrite changed V value from {222} to {cpu.v}!",
+            )
+            if global_width == "uint8":
+                result = (cpu.ram[0x8000])
+            elif global_width == "uint16":
+                result = (
+                    (cpu.ram[0x8000] << 8) + cpu.ram[0x8001]
+                )
+            elif global_width == "uint32":
+                result = (
+                    (cpu.ram[0x8000] << 24) +
+                    (cpu.ram[0x8001] << 16) +
+                    (cpu.ram[0x8002] << 8) +
+                    cpu.ram[0x8003]
+                )
+            else:
+                result = 0xDEADBEEF
+            expected = val
+            _assert(
+                result == expected,
+                f"Failed to globalvariablewrite at {global_width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Verify extern support while we're in here.
+    sections = parse_and_compile_module("globalvariablewrite", textwrap.dedent("""
+        global_variable: extern[uint32] = 0xFFFFFFFF
+        def set_global_variable() -> void:
+            global global_variable
+            global_variable = 0xCAFEBABE
+    """))
+    memory = getmemory(os.linesep.join([
+        *initlines,
+        *sections.init,
+        *startlines,
+        *addlines,
+        *sections.code,
+        "main:",
+        "LOADI 111",
+        "MOV A, U",
+        "LOADI 222",
+        "MOV A, V",
+        "LOADI 123",
+        "CALL set_global_variable",
+        "HALT",
+        *datalines,
+        *sections.data,
+        *heaplines,
+        ".org 0x8573",
+        "global_variable:",
+    ]))
+    cpu = CPUCore(memory)
+    rununtilhalt(cpu)
+
+    _assert(
+        cpu.a == 123,
+        f"globalvariablewrite changed accumulator value from {123} to {cpu.a}!",
+    )
+    _assert(
+        cpu.u == 111,
+        f"globalvariablewrite changed U value from {111} to {cpu.u}!",
+    )
+    _assert(
+        cpu.v == 222,
+        f"globalvariablewrite changed V value from {222} to {cpu.v}!",
+    )
+    original = (
+        (cpu.ram[0x8000] << 24) +
+        (cpu.ram[0x8001] << 16) +
+        (cpu.ram[0x8002] << 8) +
+        cpu.ram[0x8003]
+    )
+    _assert(
+        original == 0x0,
+        f"globalvariablewrite changed original variable location from {0x0} to {hex(original)}!",
+    )
+    result = (
+        (cpu.ram[0x8573] << 24) +
+        (cpu.ram[0x8574] << 16) +
+        (cpu.ram[0x8575] << 8) +
+        cpu.ram[0x8576]
+    )
+    expected = 0xCAFEBABE
+    _assert(
+        result == expected,
+        f"Failed to globalvariablewrite at {global_width}, "
+        + f"got {result} instead of {expected}!",
+    )
+    cycles += cpu.cycles
+    instructions += cpu.ticks
+    count += 1
+
+    print(f"Average cycles for globalvariablewrite: {int(cycles/count)}")
+    print(f"Average instructions for globalvariablewrite: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -7752,3 +7980,4 @@ if __name__ == "__main__":
     verifyinequalityexpression(only, args.full)
     verifyalligatorexpression(only, args.full)
     verifyglobalvariableread(only, args.full)
+    verifyglobalvariablewrite(only, args.full)
