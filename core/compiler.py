@@ -40,7 +40,9 @@ class Context:
         code = fresh_module.code_for_node(self.node)
         while code[-1] == "\n":
             code = code[:-1]
-        return f"  ; {self.module} line {self.meta[self.node].start.line}: {self.extra}{code}"
+        codelines = code.split("\n")
+        codelines = [c for c in codelines if c.strip()]
+        return f"  ; {self.module} line {self.meta[self.node].start.line}: {self.extra}{codelines[0]}"
 
 
 class CompilerError(Exception):
@@ -1330,7 +1332,7 @@ def generate_function_call(
             raise Exception(f"Logic error, not expecting a return-only type for param {pos + 1} in {function_prototype.name}")
 
     # Now, we must figure out how to set up the stack to call this function.
-    args, computed_params = get_function_params(call, function_prototype, context)
+    args, computed_params = get_function_params_impl(call, function_prototype, context)
 
     # Now, go through the requested parameters and set up the stack.
     copy_mapping: Dict[str, str] = {}
@@ -1690,7 +1692,7 @@ def expr_integer_type(size: int) -> CoreType:
 
 def generate_variable_lookup(
     source: str,
-    destination: str,
+    destination: Optional[str],
     stack: Stack,
     clobbers: Set[str],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
@@ -1699,7 +1701,7 @@ def generate_variable_lookup(
 ) -> Sections:
     compiled = Sections()
 
-    if is_register_destination(destination):
+    if destination is not None and is_register_destination(destination):
         # Just need to load A with the value, which should always be the lowest 8 bits of any variable.
         if stack.absfind(source) is None:
             if (global_var := global_by_name(refs, source)) is not None:
@@ -1719,103 +1721,126 @@ def generate_variable_lookup(
             compiled.append_code("  LOAD A")
     elif stack.absfind(source) is None and (global_var := global_by_name(refs, source)) is not None:
         # Global variable lookup.
-        dest_size = stack.sizeof(destination)
-        if dest_size is None:
-            raise Exception("Logic error, cannot find destination to copy variable value to!")
+        if destination is None:
+            # Just load from each position in the global variable, to trigger any memory read side effects
+            # in any hardware we're talking to.
+            clobbers.add("SPC")
+            clobbers.add("A")
 
-        # We clobber the SPC to be able to point at the variable. We clobber the A register for copies.
-        clobbers.add("SPC")
-        clobbers.add("A")
+            # First, we need to set the SPC to our variable pointer, which clobbers A.
+            compiled.append_code("  SWAP PC, SPC")
+            compiled.append_code(f"  SETPC {global_var.name}")
 
-        if global_var.type.size == dest_size:
-            # Direct copy from source stack to destination stack.
             for i in range(global_var.type.size):
-                # First, we need to set the SPC to our variable pointer, which clobbers A.
+                # Now, just trigger loads for each byte in the variable.
                 if i == 0:
-                    compiled.append_code("  SWAP PC, SPC")
-                    compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
                     compiled.append_code("  LOAD A")
-                    compiled.append_code("  SWAP PC, SPC")
                 else:
-                    compiled.append_code("  SWAP PC, SPC")
-                    compiled.append_code("  DECPC")
-                    compiled.append_code("  LOAD A")
-                    compiled.append_code("  SWAP PC, SPC")
-
-                compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
-                compiled.append_code("  STORE A")
-
-        elif global_var.type.size > dest_size:
-            # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
-            for i in range(dest_size):
-                # First, we need to set the SPC to our variable pointer, which clobbers A.
-                if i == 0:
-                    compiled.append_code("  SWAP PC, SPC")
-                    compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
-                    compiled.append_code("  LOAD A")
-                    compiled.append_code("  SWAP PC, SPC")
-                else:
-                    compiled.append_code("  SWAP PC, SPC")
-                    compiled.append_code("  DECPC")
-                    compiled.append_code("  LOAD A")
-                    compiled.append_code("  SWAP PC, SPC")
-
-                compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
-                compiled.append_code("  STORE A")
-
-        else:
-            # Copy, but with either sign extension or zero extension for the missing upper bytes.
-            dest_type = stack.typeof(destination)
-            dest_loc = stack.absfind(destination)
-            if dest_type is None or dest_loc is None:
-                raise Exception("Logic error, cannot find destination to copy variable value to!")
-
-            if dest_type.is_unsigned:
-                # We always zero-extend unsigned types.
-                compiled.append_code("  LOADI 0")
-            else:
-                # First, go to the high byte and figure out if it needs to be zero or one extended.
-                compiled.append_code("  SWAP PC, SPC")
-                compiled.append_code(f"  SETPC {global_var.name}")
-                compiled.append_code("  LOAD A")
-                compiled.append_code("  SWAP PC, SPC")
-                compiled.append_code("  SHL")
-                compiled.append_code("  LOADI 0")
-                compiled.append_code("  SKIPIF !CF")
-                compiled.append_code("  INV")
-
-            extend_amount = dest_size - global_var.type.size
-            for pos in range(extend_amount):
-                actual_pos = pos + dest_loc + global_var.type.size
-
-                move_amt = stack.diff(actual_pos)
-                compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
-                compiled.append_code("  STORE A")
-
-            # Need to copy the whole source, but to the correct location in the destination.
-            for i in range(global_var.type.size):
-                # First, we need to set the SPC to our variable pointer, which clobbers A.
-                if i == 0:
-                    compiled.append_code("  SWAP PC, SPC")
-                    # We set this above for the case where we need to check for sign extension.
-                    # That doesn't happen for unsigned integers, so we need to set the PC here.
-                    if dest_type.is_unsigned:
-                        compiled.append_code(f"  SETPC {global_var.name}")
-                    compiled.append_code("  LOAD A")
-                    compiled.append_code("  SWAP PC, SPC")
-                else:
-                    compiled.append_code("  SWAP PC, SPC")
                     compiled.append_code("  INCPC")
                     compiled.append_code("  LOAD A")
+
+            compiled.append_code("  SWAP PC, SPC")
+        else:
+            dest_size = stack.sizeof(destination)
+            if dest_size is None:
+                raise Exception("Logic error, cannot find destination to copy variable value to!")
+
+            # We clobber the SPC to be able to point at the variable. We clobber the A register for copies.
+            clobbers.add("SPC")
+            clobbers.add("A")
+
+            if global_var.type.size == dest_size:
+                # Direct copy from source stack to destination stack.
+                for i in range(global_var.type.size):
+                    # First, we need to set the SPC to our variable pointer, which clobbers A.
+                    if i == 0:
+                        compiled.append_code("  SWAP PC, SPC")
+                        compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
+                        compiled.append_code("  LOAD A")
+                        compiled.append_code("  SWAP PC, SPC")
+                    else:
+                        compiled.append_code("  SWAP PC, SPC")
+                        compiled.append_code("  DECPC")
+                        compiled.append_code("  LOAD A")
+                        compiled.append_code("  SWAP PC, SPC")
+
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
+                    compiled.append_code("  STORE A")
+
+            elif global_var.type.size > dest_size:
+                # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
+                for i in range(dest_size):
+                    # First, we need to set the SPC to our variable pointer, which clobbers A.
+                    if i == 0:
+                        compiled.append_code("  SWAP PC, SPC")
+                        compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
+                        compiled.append_code("  LOAD A")
+                        compiled.append_code("  SWAP PC, SPC")
+                    else:
+                        compiled.append_code("  SWAP PC, SPC")
+                        compiled.append_code("  DECPC")
+                        compiled.append_code("  LOAD A")
+                        compiled.append_code("  SWAP PC, SPC")
+
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
+                    compiled.append_code("  STORE A")
+
+            else:
+                # Copy, but with either sign extension or zero extension for the missing upper bytes.
+                dest_type = stack.typeof(destination)
+                dest_loc = stack.absfind(destination)
+                if dest_type is None or dest_loc is None:
+                    raise Exception("Logic error, cannot find destination to copy variable value to!")
+
+                if dest_type.is_unsigned:
+                    # We always zero-extend unsigned types.
+                    compiled.append_code("  LOADI 0")
+                else:
+                    # First, go to the high byte and figure out if it needs to be zero or one extended.
                     compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code(f"  SETPC {global_var.name}")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  SHL")
+                    compiled.append_code("  LOADI 0")
+                    compiled.append_code("  SKIPIF !CF")
+                    compiled.append_code("  INV")
 
-                actual_pos = (dest_loc + global_var.type.size) - (i + 1)
+                extend_amount = dest_size - global_var.type.size
+                for pos in range(extend_amount):
+                    actual_pos = pos + dest_loc + global_var.type.size
 
-                move_amt = stack.diff(actual_pos)
-                compiled += generate_move_by("seeking copy byte", move_amt, stack, clobbers, context)
-                compiled.append_code("  STORE A")
+                    move_amt = stack.diff(actual_pos)
+                    compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
+
+                # Need to copy the whole source, but to the correct location in the destination.
+                for i in range(global_var.type.size):
+                    # First, we need to set the SPC to our variable pointer, which clobbers A.
+                    if i == 0:
+                        compiled.append_code("  SWAP PC, SPC")
+                        # We set this above for the case where we need to check for sign extension.
+                        # That doesn't happen for unsigned integers, so we need to set the PC here.
+                        if dest_type.is_unsigned:
+                            compiled.append_code(f"  SETPC {global_var.name}")
+                        compiled.append_code("  LOAD A")
+                        compiled.append_code("  SWAP PC, SPC")
+                    else:
+                        compiled.append_code("  SWAP PC, SPC")
+                        compiled.append_code("  INCPC")
+                        compiled.append_code("  LOAD A")
+                        compiled.append_code("  SWAP PC, SPC")
+
+                    actual_pos = (dest_loc + global_var.type.size) - (i + 1)
+
+                    move_amt = stack.diff(actual_pos)
+                    compiled += generate_move_by("seeking copy byte", move_amt, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
 
     else:
+        if destination is None:
+            raise CompilerError("Unsupported expression without assignment!", context)
+
         source_loc = stack.absfind(source)
         source_size = stack.sizeof(source)
         dest_loc = stack.absfind(destination)
@@ -2943,7 +2968,7 @@ def generate_ternary_expr(
 
 def generate_expr_internal(
     expression: cst.BaseExpression,
-    destination: str,
+    destination: Optional[str],
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
@@ -2953,15 +2978,19 @@ def generate_expr_internal(
 ) -> Sections:
     compiled = Sections()
 
-    destination_size = stack.sizeof(destination)
-    if destination_size is None:
-        raise Exception("Logic error, could not calculate size of destination!")
+    if destination is not None:
+        destination_size = stack.sizeof(destination)
+        if destination_size is None:
+            raise Exception("Logic error, could not calculate size of destination!")
+    else:
+        destination_size = 0
 
     try:
         # If we can evaluate this directly, do so!
         value = codegen_eval(expression, local_consts)
         if isinstance(value, (bool, int)):
-            compiled += generate_const_load(value, destination, stack, clobbers, context)
+            if destination is not None:
+                compiled += generate_const_load(value, destination, stack, clobbers, context)
             return compiled
 
     except NonConstantExpressionException:
@@ -2969,17 +2998,20 @@ def generate_expr_internal(
         pass
 
     if isinstance(expression, cst.Name):
+        # Explicitly allowing variable lookup because it could allow a register clear on read.
         compiled += generate_variable_lookup(expression.value, destination, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.UnaryOperation):
-        compiled += generate_unary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+        if destination is not None:
+            compiled += generate_unary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.BinaryOperation):
-        compiled += generate_binary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+        if destination is not None:
+            compiled += generate_binary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.Call):
         function_return_type = types[expression]
-        if function_return_type.size != destination_size:
+        if destination is not None and function_return_type.size != destination_size:
             # We need to put this in a local temporary variable, and then copy it out.
             return_temp = expr_temp_name()
             stack.alloc(StackVar(return_temp, function_return_type))
@@ -2989,16 +3021,20 @@ def generate_expr_internal(
 
             stack.free(return_temp)
         else:
+            # We could possibly be making a function call with no destination here, such as calling a void function.
             compiled += generate_function_call(expression, destination, types, stack, clobbers, refs, local_consts, context.wrap(expression))
 
     elif isinstance(expression, cst.Comparison):
-        compiled += generate_comparison_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+        if destination is not None:
+            compiled += generate_comparison_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.BooleanOperation):
-        compiled += generate_boolean_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+        if destination is not None:
+            compiled += generate_boolean_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.IfExp):
-        compiled += generate_ternary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+        if destination is not None:
+            compiled += generate_ternary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
@@ -3017,19 +3053,22 @@ def infer_expr_types(
     context: Context,
 ) -> Dict[cst.CSTNode, CoreType]:
     types = infer_expr_types_impl(expression, stack, refs, local_consts, context)
-    infer_tree(types, destination_type)
+    infer_tree(types, destination_type, context)
     return types
 
 
 def infer_tree(
     types: Dict[cst.CSTNode, CoreType],
     concrete_type: CoreType,
+    context: Context,
 ) -> None:
     if concrete_type.type == "int":
         raise Exception("Logic error, attempting to infer tree with unspecified type!")
 
     for _, ctype in types.items():
         if ctype.type == "int":
+            if ctype.type == "void":
+                raise CompilerError("Unsupported expression without assignment!", context)
             ctype.type = concrete_type.type
 
 
@@ -3090,14 +3129,14 @@ def infer_expr_types_impl(
             # Any math against two integers will result in an integer. Pick the wider of two types.
             if right_inferred.type == "int":
                 if left_inferred.type != "int":
-                    infer_tree(right_tree, left_inferred)
+                    infer_tree(right_tree, left_inferred, context)
 
                 # Just arbitrarily pick the left, which could be an unspecified int as well.
                 picked = left_inferred
 
             elif left_inferred.type == "int" and right_inferred != "int":
                 # Pick the right since it is specified, the left will have to be filled in later.
-                infer_tree(left_tree, right_inferred)
+                infer_tree(left_tree, right_inferred, context)
                 picked = right_inferred
 
             elif left_inferred.size > right_inferred.size:
@@ -3124,7 +3163,7 @@ def infer_expr_types_impl(
             if not type_comparison_compatible(arg_inferred[arg.value], argtype):
                 raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type} in function call parameter {i + 1}", context)
 
-            infer_tree(arg_inferred, argtype)
+            infer_tree(arg_inferred, argtype, context)
             inferred.update(arg_inferred)
 
         inferred[expression] = function_prototype.return_type
@@ -3137,9 +3176,9 @@ def infer_expr_types_impl(
 
             # Infer constant widths based on comparison types.
             if left_tree[expression.left].type == "int" and right_tree[comparison.comparator].type != "int":
-                infer_tree(left_tree, right_tree[comparison.comparator])
+                infer_tree(left_tree, right_tree[comparison.comparator], context)
             if left_tree[expression.left].type != "int" and right_tree[comparison.comparator].type == "int":
-                infer_tree(right_tree, left_tree[expression.left])
+                infer_tree(right_tree, left_tree[expression.left], context)
 
             # Verify that we're comparing two equivalent types.
             if not type_comparison_compatible(left_tree[expression.left], right_tree[comparison.comparator]):
@@ -3184,14 +3223,14 @@ def infer_expr_types_impl(
         # Infer constants and pick the widest of the two sides for this expression's type.
         if orelse_inferred.type == "int":
             if body_inferred.type != "int":
-                infer_tree(orelse_tree, body_inferred)
+                infer_tree(orelse_tree, body_inferred, context)
 
             # Just arbitrarily pick the left, which could be an unspecified int as well.
             picked = body_inferred
 
         elif body_inferred.type == "int" and orelse_inferred != "int":
             # Pick the right since it is specified, the left will have to be filled in later.
-            infer_tree(body_tree, orelse_inferred)
+            infer_tree(body_tree, orelse_inferred, context)
             picked = orelse_inferred
 
         elif body_inferred.size > orelse_inferred.size:
@@ -3211,7 +3250,7 @@ def infer_expr_types_impl(
 
 def generate_expr(
     expression: cst.BaseExpression,
-    destination: str,
+    destination: Optional[str],
     stack: Stack,
     clobbers: Set[str],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
@@ -3220,16 +3259,20 @@ def generate_expr(
 ) -> Sections:
     compiled = Sections(code=[context.comment()])
 
-    dsize = stack.sizeof(destination)
-    dtype = stack.typeof(destination)
-    if dsize is None:
-        raise Exception("Logic error, couldn't determine size of expression destination!")
-    if dtype is None:
-        raise Exception("Logic error, couldn't determine type of expression destination!")
+    if destination is not None:
+        dsize = stack.sizeof(destination)
+        dtype = stack.typeof(destination)
+        if dsize is None:
+            raise Exception("Logic error, couldn't determine size of expression destination!")
+        if dtype is None:
+            raise Exception("Logic error, couldn't determine type of expression destination!")
+    else:
+        dsize = 0
+        dtype = VoidType
 
     types: Dict[cst.CSTNode, CoreType] = infer_expr_types(expression, dtype, stack, refs, local_consts, context)
 
-    if dsize == 1:
+    if destination is not None and dsize == 1:
         # We can potentially keep the math in the A register!
         clobbers.add("A")
 
@@ -3441,6 +3484,7 @@ def compile_chunk(
                         )
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
                     last_statement_was_return = True
+
                 elif isinstance(simple_statement, cst.AnnAssign):
                     compiled += generate_assign_expr(
                         simple_statement.target,
@@ -3454,6 +3498,7 @@ def compile_chunk(
                         context.wrap(simple_statement),
                     )
                     last_statement_was_return = False
+
                 elif isinstance(simple_statement, cst.Assign):
                     if len(simple_statement.targets) != 1:
                         raise CompilerError("Unsupported multi-variable assignment", context.wrap(simple_statement))
@@ -3470,6 +3515,7 @@ def compile_chunk(
                         context.wrap(simple_statement),
                     )
                     last_statement_was_return = False
+
                 elif isinstance(simple_statement, cst.Global):
                     for name in simple_statement.names:
                         global_name = name.name.value
@@ -3482,6 +3528,20 @@ def compile_chunk(
                                 break
                         else:
                             raise CompilerError(f"Unknown global variable {global_name}", context.wrap(simple_statement))
+
+                    last_statement_was_return = False
+
+                elif isinstance(simple_statement, cst.Expr):
+                    # Expression without an assignment. Most likely a function call.
+                    compiled += generate_expr(
+                        simple_statement.value,
+                        None,
+                        stack,
+                        clobbers,
+                        refs_copy,
+                        local_consts,
+                        context.wrap(simple_statement.value),
+                    )
 
                     last_statement_was_return = False
 

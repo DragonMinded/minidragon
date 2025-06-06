@@ -1,5 +1,4 @@
 Things that I think I am going to need if I want to use this compiler:
- - function call without being in an assignment expression support.
  - if statement control flow.
  - while loop control flow.
  - string support, including initializing with constant values, concatenation, length, character indexing, etc.

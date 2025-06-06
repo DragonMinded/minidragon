@@ -6065,6 +6065,89 @@ def verifycomplexexpression(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for complexexpression: {int(instructions/count)}")
 
 
+def verifyvoidfunctioncall(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "voidfunctioncall" not in only and "compiler" not in only:
+        return
+
+    print("Verifying voidfunctioncall...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    for val in [0, 37, 42, 69, 123, 234]:
+        # Verify that we can call void functions.
+        sections = parse_and_compile_module("voidfunctions", textwrap.dedent("""
+            global_var: uint8 = 0xA5
+
+            def set_global(val: uint8) -> void:
+                global global_var
+                global_var = val
+
+            def get_global() -> uint8:
+                return global_var
+
+            def passthrough_global(val: uint8) -> uint8:
+                set_global(val)
+                return ~get_global()
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {val}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL passthrough_global",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"globalvariablewrite changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"globalvariablewrite changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"globalvariablewrite changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc]
+        expected = (~val) & 0xFF
+        _assert(
+            result == expected,
+            "Failed to voidfunctions, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for voidfunctioncall: {int(cycles/count)}")
+    print(f"Average instructions for voidfunctioncall: {int(instructions/count)}")
+
+
 def verifylocalvariables(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "localvariables" not in only and "compiler" not in only:
         return
@@ -7969,6 +8052,7 @@ if __name__ == "__main__":
     verifybitwisenot(only, args.full)
     verifynegation(only, args.full)
     verifycomplexexpression(only, args.full)
+    verifyvoidfunctioncall(only, args.full)
     verifylocalvariables(only, args.full)
     verifyfunctioncall(only, args.full)
     verifycomplexfunctioncall(only, args.full)
