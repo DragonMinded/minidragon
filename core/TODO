@@ -2,6 +2,9 @@ Things that I think I am going to need if I want to use this compiler:
  - while loop control flow.
  - string support, including initializing with constant values, concatenation, length, character indexing, etc.
  - support for allocating local and global string buffers using string[length].
+ - integer/boolean array support, including reading/writing values using array syntax.
+ - support for allocating local and global arrays using int[length].
+ - support for allocating extern global arrays using int[inf] or similar syntax.
  - << and >> expressions, since we forgot about bit shifting.
  - coercing a boolean from a string/character/integer.
  - builtins that will be needed such as abs(), len(), bool(), chr(), ord(), str(), int(), min(), max()
@@ -23,6 +26,5 @@ Things that would be good for a complete compiler that I probably will not need:
  - 8/16/32 bit signed division.
  - 8/16/32 bit signed modulo.
  - 8/16/32 bit exponentiation.
- - pointer support, including reading/writing values using array syntax.
- - support for allocating local and global arrays using int[length], and treating the resulting allocation as pointer[int].
+ - variable pointer support.
  - function pointer support.
