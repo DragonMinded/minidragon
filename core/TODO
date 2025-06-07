@@ -1,5 +1,6 @@
 Things that I think I am going to need if I want to use this compiler:
  - while loop control flow.
+ - for loop control flow.
  - string support, including initializing with constant values, concatenation, length, character indexing, etc.
  - support for allocating local and global string buffers using string[length].
  - integer/boolean array support, including reading/writing values using array syntax.
