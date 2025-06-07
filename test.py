@@ -8407,6 +8407,125 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    # And just for shiggles, let's test nested if statements as well.
+    for input_val_int, expected in [(3, 5), (7, 10), (13, 15), (17, 20)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def ifelifelse(var: int8) -> int8:
+                if var < 5:
+                    return 5
+                else:
+                    if var < 10:
+                        return 10
+                    else:
+                        if var < 15:
+                            return 15
+                        else:
+                            return 20
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            f"PUSHI {input_val_int}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL ifelifelse",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements ifelifelse, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for input_val_int, expected in [(3, 5), (7, 10), (13, 15), (17, 20)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def ifelifelse(var: int8) -> int8:
+                retval: int8
+                if var < 5:
+                    retval = 5
+                else:
+                    if var < 10:
+                        retval = 10
+                    else:
+                        if var < 15:
+                            retval = 15
+                        else:
+                            retval = 20
+                return retval
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            f"PUSHI {input_val_int}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL ifelifelse",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements ifelifelse, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     print(f"Average cycles for ifstatements: {int(cycles/count)}")
     print(f"Average instructions for ifstatements: {int(instructions/count)}")
 
