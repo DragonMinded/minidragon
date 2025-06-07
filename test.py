@@ -8530,6 +8530,202 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for ifstatements: {int(instructions/count)}")
 
 
+def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "whilestatements" not in only and "compiler" not in only:
+        return
+
+    print("Verifying whilestatements...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # First, run the simplest while loops we can and verify that the calculation is correct.
+    if True:
+        sections = parse_and_compile_module("whilestatements", textwrap.dedent("""
+            def simple_while() -> int8:
+                x: int8 = 0
+                y: int8 = 0
+                while x < 5:
+                    y += x
+                    x += 1
+                return y
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL simple_while",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"whilestatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"whilestatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"whilestatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = (0 + 1 + 2 + 3 + 4)
+        _assert(
+            result == expected,
+            "Failed to whilestatements simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, run a while loop with no termination that exits via a break statement.
+    if True:
+        sections = parse_and_compile_module("whilestatements", textwrap.dedent("""
+            def break_while() -> int8:
+                x: int8 = 0
+                y: int8 = 0
+                while True:
+                    y += x
+                    x += 1
+                    if x > 5:
+                        break
+                return y
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL break_while",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"whilestatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"whilestatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"whilestatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = (0 + 1 + 2 + 3 + 4 + 5)
+        _assert(
+            result == expected,
+            "Failed to whilestatements break, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, run the a while loop that uses continue statements.
+    if True:
+        sections = parse_and_compile_module("whilestatements", textwrap.dedent("""
+            def continue_while() -> int8:
+                x: int8 = 0
+                y: int8 = 0
+                while x < 10:
+                    if x >= 5:
+                        x += 1
+                        continue
+
+                    y += x
+                    x += 1
+                return y
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL continue_while",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"whilestatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"whilestatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"whilestatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = (0 + 1 + 2 + 3 + 4)
+        _assert(
+            result == expected,
+            "Failed to whilestatements continue, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for whilestatements: {int(cycles/count)}")
+    print(f"Average instructions for whilestatements: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -8648,3 +8844,4 @@ if __name__ == "__main__":
     verifyglobalvariableread(only, args.full)
     verifyglobalvariablewrite(only, args.full)
     verifyifstatements(only, args.full)
+    verifywhilestatements(only, args.full)

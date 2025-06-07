@@ -31,18 +31,32 @@ class Context:
         self.node = node
         self.meta = meta
         self.extra = extra
+        self.mapping: Dict[cst.CSTNode, cst.CSTNode] = {}
 
     def wrap(self, node: cst.CSTNode, extra: str = "") -> "Context":
-        return Context(self.module, node, self.meta, extra)
+        context = Context(self.module, node, self.meta, extra)
+        context.mapping = {x: y for x, y in self.mapping.items()}
+        return context
+
+    def virtual(self, node: cst.CSTNode, extra: str = "") -> "Context":
+        context = Context(self.module, node, self.meta, extra)
+        context.mapping = {x: y for x, y in self.mapping.items()}
+        context.mapping[node] = self.node
+        return context
 
     def comment(self) -> str:
+        # Look up virtual references.
+        node = self.node
+        while node in self.mapping:
+            node = self.mapping[node]
+
         fresh_module = cst.parse_module("")
-        code = fresh_module.code_for_node(self.node)
+        code = fresh_module.code_for_node(node)
         while code[-1] == "\n":
             code = code[:-1]
         codelines = code.split("\n")
         codelines = [c for c in codelines if c.strip()]
-        return f"  ; {self.module} line {self.meta[self.node].start.line}: {self.extra}{codelines[0]}"
+        return f"  ; {self.module} line {self.meta[node].start.line}: {self.extra}{codelines[0]}"
 
 
 class CompilerError(Exception):
@@ -454,13 +468,15 @@ def const_by_name(consts: List[Constant], name: str) -> Optional[Constant]:
     return None
 
 
-def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionPrototype, GlobalVariable]]) -> int:
+def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionPrototype, GlobalVariable]], labels: List[str] = []) -> int:
     compiled = [c.split(";", 1)[0].strip() for c in compiled]
     compiled = [c for c in compiled if c]
 
     # Doesn't matter where these labels point, they're just going to be used with SETPC and CALL instrutions.
     for ref in refs:
         compiled.append(f"{ref.name}:")
+    for label in labels:
+        compiled.append(f"{label}:")
 
     memory = assemble(compiled)
     if not memory:
@@ -487,6 +503,18 @@ def register_type(name: str) -> Optional[CoreType]:
 
     vals = name[9:-1].split(",", 1)
     return CoreType(vals[1].strip())
+
+
+class LoopInfo:
+    def __init__(self, stack_location: int, *, test_label: str, else_label: Optional[str], exit_label: str) -> None:
+        self.stack_location = stack_location
+        self.test_label = test_label
+        self.else_label = else_label
+        self.exit_label = exit_label
+
+    @property
+    def labels(self) -> List[str]:
+        return [self.test_label, self.else_label, self.exit_label] if self.else_label else [self.test_label, self.exit_label]
 
 
 class StackVar:
@@ -3531,16 +3559,71 @@ def generate_assign_expr(
     return compiled
 
 
+def generate_augassign_expr(
+    assign_target: cst.BaseExpression,
+    assign_op: cst.BaseAugOp,
+    assign_value: cst.BaseExpression,
+    stack: Stack,
+    clobbers: Set[str],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    local_data: List[str],
+    context: Context,
+) -> Sections:
+    # Simply map this onto an existing non-augmented assign and generate the code for that.
+    operator: cst.BaseBinaryOp
+    if isinstance(assign_op, cst.AddAssign):
+        operator = cst.Add()
+    elif isinstance(assign_op, cst.BitAndAssign):
+        operator = cst.BitAnd()
+    elif isinstance(assign_op, cst.BitOrAssign):
+        operator = cst.BitOr()
+    elif isinstance(assign_op, cst.BitXorAssign):
+        operator = cst.BitXor()
+    elif isinstance(assign_op, cst.DivideAssign):
+        operator = cst.Divide()
+    elif isinstance(assign_op, cst.FloorDivideAssign):
+        operator = cst.FloorDivide()
+    elif isinstance(assign_op, cst.LeftShiftAssign):
+        operator = cst.LeftShift()
+    elif isinstance(assign_op, cst.ModuloAssign):
+        operator = cst.Modulo()
+    elif isinstance(assign_op, cst.MultiplyAssign):
+        operator = cst.Multiply()
+    elif isinstance(assign_op, cst.PowerAssign):
+        operator = cst.Power()
+    elif isinstance(assign_op, cst.RightShiftAssign):
+        operator = cst.RightShift()
+    elif isinstance(assign_op, cst.SubtractAssign):
+        operator = cst.Subtract()
+    else:
+        raise CompilerError("Unsupported augmented assign statement", context)
+
+    op = cst.BinaryOperation(left=assign_target, right=assign_value, operator=operator)
+    return generate_assign_expr(
+        assign_target,
+        None,
+        op,
+        stack,
+        clobbers,
+        refs,
+        local_consts,
+        local_data,
+        context.virtual(op),
+    )
+
+
 def generate_if_statement(
     statement: cst.If,
     stack: Stack,
     clobbers: Set[str],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    loop: Optional[LoopInfo],
     local_consts: List[Constant],
     local_data: List[str],
     context: Context,
-) -> Tuple[Sections, bool]:
+) -> Tuple[Sections, bool, bool]:
     compiled = Sections()
 
     # First, we need to infer the expression type, so we can figure out if we need to implicitly coerce the value.
@@ -3556,7 +3639,9 @@ def generate_if_statement(
     if statement.orelse is None:
         # Simpler logic, no need to generate two labels for skipping between each, no worrying about unifying the stack.
         if_body_stack = stack.clone()
-        child_compiled, _ = compile_chunk(statement.body, if_body_stack, clobbers, function_type, refs, local_consts, local_data, context, require_return=False)
+        child_compiled, _, _ = compile_chunk(
+            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=False,
+        )
 
         # Not unifying the stack here because in the false case we skip the body and don't initialize.
         if stack.location != if_body_stack.location:
@@ -3568,7 +3653,7 @@ def generate_if_statement(
                 raise Exception("Logic error, stacks differ after fixup!")
 
         # Now, figure out how far we need to jump on false.
-        child_length = get_assembled_length(child_compiled.code, refs)
+        child_length = get_assembled_length(child_compiled.code, refs, loop.labels if loop else [])
         false_case = local_label_name("false_case")
         if child_length > 32:
             insn = "LNGJUMPNZ"
@@ -3586,16 +3671,20 @@ def generate_if_statement(
             raise Exception("Logic error, stacks should have been the same location at this point!")
 
         # The last statement isn't always a return, because even if the true path returned,
-        # we could still skip that for the false case.
-        return compiled, False
+        # we could still skip that for the false case. Same with continues.
+        return compiled, False, False
 
     elif isinstance(statement.orelse, cst.Else):
         # This one can be compiled as if it was just a body like the statement.body
         if_body_stack = stack.clone()
-        if_body_compiled, if_body_returned = compile_chunk(statement.body, if_body_stack, clobbers, function_type, refs, local_consts, local_data, context, require_return=False)
+        if_body_compiled, if_body_returned, if_body_continued = compile_chunk(
+            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=False,
+        )
 
         else_body_stack = stack.clone()
-        else_body_compiled, else_body_returned = compile_chunk(statement.orelse.body, else_body_stack, clobbers, function_type, refs, local_consts, local_data, context, require_return=False)
+        else_body_compiled, else_body_returned, else_body_continued = compile_chunk(
+            statement.orelse.body, else_body_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=False,
+        )
 
         false_case = local_label_name("false_case")
 
@@ -3616,7 +3705,7 @@ def generate_if_statement(
             if_body_compiled += generate_move_by("move if body stack to same spot as else body", move_amount, if_body_stack, clobbers, context)
 
         # Now, figure out the else size so we can jump past it in the body.
-        else_length = get_assembled_length(else_body_compiled.code, refs)
+        else_length = get_assembled_length(else_body_compiled.code, refs, loop.labels if loop else [])
         if not if_body_returned:
             if else_length > 32:
                 if_body_compiled.append_code(f"  LNGJUMP {if_end}")
@@ -3626,7 +3715,7 @@ def generate_if_statement(
         # Now, figure out the if body size. We can't just compile it because it would fail to find the jump at the end, which can
         # be differently sized depending on if its a JRI or a LNGJUMP. So, compiled the left and right, and subtract the right
         # length since we know it already.
-        if_length = get_assembled_length([*if_body_compiled.code, *else_body_compiled.code], refs) - else_length
+        if_length = get_assembled_length([*if_body_compiled.code, *else_body_compiled.code], refs, loop.labels if loop else []) - else_length
 
         # Now, generate the code to figure out if the expression is true/false and
         # then jump to it.
@@ -3645,7 +3734,7 @@ def generate_if_statement(
             raise Exception("Logic error, stacks should have been the same location at this point!")
         stack.location = if_body_stack.location
 
-        return compiled, if_body_returned and else_body_returned
+        return compiled, if_body_returned and else_body_returned, if_body_continued and else_body_continued
 
     elif isinstance(statement.orelse, cst.If):
         # We need to know what the stack was before, just in case the else body has all assignments but the if body doesn't.
@@ -3654,9 +3743,11 @@ def generate_if_statement(
         # Need to compile this with the orelse if statement at the same level as us stack-wise, so this acts similarly
         # to the empty else case.
         if_body_stack = stack.clone()
-        if_body_compiled, if_body_returned = compile_chunk(statement.body, if_body_stack, clobbers, function_type, refs, local_consts, local_data, context, require_return=False)
+        if_body_compiled, if_body_returned, if_body_continued = compile_chunk(
+            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=False,
+        )
 
-        else_body_compiled, else_body_returned = generate_if_statement(statement.orelse, stack, clobbers, function_type, refs, local_consts, local_data, context)
+        else_body_compiled, else_body_returned, else_body_continued = generate_if_statement(statement.orelse, stack, clobbers, function_type, refs, loop, local_consts, local_data, context)
 
         false_case = local_label_name("false_case")
 
@@ -3682,7 +3773,7 @@ def generate_if_statement(
         stack.unify(if_body_stack, else_body_stack)
 
         # Now, figure out the else size so we can jump past it in the body.
-        else_length = get_assembled_length(else_body_compiled.code, refs)
+        else_length = get_assembled_length(else_body_compiled.code, refs, loop.labels if loop else [])
         if not if_body_returned:
             if else_length > 32:
                 if_body_compiled.append_code(f"  LNGJUMP {if_end}")
@@ -3692,7 +3783,7 @@ def generate_if_statement(
         # Now, figure out the if body size. We can't just compile it because it would fail to find the jump at the end, which can
         # be differently sized depending on if its a JRI or a LNGJUMP. So, compiled the left and right, and subtract the right
         # length since we know it already.
-        if_length = get_assembled_length([*if_body_compiled.code, *else_body_compiled.code], refs) - else_length
+        if_length = get_assembled_length([*if_body_compiled.code, *else_body_compiled.code], refs, loop.labels if loop else []) - else_length
 
         # Now, generate the code to figure out if the expression is true/false and
         # then jump to it.
@@ -3709,10 +3800,111 @@ def generate_if_statement(
         if if_body_stack.location != stack.location:
             raise Exception("Logic error, stacks should have been the same location at this point!")
 
-        return compiled, if_body_returned and else_body_returned
+        return compiled, if_body_returned and else_body_returned, if_body_continued and else_body_continued
 
     else:
         raise Exception(f"Logic error, unexpected statement {statement.orelse} in orelse clause of if statement!")
+
+
+def generate_while_statement(
+    statement: cst.While,
+    stack: Stack,
+    clobbers: Set[str],
+    function_type: CoreType,
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    local_data: List[str],
+    context: Context,
+) -> Tuple[Sections, bool, bool]:
+    compiled = Sections()
+
+    # First, we need to infer the expression type, so we can figure out if we need to implicitly coerce the value.
+    types: Dict[cst.CSTNode, CoreType] = infer_expr_types(statement.test, CoreType("bool"), stack, refs, local_consts, context)
+
+    if not types[statement.test].is_bool:
+        # TODO: Coerce from empty string, zero-valued integer, etc.
+        raise CompilerError("Unsupported non-boolean expression in while statement test", context)
+
+    # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
+    # and so that we can support else statements in while loops.
+    test_label = local_label_name("loop_test")
+    else_label = local_label_name("loop_else") if statement.orelse else None
+    exit_label = local_label_name("loop_exit")
+    loop = LoopInfo(stack.location, test_label=test_label, else_label=else_label, exit_label=exit_label)
+
+    # We're at the point we want to loop back to, so label it now, and generate the test itself.
+    compiled.append_code(f"{test_label}:")
+    compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+
+    # Now, generate the code necessary to perform the loop, as well as optionally the else.
+    if statement.orelse is None:
+        loop_stack = stack.clone()
+        loop_compiled, _, _ = compile_chunk(
+            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=True,
+        )
+
+        # Now, figure out how far we need to jump on loop condition is false.
+        child_length = get_assembled_length(loop_compiled.code, refs, loop.labels)
+        if child_length > 32:
+            insn = "LNGJUMPNZ"
+        else:
+            insn = "JRINZ"
+
+        # Now, generate the code that actually performs the conditional loop statement.
+        compiled.append_code("  INV")
+
+        if loop.stack_location != stack.location:
+            # If we're exiting, we have to put ourselves back to the right spot on the stack because
+            # that's the spot we promised to be in when we exit the loop through a break.
+            compiled.append_code("  SKIPIF ZF")
+
+            move_amount = loop.stack_location - stack.location
+            compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context)
+
+        compiled.append_code(f"  {insn} {exit_label}")
+        compiled += loop_compiled
+        compiled.append_code(f"{exit_label}:")
+
+        # The last statement isn't always a return, because even if the loop returned,
+        # we could still skip that for the false loop control case.
+        return compiled, False, False
+
+    else:
+        raise CompilerError("TODO", context)
+
+
+def generate_continue(
+    stack: Stack,
+    clobbers: Set[str],
+    loop: Optional[LoopInfo],
+    context: Context,
+) -> Sections:
+    compiled = Sections()
+
+    if loop is None:
+        raise CompilerError("Attempting to continue outside of active loop", context)
+
+    move_amount = loop.stack_location - stack.location
+    compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context)
+    compiled.append_code(f"  LNGJUMP {loop.test_label}")
+    return compiled
+
+
+def generate_break(
+    stack: Stack,
+    clobbers: Set[str],
+    loop: Optional[LoopInfo],
+    context: Context,
+) -> Sections:
+    compiled = Sections()
+
+    if loop is None:
+        raise CompilerError("Attempting to break outside of active loop", context)
+
+    move_amount = loop.stack_location - stack.location
+    compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context)
+    compiled.append_code(f"  LNGJUMP {loop.exit_label}")
+    return compiled
 
 
 def compile_chunk(
@@ -3721,12 +3913,14 @@ def compile_chunk(
     clobbers: Set[str],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    loop: Optional[LoopInfo],
     local_consts: List[Constant],
     local_data: List[str],
     context: Context,
     *,
     require_return: bool,
-) -> Tuple[Sections, bool]:
+    require_continue: bool,
+) -> Tuple[Sections, bool, bool]:
     compiled = Sections()
 
     # We need to track which global variables we know about, so that we can support local assignment over global names.
@@ -3735,6 +3929,7 @@ def compile_chunk(
     refs_copy += globals_copy
 
     last_statement_was_return = False
+    last_statement_was_continue = False
 
     for statement in chunk.body:
         if isinstance(statement, cst.SimpleStatementLine):
@@ -3766,7 +3961,10 @@ def compile_chunk(
                             context.wrap(simple_statement.value),
                         )
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
+
+                    # We lie here, because while the last statement wasn't a continue, it serves a similar purpose.
                     last_statement_was_return = True
+                    last_statement_was_continue = True
 
                 elif isinstance(simple_statement, cst.AnnAssign):
                     compiled += generate_assign_expr(
@@ -3781,6 +3979,7 @@ def compile_chunk(
                         context.wrap(simple_statement),
                     )
                     last_statement_was_return = False
+                    last_statement_was_continue = False
 
                 elif isinstance(simple_statement, cst.Assign):
                     if len(simple_statement.targets) != 1:
@@ -3798,6 +3997,22 @@ def compile_chunk(
                         context.wrap(simple_statement),
                     )
                     last_statement_was_return = False
+                    last_statement_was_continue = False
+
+                elif isinstance(simple_statement, cst.AugAssign):
+                    compiled += generate_augassign_expr(
+                        simple_statement.target,
+                        simple_statement.operator,
+                        simple_statement.value,
+                        stack,
+                        clobbers,
+                        refs_copy,
+                        local_consts,
+                        local_data,
+                        context.wrap(simple_statement),
+                    )
+                    last_statement_was_return = False
+                    last_statement_was_continue = False
 
                 elif isinstance(simple_statement, cst.Global):
                     for name in simple_statement.names:
@@ -3813,6 +4028,7 @@ def compile_chunk(
                             raise CompilerError(f"Unknown global variable {global_name}", context.wrap(simple_statement))
 
                     last_statement_was_return = False
+                    last_statement_was_continue = False
 
                 elif isinstance(simple_statement, cst.Expr):
                     # Expression without an assignment. Most likely a function call.
@@ -3827,18 +4043,44 @@ def compile_chunk(
                     )
 
                     last_statement_was_return = False
+                    last_statement_was_continue = False
 
                 elif isinstance(simple_statement, cst.Pass):
                     # No-op statement for syntactic correctness since Python requires indentation. Funny enough,
                     # we implement it here with our own pass. How meta.
                     pass
 
+                elif isinstance(simple_statement, cst.Break):
+                    # We treat a break as a continue for tracking purposes since it finishes control flow for us.
+                    compiled += generate_break(stack, clobbers, loop, context)
+                    last_statement_was_return = False
+                    last_statement_was_continue = True
+
+                elif isinstance(simple_statement, cst.Continue):
+                    compiled += generate_continue(stack, clobbers, loop, context)
+                    last_statement_was_return = False
+                    last_statement_was_continue = True
+
                 else:
                     # TODO: Assignment expressions, function calls, memory assignments.
                     raise CompilerError(f"Unsupported node to compile {simple_statement}", context)
 
         elif isinstance(statement, cst.If):
-            if_compiled, last_statement_was_return = generate_if_statement(
+            if_compiled, last_statement_was_return, last_statement_was_continue = generate_if_statement(
+                statement,
+                stack,
+                clobbers,
+                function_type,
+                refs_copy,
+                loop,
+                local_consts,
+                local_data,
+                context.wrap(statement),
+            )
+            compiled += if_compiled
+
+        elif isinstance(statement, cst.While):
+            while_compiled, last_statement_was_return, last_statement_was_continue = generate_while_statement(
                 statement,
                 stack,
                 clobbers,
@@ -3848,7 +4090,7 @@ def compile_chunk(
                 local_data,
                 context.wrap(statement),
             )
-            compiled += if_compiled
+            compiled += while_compiled
 
         else:
             # TODO: Control flow statements, etc.
@@ -3858,10 +4100,15 @@ def compile_chunk(
         # Simple return by itself, doesn't update the retval.
         if function_type is not VoidType:
             raise CompilerError("Function is missing a return statement", context)
-        compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
+        compiled += generate_return(function_type, stack, clobbers, context)
         last_statement_was_return = True
+        last_statement_was_continue = True
 
-    return compiled, last_statement_was_return
+    if require_continue and not last_statement_was_continue:
+        compiled += generate_continue(stack, clobbers, loop, context)
+        last_statement_was_continue = True
+
+    return compiled, last_statement_was_return, last_statement_was_continue
 
 
 def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionPrototype:
@@ -3974,7 +4221,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     clobbers: Set[str] = set()
 
     push_names()
-    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, builtin_consts(), [], context, require_return=True)
+    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, None, builtin_consts(), [], context, require_return=True, require_continue=False)
     pop_names()
 
     # Unwind our temporary return value location.
@@ -4037,7 +4284,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    chunk, _ = compile_chunk(func.body, stack, set(), function_type, refs, builtin_consts(), local_data, context, require_return=True)
+    chunk, _, _ = compile_chunk(func.body, stack, set(), function_type, refs, None, builtin_consts(), local_data, context, require_return=True, require_continue=False)
     compiled += chunk
 
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
