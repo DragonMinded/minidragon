@@ -379,23 +379,6 @@ def get_type(expr: Optional[cst.CSTNode], *, allow_nopad: bool = False, allow_ex
             return None
 
 
-def get_assembled_length(compiled: List[str]) -> int:
-    compiled = [c.split(";", 1)[0].strip() for c in compiled]
-    memory = assemble(compiled)
-    if not memory:
-        return 0
-
-    minval = memory[0][0]
-    maxval = minval
-    for loc, _ in memory:
-        if loc < minval:
-            minval = loc
-        if loc > maxval:
-            maxval = loc
-
-    return (maxval - minval) + 1
-
-
 class UnvalidatedName(cst.Name):
     """
     Exists solely to be able to call create_call() with builtin references which are
@@ -469,6 +452,29 @@ def const_by_name(consts: List[Constant], name: str) -> Optional[Constant]:
         if const.name == name:
             return const
     return None
+
+
+def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionPrototype, GlobalVariable]]) -> int:
+    compiled = [c.split(";", 1)[0].strip() for c in compiled]
+    compiled = [c for c in compiled if c]
+
+    # Doesn't matter where these labels point, they're just going to be used with SETPC and CALL instrutions.
+    for ref in refs:
+        compiled.append(f"{ref.name}:")
+
+    memory = assemble(compiled)
+    if not memory:
+        return 0
+
+    minval = memory[0][0]
+    maxval = minval
+    for loc, _ in memory:
+        if loc < minval:
+            minval = loc
+        if loc > maxval:
+            maxval = loc
+
+    return (maxval - minval) + 1
 
 
 def is_register_destination(name: str) -> bool:
@@ -2380,7 +2386,7 @@ def generate_boolean_expr(
             right_compiled += generate_move_by("restore stack to start of expression", move_amount, cloned_stack, clobbers, context)
 
         # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
-        right_length = get_assembled_length(right_compiled.code)
+        right_length = get_assembled_length(right_compiled.code, refs)
         short_circuit = local_label_name("short_circuit")
         if right_length > 32:
             insn = "LNGJUMPZ"
@@ -2424,7 +2430,7 @@ def generate_boolean_expr(
             right_compiled += generate_move_by("restore stack to start of expression", move_amount, cloned_stack, clobbers, context)
 
         # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
-        right_length = get_assembled_length(right_compiled.code)
+        right_length = get_assembled_length(right_compiled.code, refs)
         short_circuit = local_label_name("short_circuit")
         if right_length > 32:
             insn = "LNGJUMPNZ"
@@ -2934,7 +2940,7 @@ def generate_ternary_expr(
         left_compiled += generate_move_by("move stack to same spot as else expression", move_amount, left_stack, clobbers, context)
 
     # Now, figure out the else size so we can jump past it in the body.
-    right_length = get_assembled_length(right_compiled.code)
+    right_length = get_assembled_length(right_compiled.code, refs)
     if right_length > 32:
         left_compiled.append_code(f"  LNGJUMP {expr_end}")
     else:
@@ -2944,7 +2950,7 @@ def generate_ternary_expr(
     # would fail to find the jump at the end, which can be differently
     # sized depending on if its a JRI or a LNGJUMP. So, compiled the left
     # and right, and subtract the right length since we know it already.
-    left_length = get_assembled_length([*left_compiled.code, *right_compiled.code]) - right_length
+    left_length = get_assembled_length([*left_compiled.code, *right_compiled.code], refs) - right_length
 
     # Now, generate the code to figure out if the expression is true/false and
     # then jump to it.
@@ -3431,7 +3437,183 @@ def generate_assign_expr(
 
         compiled += generate_expr(assign_value, assign_name, stack, clobbers, refs, local_consts, context.wrap(assign_value))
 
+    else:
+        if needs_alloc:
+            # Allocate space on the stack for this local variable.
+            if assign_type is None:
+                raise Exception("Logic error, we should always have a type in this condition!")
+            stack.alloc(StackVar(assign_name, assign_type))
+
     return compiled
+
+
+def generate_if_statement(
+    statement: cst.If,
+    stack: Stack,
+    clobbers: Set[str],
+    function_type: CoreType,
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    local_data: List[str],
+    context: Context,
+) -> Tuple[Sections, bool]:
+    compiled = Sections()
+
+    # First, we need to infer the expression type, so we can figure out if we need to implicitly coerce the value.
+    types: Dict[cst.CSTNode, CoreType] = infer_expr_types(statement.test, CoreType("bool"), stack, refs, local_consts, context)
+
+    if not types[statement.test].is_bool:
+        # TODO: Coerce from empty string, zero-valued integer, etc.
+        raise CompilerError("Unsupported non-boolean expression in if statement test", context)
+
+    compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+
+    # Now, depending on if this if statement has an else body or not,
+    if statement.orelse is None:
+        # Simpler logic, no need to generate two labels for skipping between each, no worrying about unifying the stack.
+        if_body_stack = stack.clone()
+        child_compiled, _ = compile_chunk(statement.body, if_body_stack, clobbers, function_type, refs, local_consts, local_data, context, require_return=False)
+
+        if stack.location != if_body_stack.location:
+            # Arbitrarily choose the left side expression to fix up to the right.
+            move_amount = stack.location - if_body_stack.location
+            child_compiled += generate_move_by("move if body stack to original location", move_amount, if_body_stack, clobbers, context)
+
+            if stack.location != if_body_stack.location:
+                raise Exception("Logic error, stacks differ after fixup!")
+
+        # Now, figure out how far we need to jump on false.
+        child_length = get_assembled_length(child_compiled.code, refs)
+        false_case = local_label_name("false_case")
+        if child_length > 32:
+            insn = "LNGJUMPNZ"
+        else:
+            insn = "JRINZ"
+
+        # Now, generate the code that actually performs the conditional if statement.
+        compiled.append_code("  INV")
+        compiled.append_code(f"  {insn} {false_case}")
+        compiled += child_compiled
+        compiled.append_code(f"{false_case}:")
+
+        # Double-check our stack math one more time.
+        if if_body_stack.location != stack.location:
+            raise Exception("Logic error, stacks should have been the same location at this point!")
+
+        # The last statement isn't always a return, because even if the true path returned,
+        # we could still skip that for the false case.
+        return compiled, False
+
+    elif isinstance(statement.orelse, cst.Else):
+        # This one can be compiled as if it was just a body like the statement.body
+        if_body_stack = stack.clone()
+        if_body_compiled, if_body_returned = compile_chunk(statement.body, if_body_stack, clobbers, function_type, refs, local_consts, local_data, context, require_return=False)
+
+        else_body_stack = stack.clone()
+        else_body_compiled, else_body_returned = compile_chunk(statement.orelse.body, else_body_stack, clobbers, function_type, refs, local_consts, local_data, context, require_return=False)
+
+        false_case = local_label_name("false_case")
+
+        # Only need somewhere to jump to if we don't return as our last instruction in the if body.
+        if not if_body_returned:
+            if_end = local_label_name("if_end")
+            else_body_compiled.append_code(f"{if_end}:")
+
+        # Not asserting that both sides are the same size, because they could have defined local variables. We don't follow python's
+        # scope rules for defining variables in sub-scopes propagating upwards. Instead we follow C scope style which makes it easier
+        # to compile.
+        if if_body_stack.location != else_body_stack.location:
+            # Arbitrarily choose the if side to fix up to the else.
+            move_amount = else_body_stack.location - if_body_stack.location
+            if_body_compiled += generate_move_by("move if body stack to same spot as else body", move_amount, if_body_stack, clobbers, context)
+
+        # Now, figure out the else size so we can jump past it in the body.
+        else_length = get_assembled_length(else_body_compiled.code, refs)
+        if not if_body_returned:
+            if else_length > 32:
+                if_body_compiled.append_code(f"  LNGJUMP {if_end}")
+            else:
+                if_body_compiled.append_code(f"  JRI {if_end}")
+
+        # Now, figure out the if body size. We can't just compile it because it would fail to find the jump at the end, which can
+        # be differently sized depending on if its a JRI or a LNGJUMP. So, compiled the left and right, and subtract the right
+        # length since we know it already.
+        if_length = get_assembled_length([*if_body_compiled.code, *else_body_compiled.code], refs) - else_length
+
+        # Now, generate the code to figure out if the expression is true/false and
+        # then jump to it.
+        compiled.append_code("  INV")
+        if if_length > 32:
+            compiled.append_code(f"  LNGJUMPNZ {false_case}")
+        else:
+            compiled.append_code(f"  JRINZ {false_case}")
+        compiled += if_body_compiled
+        compiled.append_code(f"{false_case}:")
+        compiled += else_body_compiled
+
+        # Now, set the stack location for our current stack to the location that both
+        # expressions leave it at.
+        if if_body_stack.location != else_body_stack.location:
+            raise Exception("Logic error, stacks should have been the same location at this point!")
+        stack.location = if_body_stack.location
+
+        return compiled, if_body_returned and else_body_returned
+
+    elif isinstance(statement.orelse, cst.If):
+        # Need to compile this with the orelse if statement at the same level as us stack-wise, so this acts similarly
+        # to the empty else case.
+        if_body_stack = stack.clone()
+        if_body_compiled, if_body_returned = compile_chunk(statement.body, if_body_stack, clobbers, function_type, refs, local_consts, local_data, context, require_return=False)
+
+        else_body_compiled, else_body_returned = generate_if_statement(statement.orelse, stack, clobbers, function_type, refs, local_consts, local_data, context)
+
+        false_case = local_label_name("false_case")
+
+        # Only need somewhere to jump to if we don't return as our last instruction in the if body.
+        if not if_body_returned:
+            if_end = local_label_name("if_end")
+            else_body_compiled.append_code(f"{if_end}:")
+
+        # Not asserting that both sides are the same size, because they could have defined local variables. We don't follow python's
+        # scope rules for defining variables in sub-scopes propagating upwards. Instead we follow C scope style which makes it easier
+        # to compile.
+        if if_body_stack.location != stack.location:
+            # Arbitrarily choose the if side to fix up to the else.
+            move_amount = stack.location - if_body_stack.location
+            if_body_compiled += generate_move_by("move if body stack to same spot as else body", move_amount, if_body_stack, clobbers, context)
+
+        # Now, figure out the else size so we can jump past it in the body.
+        else_length = get_assembled_length(else_body_compiled.code, refs)
+        if not if_body_returned:
+            if else_length > 32:
+                if_body_compiled.append_code(f"  LNGJUMP {if_end}")
+            else:
+                if_body_compiled.append_code(f"  JRI {if_end}")
+
+        # Now, figure out the if body size. We can't just compile it because it would fail to find the jump at the end, which can
+        # be differently sized depending on if its a JRI or a LNGJUMP. So, compiled the left and right, and subtract the right
+        # length since we know it already.
+        if_length = get_assembled_length([*if_body_compiled.code, *else_body_compiled.code], refs) - else_length
+
+        # Now, generate the code to figure out if the expression is true/false and
+        # then jump to it.
+        compiled.append_code("  INV")
+        if if_length > 32:
+            compiled.append_code(f"  LNGJUMPNZ {false_case}")
+        else:
+            compiled.append_code(f"  JRINZ {false_case}")
+        compiled += if_body_compiled
+        compiled.append_code(f"{false_case}:")
+        compiled += else_body_compiled
+
+        # Double check our stack math one more time.
+        if if_body_stack.location != stack.location:
+            raise Exception("Logic error, stacks should have been the same location at this point!")
+
+        return compiled, if_body_returned and else_body_returned
+
+    else:
+        raise Exception(f"Logic error, unexpected statement {statement.orelse} in orelse clause of if statement!")
 
 
 def compile_chunk(
@@ -3443,7 +3625,9 @@ def compile_chunk(
     local_consts: List[Constant],
     local_data: List[str],
     context: Context,
-) -> Sections:
+    *,
+    require_return: bool,
+) -> Tuple[Sections, bool]:
     compiled = Sections()
 
     # We need to track which global variables we know about, so that we can support local assignment over global names.
@@ -3549,17 +3733,31 @@ def compile_chunk(
                     # TODO: Assignment expressions, function calls, memory assignments.
                     raise CompilerError(f"Unsupported node to compile {simple_statement}", context)
 
+        elif isinstance(statement, cst.If):
+            if_compiled, last_statement_was_return = generate_if_statement(
+                statement,
+                stack,
+                clobbers,
+                function_type,
+                refs_copy,
+                local_consts,
+                local_data,
+                context.wrap(statement),
+            )
+            compiled += if_compiled
+
         else:
             # TODO: Control flow statements, etc.
             raise CompilerError(f"Unsupported node to compile {statement}", context)
 
-    if not last_statement_was_return:
+    if require_return and not last_statement_was_return:
         # Simple return by itself, doesn't update the retval.
         if function_type is not VoidType:
             raise CompilerError("Function is missing a return statement", context)
         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
+        last_statement_was_return = True
 
-    return compiled
+    return compiled, last_statement_was_return
 
 
 def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionPrototype:
@@ -3672,7 +3870,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     clobbers: Set[str] = set()
 
     push_names()
-    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, builtin_consts(), [], context)
+    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, builtin_consts(), [], context, require_return=True)
     pop_names()
 
     # Unwind our temporary return value location.
@@ -3735,7 +3933,8 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    compiled += compile_chunk(func.body, stack, set(), function_type, refs, builtin_consts(), local_data, context)
+    chunk, _ = compile_chunk(func.body, stack, set(), function_type, refs, builtin_consts(), local_data, context, require_return=True)
+    compiled += chunk
 
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
 

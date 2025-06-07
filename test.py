@@ -7948,6 +7948,469 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
     print(f"Average instructions for globalvariablewrite: {int(instructions/count)}")
 
 
+def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "ifstatements" not in only and "compiler" not in only:
+        return
+
+    print("Verifying ifstatements...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # First, test if statements with no else case, both when they return and when they
+    # expect to naturally flow out past the indented block.
+    for input_val, expected in [(True, 15), (False, -25)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def simpleif(condition: bool) -> int8:
+                if condition:
+                    return 15
+                return -25
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {0xFF if input_val else 0x00}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL simpleif",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for input_val, expected in [(True, 15), (False, -25)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def simpleif(condition: bool) -> int8:
+                retval: int8 = -25
+                if condition:
+                    retval = 15
+                return retval
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {0xFF if input_val else 0x00}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL simpleif",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, test if statements with a single else case, both when they return and when they
+    # expect to naturally flow out past the indented block.
+    for input_val, expected in [(True, 15), (False, -25)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def ifelseif(condition: bool) -> int8:
+                if condition:
+                    return 15
+                else:
+                    return -25
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {0xFF if input_val else 0x00}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL ifelseif",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements ifelse, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for input_val, expected in [(True, 15), (False, -25)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def ifelseif(condition: bool) -> int8:
+                retval: int8
+                if condition:
+                    retval = 15
+                else:
+                    retval = -25
+                return retval
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {0xFF if input_val else 0x00}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL ifelseif",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements ifelse, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, test if statements with a bunch of elif cases but no else case, both when they
+    # return and when they expect to naturally flow out past the indented block.
+    for input_val_int, expected in [(3, 5), (7, 10), (13, 15), (17, 20)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def ifelif(var: int8) -> int8:
+                if var < 5:
+                    return 5
+                elif var < 10:
+                    return 10
+                elif var < 15:
+                    return 15
+                return 20
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            f"PUSHI {input_val_int}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL ifelif",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements ifelif, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for input_val_int, expected in [(3, 5), (7, 10), (13, 15), (17, 20)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def ifelif(var: int8) -> int8:
+                retval: int8 = 20
+                if var < 5:
+                    retval = 5
+                elif var < 10:
+                    retval = 10
+                elif var < 15:
+                    retval = 15
+                return retval
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            f"PUSHI {input_val_int}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL ifelif",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements ifelif, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Finally, test if statements with a bunch of elif cases but no else case, both when they
+    # return and when they expect to naturally flow out past the indented block.
+    for input_val_int, expected in [(3, 5), (7, 10), (13, 15), (17, 20)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def ifelifelse(var: int8) -> int8:
+                if var < 5:
+                    return 5
+                elif var < 10:
+                    return 10
+                elif var < 15:
+                    return 15
+                else:
+                    return 20
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            f"PUSHI {input_val_int}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL ifelifelse",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements ifelifelse, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for input_val_int, expected in [(3, 5), (7, 10), (13, 15), (17, 20)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def ifelifelse(var: int8) -> int8:
+                retval: int8
+                if var < 5:
+                    retval = 5
+                elif var < 10:
+                    retval = 10
+                elif var < 15:
+                    retval = 15
+                else:
+                    retval = 20
+                return retval
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            f"PUSHI {input_val_int}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL ifelifelse",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements ifelifelse, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for ifstatements: {int(cycles/count)}")
+    print(f"Average instructions for ifstatements: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -8065,3 +8528,4 @@ if __name__ == "__main__":
     verifyalligatorexpression(only, args.full)
     verifyglobalvariableread(only, args.full)
     verifyglobalvariablewrite(only, args.full)
+    verifyifstatements(only, args.full)
