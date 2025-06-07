@@ -594,6 +594,151 @@ class TestCompiler(unittest.TestCase):
             parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 4: Cannot assign to variable 'SOME_VAR' declared const", str(cm.exception))
 
+    def test_throw_on_var_use_before_init(self) -> None:
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                return param + some_var
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func)
+        self.assertEqual("__test__ line 4: Use of uninitialized variable 'some_var'", str(cm.exception))
+
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                if param > 0:
+                    some_var = 5
+                return some_var
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func)
+        self.assertEqual("__test__ line 6: Use of uninitialized variable 'some_var'", str(cm.exception))
+
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                if param > 0:
+                    pass
+                else:
+                    some_var = 5
+                return some_var
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func)
+        self.assertEqual("__test__ line 8: Use of uninitialized variable 'some_var'", str(cm.exception))
+
+        func = textwrap.dedent("""
+            def somefunc(param: int8) -> int8:
+                return param
+
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                return somefunc(some_var)
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func)
+        self.assertEqual("__test__ line 7: Use of uninitialized variable 'some_var'", str(cm.exception))
+
+        func = textwrap.dedent("""
+            def localvar() -> void:
+                some_var: int8
+                some_var = some_var + 1
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func)
+        self.assertEqual("__test__ line 4: Use of uninitialized variable 'some_var'", str(cm.exception))
+
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                if param == 1:
+                    some_var = 1
+                elif param == 2:
+                    some_var = 2
+                elif param == 3:
+                    some_var = 3
+                return some_var
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func)
+        self.assertEqual("__test__ line 10: Use of uninitialized variable 'some_var'", str(cm.exception))
+
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                if param == 1:
+                    some_var = 1
+                else:
+                    if param == 2:
+                        some_var = 2
+                    else:
+                        if param == 3:
+                            some_var = 3
+                return some_var
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func)
+        self.assertEqual("__test__ line 12: Use of uninitialized variable 'some_var'", str(cm.exception))
+
+    def test_doesnt_throw_on_var_use(self) -> None:
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                if param > 0:
+                    some_var = 5
+                else:
+                    some_var = 7
+                return some_var
+        """)
+        parse_and_compile_module("__test__", func)
+
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                if param > 0:
+                    some_var = 5
+                elif param < 0:
+                    some_var = 7
+                else:
+                    some_var = 6
+                return some_var
+        """)
+        parse_and_compile_module("__test__", func)
+
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                if param == 1:
+                    some_var = 1
+                else:
+                    if param == 2:
+                        some_var = 2
+                    else:
+                        if param == 3:
+                            some_var = 3
+                        else:
+                            some_var = 4
+                return some_var
+        """)
+        parse_and_compile_module("__test__", func)
+
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8 = 2
+                if param == 1:
+                    some_var = 1
+                return some_var
+        """)
+        parse_and_compile_module("__test__", func)
+
 
 if __name__ == '__main__':
     unittest.main()

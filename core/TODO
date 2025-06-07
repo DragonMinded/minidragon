@@ -28,5 +28,4 @@ Things that would be good for a complete compiler that I probably will not need:
  - 8/16/32 bit exponentiation.
  - variable pointer support.
  - function pointer support.
- - uninitialized variable use detection and erroring.
  - import statements for supporting inter-module variables and functions.

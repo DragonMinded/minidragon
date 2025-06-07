@@ -490,10 +490,11 @@ def register_type(name: str) -> Optional[CoreType]:
 
 
 class StackVar:
-    def __init__(self, name: str, vartype: CoreType, location: Optional[int] = None) -> None:
+    def __init__(self, name: str, vartype: CoreType, location: Optional[int] = None, initialized: bool = False) -> None:
         self.name = name
         self.type = vartype
         self.location = location
+        self.initialized = initialized
 
     @property
     def size(self) -> int:
@@ -504,7 +505,7 @@ class StackVar:
         return self.type.const
 
     def __repr__(self) -> str:
-        return f"{self.type!r} {self.name}: {self.location} size {self.size}"
+        return f"{self.type!r} {self.name}: {self.location} size {self.size}{' uninitialized' if not self.initialized else ''}"
 
 
 class Stack:
@@ -531,7 +532,7 @@ class Stack:
     def clone(self) -> "Stack":
         stack = Stack()
         for entry in self.stack:
-            stack.stack.append(StackVar(entry.name, entry.type, entry.location))
+            stack.stack.append(StackVar(entry.name, entry.type, location=entry.location, initialized=entry.initialized))
         stack.size = self.size
         stack.location = self.location
         return stack
@@ -561,6 +562,39 @@ class Stack:
             raise Exception(f"Logic error, tried relocating stack entry {name!r} that doesn't exist!")
 
         self.stack.sort(key=lambda s: s.location or 0)
+
+    def init(self, name: str) -> None:
+        # Special case handling
+        if is_register_destination(name):
+            return
+
+        for entry in self.stack:
+            if entry.name == name:
+                entry.initialized = True
+                break
+        else:
+            raise Exception(f"Logic error, tried initializing stack entry {name!r} that doesn't exist!")
+
+    def unwind(self, other_stack: "Stack") -> None:
+        for entry in self.stack:
+            if entry.initialized and not other_stack.initof(entry.name):
+                entry.initialized = False
+
+    def unify(self, *other_stacks: "Stack") -> None:
+        if not other_stacks:
+            raise Exception("Logic error, tried unifying with no additional stacks!")
+
+        for entry in self.stack:
+            # Find all uninitialized stack entries.
+            if not entry.initialized:
+                # Find out if they're initialized in all cloned stacks.
+                for stack in other_stacks:
+                    # It isn't so, bail early.
+                    if not stack.initof(entry.name):
+                        break
+                else:
+                    # It's initialized everywhere, so it's initialized here too.
+                    entry.initialized = True
 
     def find(self, name: str) -> Optional[int]:
         loc = self.absfind(name)
@@ -597,6 +631,12 @@ class Stack:
         for entry in self.stack:
             if entry.name == name:
                 return entry.type
+        return None
+
+    def initof(self, name: str) -> Optional[bool]:
+        for entry in self.stack:
+            if entry.name == name:
+                return entry.initialized
         return None
 
     def diff(self, desired: int) -> int:
@@ -1011,6 +1051,9 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             first_move = stack.find("builtin(retptr)")
             if first_move is None:
                 raise Exception("Logic error, failed to get move amounts for builtin(retptr)!")
+            initialized = stack.initof("builtin(retptr)")
+            if not initialized:
+                raise Exception("Logic error, builtin(retptr) has not been initialized!")
 
             # Generate code to move from our position to the first byte of the retval.
             compiled += generate_move_by("seeking builtin(retptr)", first_move, stack, clobbers, context)
@@ -1035,9 +1078,12 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             # We need to relocate the retptr to this spot.
             src_loc = stack.absfind("builtin(retval)")
             number_of_moves = stack.sizeof("builtin(retval)")
+            initialized = stack.initof("builtin(retval)")
 
             if src_loc is None or number_of_moves is None:
                 raise Exception("Logic error, failed to get move amounts for builtin(retval)!")
+            if not initialized:
+                raise Exception("Logic error, builtin(retval) has not been initialized!")
 
             # Generate code to move from our position to the first byte of the retptr.
             retptr_final_loc = number_of_moves
@@ -1064,6 +1110,9 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
         retptr_abs = stack.absfind("builtin(retptr)")
         if retptr_abs is None:
             raise Exception("Logic error, failed to calculate the source location of builtin(retptr)!")
+        initialized = stack.initof("builtin(retptr)")
+        if not initialized:
+            raise Exception("Logic error, builtin(retptr) has not been initialized!")
 
         if retptr_abs != retptr_final_loc:
             cref = comment_ref()
@@ -1094,6 +1143,8 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             move_amt = stack.find(name)
             if move_amt is None:
                 raise Exception(f"Logic error, failed to get move amounts for {name}!")
+            if not stack.initof(name):
+                raise Exception(f"Logic error, {name} has not been initialized!")
 
             if name == "builtin(saved_spc)":
                 move_amt += 1
@@ -1436,6 +1487,8 @@ def generate_function_call(
                 # Need to fix up where the stack is going to be on exit based on paramst that will
                 # be "consumed" by the function call.
                 for i in range(arglen):
+                    if not stackvars[i].initialized:
+                        raise CompilerError(f"Use of uninitialized variable {stackvars[i].name!r}", context)
                     if isinstance(params[i], (RegisterCoreType, PaddingCoreType, OutCoreType)):
                         raise Exception("Logic error, unexpected stackvar type!")
                     elif isinstance(params[i], PreservedCoreType):
@@ -1470,7 +1523,7 @@ def generate_function_call(
             # variable we assign to it so we can copy the value to our destination after calling.
             out_dest = expr_temp_name()
             out_mapping[pos] = out_dest
-            stack_on_exit += stack.alloc(StackVar(out_dest, needed_arg))
+            stack_on_exit += stack.alloc(StackVar(out_dest, needed_arg, initialized=True))
             temporary_stack_entries.append(out_dest)
 
         elif isinstance(needed_arg, RegisterCoreType):
@@ -1489,7 +1542,7 @@ def generate_function_call(
             arg_in_question = args[which_arg].value
             if isinstance(arg_in_question, cst.Name):
                 copy_mapping[arg_in_question.value] = expr_dest
-            stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg))
+            stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg, initialized=True))
             temporary_stack_entries.append(expr_dest)
             compiled += generate_expr_internal(arg_in_question, expr_dest, types, stack, clobbers, refs, local_consts, context.wrap(arg_in_question))
             which_arg += 1
@@ -1561,6 +1614,7 @@ def generate_function_call(
                 compiled += generate_move_to(destination, stack, clobbers, context)
                 if function_prototype.return_type.type == "A":
                     compiled.append_code("  STORE A")
+                    stack.init(destination)
                 else:
                     raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
 
@@ -1574,6 +1628,8 @@ def generate_function_call(
             raise Exception(f"Logic error, Undefined variable reference to {src!r}", context)
         if dest_loc is None or dest_size is None:
             raise Exception("Logic error, cannot find destination to copy variable value to!")
+
+        stack.init(dst)
 
         if source_size == dest_size:
             compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
@@ -1595,6 +1651,8 @@ def generate_function_call(
                 raise Exception(f"Logic error, undefined variable reference to {src!r}", context)
             if dest_loc is None or dest_size is None:
                 raise Exception("Logic error, cannot find destination to copy variable value to!")
+
+            stack.init(dst)
 
             if source_size == dest_size:
                 compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
@@ -1625,6 +1683,7 @@ def generate_function_call(
                 dest_size = stack.sizeof(destination)
                 if dest_loc is None or dest_size is None:
                     raise Exception(f"Logic error, cannot find destination {destination} to copy variable value to!")
+                stack.init(destination)
 
                 if src_size == dest_size:
                     compiled += generate_memcpy_unrolled(src_loc, dest_loc, dest_size, stack, clobbers, context)
@@ -1723,6 +1782,9 @@ def generate_variable_lookup(
                 raise CompilerError(f"Undefined variable reference to {source!r}", context)
 
         else:
+            if not stack.initof(source):
+                raise CompilerError(f"Use of uninitialized variable {source!r}", context)
+
             compiled += generate_move_to(source, stack, clobbers, context)
             compiled.append_code("  LOAD A")
     elif stack.absfind(source) is None and (global_var := global_by_name(refs, source)) is not None:
@@ -1846,6 +1908,8 @@ def generate_variable_lookup(
     else:
         if destination is None:
             raise CompilerError("Unsupported expression without assignment!", context)
+        if not stack.initof(source):
+            raise CompilerError(f"Use of uninitialized variable {source!r}", context)
 
         source_loc = stack.absfind(source)
         source_size = stack.sizeof(source)
@@ -2378,6 +2442,7 @@ def generate_boolean_expr(
         cloned_stack = stack.clone()
         right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context.wrap(expression.right))
 
+        # Not unifying the stack here because short circuiting could mean that a walrus assign doesn't get run.
         if stack.size != cloned_stack.size:
             raise Exception("Logic error, stacks on both expressions not equal in size!")
         if stack.location != cloned_stack.location:
@@ -2422,6 +2487,7 @@ def generate_boolean_expr(
         cloned_stack = stack.clone()
         right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context.wrap(expression.right))
 
+        # Not unifying the stack here because short circuiting could mean that a walrus assign doesn't get run.
         if stack.size != cloned_stack.size:
             raise Exception("Logic error, stacks on both expression not equal in size!")
         if stack.location != cloned_stack.location:
@@ -2797,7 +2863,7 @@ def generate_comparison_expr(
             # Now, allocate a spot for the second to be sign extended into.
             second_dest = expr_temp_name()
             unequal_cleanup.append(second_dest)
-            stack.alloc(StackVar(second_dest, first_type))
+            stack.alloc(StackVar(second_dest, first_type, initialized=True))
 
             # And allocate where we'll calculate it before sign-extending.
             second_temp = expr_temp_name()
@@ -2939,6 +3005,9 @@ def generate_ternary_expr(
         move_amount = right_stack.location - left_stack.location
         left_compiled += generate_move_by("move stack to same spot as else expression", move_amount, left_stack, clobbers, context)
 
+    # Unify initialization tracking across cloned stacks so we can identify all paths that don't lead to variable initialization.
+    stack.unify(left_stack, right_stack)
+
     # Now, figure out the else size so we can jump past it in the body.
     right_length = get_assembled_length(right_compiled.code, refs)
     if right_length > 32:
@@ -2997,6 +3066,11 @@ def generate_expr_internal(
         if isinstance(value, (bool, int)):
             if destination is not None:
                 compiled += generate_const_load(value, destination, stack, clobbers, context)
+
+                # We're gonna assign to this, so it should be considered initialized. Do this here instead of at the top
+                # so we can catch variables assigning from themselves when unassigned.
+                stack.init(destination)
+
             return compiled
 
     except NonConstantExpressionException:
@@ -3046,6 +3120,11 @@ def generate_expr_internal(
         # TODO: What other expression types are we missing? Probably array and memory operations.
         # TODO: Looks like also string/character assignments and such, and everything with string manipulation.
         raise CompilerError(f"Unsupported expression type {expression} in expression compiler!", context)
+
+    if destination is not None:
+        # We're gonna assign to this, so it should be considered initialized. Do this here instead of at the top
+        # so we can catch variables assigning from themselves when unassigned.
+        stack.init(destination)
 
     return compiled
 
@@ -3303,6 +3382,11 @@ def generate_expr(
         # Just do stack-based operations.
         compiled += generate_expr_internal(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
+    if destination is not None:
+        # We're gonna assign to this, so it should be considered initialized. Do this here instead of at the top
+        # so we can catch variables assigning from themselves when unassigned.
+        stack.init(destination)
+
     return compiled
 
 
@@ -3433,7 +3517,7 @@ def generate_assign_expr(
             # Allocate space on the stack for this local variable.
             if assign_type is None:
                 raise Exception("Logic error, we should always have a type in this condition!")
-            stack.alloc(StackVar(assign_name, assign_type))
+            stack.alloc(StackVar(assign_name, assign_type, initialized=True))
 
         compiled += generate_expr(assign_value, assign_name, stack, clobbers, refs, local_consts, context.wrap(assign_value))
 
@@ -3474,6 +3558,7 @@ def generate_if_statement(
         if_body_stack = stack.clone()
         child_compiled, _ = compile_chunk(statement.body, if_body_stack, clobbers, function_type, refs, local_consts, local_data, context, require_return=False)
 
+        # Not unifying the stack here because in the false case we skip the body and don't initialize.
         if stack.location != if_body_stack.location:
             # Arbitrarily choose the left side expression to fix up to the right.
             move_amount = stack.location - if_body_stack.location
@@ -3519,6 +3604,9 @@ def generate_if_statement(
             if_end = local_label_name("if_end")
             else_body_compiled.append_code(f"{if_end}:")
 
+        # Unify initialization tracking across cloned stacks so we can identify all paths that don't lead to variable initialization.
+        stack.unify(if_body_stack, else_body_stack)
+
         # Not asserting that both sides are the same size, because they could have defined local variables. We don't follow python's
         # scope rules for defining variables in sub-scopes propagating upwards. Instead we follow C scope style which makes it easier
         # to compile.
@@ -3560,6 +3648,9 @@ def generate_if_statement(
         return compiled, if_body_returned and else_body_returned
 
     elif isinstance(statement.orelse, cst.If):
+        # We need to know what the stack was before, just in case the else body has all assignments but the if body doesn't.
+        stack_before = stack.clone()
+
         # Need to compile this with the orelse if statement at the same level as us stack-wise, so this acts similarly
         # to the empty else case.
         if_body_stack = stack.clone()
@@ -3581,6 +3672,14 @@ def generate_if_statement(
             # Arbitrarily choose the if side to fix up to the else.
             move_amount = stack.location - if_body_stack.location
             if_body_compiled += generate_move_by("move if body stack to same spot as else body", move_amount, if_body_stack, clobbers, context)
+
+        # Clone the else body stack just to see if any of it got unified or not.
+        else_body_stack = stack.clone()
+        stack.unwind(stack_before)
+
+        # Unify initialization tracking across cloned stacks so we can identify all paths that don't lead to variable initialization.
+        # It's safe to do here unlike in the if with no else case, because the else body is going to do its own unification checks.
+        stack.unify(if_body_stack, else_body_stack)
 
         # Now, figure out the else size so we can jump past it in the body.
         else_length = get_assembled_length(else_body_compiled.code, refs)
@@ -3729,6 +3828,11 @@ def compile_chunk(
 
                     last_statement_was_return = False
 
+                elif isinstance(simple_statement, cst.Pass):
+                    # No-op statement for syntactic correctness since Python requires indentation. Funny enough,
+                    # we implement it here with our own pass. How meta.
+                    pass
+
                 else:
                     # TODO: Assignment expressions, function calls, memory assignments.
                     raise CompilerError(f"Unsupported node to compile {simple_statement}", context)
@@ -3817,7 +3921,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
             raise CompilerError(f"Expecting type for function parameter {func_param.name.value}", context)
 
         try:
-            stack.alloc(StackVar(func_param.name.value, param_type))
+            stack.alloc(StackVar(func_param.name.value, param_type, initialized=True))
         except NotImplementedError:
             raise CompilerError(f"Unsupported type for function parameter {func_param.name.value}", context)
 
@@ -3827,7 +3931,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
             stack.alloc(StackVar("builtin(padding)", CoreType('int8')))
 
     # Need a spot on the stack for our return pointer that is placed when called.
-    stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void"))))
+    stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void")), initialized=True))
     stack.location = stack.size - 1
 
     # Generate before and after call stack documentation.
@@ -3848,7 +3952,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     fake_stack: Stack = Stack()
     if function_type is not VoidType:
         fake_stack.alloc(StackVar("builtin(retval)", function_type))
-    fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void"))))
+    fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void")), initialized=True))
     prevals = []
     for entry in fake_stack:
         for i in range(entry.size):
@@ -3902,22 +4006,22 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         compiled.append_code(f"  ; Save clobbered registers {cref}")
     for clobber in sorted(clobbers):
         if clobber == "A":
-            stack.alloc(StackVar("builtin(saved_a)", CoreType("uint8")))
+            stack.alloc(StackVar("builtin(saved_a)", CoreType("uint8"), initialized=True))
             compiled.append_code("  PUSH A")
             stack.move(1)
             compiled.code += comment_stack(stack)
         elif clobber == "U":
-            stack.alloc(StackVar("builtin(saved_u)", CoreType("uint8")))
+            stack.alloc(StackVar("builtin(saved_u)", CoreType("uint8"), initialized=True))
             compiled.append_code("  PUSH U")
             stack.move(1)
             compiled.code += comment_stack(stack)
         elif clobber == "V":
-            stack.alloc(StackVar("builtin(saved_v)", CoreType("uint8")))
+            stack.alloc(StackVar("builtin(saved_v)", CoreType("uint8"), initialized=True))
             compiled.append_code("  PUSH V")
             stack.move(1)
             compiled.code += comment_stack(stack)
         elif clobber == "SPC":
-            stack.alloc(StackVar("builtin(saved_spc)", CoreType("uint16")))
+            stack.alloc(StackVar("builtin(saved_spc)", CoreType("uint16"), initialized=True))
             compiled.append_code("  PUSH SPC")
             stack.move(2)
             compiled.code += comment_stack(stack)
