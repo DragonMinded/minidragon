@@ -6392,6 +6392,7 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
             "LOADI 222",
             "MOV A, V",
             "LOADI 123",
+            "DECPC",
             "CALL func",
             "HALT",
         ]))
@@ -7477,7 +7478,7 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
         # the stack.
         sections = parse_and_compile_module("globalvariableread", textwrap.dedent(f"""
             global_variable: int8 = {val}
-            def get_global_variable() -> nopad[int8]:
+            def get_global_variable() -> int8:
                 return global_variable
         """))
         memory = getmemory(os.linesep.join([
@@ -7491,6 +7492,7 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
             "LOADI 222",
             "MOV A, V",
             "LOADI 123",
+            "DECPC",
             "CALL get_global_variable",
             "HALT",
             *datalines,
@@ -8574,6 +8576,7 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
             "LOADI 222",
             "MOV A, V",
             "LOADI 123",
+            "DECPC",
             "CALL simple_while",
             "HALT",
             *datalines,
@@ -8631,6 +8634,7 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
             "LOADI 222",
             "MOV A, V",
             "LOADI 123",
+            "DECPC",
             "CALL break_while",
             "HALT",
             *datalines,
@@ -8690,6 +8694,7 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
             "LOADI 222",
             "MOV A, V",
             "LOADI 123",
+            "DECPC",
             "CALL continue_while",
             "HALT",
             *datalines,
@@ -8716,6 +8721,71 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to whilestatements continue, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Finally, test else handling when exiting a loop.
+    for should_exit in [True, False]:
+        sections = parse_and_compile_module("whilestatements", textwrap.dedent("""
+            def while_with_else(should_exit: bool) -> int8:
+                x: int8 = 0
+                y: int8 = 0
+                while x < 10:
+                    if x >= 5:
+                        if should_exit:
+                            break
+                        else:
+                            x += 1
+                            continue
+
+                    y += x
+                    x += 1
+                else:
+                    y += 30
+                return y
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            f"PUSHI {'0xFF' if should_exit else '0x00'}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL while_with_else",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"whilestatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"whilestatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"whilestatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = (0 + 1 + 2 + 3 + 4) + (0 if should_exit else 30)
+        _assert(
+            result == expected,
+            "Failed to whilestatements else, "
             + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles

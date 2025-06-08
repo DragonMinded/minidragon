@@ -3812,6 +3812,7 @@ def generate_while_statement(
     clobbers: Set[str],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    parent_loop: Optional[LoopInfo],
     local_consts: List[Constant],
     local_data: List[str],
     context: Context,
@@ -3870,7 +3871,44 @@ def generate_while_statement(
         return compiled, False, False
 
     else:
-        raise CompilerError("TODO", context)
+        loop_stack = stack.clone()
+        loop_compiled, _, _ = compile_chunk(
+            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=True,
+        )
+
+        else_stack = stack.clone()
+        else_compiled, _, _ = compile_chunk(
+            statement.orelse.body, else_stack, clobbers, function_type, refs, parent_loop, local_consts, local_data, context, require_return=False, require_continue=False,
+        )
+
+        # We always jump to the else from the while conditional, so we don't need to move to our expected position until the end of the else.
+        # Everyone jumping from within the loop will either jump to the conditional or straight to the exit, skipping the else case.
+        if loop.stack_location != else_stack.location:
+            move_amount = loop.stack_location - else_stack.location
+            else_compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, else_stack, clobbers, context)
+
+        # Now, figure out how far we need to jump on loop condition is false.
+        child_length = get_assembled_length(loop_compiled.code, refs, loop.labels)
+        if child_length > 32:
+            insn = "LNGJUMPNZ"
+        else:
+            insn = "JRINZ"
+
+        # Now, generate the code that actually performs the conditional loop statement.
+        compiled.append_code("  INV")
+        compiled.append_code(f"  {insn} {else_label}")
+        compiled += loop_compiled
+        compiled.append_code(f"{else_label}:")
+        compiled += else_compiled
+        compiled.append_code(f"{exit_label}:")
+
+        # Manually set the stack back to the location it was in when we started, because when we take the else case it does that as the last
+        # instruction, and if somebody uses a "break" inside the loop it will move back to the stack location before jumping to the exit_label.
+        stack.location = loop.stack_location
+
+        # The last statement isn't always a return, because even if the loop returned,
+        # we could still skip that for the false loop control case.
+        return compiled, False, False
 
 
 def generate_continue(
@@ -4086,6 +4124,7 @@ def compile_chunk(
                 clobbers,
                 function_type,
                 refs_copy,
+                loop,
                 local_consts,
                 local_data,
                 context.wrap(statement),

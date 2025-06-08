@@ -1,5 +1,4 @@
 Things that I think I am going to need if I want to use this compiler:
- - while loop control flow.
  - for loop control flow.
  - string support, including initializing with constant values, concatenation, length, character indexing, etc.
  - support for allocating local and global string buffers using string[length].
@@ -7,12 +6,12 @@ Things that I think I am going to need if I want to use this compiler:
  - support for allocating local and global arrays using int[length].
  - support for allocating extern global arrays using int[inf] or similar syntax.
  - << and >> expressions, since we forgot about bit shifting.
- - coercing a boolean from a string/character/integer.
  - builtins that will be needed such as abs(), len(), bool(), chr(), ord(), str(), int(), min(), max()
 
 Things that would be nice to have for convenience:
  - function default parameter support.
  - function keyword argument support.
+ - coercing a boolean from a string/character/integer.
  - asm() block to allow inlining assembly.
  - auto-infer types for variables that can be inferred.
  - walrus operator.
