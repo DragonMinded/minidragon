@@ -8796,6 +8796,368 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for whilestatements: {int(instructions/count)}")
 
 
+def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "forstatements" not in only and "compiler" not in only:
+        return
+
+    print("Verifying forstatements...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # First, run the simplest for loops we can and verify that the calculation is correct.
+    for rangeval, expected in [("5", (0 + 1 + 2 + 3 + 4)), ("1, 7", (1 + 2 + 3 + 4 + 5 + 6)), ("0, 10, 2", (0 + 2 + 4 + 6 + 8))]:
+        sections = parse_and_compile_module("forstatements", textwrap.dedent(f"""
+            def simple_for() -> int8:
+                retval: int8 = 0
+
+                x: int8
+                for x in range({rangeval}):
+                    retval += x
+
+                return retval
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_for",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"forstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"forstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"forstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to forstatements simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, run through the same loops but introduce a continue statement to ensure that this works as intended.
+    for rangeval, expected in [("5", (0 + 2 + 4)), ("1, 7", (2 + 4 + 6)), ("0, 10, 2", (0 + 2 + 4 + 6 + 8))]:
+        sections = parse_and_compile_module("forstatements", textwrap.dedent(f"""
+            def simple_for() -> int8:
+                retval: int8 = 0
+
+                x: int8
+                for x in range({rangeval}):
+                    if x & 1 != 0:
+                        continue
+
+                    retval += x
+
+                return retval
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_for",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"forstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"forstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"forstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to forstatements simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, run the through the same loops again, breaking out early and verifying that that works.
+    for rangeval, expected in [("5", (0 + 1 + 2 + 3)), ("3, 9", (3 + 4)), ("1, 11, 2", (1 + 3 + 5))]:
+        sections = parse_and_compile_module("forstatements", textwrap.dedent(f"""
+            def simple_for() -> int8:
+                retval: int8 = 0
+
+                x: int8
+                for x in range({rangeval}):
+                    if retval > 5:
+                        break
+
+                    retval += x
+
+                return retval
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_for",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"forstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"forstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"forstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to forstatements simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, check the scoping of the loop variable. We differ from python here in that we end up
+    # getting to the final value whereas python would always return the x value of the previous
+    # iteration. Fixing that does not seem worth it given the extra stack shenanigans it would take.
+    for rangeval, expected in [("5", 5), ("1, 7", 7), ("0, 10, 2", 10)]:
+        sections = parse_and_compile_module("forstatements", textwrap.dedent(f"""
+            def simple_for() -> int8:
+                x: int8
+                for x in range({rangeval}):
+                    pass
+
+                return x
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_for",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"forstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"forstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"forstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to forstatements simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for rangeval, expected in [("5", 4), ("1, 7", 4), ("0, 10, 2", 4)]:
+        sections = parse_and_compile_module("forstatements", textwrap.dedent(f"""
+            def simple_for() -> int8:
+                x: int8
+                for x in range({rangeval}):
+                    if x > 3:
+                        break
+
+                return x
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_for",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"forstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"forstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"forstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to forstatements simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for rangeval, expected in [("5", 5), ("1, 7", 7), ("0, 10, 2", 10)]:
+        sections = parse_and_compile_module("forstatements", textwrap.dedent(f"""
+            def simple_for() -> int8:
+                x: int8
+                for x in range({rangeval}):
+                    continue
+
+                return x
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_for",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"forstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"forstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"forstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to forstatements simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for forstatements: {int(cycles/count)}")
+    print(f"Average instructions for forstatements: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -8915,3 +9277,4 @@ if __name__ == "__main__":
     verifyglobalvariablewrite(only, args.full)
     verifyifstatements(only, args.full)
     verifywhilestatements(only, args.full)
+    verifyforstatements(only, args.full)

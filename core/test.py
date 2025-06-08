@@ -700,6 +700,20 @@ class TestCompiler(unittest.TestCase):
             parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 6: Use of uninitialized variable 'some_var'", str(cm.exception))
 
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+
+                x: int8
+                for x in range(5):
+                    some_var = 1
+                return some_var
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func)
+        self.assertEqual("__test__ line 8: Use of uninitialized variable 'some_var'", str(cm.exception))
+
     def test_doesnt_throw_on_var_use(self) -> None:
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -758,6 +772,26 @@ class TestCompiler(unittest.TestCase):
                     some_var = 1
                     some_var += 1
                 return 0
+        """)
+        parse_and_compile_module("__test__", func)
+
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                some_var: int8
+                x: int8
+                for x in range(10):
+                    some_var = 1
+                    some_var += 1
+                return 0
+        """)
+        parse_and_compile_module("__test__", func)
+
+        func = textwrap.dedent("""
+            def localvar(param: int8) -> int8:
+                x: int8
+                for x in range(10):
+                    pass
+                return x
         """)
         parse_and_compile_module("__test__", func)
 
