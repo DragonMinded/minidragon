@@ -8925,7 +8925,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
         result = bintoint(cpu.ram[cpu.pc])
         _assert(
             result == expected,
-            "Failed to forstatements simple, "
+            "Failed to forstatements continue, "
             + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
@@ -8984,7 +8984,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
         result = bintoint(cpu.ram[cpu.pc])
         _assert(
             result == expected,
-            "Failed to forstatements simple, "
+            "Failed to forstatements break, "
             + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
@@ -9040,7 +9040,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
         result = bintoint(cpu.ram[cpu.pc])
         _assert(
             result == expected,
-            "Failed to forstatements simple, "
+            "Failed to forstatements loop counter, "
             + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
@@ -9094,7 +9094,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
         result = bintoint(cpu.ram[cpu.pc])
         _assert(
             result == expected,
-            "Failed to forstatements simple, "
+            "Failed to forstatements loop counter, "
             + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
@@ -9147,12 +9147,78 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
         result = bintoint(cpu.ram[cpu.pc])
         _assert(
             result == expected,
-            "Failed to forstatements simple, "
+            "Failed to forstatements loop counter, "
             + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
         count += 1
+
+    # Finally, run through the same algorithm and exit with break sometimes, and without others, to test else handling.
+    for should_exit in [True, False]:
+        for rangeval, expected_before in [("5", (0 + 1 + 2 + 3)), ("3, 9", (3 + 4)), ("1, 11, 2", (1 + 3 + 5))]:
+            sections = parse_and_compile_module("forstatements", textwrap.dedent(f"""
+                def simple_for(should_exit: bool) -> int8:
+                    retval: int8 = 0
+
+                    x: int8
+                    for x in range({rangeval}):
+                        if retval > 5:
+                            if should_exit:
+                                break
+                            else:
+                                continue
+
+                        retval += x
+                    else:
+                        retval += 45
+
+                    return retval
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *cmplines,
+                *sections.code,
+                "main:",
+                f"PUSHI {'0xFF' if should_exit else '0x00'}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL simple_for",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"forstatements changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"forstatements changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"forstatements changed V value from {222} to {cpu.v}!",
+            )
+            result = bintoint(cpu.ram[cpu.pc])
+            expected = expected_before + (0 if should_exit else 45)
+            _assert(
+                result == expected,
+                "Failed to forstatements else, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
 
     print(f"Average cycles for forstatements: {int(cycles/count)}")
     print(f"Average instructions for forstatements: {int(instructions/count)}")
