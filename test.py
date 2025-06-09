@@ -13,6 +13,7 @@ from core import (
     assemble,
     disassemble,
     bintoint,
+    hexstr,
     parse_and_compile_module,
 )
 
@@ -80,6 +81,12 @@ def getstring(cpu: CPUCore, location: int) -> str:
         string = string + chr(cpu.ram[location])
         location += 1
     return string
+
+
+def bintostr(cpu: CPUCore, binptr: int, low_range: int, high_range: int) -> str:
+    if binptr < low_range or binptr >= high_range:
+        raise Exception(f"Address {hexstr(binptr, 4)} outside of valid range {hexstr(low_range, 4)}-{hexstr(high_range, 4)}")
+    return getstring(cpu, binptr)
 
 
 def checkerror(fname: str, error: Exception) -> None:
@@ -9224,6 +9231,81 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for forstatements: {int(instructions/count)}")
 
 
+def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "stringreturn" not in only and "compiler" not in only:
+        return
+
+    print("Verifying stringreturn...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # First, see if we can return a global constant string, and that we get the right value.
+    if True:
+        sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
+            STRING_CONST: const[string] = "This is a test."
+
+            def return_string() -> string:
+                return STRING_CONST
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL return_string",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"stringreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0x4000)
+        expected = "This is a test."
+        _assert(
+            result == expected,
+            "Failed to stringreturn simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for stringreturn: {int(cycles/count)}")
+    print(f"Average instructions for stringreturn: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -9344,3 +9426,4 @@ if __name__ == "__main__":
     verifyifstatements(only, args.full)
     verifywhilestatements(only, args.full)
     verifyforstatements(only, args.full)
+    verifystringreturn(only, args.full)

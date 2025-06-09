@@ -98,10 +98,21 @@ class CoreType:
     applied to it, and sometimes a nopad[] modifier applied to it.
     """
 
-    def __init__(self, base_type: str, pointed_type: Optional["CoreType"] = None, *, const: bool = False, extern: bool = False, return_padding: bool = True) -> None:
+    def __init__(
+        self,
+        base_type: str,
+        pointed_type: Optional["CoreType"] = None,
+        *,
+        length: Optional[int] = None,
+        const: bool = False,
+        extern: bool = False,
+        return_padding: bool = True,
+    ) -> None:
         self.type = base_type
         self.pointed_type = pointed_type
         self.const = const
+        self.length = length or 0
+        self.is_array = length is not None
         self.extern = extern
         self.return_padding = return_padding
         if self.type == "pointer" and pointed_type is None:
@@ -111,7 +122,7 @@ class CoreType:
         if isinstance(other, str):
             return self.type == other
         if isinstance(other, CoreType):
-            return self.type == other.type and self.pointed_type == other.pointed_type and self.const == other.const
+            return self.type == other.type and self.pointed_type == other.pointed_type and self.const == other.const and self.length == other.length
         return False
 
     def __repr__(self) -> str:
@@ -132,6 +143,9 @@ class CoreType:
         if self.extern:
             pre = "extern[" + pre
             post = post + "]"
+
+        if self.length is not None:
+            typestr = f"{typestr}[{self.length}]"
 
         return pre + typestr + post
 
@@ -282,6 +296,23 @@ def get_int(val: str, context: Context) -> int:
     raise CompilerError(f"Could not parse {val} as integer.", context)
 
 
+class Constant:
+    def __init__(self, name: str, vartype: CoreType, value: object) -> None:
+        self.name = name
+        self.type = vartype
+        self.value = value
+
+    def __repr__(self) -> str:
+        return f"Local constant {self.type!r} {self.name!r}: {self.value!r}"
+
+
+def const_by_name(consts: List[Constant], name: str) -> Optional[Constant]:
+    for const in consts:
+        if const.name == name:
+            return const
+    return None
+
+
 def type_comparison_compatible(left: CoreType, right: CoreType) -> bool:
     if left.is_integer and right.is_integer:
         return True
@@ -296,7 +327,14 @@ def type_comparison_compatible(left: CoreType, right: CoreType) -> bool:
     return False
 
 
-def get_type(expr: Optional[cst.CSTNode], *, allow_nopad: bool = False, allow_extern: bool = False) -> Optional[CoreType]:
+def get_type(
+    expr: Optional[cst.CSTNode],
+    constants: List[Constant],
+    *,
+    allow_nopad: bool = False,
+    allow_extern: bool = False,
+    allow_array: bool = False,
+) -> Optional[CoreType]:
     if expr is None:
         return None
     if isinstance(expr, cst.Annotation):
@@ -307,21 +345,34 @@ def get_type(expr: Optional[cst.CSTNode], *, allow_nopad: bool = False, allow_ex
     const: bool = False
     extern: bool = False
     nopad: bool = False
+    length: Optional[int] = None
 
     while True:
         if isinstance(expr, cst.Subscript):
-            # Might be a const expr or a nopad expr.
+            # Might be a const expr or a nopad expr. Might also be a size expr.
             qualifier = expr.value
             if not isinstance(qualifier, cst.Name):
                 return None
+
+            if len(expr.slice) == 1:
+                sliceval = expr.slice[0]
+                if isinstance(sliceval.slice, cst.Index):
+                    # Attempt to evaluate and see if it comes back as an int.
+                    try:
+                        value = codegen_eval(sliceval.slice.value, constants)
+                    except NonConstantExpressionException:
+                        value = None
+
+                    if isinstance(value, int):
+                        expr = qualifier
+                        length = value
+                        continue
 
             if qualifier.value == "const":
                 if len(expr.slice) != 1:
                     return None
 
                 sliceval = expr.slice[0]
-                if not isinstance(sliceval, cst.SubscriptElement):
-                    return None
                 if not isinstance(sliceval.slice, cst.Index):
                     return None
 
@@ -334,8 +385,6 @@ def get_type(expr: Optional[cst.CSTNode], *, allow_nopad: bool = False, allow_ex
                     return None
 
                 sliceval = expr.slice[0]
-                if not isinstance(sliceval, cst.SubscriptElement):
-                    return None
                 if not isinstance(sliceval.slice, cst.Index):
                     return None
 
@@ -348,8 +397,6 @@ def get_type(expr: Optional[cst.CSTNode], *, allow_nopad: bool = False, allow_ex
                     return None
 
                 sliceval = expr.slice[0]
-                if not isinstance(sliceval, cst.SubscriptElement):
-                    return None
                 if not isinstance(sliceval.slice, cst.Index):
                     return None
 
@@ -362,13 +409,11 @@ def get_type(expr: Optional[cst.CSTNode], *, allow_nopad: bool = False, allow_ex
                     return None
 
                 sliceval = expr.slice[0]
-                if not isinstance(sliceval, cst.SubscriptElement):
-                    return None
                 if not isinstance(sliceval.slice, cst.Index):
                     return None
 
                 expr = sliceval.slice.value
-                pointed = get_type(expr)
+                pointed = get_type(expr, constants, allow_nopad=allow_nopad, allow_extern=allow_extern, allow_array=allow_array)
                 if pointed is None:
                     return None
                 return CoreType("pointer", pointed, const=const, extern=extern, return_padding=not nopad)
@@ -380,14 +425,21 @@ def get_type(expr: Optional[cst.CSTNode], *, allow_nopad: bool = False, allow_ex
                 return None
             if extern and not allow_extern:
                 return None
+            if length and not allow_array:
+                return None
 
             if expr.value == "void":
-                return VoidType
+                if length:
+                    return None
+                else:
+                    return VoidType
             else:
                 if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "bool", "char", "string"}:
                     return None
+                if length and expr.value not in {"string"}:
+                    return None
 
-                return CoreType(expr.value, None, const=const, extern=extern, return_padding=not nopad)
+                return CoreType(expr.value, None, length=length, const=const, extern=extern, return_padding=not nopad)
 
         else:
             return None
@@ -448,23 +500,6 @@ def global_by_name(globs: Sequence[Union[FunctionPrototype, GlobalVariable]], na
     for glob in globs:
         if isinstance(glob, GlobalVariable) and glob.name == name:
             return glob
-    return None
-
-
-class Constant:
-    def __init__(self, name: str, vartype: CoreType, value: object) -> None:
-        self.name = name
-        self.type = vartype
-        self.value = value
-
-    def __repr__(self) -> str:
-        return f"Local constant {self.type!r} {self.name!r}: {self.value!r}"
-
-
-def const_by_name(consts: List[Constant], name: str) -> Optional[Constant]:
-    for const in consts:
-        if const.name == name:
-            return const
     return None
 
 
@@ -732,7 +767,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
         raise CompilerError("Unsupported name for global variable definition", context)
 
     assign_name = target_node.value
-    assign_type = get_type(assign.annotation.annotation, allow_extern=True)
+    assign_type = get_type(assign.annotation.annotation, consts, allow_extern=True, allow_array=True)
     assign_value = assign.value
 
     if assign_type is None:
@@ -763,6 +798,8 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
         compiled.append_code(f"{assign_name}:")
 
         if assign_type.type in {"int8", "uint8"}:
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global const definition", context)
             if not isinstance(value, int):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             if assign_type == "uint8":
@@ -774,7 +811,10 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
             value = value & 0xFF
             compiled.append_code(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
+
         elif assign_type.type in {"int16", "uint16"}:
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global const definition", context)
             if not isinstance(value, int):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             if assign_type == "uint16":
@@ -787,7 +827,10 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
             value = value & 0xFFFF
             compiled.append_code(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
             compiled.append_code(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
+
         elif assign_type.type in {"int32", "uint32"}:
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global const definition", context)
             if not isinstance(value, int):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             if assign_type == "uint32":
@@ -802,27 +845,60 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
             compiled.append_code(f"  .byte {_hex((value >> 16) & 0xFF, 2)}")
             compiled.append_code(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
             compiled.append_code(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
+
         elif assign_type == "char":
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global const definition", context)
             if not isinstance(value, str):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             if len(value) != 1:
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             compiled.append_code(f"  .char {value[0]!r}")
+
         elif assign_type == "string":
             if not isinstance(value, str):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
+
+            length_needed = len(value) + 1
+            if assign_type.is_array:
+                # They want to specify an exact length, okay.
+                if len(value) >= assign_type.length:
+                    value = value[:(assign_type.length - 1)]
+                length_needed = assign_type.length
+
+            if length_needed > 255:
+                raise CompilerError("Unsupported too-long string, strings are required to be 255 characters maximum", context)
+
+            length_provided = 0
             for c in value:
                 compiled.append_code(f"  .char {c[0]!r}")
-            compiled.append_code("  .byte 0x00")
+                length_provided += 1
+
+            did_terminate = False
+            while length_provided < length_needed:
+                did_terminate = True
+                compiled.append_code("  .byte 0x00")
+                length_provided += 1
+
+            if not did_terminate:
+                raise Exception("Logic error, didn't terminate null-terminated string!")
+
         elif assign_type == "bool":
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global const definition", context)
             if not isinstance(value, bool):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             compiled.append_code(f"  .byte {"0xFF" if value else "0x00"}")
+
         else:
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
         # Since this was successfully handled, add it to our constants, so future constants may reference it as well.
-        consts.append(Constant(assign_name, assign_type, value))
+        if assign_type == "string":
+            # String constants are not inlined.
+            globs.append(GlobalVariable(assign_name, assign_type))
+        else:
+            consts.append(Constant(assign_name, assign_type, value))
 
     else:
         if assign_value is not None:
@@ -841,6 +917,8 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
             compiled.append_init(f"  SETPC {assign_name}")
 
         if assign_type.type in {"int8", "uint8"}:
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global variable definition", context)
             if value is not None:
                 if not isinstance(value, int):
                     raise CompilerError("Unsupported initialization value for global variable definition", context)
@@ -856,7 +934,10 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
             if not assign_type.extern:
                 compiled.append_data("  .pad 1")
+
         elif assign_type.type in {"int16", "uint16"}:
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global variable definition", context)
             if value is not None:
                 if not isinstance(value, int):
                     raise CompilerError("Unsupported initialization value for global variable definition", context)
@@ -874,7 +955,10 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
             if not assign_type.extern:
                 compiled.append_data("  .pad 2")
+
         elif assign_type.type in {"int32", "uint32"}:
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global variable definition", context)
             if value is not None:
                 if not isinstance(value, int):
                     raise CompilerError("Unsupported initialization value for global variable definition", context)
@@ -896,7 +980,10 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
             if not assign_type.extern:
                 compiled.append_data("  .pad 4")
+
         elif assign_type == "char":
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global variable definition", context)
             if value is not None:
                 if not isinstance(value, str):
                     raise CompilerError("Unsupported initialization value for global variable definition", context)
@@ -906,20 +993,35 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
             if not assign_type.extern:
                 compiled.append_data("  .pad 1")
+
         elif assign_type == "string":
+            if not assign_type.is_array:
+                raise CompilerError("Non-constant global strings require a length", context)
+
             if value is not None:
-                # TODO: Need to allow specifying string length and check that here.
                 if not isinstance(value, str):
                     raise CompilerError("Unsupported initialization value for global variable definition", context)
+
+                # We've specified an exact length, as we should for non-constant strings.
+                if len(value) >= assign_type.length:
+                    value = value[:(assign_type.length - 1)]
+
+            length_needed = assign_type.length
+
+            if length_needed > 255:
+                raise CompilerError("Unsupported too-long string, strings are required to be 255 characters maximum", context)
+
+            if value is not None:
                 for c in value:
                     compiled.append_init(f"  STOREI {c[0]!r}")
                     compiled.append_init("  INCPC")
-                compiled.append_init("  STOREI 0x00")
+            compiled.append_init("  STOREI 0x00")
 
-            if not assign_type.extern:
-                # TODO: Don't just make all global variable strings 128 bytes.
-                compiled.append_data("  .pad 128")
+            compiled.append_data(f"  .pad {length_needed}")
+
         elif assign_type == "bool":
+            if assign_type.is_array:
+                raise CompilerError("Unsupported array length for global variable definition", context)
             if value is not None:
                 if not isinstance(value, bool):
                     raise CompilerError("Unsupported initialization value for global variable definition", context)
@@ -927,6 +1029,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
             if not assign_type.extern:
                 compiled.append_data("  .pad 1")
+
         else:
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
@@ -1798,6 +1901,9 @@ def generate_variable_lookup(
         # Just need to load A with the value, which should always be the lowest 8 bits of any variable.
         if stack.absfind(source) is None:
             if (global_var := global_by_name(refs, source)) is not None:
+                if not (global_var.type.is_bool or global_var.type.is_char or global_var.type.is_integer):
+                    raise CompilerError("Unsupported destination for non-integer assignment", context)
+
                 # We clobber the SPC to be able to point at the variable.
                 clobbers.add("SPC")
 
@@ -1810,14 +1916,22 @@ def generate_variable_lookup(
                 raise CompilerError(f"Undefined variable reference to {source!r}", context)
 
         else:
-            if not stack.initof(source):
+            source_type = stack.typeof(source)
+            if not source_type or not stack.initof(source):
                 raise CompilerError(f"Use of uninitialized variable {source!r}", context)
+
+            if not (source_type.is_bool or source_type.is_char or source_type.is_integer):
+                raise CompilerError("Unsupported destination for non-integer assignment", context)
 
             compiled += generate_move_to(source, stack, clobbers, context)
             compiled.append_code("  LOAD A")
+
     elif stack.absfind(source) is None and (global_var := global_by_name(refs, source)) is not None:
         # Global variable lookup.
         if destination is None:
+            if global_var.type.is_string:
+                raise CompilerError("Unsupported no-effect string lookup", context)
+
             # Just load from each position in the global variable, to trigger any memory read side effects
             # in any hardware we're talking to.
             clobbers.add("SPC")
@@ -1837,101 +1951,112 @@ def generate_variable_lookup(
 
             compiled.append_code("  SWAP PC, SPC")
         else:
-            dest_size = stack.sizeof(destination)
-            if dest_size is None:
+            dest_type = stack.typeof(destination)
+            if dest_type is None:
                 raise Exception("Logic error, cannot find destination to copy variable value to!")
 
-            # We clobber the SPC to be able to point at the variable. We clobber the A register for copies.
-            clobbers.add("SPC")
-            clobbers.add("A")
+            if dest_type.is_string:
+                if not global_var.type.is_string:
+                    raise CompilerError("Unsupported string assignment to non-string expression", context)
 
-            if global_var.type.size == dest_size:
-                # Direct copy from source stack to destination stack.
-                for i in range(global_var.type.size):
-                    # First, we need to set the SPC to our variable pointer, which clobbers A.
-                    if i == 0:
-                        compiled.append_code("  SWAP PC, SPC")
-                        compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
-                        compiled.append_code("  LOAD A")
-                        compiled.append_code("  SWAP PC, SPC")
-                    else:
-                        compiled.append_code("  SWAP PC, SPC")
-                        compiled.append_code("  DECPC")
-                        compiled.append_code("  LOAD A")
-                        compiled.append_code("  SWAP PC, SPC")
+                # We only clobber the A register with the macro.
+                clobbers.add("A")
 
-                    compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
-                    compiled.append_code("  STORE A")
-
-            elif global_var.type.size > dest_size:
-                # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
-                for i in range(dest_size):
-                    # First, we need to set the SPC to our variable pointer, which clobbers A.
-                    if i == 0:
-                        compiled.append_code("  SWAP PC, SPC")
-                        compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
-                        compiled.append_code("  LOAD A")
-                        compiled.append_code("  SWAP PC, SPC")
-                    else:
-                        compiled.append_code("  SWAP PC, SPC")
-                        compiled.append_code("  DECPC")
-                        compiled.append_code("  LOAD A")
-                        compiled.append_code("  SWAP PC, SPC")
-
-                    compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
-                    compiled.append_code("  STORE A")
-
+                compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
+                compiled.append_code(f"  PUSHADDR {global_var.name}")
+                stack.location += 2
             else:
-                # Copy, but with either sign extension or zero extension for the missing upper bytes.
-                dest_type = stack.typeof(destination)
-                dest_loc = stack.absfind(destination)
-                if dest_type is None or dest_loc is None:
-                    raise Exception("Logic error, cannot find destination to copy variable value to!")
+                # We clobber the SPC to be able to point at the variable. We clobber the A register for copies.
+                clobbers.add("SPC")
+                clobbers.add("A")
 
-                if dest_type.is_unsigned:
-                    # We always zero-extend unsigned types.
-                    compiled.append_code("  LOADI 0")
+                if global_var.type.size == dest_type.size:
+                    # Direct copy from source stack to destination stack.
+                    for i in range(global_var.type.size):
+                        # First, we need to set the SPC to our variable pointer, which clobbers A.
+                        if i == 0:
+                            compiled.append_code("  SWAP PC, SPC")
+                            compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
+                            compiled.append_code("  LOAD A")
+                            compiled.append_code("  SWAP PC, SPC")
+                        else:
+                            compiled.append_code("  SWAP PC, SPC")
+                            compiled.append_code("  DECPC")
+                            compiled.append_code("  LOAD A")
+                            compiled.append_code("  SWAP PC, SPC")
+
+                        compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
+                        compiled.append_code("  STORE A")
+
+                elif global_var.type.size > dest_type.size:
+                    # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
+                    for i in range(dest_type.size):
+                        # First, we need to set the SPC to our variable pointer, which clobbers A.
+                        if i == 0:
+                            compiled.append_code("  SWAP PC, SPC")
+                            compiled.append_code(f"  SETPC {global_var.name}, {global_var.type.size - 1}")
+                            compiled.append_code("  LOAD A")
+                            compiled.append_code("  SWAP PC, SPC")
+                        else:
+                            compiled.append_code("  SWAP PC, SPC")
+                            compiled.append_code("  DECPC")
+                            compiled.append_code("  LOAD A")
+                            compiled.append_code("  SWAP PC, SPC")
+
+                        compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
+                        compiled.append_code("  STORE A")
+
                 else:
-                    # First, go to the high byte and figure out if it needs to be zero or one extended.
-                    compiled.append_code("  SWAP PC, SPC")
-                    compiled.append_code(f"  SETPC {global_var.name}")
-                    compiled.append_code("  LOAD A")
-                    compiled.append_code("  SWAP PC, SPC")
-                    compiled.append_code("  SHL")
-                    compiled.append_code("  LOADI 0")
-                    compiled.append_code("  SKIPIF !CF")
-                    compiled.append_code("  INV")
+                    # Copy, but with either sign extension or zero extension for the missing upper bytes.
+                    dest_type = stack.typeof(destination)
+                    dest_loc = stack.absfind(destination)
+                    if dest_type is None or dest_loc is None:
+                        raise Exception("Logic error, cannot find destination to copy variable value to!")
 
-                extend_amount = dest_size - global_var.type.size
-                for pos in range(extend_amount):
-                    actual_pos = pos + dest_loc + global_var.type.size
-
-                    move_amt = stack.diff(actual_pos)
-                    compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
-
-                # Need to copy the whole source, but to the correct location in the destination.
-                for i in range(global_var.type.size):
-                    # First, we need to set the SPC to our variable pointer, which clobbers A.
-                    if i == 0:
-                        compiled.append_code("  SWAP PC, SPC")
-                        # We set this above for the case where we need to check for sign extension.
-                        # That doesn't happen for unsigned integers, so we need to set the PC here.
-                        if dest_type.is_unsigned:
-                            compiled.append_code(f"  SETPC {global_var.name}")
-                        compiled.append_code("  LOAD A")
-                        compiled.append_code("  SWAP PC, SPC")
+                    if dest_type.is_unsigned:
+                        # We always zero-extend unsigned types.
+                        compiled.append_code("  LOADI 0")
                     else:
+                        # First, go to the high byte and figure out if it needs to be zero or one extended.
                         compiled.append_code("  SWAP PC, SPC")
-                        compiled.append_code("  INCPC")
+                        compiled.append_code(f"  SETPC {global_var.name}")
                         compiled.append_code("  LOAD A")
                         compiled.append_code("  SWAP PC, SPC")
+                        compiled.append_code("  SHL")
+                        compiled.append_code("  LOADI 0")
+                        compiled.append_code("  SKIPIF !CF")
+                        compiled.append_code("  INV")
 
-                    actual_pos = (dest_loc + global_var.type.size) - (i + 1)
+                    extend_amount = dest_type.size - global_var.type.size
+                    for pos in range(extend_amount):
+                        actual_pos = pos + dest_loc + global_var.type.size
 
-                    move_amt = stack.diff(actual_pos)
-                    compiled += generate_move_by("seeking copy byte", move_amt, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
+                        move_amt = stack.diff(actual_pos)
+                        compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
+                        compiled.append_code("  STORE A")
+
+                    # Need to copy the whole source, but to the correct location in the destination.
+                    for i in range(global_var.type.size):
+                        # First, we need to set the SPC to our variable pointer, which clobbers A.
+                        if i == 0:
+                            compiled.append_code("  SWAP PC, SPC")
+                            # We set this above for the case where we need to check for sign extension.
+                            # That doesn't happen for unsigned integers, so we need to set the PC here.
+                            if dest_type.is_unsigned:
+                                compiled.append_code(f"  SETPC {global_var.name}")
+                            compiled.append_code("  LOAD A")
+                            compiled.append_code("  SWAP PC, SPC")
+                        else:
+                            compiled.append_code("  SWAP PC, SPC")
+                            compiled.append_code("  INCPC")
+                            compiled.append_code("  LOAD A")
+                            compiled.append_code("  SWAP PC, SPC")
+
+                        actual_pos = (dest_loc + global_var.type.size) - (i + 1)
+
+                        move_amt = stack.diff(actual_pos)
+                        compiled += generate_move_by("seeking copy byte", move_amt, stack, clobbers, context)
+                        compiled.append_code("  STORE A")
 
     else:
         if destination is None:
@@ -1940,20 +2065,23 @@ def generate_variable_lookup(
             raise CompilerError(f"Use of uninitialized variable {source!r}", context)
 
         source_loc = stack.absfind(source)
-        source_size = stack.sizeof(source)
+        source_type = stack.typeof(source)
         dest_loc = stack.absfind(destination)
-        dest_size = stack.sizeof(destination)
-        if source_loc is None or source_size is None:
+        dest_type = stack.typeof(destination)
+        if source_loc is None or source_type is None:
             raise CompilerError(f"Undefined variable reference to {source!r}", context)
-        if dest_loc is None or dest_size is None:
+        if dest_loc is None or dest_type is None:
             raise Exception("Logic error, cannot find destination to copy variable value to!")
 
-        if source_size == dest_size:
+        if dest_type.is_string and not source_type.is_string:
+            raise CompilerError("Unsupported string assignment to non-string expression", context)
+
+        if source_type.size == dest_type.size:
             # Direct copy from source stack to destination stack.
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
-        elif source_size > dest_size:
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_type.size, stack, clobbers, context)
+        elif source_type.size > dest_type.size:
             # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_type.size, stack, clobbers, context)
         else:
             # We need to sign extend the top bit of the top byte for negative numbers, which requires the A register.
             clobbers.add("A")
@@ -1966,7 +2094,7 @@ def generate_variable_lookup(
                 compiled.append_code("  LOADI 0")
             else:
                 # First, go to the high byte and figure out if it needs to be zero or one extended.
-                move_amt = stack.diff(source_loc + (source_size - 1))
+                move_amt = stack.diff(source_loc + (source_type.size - 1))
                 compiled += generate_move_by("seeking {source}", move_amt, stack, clobbers, context)
                 compiled.append_code("  LOAD A")
                 compiled.append_code("  SHL")
@@ -1974,15 +2102,15 @@ def generate_variable_lookup(
                 compiled.append_code("  SKIPIF !CF")
                 compiled.append_code("  INV")
 
-            for pos in range(dest_size - source_size):
-                actual_pos = pos + dest_loc + source_size
+            for pos in range(dest_type.size - source_type.size):
+                actual_pos = pos + dest_loc + source_type.size
 
                 move_amt = stack.diff(actual_pos)
                 compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
                 compiled.append_code("  STORE A")
 
             # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_size, stack, clobbers, context)
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_type.size, stack, clobbers, context)
 
     return compiled
 
@@ -3481,7 +3609,7 @@ def generate_assign_expr(
         raise CompilerError("Unsupported name for local variable definition", context)
 
     assign_name = assign_target.value
-    assign_type = get_type(assign_annotation.annotation) if assign_annotation is not None else None
+    assign_type = get_type(assign_annotation.annotation, local_consts) if assign_annotation is not None else None
 
     global_var = global_by_name(refs, assign_name)
     if global_var is not None and global_var.marked:
@@ -4390,7 +4518,7 @@ def compile_chunk(
 
 
 def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionPrototype:
-    function_type = get_type(func.returns, allow_nopad=True)
+    function_type = get_type(func.returns, [], allow_nopad=True)
     function_params = func.params.params
 
     if function_type is None:
@@ -4408,7 +4536,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
             raise CompilerError(f"Function parameter {func_param.name.value} has unsupported default", context)
 
         # Function parameters are passed on the stack, so we must know their locations and types.
-        param_type = get_type(func_param.annotation)
+        param_type = get_type(func_param.annotation, [])
         if param_type is None:
             raise CompilerError(f"Expecting type for function parameter {func_param.name.value}", context)
 
@@ -4425,7 +4553,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
 def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], context: Context) -> Sections:
     compiled = Sections()
     function_name = func.name.value
-    function_type = get_type(func.returns, allow_nopad=True)
+    function_type = get_type(func.returns, [], allow_nopad=True)
     function_params = func.params.params
     stack: Stack = Stack()
     local_data: List[str] = []
@@ -4441,7 +4569,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
             raise CompilerError(f"Function parameter {func_param.name.value} has unsupported default", context)
 
         # Function parameters are passed on the stack, so we must know their locations and types.
-        param_type = get_type(func_param.annotation)
+        param_type = get_type(func_param.annotation, [])
         if param_type is None:
             raise CompilerError(f"Expecting type for function parameter {func_param.name.value}", context)
 

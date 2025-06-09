@@ -354,7 +354,7 @@ def assemble(
         # Labels.
         elif mnemonic.endswith(":"):
             # A label of some sort.
-            labels[mnemonic[:-1].lower()] = org
+            labels[mnemonic[:-1].strip()] = org
 
         # Regular opcodes.
         else:
@@ -2747,7 +2747,7 @@ class SETPC(BaseMacro):
                     _checklabel(mnemonic, parameters, loose)
 
                     # We don't care what value we use here, it'll get filled on the second pass.
-                    location = 0xDEADBEEF
+                    location = 0xA5A5
 
         # Now, add any offset.
         location += offset
@@ -2762,6 +2762,83 @@ class SETPC(BaseMacro):
             "ATOP",
             f"LOADI {cval}",
             "ATOC",
+        ]
+
+        # Now, assemble them and return that value
+        return self.compile(
+            origin,
+            instructions,
+            hint=_insnrep(mnemonic, parameters),
+        )
+
+
+@instruction
+class PUSHADDR(BaseMacro):
+    def assembles(self, mnemonic: str) -> bool:
+        return mnemonic == "PUSHADDR"
+
+    def vals(
+        self,
+        mnemonic: str,
+        parameters: Tuple[str, ...],
+        origin: int,
+        labels: Dict[str, int],
+        loose: bool,
+    ) -> List[int]:
+        _checkoneortwoparams(mnemonic, parameters)
+        parameter = parameters[0]
+        if len(parameters) == 2:
+            offset = getint(
+                parameters[1],
+                16,
+                allow_unsigned=True,
+                hint=_insnrep(mnemonic, parameters),
+            )
+        else:
+            offset = 0
+
+        # Load immediate value into 16-bit variable pointed to by PC.
+        # First, try to get this as an integer.
+        try:
+            location = getint(
+                parameter,
+                16,
+                allow_unsigned=True,
+                hint=_insnrep(mnemonic, parameters),
+            )
+        except InvalidInstructionException:
+            # Now, try as a label.
+            if parameter in labels:
+                location = getint(
+                    str(labels[parameter]),
+                    16,
+                    allow_unsigned=True,
+                    hint=_insnrep(mnemonic, parameters),
+                )
+            else:
+                if " " in parameter:
+                    raise ParameterOutOfRangeException(
+                        "Cannot PUSHADDR to an invalid label for "
+                        + f"instruction {_insnrep(mnemonic, parameters)}"
+                    )
+                else:
+                    # Verify that we do or don't need labels.
+                    _checklabel(mnemonic, parameters, loose)
+
+                    # We don't care what value we use here, it'll get filled on the second pass.
+                    location = 0xA5A5
+
+        # Now, add any offset.
+        location += offset
+
+        # Now, split the location into two halves.
+        pval = (location >> 8) & 0xFF
+        cval = location & 0xFF
+
+        # Now, get the instructions themselves
+        instructions = [
+            f"PUSHI {cval}",
+            f"PUSHI {pval}",
         ]
 
         # Now, assemble them and return that value

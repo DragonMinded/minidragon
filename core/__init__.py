@@ -10,6 +10,7 @@ from .assembler import (
     instructions,
     bintoint,
     getint,
+    hexstr,
 )
 
 from .compiler import (
@@ -39,6 +40,7 @@ __all__ = [
     "instructions",
     "bintoint",
     "getint",
+    "hexstr",
     "builtin_forward_refs",
     "parse_forward_refs",
     "parse_and_compile_module",

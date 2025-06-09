@@ -94,7 +94,7 @@ For convenience of programming without too much hassle, several assembler macros
  * NOP - Perform no operation. Implemented as "JRI 0", which as noted above is encoded as a null byte.
  * HALT - Jump to self, loop forever. Implemented as "JRI -1".
  * ZERO - Zero the contents of A. Implemented as "LOADI 0".
- * SETPC - Set immediate value to PC register, clobbering A register. Sets PC to full 16-bit value. Implemented as a pair of "LOADI" instructions followed by the appropriate "ATOP" and "ATOC".
+ * SETPC - Set immediate value to PC register, clobbering A register. Sets PC to full 16-bit value. Implemented as a pair of "LOADI" instructions followed by the appropriate "ATOP" and "ATOC". Takes an optional second parameter which is applied as an integer offset to the 16-bit value.
  * INCPC - Add 1 to PC. Implemented as "ADDPCI 1".
  * DECPC - Subtract 1 from PC. Implemented as "SUBPCI 1".
  * STOREI - Stores immediate value to memory pointed at by PC register, clobbering A register. Stores full 8-bit value to memory. Implemented as a "LOADI" followed by a "STOREA".
@@ -114,6 +114,7 @@ For convenience of programming without too much hassle, several assembler macros
  * CALLRI - Subtracts two from PC, stores the next instruction after this instruction to PC, then jumps to the relative offset from the next instruction. Return from this using “RET”. Implemented using a "PUSHIP" and a "JRI" instruction, meaning it is only useful for subroutines located close in memory. However, it can save several bytes.
  * PUSH x - Subtracts operand size from PC, stores the value of A/U/V/IP/SPC into the memory location PC. This is simply a virtual instruction that maps to "STOREA", "STOREU", "STOREV", "PUSHIP" or "PUSHSPC", so that the correct instruction doesn't have to be remembered.
  * PUSHI - Subtracts 1 from PC, stores immediate to memory location PC, clobbering A register. Implmented as a "DECPC" followed by a "STOREI" macro.
+ * PUSHADDR - Subtracts 1 from PC, stores low byte of 16-bit immediate value to memory location PC, clobbering A register. Then subtracts 1 again from the PC, stores the high byte of 16-bit immediate value to memory location PC, clobbering the A register again. Implemented as a pair of "DECPC" and "STOREI" macros. Takes an optional second parameter which is applied as an integer offset to the 16-bit value.
  * POP x - Loads the value of memory location PC into A/U/V/IP/SPC, adds operand size to PC. Works identically to "PUSH x" as a virtual instruction alias to several concrete instructions.
  * LOAD x - Loads the value pointed at in memory by PC to A/U/V. Alias for the various concrete load instructions, similar to "PUSH x" and "POP x".
  * STORE x - Stores the value in A/U/V into the memory location pointed at by PC. Alias for the various concrete store instructions, similar to "PUSH x" and "POP x".
