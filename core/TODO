@@ -14,6 +14,7 @@ Things that would be nice to have for convenience:
  - asm() block to allow inlining assembly.
  - auto-infer types for variables that can be inferred.
  - walrus operator.
+ - simple f-string support.
 
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
