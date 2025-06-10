@@ -1,33 +1,33 @@
 strcmp:
-    ; Given a stack holding a source and destination pointer, compare
-    ; the two strings at the source and destination. If the source is
-    ; alphabetically less than the destination, set A to -1 and return.
-    ; If the strings are identical, set A to 0 and return. If the source
-    ; is alphabetically greater than the destination, set A to 1 and
-    ; return. Does not touch the source/destination pointers on the
-    ; stack, nor does it clobber the U/V registers.
+    ; Given a stack holding a first and second string pointer, compare
+    ; the two strings at the first and second locations. If the first is
+    ; alphabetically less than the second, set A to -1 and return. If the
+    ; strings are identical, set A to 0 and return. If the first is
+    ; alphabetically greater than the second, set A to 1 and return. Does
+    ; not touch the first/second pointers on the stack, nor does it clobber
+    ; the U/V registers.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
     ;
     ; If you want to compare two strings at 0x1234 and 0x5678, call like so:
-    ;     PUSHI 0x78
-    ;     PUSHI 0x56
     ;     PUSHI 0x34
     ;     PUSHI 0x12
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
     ;     CALL strmp
     ;
     ; Stack layout
-    ; PC + 0  - saved destination byte
-    ; PC + 1  - saved source byte
+    ; PC + 0  - saved second byte
+    ; PC + 1  - saved first byte
     ; PC + 2  - saved U register
     ; PC + 3  - saved SP
     ; PC + 4  - saved SC
     ; PC + 5  - return address
     ; PC + 6  - return address
-    ; PC + 7  - pointer to destination
-    ; PC + 8  - pointer to destination
-    ; PC + 9  - pointer to source
-    ; PC + 10 - pointer to source
+    ; PC + 7  - pointer to second
+    ; PC + 8  - pointer to second
+    ; PC + 9  - pointer to first
+    ; PC + 10 - pointer to first
 
     ; First, save the existing registers.
     PUSH SPC
@@ -53,7 +53,7 @@ _strcmp_loop:
     INC
     SWAP A, U
 
-    ; Grab a byte from the source
+    ; Grab a byte from the first
     ADDPCI 9
     POP SPC
     SWAP PC, SPC
@@ -66,7 +66,7 @@ _strcmp_loop:
     STORE A
     ADDPCI 6
 
-    ; Grab a byte from the destination
+    ; Grab a byte from the second
     POP SPC
     SWAP PC, SPC
     POP A

@@ -20,16 +20,16 @@ strcpy:
     ; PC + 3 - saved SC
     ; PC + 4 - return address
     ; PC + 5 - return address
-    ; PC + 6 - pointer to destination
-    ; PC + 7 - pointer to destination
-    ; PC + 8 - pointer to source
-    ; PC + 9 - pointer to source
+    ; PC + 6 - pointer to source
+    ; PC + 7 - pointer to source
+    ; PC + 8 - pointer to destination
+    ; PC + 9 - pointer to destination
 
     ; First, save the existing registers
     PUSH SPC
     PUSH A
     PUSH U
-    ADDPCI 8
+    ADDPCI 6
 
     ; Initialize the count of bytes we copied.
     ZERO
@@ -46,14 +46,14 @@ _strcpy_loop:
     PUSH SPC
 
     ; Store that byte in the destination
-    SUBPCI 2
+    ADDPCI 2
     POP SPC
     SWAP PC, SPC
     STORE U
     INCPC
     SWAP PC, SPC
     PUSH SPC
-    ADDPCI 2
+    SUBPCI 2
 
     ; See if we copied the null termination
     SWAP U, A
@@ -70,7 +70,7 @@ _strcpy_done:
     ADDPC
     SWAP PC, SPC
     PUSH SPC
-    SUBPCI 2
+    ADDPCI 2
     POP SPC
     SWAP PC, SPC
     ADDPC
@@ -78,7 +78,7 @@ _strcpy_done:
     PUSH SPC
 
     ; Restore the shadow stack and A register
-    SUBPCI 6
+    SUBPCI 8
     POP U
     POP A
     POP SPC

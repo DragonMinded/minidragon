@@ -23,10 +23,10 @@ strcat:
     ; PC + 5  - saved SC
     ; PC + 6  - return address
     ; PC + 7  - return address
-    ; PC + 8  - pointer to destination
-    ; PC + 9  - pointer to destination
-    ; PC + 10 - pointer to source
-    ; PC + 11 - pointer to source
+    ; PC + 8  - pointer to source
+    ; PC + 9  - pointer to source
+    ; PC + 10 - pointer to destination
+    ; PC + 11 - pointer to destination
 
     ; First, save the existing registers
     PUSH SPC
@@ -35,7 +35,7 @@ strcat:
 
     ; Now, advance the destination pointer until we find the
     ; terminating null byte.
-    ADDPCI 6
+    ADDPCI 8
     POP SPC
     SWAP PC, SPC
 
@@ -53,9 +53,9 @@ _strcat_advance:
 
 _strcat_update_dest:
     SWAP PC, SPC
-    SUBPCI 8
+    SUBPCI 10
     PUSH SPC
-    ADDPCI 10
+    ADDPCI 8
 
 _strcat_loop:
     ; Keep track of number of bytes copied
@@ -69,14 +69,14 @@ _strcat_loop:
     PUSH SPC
 
     ; Store that byte in the destination
-    SUBPCI 10
+    SUBPCI 8
     POP SPC
     SWAP PC, SPC
     STORE U
     INCPC
     SWAP PC, SPC
     PUSH SPC
-    ADDPCI 10
+    ADDPCI 8
 
     ; See if we copied the null termination
     SWAP U, A
@@ -94,7 +94,7 @@ _strcat_done:
     PUSH SPC
 
     ; Restore the shadow stack and A register
-    SUBPCI 8
+    SUBPCI 6
     POP U
     POP A
     POP SPC
