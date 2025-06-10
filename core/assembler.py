@@ -4105,7 +4105,7 @@ class CPUCore:
         self.d = 0
 
         # CPU RAM, fully read/write.
-        self.ram = ram
+        self.ram = ram[:]
         while len(self.ram) < 0x8000:
             self.ram.append(0)
 

@@ -92,7 +92,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_const(self) -> None:
         # Verify that we can infer a normal expression with just two variables.
         expr = self.__get_expr("15")
-        stack = Stack()
+        stack = Stack("__test__")
         types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])
         self.assertTypesValid(types)
@@ -100,7 +100,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_simple(self) -> None:
         # Verify that we can infer a normal expression with just two variables.
         expr = self.__get_expr("x + y")
-        stack = Stack()
+        stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int8")))
         stack.alloc(StackVar("y", CoreType("int8")))
         types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", expr, {}))
@@ -110,7 +110,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_simple_const(self) -> None:
         # Verify that we can infer a normal expression with just two variables.
         expr = self.__get_expr("x + 12345")
-        stack = Stack()
+        stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", expr, {}))
         self.assertEqual(CoreType("int16"), types[expr])
@@ -119,7 +119,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_different_types(self) -> None:
         # Verify that we can infer an expression with different sized variables.
         expr = self.__get_expr("x + y")
-        stack = Stack()
+        stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
         types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", expr, {}))
@@ -129,7 +129,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_comparison(self) -> None:
         # Verify that we can infer a comparison expression type.
         expr = self.__get_expr("x == y")
-        stack = Stack()
+        stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
         types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", expr, {}))
@@ -139,7 +139,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_comparison_const(self) -> None:
         # Verify that we can infer a comparison expression with a constant.
         expr = self.__get_expr("x == 12345")
-        stack = Stack()
+        stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", expr, {}))
         self.assertEqual(CoreType("bool"), types[expr])
@@ -148,7 +148,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_ifexpr(self) -> None:
         # Verify that we can infer a comparison expression type.
         expr = self.__get_expr("x if z else y")
-        stack = Stack()
+        stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
         stack.alloc(StackVar("z", CoreType("bool")))
@@ -159,7 +159,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_ifexpr_const(self) -> None:
         # Verify that we can infer a comparison expression type.
         expr = self.__get_expr("x if z else 12345")
-        stack = Stack()
+        stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("z", CoreType("bool")))
         types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", expr, {}))
@@ -169,7 +169,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_function(self) -> None:
         # Verify that we can infer a function call type.
         expr = self.__get_expr("func(x, y)")
-        stack = Stack()
+        stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
         refs = [FunctionPrototype("func", CoreType("int8"), [CoreType("int16"), CoreType("int32")])]
@@ -180,7 +180,7 @@ class TestCompiler(unittest.TestCase):
     def test_infer_types_function_const(self) -> None:
         # Verify that we can infer a function call type with constants.
         expr = self.__get_expr("func(5, 15)")
-        stack = Stack()
+        stack = Stack("__test__")
         refs = [FunctionPrototype("func", CoreType("int8"), [CoreType("int16"), CoreType("int32")])]
         types = infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])

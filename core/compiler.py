@@ -3,9 +3,12 @@ import traceback
 import libcst as cst
 import libcst.metadata as meta
 
-from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
+from typing import Dict, Final, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
 
 from .assembler import assemble
+
+
+MAX_STRING_LENGTH: Final[int] = 255
 
 
 def comment_source(extra: Optional[str] = None) -> str:
@@ -71,16 +74,28 @@ class CompilerError(Exception):
 
 
 class Sections:
-    def __init__(self, code: Optional[List[str]] = None, data: Optional[List[str]] = None, init: Optional[List[str]] = None) -> None:
+    def __init__(
+        self,
+        *,
+        preamble: Optional[List[str]] = None,
+        code: Optional[List[str]] = None,
+        data: Optional[List[str]] = None,
+        init: Optional[List[str]] = None,
+    ) -> None:
+        self.preamble: List[str] = preamble or []
         self.code: List[str] = code or []
         self.data: List[str] = data or []
         self.init: List[str] = init or []
 
     def __iadd__(self, other: "Sections") -> "Sections":
+        self.preamble += other.preamble
         self.code += other.code
         self.data += other.data
         self.init += other.init
         return self
+
+    def append_preamble(self, line: str) -> None:
+        self.preamble.append(line)
 
     def append_code(self, line: str) -> None:
         self.code.append(line)
@@ -513,6 +528,20 @@ def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionProto
     for label in labels:
         compiled.append(f"{label}:")
 
+    # Fix up any sort of string pointer references.
+    extras: List[str] = []
+    for line in compiled:
+        if "PUSHADDR" in line:
+            label = line.split("PUSHADDR", 1)[1]
+            label = label.strip()
+            label = label.split(";", 1)[0]
+            label = label.split(",", 1)[0]
+            label = label.strip()
+            extras.append(label)
+
+    for label in extras:
+        compiled.append(f"{label}:")
+
     memory = assemble(compiled)
     if not memory:
         return 0
@@ -567,12 +596,26 @@ class StackVar:
     def const(self) -> bool:
         return self.type.const
 
+    @property
+    def label(self) -> str:
+        if self.type.type not in {"string"}:
+            raise Exception("Logic error, trying to get a label name for a non-string type!")
+
+        label = ""
+        for c in self.name:
+            if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_":
+                label += c
+            else:
+                label += "_"
+        return label
+
     def __repr__(self) -> str:
         return f"{self.type!r} {self.name}: {self.location} size {self.size}{' uninitialized' if not self.initialized else ''}"
 
 
 class Stack:
-    def __init__(self) -> None:
+    def __init__(self, funcname: str) -> None:
+        self.funcname = funcname
         self.stack: List[StackVar] = []
         self.size: int = 0
         self.location: int = 0
@@ -593,7 +636,7 @@ class Stack:
         yield from self.stack
 
     def clone(self) -> "Stack":
-        stack = Stack()
+        stack = Stack(self.funcname)
         for entry in self.stack:
             stack.stack.append(StackVar(entry.name, entry.type, location=entry.location, initialized=entry.initialized))
         stack.size = self.size
@@ -700,6 +743,12 @@ class Stack:
         for entry in self.stack:
             if entry.name == name:
                 return entry.initialized
+        return None
+
+    def labelof(self, name: str) -> Optional[str]:
+        for entry in self.stack:
+            if entry.name == name:
+                return f"{self.funcname}_{entry.label}"
         return None
 
     def diff(self, desired: int) -> int:
@@ -866,8 +915,8 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                     value = value[:(assign_type.length - 1)]
                 length_needed = assign_type.length
 
-            if length_needed > 255:
-                raise CompilerError("Unsupported too-long string, strings are required to be 255 characters maximum", context)
+            if length_needed > MAX_STRING_LENGTH:
+                raise CompilerError(f"Unsupported too-long string, strings are required to be {MAX_STRING_LENGTH} characters maximum", context)
 
             length_provided = 0
             for c in value:
@@ -1008,8 +1057,8 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
             length_needed = assign_type.length
 
-            if length_needed > 255:
-                raise CompilerError("Unsupported too-long string, strings are required to be 255 characters maximum", context)
+            if length_needed > MAX_STRING_LENGTH:
+                raise CompilerError(f"Unsupported too-long string, strings are required to be {MAX_STRING_LENGTH} characters maximum", context)
 
             if value is not None:
                 for c in value:
@@ -1890,6 +1939,7 @@ def generate_variable_lookup(
     source: str,
     destination: Optional[str],
     stack: Stack,
+    types: Dict[cst.CSTNode, CoreType],
     clobbers: Set[str],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
@@ -1958,13 +2008,80 @@ def generate_variable_lookup(
             if dest_type.is_string:
                 if not global_var.type.is_string:
                     raise CompilerError("Unsupported string assignment to non-string expression", context)
+                if not dest_type.const and global_var.type.const:
+                    # We need to allocate locally and strcpy over.
+                    if not stack.initof(destination):
+                        if not dest_type.is_array:
+                            raise CompilerError("Non-constant local strings require a length", context)
 
-                # We only clobber the A register with the macro.
-                clobbers.add("A")
+                        local_destination_storage = stack.labelof(destination)
+                        if local_destination_storage is None:
+                            raise Exception("Logic error, couldn't get local storage for string!")
+                        compiled.append_data(f"{local_destination_storage}:")
+                        compiled.append_data(f"  .pad {dest_type.length or MAX_STRING_LENGTH}")
 
-                compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
-                compiled.append_code(f"  PUSHADDR {global_var.name}")
-                stack.location += 2
+                        # We only clobber the A register with the string init macro.
+                        clobbers.add("A")
+
+                        compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
+                        compiled.append_code(f"  PUSHADDR {local_destination_storage}")
+                        stack.location += 2
+
+                        # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                        stack.init(destination)
+
+                    # Now, set up the stack for a strcpy operation, to initialize the local data with
+                    # a copy of the constant we're initializing from.
+                    if stack[-1].name != destination:
+                        # In order to ensure that it's possible to do stack math on this value, locate it in
+                        # a temporary location for the time being if the destination isn't the top of the stack.
+                        lhs_dest = expr_temp_name()
+                        stack.alloc(StackVar(lhs_dest, CoreType("string"), initialized=True))
+
+                        source_loc = stack.absfind(destination)
+                        dest_loc = stack.absfind(lhs_dest)
+                        if source_loc is None or dest_loc is None:
+                            raise Exception("Logic error, expected to find location of internal variables!")
+
+                        compiled += generate_memcpy_unrolled(source_loc, dest_loc, 2, stack, clobbers, context)
+                    else:
+                        # Safe to put first parameter in the top of the stack where it already is useful for math.
+                        lhs_dest = destination
+
+                    # Now, point at it.
+                    clobbers.add("A")
+
+                    rhs_dest = expr_temp_name()
+                    stack.alloc(StackVar(rhs_dest, CoreType("string"), initialized=True))
+                    compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=-1)
+                    compiled.append_code(f"  PUSHADDR {global_var.name}")
+                    stack.location += 2
+
+                    # Now call strcpy.
+                    compiled += generate_function_call(
+                        create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
+                        None,
+                        types,
+                        stack,
+                        clobbers,
+                        refs,
+                        local_consts,
+                        context,
+                    )
+
+                    # Finally, free the stack.
+                    stack.free(rhs_dest)
+                    if lhs_dest != destination:
+                        stack.free(lhs_dest)
+
+                else:
+                    # We only clobber the A register with the macro.
+                    clobbers.add("A")
+
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
+                    compiled.append_code(f"  PUSHADDR {global_var.name}")
+                    stack.location += 2
+
             else:
                 # We clobber the SPC to be able to point at the variable. We clobber the A register for copies.
                 clobbers.add("SPC")
@@ -2076,7 +2193,74 @@ def generate_variable_lookup(
         if dest_type.is_string and not source_type.is_string:
             raise CompilerError("Unsupported string assignment to non-string expression", context)
 
-        if source_type.size == dest_type.size:
+        if dest_type.is_string and not dest_type.const and source_type.const:
+            # We need to allocate locally and strcpy over.
+            if not stack.initof(destination):
+                if not dest_type.is_array:
+                    raise CompilerError("Non-constant local strings require a length", context)
+
+                local_destination_storage = stack.labelof(destination)
+                if local_destination_storage is None:
+                    raise Exception("Logic error, couldn't get local storage for string!")
+                compiled.append_data(f"{local_destination_storage}:")
+                compiled.append_data(f"  .pad {dest_type.length or MAX_STRING_LENGTH}")
+
+                # We only clobber the A register with the string init macro.
+                clobbers.add("A")
+
+                compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
+                compiled.append_code(f"  PUSHADDR {local_destination_storage}")
+                stack.location += 2
+
+                # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                stack.init(destination)
+
+            # Now, set up the stack for a strcpy operation, to initialize the local data with
+            # a copy of the constant we're initializing from.
+            if stack[-1].name != destination:
+                # In order to ensure that it's possible to do stack math on this value, locate it in
+                # a temporary location for the time being if the destination isn't the top of the stack.
+                lhs_dest = expr_temp_name()
+                stack.alloc(StackVar(lhs_dest, CoreType("string"), initialized=True))
+
+                source_loc = stack.absfind(destination)
+                dest_loc = stack.absfind(lhs_dest)
+                if source_loc is None or dest_loc is None:
+                    raise Exception("Logic error, expected to find location of internal variables!")
+
+                compiled += generate_memcpy_unrolled(source_loc, dest_loc, 2, stack, clobbers, context)
+            else:
+                # Safe to put first parameter in the top of the stack where it already is useful for math.
+                lhs_dest = destination
+
+            # Now, point at it.
+            rhs_dest = expr_temp_name()
+            stack.alloc(StackVar(rhs_dest, CoreType("string"), initialized=True))
+
+            source_loc = stack.absfind(source)
+            dest_loc = stack.absfind(rhs_dest)
+            if source_loc is None or dest_loc is None:
+                raise Exception("Logic error, expected to find location of internal variables!")
+            compiled += generate_memcpy_unrolled(source_loc, dest_loc, 2, stack, clobbers, context)
+
+            # Now call strcpy.
+            compiled += generate_function_call(
+                create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
+                None,
+                types,
+                stack,
+                clobbers,
+                refs,
+                local_consts,
+                context,
+            )
+
+            # Finally, free the stack.
+            stack.free(rhs_dest)
+            if lhs_dest != destination:
+                stack.free(lhs_dest)
+
+        elif source_type.size == dest_type.size:
             # Direct copy from source stack to destination stack.
             compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_type.size, stack, clobbers, context)
         elif source_type.size > dest_type.size:
@@ -2790,7 +2974,7 @@ def generate_comparison_expr(
             compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
 
             # Now, copy it with a sign extension.
-            compiled += generate_variable_lookup(second_temp, second_dest, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+            compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, refs, local_consts, context.wrap(second_expr))
 
             # Now, we don't need the temp location now that we've computed and sign extended.
             stack.free(second_temp)
@@ -3027,7 +3211,7 @@ def generate_comparison_expr(
             compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
 
             # Now, copy it with a sign extension.
-            compiled += generate_variable_lookup(second_temp, second_dest, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+            compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, refs, local_consts, context.wrap(second_expr))
 
             # Now, we don't need the temp location now that we've computed and sign extended.
             stack.free(second_temp)
@@ -3229,13 +3413,116 @@ def generate_expr_internal(
 
             return compiled
 
+        if isinstance(value, str):
+            if len(value) >= MAX_STRING_LENGTH:
+                raise CompilerError(f"Unsupported too-long string, strings are required to be {MAX_STRING_LENGTH} characters maximum", context)
+
+            if destination is not None:
+                destination_type = stack.typeof(destination)
+                if destination_type is None or not destination_type.is_string:
+                    raise Exception("Logic error, tried to assign string pointer to wrong type!")
+
+                if destination_type.const:
+                    # First, set up somewhere to put the initialized string data so we can point at it.
+                    label = local_label_name("function_string_data")
+                    compiled.append_preamble(f"{label}:")
+                    for c in value:
+                        compiled.append_preamble(f"  .char {c[0]!r}")
+                    compiled.append_preamble("  .byte 0x00")
+
+                    # Now, point at it.
+                    clobbers.add("A")
+
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
+                    compiled.append_code(f"  PUSHADDR {label}")
+                    stack.location += 2
+                else:
+                    # Need to allocate static space for the string, then strcpy it over.
+                    if not stack.initof(destination):
+                        if not destination_type.is_array:
+                            raise CompilerError("Non-constant local strings require a length", context)
+                        if len(value) >= (destination_type.length or MAX_STRING_LENGTH):
+                            raise CompilerError("Attempting to assign a constant that is too long for the destination", context)
+
+                        local_destination_storage = stack.labelof(destination)
+                        if local_destination_storage is None:
+                            raise Exception("Logic error, couldn't get local storage for string!")
+                        compiled.append_data(f"{local_destination_storage}:")
+                        compiled.append_data(f"  .pad {destination_type.length or MAX_STRING_LENGTH}")
+
+                        # We only clobber the A register with the string init macro.
+                        clobbers.add("A")
+
+                        compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
+                        compiled.append_code(f"  PUSHADDR {local_destination_storage}")
+                        stack.location += 2
+
+                        # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                        stack.init(destination)
+
+                    static_source_storage = local_label_name("function_string_data")
+                    compiled.append_preamble(f"{static_source_storage}:")
+                    for c in value:
+                        compiled.append_preamble(f"  .char {c[0]!r}")
+                    compiled.append_preamble("  .byte 0x00")
+
+                    # Now, set up the stack for a strcpy operation, to initialize the local data with
+                    # a copy of the constant we're initializing from.
+                    if stack[-1].name != destination:
+                        # In order to ensure that it's possible to do stack math on this value, locate it in
+                        # a temporary location for the time being if the destination isn't the top of the stack.
+                        lhs_dest = expr_temp_name()
+                        stack.alloc(StackVar(lhs_dest, CoreType("string"), initialized=True))
+
+                        source_loc = stack.absfind(destination)
+                        dest_loc = stack.absfind(lhs_dest)
+                        if source_loc is None or dest_loc is None:
+                            raise Exception("Logic error, expected to find location of internal variables!")
+
+                        compiled += generate_memcpy_unrolled(source_loc, dest_loc, 2, stack, clobbers, context)
+                    else:
+                        # Safe to put first parameter in the top of the stack where it already is useful for math.
+                        lhs_dest = destination
+
+                    # Now, point at it.
+                    clobbers.add("A")
+
+                    rhs_dest = expr_temp_name()
+                    stack.alloc(StackVar(rhs_dest, CoreType("string"), initialized=True))
+                    compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=-1)
+                    compiled.append_code(f"  PUSHADDR {static_source_storage}")
+                    stack.location += 2
+
+                    # Now call strcpy.
+                    compiled += generate_function_call(
+                        create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
+                        None,
+                        types,
+                        stack,
+                        clobbers,
+                        refs,
+                        local_consts,
+                        context.wrap(expression),
+                    )
+
+                    # Finally, free the stack.
+                    stack.free(rhs_dest)
+                    if lhs_dest != destination:
+                        stack.free(lhs_dest)
+
+                # We're gonna assign to this, so it should be considered initialized. Do this here instead of at the top
+                # so we can catch variables assigning from themselves when unassigned.
+                stack.init(destination)
+
+            return compiled
+
     except NonConstantExpressionException:
         # We must treat this as a non-unrolled expression.
         pass
 
     if isinstance(expression, cst.Name):
         # Explicitly allowing variable lookup because it could allow a register clear on read.
-        compiled += generate_variable_lookup(expression.value, destination, stack, clobbers, refs, local_consts, context)
+        compiled += generate_variable_lookup(expression.value, destination, stack, types, clobbers, refs, local_consts, context)
 
     elif isinstance(expression, cst.UnaryOperation):
         if destination is not None:
@@ -3253,7 +3540,7 @@ def generate_expr_internal(
             stack.alloc(StackVar(return_temp, function_return_type))
 
             compiled += generate_function_call(expression, return_temp, types, stack, clobbers, refs, local_consts, context.wrap(expression))
-            compiled += generate_variable_lookup(return_temp, destination, stack, clobbers, refs, local_consts, context.wrap(expression))
+            compiled += generate_variable_lookup(return_temp, destination, stack, types, clobbers, refs, local_consts, context.wrap(expression))
 
             stack.free(return_temp)
         else:
@@ -3342,6 +3629,10 @@ def infer_expr_types_impl(
 
     elif isinstance(expression, cst.Integer):
         inferred[expression] = CoreType("int")
+        return inferred
+
+    elif isinstance(expression, cst.SimpleString):
+        inferred[expression] = CoreType("string", const=True)
         return inferred
 
     elif isinstance(expression, cst.UnaryOperation):
@@ -3553,7 +3844,6 @@ def global_variable_assign(
     clobbers: Set[str],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
-    local_data: List[str],
     context: Context,
 ) -> Sections:
     compiled = Sections(code=[context.comment()])
@@ -3599,7 +3889,6 @@ def generate_assign_expr(
     clobbers: Set[str],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
-    local_data: List[str],
     context: Context,
 ) -> Sections:
     compiled = Sections(code=[context.comment()])
@@ -3609,7 +3898,7 @@ def generate_assign_expr(
         raise CompilerError("Unsupported name for local variable definition", context)
 
     assign_name = assign_target.value
-    assign_type = get_type(assign_annotation.annotation, local_consts) if assign_annotation is not None else None
+    assign_type = get_type(assign_annotation.annotation, local_consts, allow_array=True) if assign_annotation is not None else None
 
     global_var = global_by_name(refs, assign_name)
     if global_var is not None and global_var.marked:
@@ -3617,7 +3906,7 @@ def generate_assign_expr(
         if assign_value is None:
             raise CompilerError("Unsupported global variable assignment", context)
 
-        compiled += global_variable_assign(global_var, assign_value, stack, clobbers, refs, local_consts, local_data, context)
+        compiled += global_variable_assign(global_var, assign_value, stack, clobbers, refs, local_consts, context)
         return compiled
 
     # See if this is a re-assign or a definition.
@@ -3634,6 +3923,9 @@ def generate_assign_expr(
 
         if assign_type.const and assign_value is None:
             raise CompilerError("Expecting initialization value for local const definition", context)
+
+        if assign_type.is_string and not assign_type.const and not assign_type.is_array:
+            raise CompilerError("Expecting length specifier for local string definition", context)
 
         needs_alloc = True
 
@@ -3657,7 +3949,7 @@ def generate_assign_expr(
         if not isinstance(assign_value, cst.BaseExpression):
             raise CompilerError(f"Cannot assign local variable with results of {assign_value}", context)
 
-        if assign_type is not None and assign_type.const:
+        if assign_type is not None and assign_type.const and not assign_type.is_string:
             try:
                 # Constant evaluation, make sure it's not redefined.
                 if const_by_name(local_consts, assign_name) is not None:
@@ -3673,7 +3965,7 @@ def generate_assign_expr(
             # Allocate space on the stack for this local variable.
             if assign_type is None:
                 raise Exception("Logic error, we should always have a type in this condition!")
-            stack.alloc(StackVar(assign_name, assign_type, initialized=True))
+            stack.alloc(StackVar(assign_name, assign_type))
 
         compiled += generate_expr(assign_value, assign_name, stack, clobbers, refs, local_consts, context.wrap(assign_value))
 
@@ -3695,7 +3987,6 @@ def generate_augassign_expr(
     clobbers: Set[str],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
-    local_data: List[str],
     context: Context,
 ) -> Sections:
     # Simply map this onto an existing non-augmented assign and generate the code for that.
@@ -3736,7 +4027,6 @@ def generate_augassign_expr(
         clobbers,
         refs,
         local_consts,
-        local_data,
         context.virtual(op),
     )
 
@@ -3749,7 +4039,6 @@ def generate_if_statement(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     loop: Optional[LoopInfo],
     local_consts: List[Constant],
-    local_data: List[str],
     context: Context,
 ) -> Tuple[Sections, bool, bool]:
     compiled = Sections()
@@ -3768,7 +4057,7 @@ def generate_if_statement(
         # Simpler logic, no need to generate two labels for skipping between each, no worrying about unifying the stack.
         if_body_stack = stack.clone()
         child_compiled, _, _ = compile_chunk(
-            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=False,
+            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         # Not unifying the stack here because in the false case we skip the body and don't initialize.
@@ -3806,12 +4095,12 @@ def generate_if_statement(
         # This one can be compiled as if it was just a body like the statement.body
         if_body_stack = stack.clone()
         if_body_compiled, if_body_returned, if_body_continued = compile_chunk(
-            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=False,
+            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         else_body_stack = stack.clone()
         else_body_compiled, else_body_returned, else_body_continued = compile_chunk(
-            statement.orelse.body, else_body_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=False,
+            statement.orelse.body, else_body_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         false_case = local_label_name("false_case")
@@ -3872,10 +4161,10 @@ def generate_if_statement(
         # to the empty else case.
         if_body_stack = stack.clone()
         if_body_compiled, if_body_returned, if_body_continued = compile_chunk(
-            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=False,
+            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
         )
 
-        else_body_compiled, else_body_returned, else_body_continued = generate_if_statement(statement.orelse, stack, clobbers, function_type, refs, loop, local_consts, local_data, context)
+        else_body_compiled, else_body_returned, else_body_continued = generate_if_statement(statement.orelse, stack, clobbers, function_type, refs, loop, local_consts, context)
 
         false_case = local_label_name("false_case")
 
@@ -3942,7 +4231,6 @@ def generate_while_statement(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     parent_loop: Optional[LoopInfo],
     local_consts: List[Constant],
-    local_data: List[str],
     context: Context,
 ) -> Tuple[Sections, bool, bool]:
     compiled = Sections()
@@ -3969,7 +4257,7 @@ def generate_while_statement(
     if statement.orelse is None:
         loop_stack = stack.clone()
         loop_compiled, _, _ = compile_chunk(
-            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=True,
+            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
         )
 
         # Now, figure out how far we need to jump on loop condition is false.
@@ -4004,12 +4292,12 @@ def generate_while_statement(
     else:
         loop_stack = stack.clone()
         loop_compiled, _, _ = compile_chunk(
-            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=True,
+            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
         )
 
         else_stack = stack.clone()
         else_compiled, _, _ = compile_chunk(
-            statement.orelse.body, else_stack, clobbers, function_type, refs, parent_loop, local_consts, local_data, context, require_return=False, require_continue=False,
+            statement.orelse.body, else_stack, clobbers, function_type, refs, parent_loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         # We always jump to the else from the while conditional, so we don't need to move to our expected position until the end of the else.
@@ -4078,7 +4366,6 @@ def generate_for_statement(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     parent_loop: Optional[LoopInfo],
     local_consts: List[Constant],
-    local_data: List[str],
     context: Context,
 ) -> Tuple[Sections, bool, bool]:
     compiled = Sections()
@@ -4109,7 +4396,6 @@ def generate_for_statement(
         clobbers,
         refs,
         local_consts,
-        local_data,
         context,
     )
 
@@ -4161,7 +4447,7 @@ def generate_for_statement(
     if statement.orelse is None:
         loop_stack = stack.clone()
         loop_compiled, _, _ = compile_chunk(
-            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=True,
+            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
         )
 
         # Now, figure out how far we need to jump on loop condition is false.
@@ -4211,12 +4497,12 @@ def generate_for_statement(
         # same spot at the end of the test where we would fall into the loop stack.
         loop_stack = stack.clone()
         loop_compiled, _, _ = compile_chunk(
-            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, local_data, context, require_return=False, require_continue=True,
+            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
         )
 
         else_stack = stack.clone()
         else_compiled, _, _ = compile_chunk(
-            statement.orelse.body, else_stack, clobbers, function_type, refs, parent_loop, local_consts, local_data, context, require_return=False, require_continue=False,
+            statement.orelse.body, else_stack, clobbers, function_type, refs, parent_loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         # We always jump to the else from the loop conditional, so we don't need to move to our expected position until the end of the else.
@@ -4306,7 +4592,6 @@ def compile_chunk(
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     loop: Optional[LoopInfo],
     local_consts: List[Constant],
-    local_data: List[str],
     context: Context,
     *,
     require_return: bool,
@@ -4366,7 +4651,6 @@ def compile_chunk(
                         clobbers,
                         refs_copy,
                         local_consts,
-                        local_data,
                         context.wrap(simple_statement),
                     )
                     last_statement_was_return = False
@@ -4384,7 +4668,6 @@ def compile_chunk(
                         clobbers,
                         refs_copy,
                         local_consts,
-                        local_data,
                         context.wrap(simple_statement),
                     )
                     last_statement_was_return = False
@@ -4399,7 +4682,6 @@ def compile_chunk(
                         clobbers,
                         refs_copy,
                         local_consts,
-                        local_data,
                         context.wrap(simple_statement),
                     )
                     last_statement_was_return = False
@@ -4465,7 +4747,6 @@ def compile_chunk(
                 refs_copy,
                 loop,
                 local_consts,
-                local_data,
                 context.wrap(statement),
             )
             compiled += if_compiled
@@ -4479,7 +4760,6 @@ def compile_chunk(
                 refs_copy,
                 loop,
                 local_consts,
-                local_data,
                 context.wrap(statement),
             )
             compiled += while_compiled
@@ -4493,7 +4773,6 @@ def compile_chunk(
                 refs_copy,
                 loop,
                 local_consts,
-                local_data,
                 context.wrap(statement),
             )
             compiled += for_compiled
@@ -4518,7 +4797,7 @@ def compile_chunk(
 
 
 def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionPrototype:
-    function_type = get_type(func.returns, [], allow_nopad=True)
+    function_type = get_type(func.returns, [], allow_nopad=True, allow_array=True)
     function_params = func.params.params
 
     if function_type is None:
@@ -4528,7 +4807,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
         raise CompilerError("Unsupported parameter definition for function definition", context)
 
     prototype = FunctionPrototype(func.name.value, function_type)
-    stack: Stack = Stack()
+    stack: Stack = Stack(prototype.name)
 
     for func_param in function_params:
         if func_param.default is not None:
@@ -4553,10 +4832,9 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
 def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], context: Context) -> Sections:
     compiled = Sections()
     function_name = func.name.value
-    function_type = get_type(func.returns, [], allow_nopad=True)
+    function_type = get_type(func.returns, [], allow_nopad=True, allow_array=True)
     function_params = func.params.params
-    stack: Stack = Stack()
-    local_data: List[str] = []
+    stack: Stack = Stack(function_name)
 
     if function_type is None:
         raise CompilerError("Unsupported return type for function definition", context)
@@ -4602,7 +4880,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         preamble.append("  ;")
 
     preamble.append("  ; Stack layout just before return:")
-    fake_stack: Stack = Stack()
+    fake_stack: Stack = Stack(function_name)
     if function_type is not VoidType:
         fake_stack.alloc(StackVar("builtin(retval)", function_type))
     fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void")), initialized=True))
@@ -4627,7 +4905,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     clobbers: Set[str] = set()
 
     push_names()
-    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, None, builtin_consts(), [], context, require_return=True, require_continue=False)
+    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, None, builtin_consts(), context, require_return=True, require_continue=False)
     pop_names()
 
     # Unwind our temporary return value location.
@@ -4690,17 +4968,21 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    chunk, _, _ = compile_chunk(func.body, stack, set(), function_type, refs, None, builtin_consts(), local_data, context, require_return=True, require_continue=False)
+    chunk, _, _ = compile_chunk(func.body, stack, set(), function_type, refs, None, builtin_consts(), context, require_return=True, require_continue=False)
     compiled += chunk
 
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
 
     # Finally, find any comments that comment on empty blocks after optimization, and remove them.
     compiled.code = remove_empty_comments(compiled.code)
+    compiled_preamble = compiled.preamble
+    if compiled_preamble:
+        compiled_preamble.append("")
+    compiled.preamble = []
 
     return Sections(
         code=remove_empty_lines([
-            *local_data,
+            *compiled_preamble,
             f"{function_name}:",
             *preamble,
             *compiled.code,
@@ -4867,6 +5149,9 @@ def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototyp
         compiled.append_code("")
 
     compiled.code = remove_empty_lines(compiled.code)
+    if compiled.preamble:
+        raise Exception("Logic error, shouldn't have any unconsumed preamble!")
+
     return compiled
 
 
