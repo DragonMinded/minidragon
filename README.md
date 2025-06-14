@@ -250,18 +250,18 @@ Because of the complexity of designing such a system from scratch, there are a l
 
 ## Build Progress
 
-As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 70% finished with the whole project.
+As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 72% finished with the whole project.
 
 ### Hardware
 
-As a whole, the hardware side of MiniDragon is 67% complete.
+As a whole, the hardware side of MiniDragon is 70% complete.
 
  - instruction decoder: 5% complete
     - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 56 instructions (55 real instructions and a microcode board for the shared load instruction step) 3 instructions are fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
  - special registers: 100% complete
    - All design work and diagramming for necessry circuits is completed. Registers that can be read in order to perform conditional logic as well as source immediate values are completed and fully integrated onto the physical build.
- - general purpose registers: 38% complete
-   - All design work and diagramming for the eight general purpose registers is completed. Three registers (A, B and D) are built and fully integrated into the physical build.
+ - general purpose registers: 63% complete
+   - All design work and diagramming for the eight general purpose registers is completed. Five registers (A, B, D, PC and SPC) are built and fully integrated into the physical build.
  - ALU: 25% complete
    - The ALU core is completely designed, laid out and documented. Tested and fabricated designs for ADD, INV, OR, AND, and XOR exist, but only ADD has been integrated into the physical layout. The ALU is decomposed into seven core functions that each generate their own output and carry flag, along with a shared zero flag generator and a carry flag selector circuit.
  - memory interface: 100% complete
@@ -282,3 +282,4 @@ As a whole, the software side of MiniDragon is 75% complete.
  - BIOS: 0% completed.
    - Because I have not yet solidified my decision on the serial chip for MiniDragon I have not bothered to start with a BIOS. Plans include basic startup and memory access tests followed by some sort of assembler or interpreter and possibly an executable format and loader.
    - I am currently leaning towards supporting VT-100 over serial, giving me input and output that can be paired with a modern terminal emulator or a physical terminal device.
+   - I am working on a simple compiler that takes a subset of Python and outputs MiniDragon assembly for the purpose of building much of the BIOS using Python-like code instead of raw assembly code. The reason for this is stack management is very tedious and difficult to debug for more complex functions so this will enable me to code the BIOS faster and with fewer bugs.
