@@ -1,5 +1,7 @@
 Things that I think I am going to need if I want to use this compiler:
- - string support, including character indexing, comparison, etc.
+ - string support, including character indexing to get a character from a string, assignment to change a character in a string, slices, string comparisons, and character concatenation.
+ - support for str() so that we can convert booleans, integers and characters to strings.
+ - simple f-string support.
  - integer/boolean array support, including reading/writing values using array syntax.
  - support for allocating local and global arrays using int[length].
  - support for allocating extern global arrays using int[inf] or similar syntax.
@@ -14,7 +16,6 @@ Things that would be nice to have for convenience:
  - asm() block to allow inlining assembly.
  - auto-infer types for variables that can be inferred.
  - walrus operator.
- - simple f-string support.
 
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
