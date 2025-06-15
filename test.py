@@ -2290,6 +2290,84 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for strcpy: {int(instructions/count)}")
 
 
+def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "strncpy" not in only and "stringlib" not in only:
+        return
+
+    print("Verifying strncpy...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        liblines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for amt in [0, 5, 10, 15]:
+        for string in [
+            "a test",
+            "the quick brown fox jumps over the lazy dog",
+            "",
+            "whatever this is",
+        ]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                ".org 0x1000",
+                "string:",
+                *[f".char {c!r}" for c in string],
+                ".byte 0x00",
+                "main:",
+                "PUSHI 0x00",
+                "PUSHI 0x20",
+                "SWAP PC, SPC",
+                "SETPC string",
+                "SWAP PC, SPC",
+                "PUSH SPC",
+                f"PUSHI {amt}",
+                "LOADI 123",
+                "CALL strncpy",
+                "HALT",
+                *liblines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == 123,
+                f"strncpy changed A register from 123 to {cpu.a}!",
+            )
+            stack_amt = cpu.ram[cpu.pc]
+            stack_source = (cpu.ram[cpu.pc + 1] << 8) + cpu.ram[cpu.pc + 2]
+            stack_dest = (cpu.ram[cpu.pc + 3] << 8) + cpu.ram[cpu.pc + 4]
+            _assert(
+                stack_source == 0x1000,
+                f"strncpy changed stack source from {0x1000} to {stack_source}!",
+            )
+            _assert(
+                stack_dest == 0x2000,
+                f"strncpy changed stack source from {0x2000} to {stack_dest}!",
+            )
+            _assert(
+                stack_amt == amt,
+                f"strncpy changed stack source from {0x2000} to {stack_dest}!",
+            )
+            expected = string[:amt]
+            actual = getstring(cpu, 0x2000)
+            _assert(
+                actual == expected,
+                f"Failed to strncpy(&{string!r}, 0x2000, {amt}), "
+                + f"got {actual!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for strncpy: {int(cycles/count)}")
+    print(f"Average instructions for strncpy: {int(instructions/count)}")
+
+
 def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "strcat" not in only and "stringlib" not in only:
         return
@@ -10773,6 +10851,7 @@ if __name__ == "__main__":
     # String library verification
     verifystrlen(only, args.full)
     verifystrcpy(only, args.full)
+    verifystrncpy(only, args.full)
     verifystrcat(only, args.full)
     verifystrcmp(only, args.full)
 
