@@ -1192,7 +1192,7 @@ def stack_is_at(destination: str, stack: Stack, *, offset: int = 0) -> bool:
     return move_amt == 0
 
 
-def generate_memcpy_unrolled(
+def generate_memcpy_locations(
     src_loc: int,
     dst_loc: int,
     size: int,
@@ -1243,6 +1243,46 @@ def generate_memcpy_unrolled(
                 compiled.append_code(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
                 stack.move(shuffle_amount + 1)
                 compiled.code += comment_stack(stack)
+
+    return compiled
+
+
+def generate_memcpy_stackvars(
+    destination: str,
+    source: str,
+    stack: Stack,
+    clobbers: Set[str],
+    context: Context,
+) -> Sections:
+    compiled = Sections()
+    if source == destination:
+        return compiled
+
+    source_size = stack.sizeof(source)
+    destination_size = stack.sizeof(destination)
+    if source_size is None or destination_size is None:
+        raise Exception("Logic error, could not find variable to memcpy!")
+    if source_size != destination_size:
+        raise Exception("Logic error, unequal sizes in memcpy!")
+
+    if stack_is_at(source, stack, offset=destination_size - 1):
+        # We're already at the top of the stack, generate the load/func/store loop downwards
+        # instead of upwards to shave off a move instruction.
+        def actual_expr_offset(offset: int) -> int:
+            return (destination_size - offset) - 1
+    else:
+        # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+        # to perform the first move.
+        def actual_expr_offset(offset: int) -> int:
+            return offset
+
+    # Move to the right spot on the stack and then perform the operation on the two numbers.
+    # Since bitwise operations are independent we can just do this in a loop.
+    for offset in range(destination_size):
+        compiled += generate_move_to(source, stack, clobbers, context, offset=actual_expr_offset(offset))
+        compiled.append_code("  LOAD A")
+        compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
+        compiled.append_code("  STORE A")
 
     return compiled
 
@@ -1328,7 +1368,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
             # Generate code to move from our position to the first byte of the retptr.
             retptr_final_loc = number_of_moves
-            compiled += generate_memcpy_unrolled(src_loc, 0, number_of_moves, stack, clobbers, context)
+            compiled += generate_memcpy_locations(src_loc, 0, number_of_moves, stack, clobbers, context)
             compiled.append_code(f"  ; {cref}")
 
     # Now, move the return pointer if needed.
@@ -1370,7 +1410,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
                 raise Exception("Logic error, failed to get move amounts for builtin(retptr)!")
 
             # Generate code to move from our position to the first byte of the retptr.
-            compiled += generate_memcpy_unrolled(src_loc, retptr_final_loc, number_of_moves, stack, clobbers, context)
+            compiled += generate_memcpy_locations(src_loc, retptr_final_loc, number_of_moves, stack, clobbers, context)
             compiled.append_code(f"  ; {cref}")
 
     # Now, pop all of our saved registers, and then return.
@@ -1876,7 +1916,7 @@ def generate_function_call_internal(
         stack.init(dst)
 
         if source_size == dest_size:
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+            compiled += generate_memcpy_locations(source_loc, dest_loc, dest_size, stack, clobbers, context)
         else:
             raise CompilerError("Unsupported byref assignment from different variable sizes", context)
 
@@ -1899,7 +1939,7 @@ def generate_function_call_internal(
             stack.init(dst)
 
             if source_size == dest_size:
-                compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_size, stack, clobbers, context)
+                compiled += generate_memcpy_locations(source_loc, dest_loc, dest_size, stack, clobbers, context)
             else:
                 raise CompilerError("Unsupported function return from different variable sizes", context)
 
@@ -1930,7 +1970,7 @@ def generate_function_call_internal(
                 stack.init(destination)
 
                 if src_size == dest_size:
-                    compiled += generate_memcpy_unrolled(src_loc, dest_loc, dest_size, stack, clobbers, context)
+                    compiled += generate_memcpy_locations(src_loc, dest_loc, dest_size, stack, clobbers, context)
                 else:
                     raise CompilerError("Unsupported function return from different variable sizes", context)
 
@@ -2145,7 +2185,7 @@ def generate_variable_lookup(
                         if source_loc is None or dest_loc is None:
                             raise Exception("Logic error, expected to find location of internal variables!")
 
-                        compiled += generate_memcpy_unrolled(source_loc, dest_loc, 2, stack, clobbers, context)
+                        compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
                     else:
                         # Safe to put first parameter in the top of the stack where it already is useful for math.
                         lhs_dest = destination
@@ -2330,7 +2370,7 @@ def generate_variable_lookup(
                 if source_loc is None or dest_loc is None:
                     raise Exception("Logic error, expected to find location of internal variables!")
 
-                compiled += generate_memcpy_unrolled(source_loc, dest_loc, 2, stack, clobbers, context)
+                compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
             else:
                 # Safe to put first parameter in the top of the stack where it already is useful for math.
                 lhs_dest = destination
@@ -2343,7 +2383,7 @@ def generate_variable_lookup(
             dest_loc = stack.absfind(rhs_dest)
             if source_loc is None or dest_loc is None:
                 raise Exception("Logic error, expected to find location of internal variables!")
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, 2, stack, clobbers, context)
+            compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
 
             # Now call strcpy.
             compiled += generate_function_call_internal(
@@ -2364,10 +2404,10 @@ def generate_variable_lookup(
 
         elif source_type.size == dest_type.size:
             # Direct copy from source stack to destination stack.
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_type.size, stack, clobbers, context)
+            compiled += generate_memcpy_locations(source_loc, dest_loc, dest_type.size, stack, clobbers, context)
         elif source_type.size > dest_type.size:
             # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, dest_type.size, stack, clobbers, context)
+            compiled += generate_memcpy_locations(source_loc, dest_loc, dest_type.size, stack, clobbers, context)
         else:
             # We need to sign extend the top bit of the top byte for negative numbers, which requires the A register.
             clobbers.add("A")
@@ -2396,7 +2436,7 @@ def generate_variable_lookup(
                 compiled.append_code("  STORE A")
 
             # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
-            compiled += generate_memcpy_unrolled(source_loc, dest_loc, source_type.size, stack, clobbers, context)
+            compiled += generate_memcpy_locations(source_loc, dest_loc, source_type.size, stack, clobbers, context)
 
     return compiled
 
@@ -2556,225 +2596,290 @@ def generate_binary_expr(
     if destination_type is None:
         raise Exception("Logic error, could not calculate type of destination!")
 
-    if is_register_destination(destination) or stack[-1].name != destination:
-        # In order to ensure that it's possible to do stack math on this value, locate it in
-        # a temporary location for the time being if the destination isn't the top of the stack.
-        lhs_dest = expr_temp_name()
-        stack.alloc(StackVar(lhs_dest, expr_integer_type(destination_size)))
+    # First, determine if this is string concatenation.
+    if destination_type.is_string:
+        # First, generate the left hand side of the expression.
+        if stack[-1].name != destination:
+            lhs_dest = expr_temp_name()
+            stack.alloc(StackVar(lhs_dest, CoreType("string", length=destination_type.length)))
+        else:
+            lhs_dest = destination
+
+        compiled += generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
+
+        # Now, again with the right!
+        rhs_dest = expr_temp_name()
+        stack.alloc(StackVar(rhs_dest, CoreType("string", const=True)))
+        compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.right))
+
+        # Now, call strcat to concatenate the two together!
+        compiled += generate_function_call_internal(
+            create_call(
+                "strcat",
+                [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+            ),
+            None,
+            types,
+            stack,
+            clobbers,
+            refs,
+            local_consts,
+            context.wrap(expression),
+        )
+
+        # Now, copy the destination pointer if needed.
+        if lhs_dest != destination:
+            compiled += generate_memcpy_stackvars(destination, lhs_dest, stack, clobbers, context)
+
+        # Now that we copied this to the destination, this is useless.
+        stack.free(rhs_dest)
+        if lhs_dest != destination:
+            stack.free(lhs_dest)
+
     else:
-        # Safe to put first parameter in the top of the stack where it already is useful for math.
-        lhs_dest = destination
+        if is_register_destination(destination) or stack[-1].name != destination:
+            # In order to ensure that it's possible to do stack math on this value, locate it in
+            # a temporary location for the time being if the destination isn't the top of the stack.
+            lhs_dest = expr_temp_name()
+            stack.alloc(StackVar(lhs_dest, expr_integer_type(destination_size)))
+        else:
+            # Safe to put first parameter in the top of the stack where it already is useful for math.
+            lhs_dest = destination
 
-    compiled += generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
+        compiled += generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
 
-    # Now, get the second parameter onto the stack in the right spot.
-    rhs_dest = expr_temp_name()
-    stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
-    compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.right))
+        # Now, get the second parameter onto the stack in the right spot.
+        rhs_dest = expr_temp_name()
+        stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
+        compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.right))
 
-    # Now, perform some math of matics!
-    if destination_size == 1:
-        if isinstance(expression.operator, cst.Subtract):
-            if not destination_type.is_integer:
-                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+        # Now, perform some math of matics!
+        if destination_size == 1:
+            if isinstance(expression.operator, cst.Subtract):
+                if not destination_type.is_integer:
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
-            if not is_register_destination(destination):
-                # Subtracting clobbers the A register, since it is the accumulator.
-                clobbers.add("A")
+                if not is_register_destination(destination):
+                    # Subtracting clobbers the A register, since it is the accumulator.
+                    clobbers.add("A")
 
-            # Move to the second parameter and negate it.
-            compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-            compiled.append_code("  LOAD A")
-            compiled.append_code("  NEG")
+                # Move to the second parameter and negate it.
+                compiled += generate_move_to(rhs_dest, stack, clobbers, context)
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  NEG")
 
-            # Move to the right spot on the stack to add to the negated right hand side.
-            compiled += generate_move_to(lhs_dest, stack, clobbers, context)
-            compiled.append_code("  ADD")
+                # Move to the right spot on the stack to add to the negated right hand side.
+                compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+                compiled.append_code("  ADD")
 
-        elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
-            if not destination_type.is_integer:
-                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+            elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
+                if not destination_type.is_integer:
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
-            if not is_register_destination(destination):
+                if not is_register_destination(destination):
+                    # Adding clobbers the A register, since it is the accumulator.
+                    clobbers.add("A")
+
+                # Move to the right spot on the stack and then add the two numbers.
+                compiled += generate_move_to(rhs_dest, stack, clobbers, context)
+                compiled.append_code("  LOAD A")
+                compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+
+                if isinstance(expression.operator, cst.Add):
+                    compiled.append_code("  ADD")
+                elif isinstance(expression.operator, cst.BitAnd):
+                    compiled.append_code("  AND")
+                elif isinstance(expression.operator, cst.BitOr):
+                    compiled.append_code("  OR")
+                elif isinstance(expression.operator, cst.BitXor):
+                    compiled.append_code("  XOR")
+                else:
+                    raise Exception("Logic error, unexpected operator {expression.operator)}")
+
+            elif isinstance(expression.operator, cst.Multiply):
+                if not destination_type.is_integer:
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
+                compiled += generate_function_call_internal(
+                    create_call(
+                        "mult",
+                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                    ),
+                    destination,
+                    types,
+                    stack,
+                    clobbers,
+                    refs,
+                    local_consts,
+                    context.wrap(expression),
+                )
+
+            elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
+                if not (destination_type.is_integer and destination_type.is_unsigned):
+                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
+
+                # Division is weird, since the built-in stdlib function handles both modulo and division.
+                # The stdlib function is setup to return both in the input stack locations, so we need to
+                # copy the correct one out.
+                compiled += generate_function_call_internal(
+                    create_call(
+                        "udiv",
+                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                    ),
+                    None,
+                    types,
+                    stack,
+                    clobbers,
+                    refs,
+                    local_consts,
+                    context.wrap(expression),
+                )
+
+                compiled += generate_move_to(
+                    rhs_dest if isinstance(expression.operator, cst.Modulo) else lhs_dest,
+                    stack,
+                    clobbers,
+                    context,
+                )
+                compiled.append_code("  LOAD A")
+
+            else:
+                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+
+            # This call puts the result in a, so check if that's what we want.
+            if is_register_destination(destination):
+                # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
+                stack.free(rhs_dest)
+                stack.free(lhs_dest)
+            else:
+                stack.free(rhs_dest)
+                compiled += generate_move_to(destination, stack, clobbers, context)
+                compiled.append_code("  STORE A")
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
+
+        else:
+            if isinstance(expression.operator, cst.Subtract):
+                if not destination_type.is_integer:
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
+                # Using the neg16 or neg32 fnction that's part of our stdlib.
+                negfunc = "neg16" if destination_size == 2 else "neg32"
+                compiled += generate_function_call_internal(
+                    create_call(
+                        negfunc,
+                        [UnvalidatedName(rhs_dest)],
+                    ),
+                    rhs_dest,
+                    types,
+                    stack,
+                    clobbers,
+                    refs,
+                    local_consts,
+                    context.wrap(expression.right, extra="-"),
+                )
+
+                # Using the add16 or add32 function that's part of our stdlib.
+                addfunc = "add16" if destination_size == 2 else "add32"
+
+                compiled += generate_function_call_internal(
+                    create_call(
+                        addfunc,
+                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)],
+                    ),
+                    destination,
+                    types,
+                    stack,
+                    clobbers,
+                    refs,
+                    local_consts,
+                    context.wrap(expression),
+                )
+
+                stack.free(rhs_dest)
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
+
+            elif isinstance(expression.operator, (cst.Add, cst.Multiply)):
+                if not destination_type.is_integer:
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
+                if isinstance(expression.operator, cst.Add):
+                    # Using the add16 or add32 function that's part of our stdlib.
+                    function = "add16" if destination_size == 2 else "add32"
+                elif isinstance(expression.operator, cst.Multiply):
+                    # Using the mult16 or mult32 function that's part of our stdlib.
+                    function = "mult16" if destination_size == 2 else "mult32"
+                else:
+                    raise Exception("Logic error, unexpected operator {expression.operator)}")
+
+                compiled += generate_function_call_internal(
+                    create_call(
+                        function,
+                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                    ),
+                    destination,
+                    types,
+                    stack,
+                    clobbers,
+                    refs,
+                    local_consts,
+                    context.wrap(expression),
+                )
+
+                stack.free(rhs_dest)
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
+
+            elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
+                if not (destination_type.is_integer and destination_type.is_unsigned):
+                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
+
+                # Division is weird, since the built-in stdlib function handles both modulo and division.
+                # The stdlib function is setup to return both in the input stack locations, so we need to
+                # copy the correct one out.
+                function = "udiv16" if destination_size == 2 else "udiv32"
+                compiled += generate_function_call_internal(
+                    create_call(
+                        function,
+                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                    ),
+                    None,
+                    types,
+                    stack,
+                    clobbers,
+                    refs,
+                    local_consts,
+                    context.wrap(expression),
+                )
+
+                location = rhs_dest if isinstance(expression.operator, cst.Modulo) else lhs_dest
+                if location != destination:
+                    compiled += generate_memcpy_stackvars(destination, location, stack, clobbers, context)
+
+                # Now that we copied this to the destination, this is useless.
+                stack.free(rhs_dest)
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
+
+            elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
+                if not destination_type.is_integer:
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+
                 # Adding clobbers the A register, since it is the accumulator.
                 clobbers.add("A")
 
-            # Move to the right spot on the stack and then add the two numbers.
-            compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-            compiled.append_code("  LOAD A")
-            compiled += generate_move_to(lhs_dest, stack, clobbers, context)
+                # Compute our actual function that we will apply as we walk the stack.
+                if isinstance(expression.operator, cst.BitAnd):
+                    function = "  AND"
+                elif isinstance(expression.operator, cst.BitOr):
+                    function = "  OR"
+                elif isinstance(expression.operator, cst.BitXor):
+                    function = "  XOR"
+                else:
+                    raise Exception("Logic error, unexpected operator {expression.operator)}")
 
-            if isinstance(expression.operator, cst.Add):
-                compiled.append_code("  ADD")
-            elif isinstance(expression.operator, cst.BitAnd):
-                compiled.append_code("  AND")
-            elif isinstance(expression.operator, cst.BitOr):
-                compiled.append_code("  OR")
-            elif isinstance(expression.operator, cst.BitXor):
-                compiled.append_code("  XOR")
-            else:
-                raise Exception("Logic error, unexpected operator {expression.operator)}")
-
-        elif isinstance(expression.operator, cst.Multiply):
-            if not destination_type.is_integer:
-                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
-
-            compiled += generate_function_call_internal(
-                create_call(
-                    "mult",
-                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
-                ),
-                destination,
-                types,
-                stack,
-                clobbers,
-                refs,
-                local_consts,
-                context.wrap(expression),
-            )
-
-        elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
-            if not (destination_type.is_integer and destination_type.is_unsigned):
-                raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
-
-            # Division is weird, since the built-in stdlib function handles both modulo and division.
-            # The stdlib function is setup to return both in the input stack locations, so we need to
-            # copy the correct one out.
-            compiled += generate_function_call_internal(
-                create_call(
-                    "udiv",
-                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
-                ),
-                None,
-                types,
-                stack,
-                clobbers,
-                refs,
-                local_consts,
-                context.wrap(expression),
-            )
-
-            compiled += generate_move_to(
-                rhs_dest if isinstance(expression.operator, cst.Modulo) else lhs_dest,
-                stack,
-                clobbers,
-                context,
-            )
-            compiled.append_code("  LOAD A")
-
-        else:
-            raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
-
-        # This call puts the result in a, so check if that's what we want.
-        if is_register_destination(destination):
-            # Just make sure we bookkeep things. Both the LHS and RHS need to be unwound.
-            stack.free(rhs_dest)
-            stack.free(lhs_dest)
-        else:
-            stack.free(rhs_dest)
-            compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A")
-            if lhs_dest != destination:
-                stack.free(lhs_dest)
-
-    else:
-        if isinstance(expression.operator, cst.Subtract):
-            if not destination_type.is_integer:
-                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
-
-            # Using the neg16 or neg32 fnction that's part of our stdlib.
-            negfunc = "neg16" if destination_size == 2 else "neg32"
-            compiled += generate_function_call_internal(
-                create_call(
-                    negfunc,
-                    [UnvalidatedName(rhs_dest)],
-                ),
-                rhs_dest,
-                types,
-                stack,
-                clobbers,
-                refs,
-                local_consts,
-                context.wrap(expression.right, extra="-"),
-            )
-
-            # Using the add16 or add32 function that's part of our stdlib.
-            addfunc = "add16" if destination_size == 2 else "add32"
-
-            compiled += generate_function_call_internal(
-                create_call(
-                    addfunc,
-                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)],
-                ),
-                destination,
-                types,
-                stack,
-                clobbers,
-                refs,
-                local_consts,
-                context.wrap(expression),
-            )
-
-            stack.free(rhs_dest)
-            if lhs_dest != destination:
-                stack.free(lhs_dest)
-
-        elif isinstance(expression.operator, (cst.Add, cst.Multiply)):
-            if not destination_type.is_integer:
-                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
-
-            if isinstance(expression.operator, cst.Add):
-                # Using the add16 or add32 function that's part of our stdlib.
-                function = "add16" if destination_size == 2 else "add32"
-            elif isinstance(expression.operator, cst.Multiply):
-                # Using the mult16 or mult32 function that's part of our stdlib.
-                function = "mult16" if destination_size == 2 else "mult32"
-            else:
-                raise Exception("Logic error, unexpected operator {expression.operator)}")
-
-            compiled += generate_function_call_internal(
-                create_call(
-                    function,
-                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
-                ),
-                destination,
-                types,
-                stack,
-                clobbers,
-                refs,
-                local_consts,
-                context.wrap(expression),
-            )
-
-            stack.free(rhs_dest)
-            if lhs_dest != destination:
-                stack.free(lhs_dest)
-
-        elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
-            if not (destination_type.is_integer and destination_type.is_unsigned):
-                raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
-
-            # Division is weird, since the built-in stdlib function handles both modulo and division.
-            # The stdlib function is setup to return both in the input stack locations, so we need to
-            # copy the correct one out.
-            function = "udiv16" if destination_size == 2 else "udiv32"
-            compiled += generate_function_call_internal(
-                create_call(
-                    function,
-                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
-                ),
-                None,
-                types,
-                stack,
-                clobbers,
-                refs,
-                local_consts,
-                context.wrap(expression),
-            )
-
-            location = rhs_dest if isinstance(expression.operator, cst.Modulo) else lhs_dest
-            if location != destination:
-                if stack_is_at(location, stack, offset=destination_size - 1):
+                if stack_is_at(rhs_dest, stack, offset=destination_size - 1):
                     # We're already at the top of the stack, generate the load/func/store loop downwards
                     # instead of upwards to shave off a move instruction.
                     def actual_expr_offset(offset: int) -> int:
@@ -2788,60 +2893,19 @@ def generate_binary_expr(
                 # Move to the right spot on the stack and then perform the operation on the two numbers.
                 # Since bitwise operations are independent we can just do this in a loop.
                 for offset in range(destination_size):
-                    compiled += generate_move_to(location, stack, clobbers, context, offset=actual_expr_offset(offset))
+                    compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
                     compiled.append_code("  LOAD A")
+                    compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
+                    compiled.append_code(function)
                     compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
                     compiled.append_code("  STORE A")
 
-            # Now that we copied this to the destination, this is useless.
-            stack.free(rhs_dest)
-            if lhs_dest != destination:
-                stack.free(lhs_dest)
+                stack.free(rhs_dest)
+                if lhs_dest != destination:
+                    stack.free(lhs_dest)
 
-        elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
-            if not destination_type.is_integer:
-                raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
-
-            # Adding clobbers the A register, since it is the accumulator.
-            clobbers.add("A")
-
-            # Compute our actual function that we will apply as we walk the stack.
-            if isinstance(expression.operator, cst.BitAnd):
-                function = "  AND"
-            elif isinstance(expression.operator, cst.BitOr):
-                function = "  OR"
-            elif isinstance(expression.operator, cst.BitXor):
-                function = "  XOR"
             else:
-                raise Exception("Logic error, unexpected operator {expression.operator)}")
-
-            if stack_is_at(rhs_dest, stack, offset=destination_size - 1):
-                # We're already at the top of the stack, generate the load/func/store loop downwards
-                # instead of upwards to shave off a move instruction.
-                def actual_expr_offset(offset: int) -> int:
-                    return (destination_size - offset) - 1
-            else:
-                # We're anywhere else in the stack, so it costs us no unnecessary move instructions
-                # to perform the first move.
-                def actual_expr_offset(offset: int) -> int:
-                    return offset
-
-            # Move to the right spot on the stack and then perform the operation on the two numbers.
-            # Since bitwise operations are independent we can just do this in a loop.
-            for offset in range(destination_size):
-                compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                compiled.append_code("  LOAD A")
-                compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                compiled.append_code(function)
-                compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
-                compiled.append_code("  STORE A")
-
-            stack.free(rhs_dest)
-            if lhs_dest != destination:
-                stack.free(lhs_dest)
-
-        else:
-            raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
 
     return compiled
 
@@ -3575,7 +3639,7 @@ def generate_expr_internal(
                         if source_loc is None or dest_loc is None:
                             raise Exception("Logic error, expected to find location of internal variables!")
 
-                        compiled += generate_memcpy_unrolled(source_loc, dest_loc, 2, stack, clobbers, context)
+                        compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
                     else:
                         # Safe to put first parameter in the top of the stack where it already is useful for math.
                         lhs_dest = destination
@@ -3749,6 +3813,14 @@ def infer_expr_types_impl(
         right_inferred = right_tree[expression.right]
 
         if isinstance(expression.operator, (cst.Add, cst.Subtract, cst.BitAnd, cst.BitOr, cst.BitXor, cst.Multiply, cst.Divide, cst.FloorDivide, cst.Modulo)):
+            if isinstance(expression.operator, cst.Add):
+                if left_inferred.is_string and right_inferred.is_string:
+                    # This is string concatenation.
+                    inferred[expression] = CoreType("string", None, const=False, extern=False)
+                    inferred.update(left_tree)
+                    inferred.update(right_tree)
+                    return inferred
+
             if not left_inferred.is_integer:
                 raise CompilerError(f"Unsupported binary operation for type {left_inferred.type}", context)
             if not right_inferred.is_integer:

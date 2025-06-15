@@ -1,5 +1,5 @@
 Things that I think I am going to need if I want to use this compiler:
- - string support, including concatenation, character indexing, comparison, etc.
+ - string support, including character indexing, comparison, etc.
  - integer/boolean array support, including reading/writing values using array syntax.
  - support for allocating local and global arrays using int[length].
  - support for allocating extern global arrays using int[inf] or similar syntax.

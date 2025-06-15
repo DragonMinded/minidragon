@@ -10156,6 +10156,145 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for stringlength: {int(instructions/count)}")
 
 
+def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "stringconcatenation" not in only and "compiler" not in only:
+        return
+
+    print("Verifying stringconcatenation...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+    with open("lib/string/strcat.S", "r") as fp:
+        strcatlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Concatenate string that is passed in via parameters.
+    for val in ["jen", "dragon", "world"]:
+        sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
+            def say_hello(thing: string) -> string[64]:
+                return "Hello, " + thing + "!"
+
+            def caller() -> const[string]:
+                return say_hello("{val}")
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *strcatlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL caller",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringconcatenation", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringconcatenation changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringconcatenation changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringconcatenation changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = f"Hello, {val}!"
+        _assert(
+            result == expected,
+            "Failed to stringconcatenation simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Concatenate string that is returned from a function.
+    for val in ["jen", "dragon", "world"]:
+        sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
+            def who() -> const[string]:
+                return "{val}"
+
+            def say_hello() -> string[64]:
+                return "Hello, " + who() + "!"
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *strcatlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL say_hello",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringconcatenation", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringconcatenation changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringconcatenation changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringconcatenation changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = f"Hello, {val}!"
+        _assert(
+            result == expected,
+            "Failed to stringconcatenation simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for stringconcatenation: {int(cycles/count)}")
+    print(f"Average instructions for stringconcatenation: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -10278,3 +10417,4 @@ if __name__ == "__main__":
     verifyforstatements(only, args.full)
     verifystringreturn(only, args.full)
     verifystringlength(only, args.full)
+    verifystringconcatenation(only, args.full)
