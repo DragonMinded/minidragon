@@ -8,7 +8,7 @@ from typing import Dict, Final, Iterable, Iterator, List, Mapping, Optional, Seq
 from .assembler import assemble
 
 
-MAX_STRING_LENGTH: Final[int] = 255
+MAX_STRING_LENGTH: Final[int] = 127
 
 
 def comment_source(extra: Optional[str] = None) -> str:
