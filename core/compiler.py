@@ -159,7 +159,7 @@ class CoreType:
             pre = "extern[" + pre
             post = post + "]"
 
-        if self.length is not None:
+        if self.length is not None and self.length > 0:
             typestr = f"{typestr}[{self.length}]"
 
         return pre + typestr + post
@@ -1548,8 +1548,28 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
             compiled.append_code(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
             compiled.append_code("  STORE A")
 
+    elif dtype.is_char:
+        if not isinstance(val, str):
+            raise CompilerError("Unsupported non-character constant load!", context)
+        if len(val) != 1:
+            raise CompilerError(f"Invalid character constant {val!r}", context)
+
+        if is_register_destination(destination):
+            compiled.append_code(f"  LOADI {val!r}")
+        else:
+            clobbers.add("A")
+
+            dest_loc = stack.find(destination)
+            dest_size = stack.sizeof(destination)
+            if dest_loc is None or dest_size is None:
+                raise Exception("Logic error, cannot find destination to load constant to!")
+
+            compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
+            compiled.append_code(f"  LOADI {val!r}")
+            compiled.append_code("  STORE A")
+
     else:
-        raise CompilerError("Unsupported constant load of type {dtype.type}!", context)
+        raise CompilerError(f"Unsupported constant load of type {dtype.type}!", context)
 
     return compiled
 
@@ -3541,6 +3561,70 @@ def generate_ternary_expr(
     return compiled
 
 
+def generate_subscript_expr(
+    expression: cst.Subscript,
+    destination: Optional[str],
+    types: Dict[cst.CSTNode, CoreType],
+    stack: Stack,
+    clobbers: Set[str],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> Sections:
+    compiled = Sections()
+
+    # We always end up needing the string on the left hand size, regardless of whether we're
+    # indexing or slicing into it.
+    base_dest = expr_temp_name()
+    stack.alloc(StackVar(base_dest, CoreType("string", const=True)))
+    compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.value))
+
+    if len(expression.slice) != 1:
+        raise CompilerError("Unsupported slice count in subscript expression", context)
+    slice_or_index = expression.slice[0].slice
+
+    if isinstance(slice_or_index, cst.Index):
+        # Calculate the offset into the string that we're gonna need, first.
+        compiled += generate_expr_internal(slice_or_index.value, "register(A, uint8)", types, stack, clobbers, refs, local_consts, context.wrap(slice_or_index.value))
+
+        # We clobber the SPC to do this index lookup.
+        clobbers.add("SPC")
+
+        # Move to the correct spot on the stack to pop the pointer onto the SPC.
+        compiled += generate_move_to(base_dest, stack, clobbers, context, offset=1)
+        compiled.append_code("  POP SPC")
+        stack.move(-2)
+        compiled.code += comment_stack(stack)
+
+        compiled.append_code("  SWAP PC, SPC")
+        compiled.append_code("  ADDPC")
+        compiled.append_code("  LOAD A")
+        compiled.append_code("  SWAP PC, SPC")
+
+        if destination is not None:
+            destination_size = stack.sizeof(destination)
+            if destination_size is None:
+                raise Exception("Logic error, could not calculate size of destination!")
+            destination_type = stack.typeof(destination)
+            if destination_type is None:
+                raise Exception("Logic error, could not calculate type of destination!")
+
+            if destination_size != 1 or not destination_type.is_char:
+                raise Exception("Logic error, invalid character assignment expression!")
+
+            if not is_register_destination(destination):
+                compiled += generate_move_to(destination, stack, clobbers, context)
+                compiled.append_code("  STORE A")
+
+    elif isinstance(slice_or_index, cst.Slice):
+        raise Exception("TODO")
+
+    else:
+        raise Exception("Logic error, unexpected node {slice_or_index} for subscript slice!")
+
+    return compiled
+
+
 def generate_expr_internal(
     expression: cst.BaseExpression,
     destination: Optional[str],
@@ -3579,7 +3663,20 @@ def generate_expr_internal(
 
             if destination is not None:
                 destination_type = stack.typeof(destination)
-                if destination_type is None or not destination_type.is_string:
+                if destination_type is None:
+                    raise Exception("Logic error, could not find type of string pointer destination!")
+
+                # Python treats strings and characters the same, so let's fix that here.
+                if destination_type.is_char:
+                    compiled += generate_const_load(value, destination, stack, clobbers, context)
+
+                    # We're gonna assign to this, so it should be considered initialized. Do this here instead of at the top
+                    # so we can catch variables assigning from themselves when unassigned.
+                    stack.init(destination)
+
+                    return compiled
+
+                if not destination_type.is_string:
                     raise Exception("Logic error, tried to assign string pointer to wrong type!")
 
                 if destination_type.const:
@@ -3719,6 +3816,10 @@ def generate_expr_internal(
         if destination is not None:
             compiled += generate_ternary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
 
+    elif isinstance(expression, cst.Subscript):
+        # Allowing subscript operation without a destination because it could allow register clear on read.
+        compiled += generate_subscript_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
         # TODO: Looks like also string/character assignments and such, and everything with string manipulation.
@@ -3792,7 +3893,19 @@ def infer_expr_types_impl(
         return inferred
 
     elif isinstance(expression, cst.SimpleString):
-        inferred[expression] = CoreType("string", const=True)
+        try:
+            value = codegen_eval(expression, [])
+        except NonConstantExpressionException:
+            raise Exception("Logic error, couldn't get string from SimpleString!")
+        if not isinstance(value, str):
+            raise Exception("Logic error, didn't get string back from codegen_eval!")
+
+        length_needed = len(value) + 1
+
+        if length_needed > MAX_STRING_LENGTH:
+            raise CompilerError(f"Unsupported too-long string, strings are required to be {MAX_STRING_LENGTH} characters maximum", context)
+
+        inferred[expression] = CoreType("string", const=True, length=length_needed)
         return inferred
 
     elif isinstance(expression, cst.UnaryOperation):
@@ -3942,6 +4055,54 @@ def infer_expr_types_impl(
             picked = orelse_inferred
 
         inferred[expression] = CoreType(picked.type, picked.pointed_type, const=picked.const, extern=picked.extern, return_padding=picked.return_padding)
+        return inferred
+
+    elif isinstance(expression, cst.Subscript):
+        array_tree = infer_expr_types_impl(expression.value, stack, refs, local_consts, context.wrap(expression.value))
+        array_inferred = array_tree[expression.value]
+        if not array_inferred.is_string:
+            raise CompilerError(f"Unsupported non-string type {array_inferred.type} in subscript expression", context)
+
+        if len(expression.slice) != 1:
+            raise CompilerError("Unsupported slice count in subscript expression", context)
+        slice_or_index = expression.slice[0].slice
+
+        if isinstance(slice_or_index, cst.Index):
+            index_tree = infer_expr_types_impl(slice_or_index.value, stack, refs, local_consts, context.wrap(slice_or_index.value))
+            index_type = index_tree[slice_or_index.value]
+
+            if index_type.type == "int":
+                infer_tree(index_tree, CoreType("uint8", const=True), context)
+            if not index_type.is_integer:
+                raise CompilerError(f"Unsupported non-integer index type {index_type.type} in subscript expression", context)
+
+            inferred.update(array_tree)
+            inferred.update(index_tree)
+            inferred[expression] = CoreType("char")
+
+        elif isinstance(slice_or_index, cst.Slice):
+            if slice_or_index.step is not None:
+                raise CompilerError("Unsupported step for slice in subscript expression", context)
+
+            for node in [slice_or_index.lower, slice_or_index.upper]:
+                if node is None:
+                    continue
+
+                slice_tree = infer_expr_types_impl(node, stack, refs, local_consts, context.wrap(node))
+                slice_type = index_tree[node]
+
+                if slice_type.type == "int":
+                    infer_tree(slice_tree, CoreType("uint8", const=True), context)
+                if not slice_type.is_integer:
+                    raise CompilerError(f"Unsupported non-integer index type {slice_type.type} in subscript expression", context)
+
+                inferred.update(slice_tree)
+
+            inferred[expression] = CoreType("string")
+
+        else:
+            raise Exception("Logic error, unexpected node {slice_or_index} for subscript slice!")
+
         return inferred
 
     else:

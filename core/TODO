@@ -1,5 +1,5 @@
 Things that I think I am going to need if I want to use this compiler:
- - string support, including character indexing to get a character from a string, assignment to change a character in a string, slices, string comparisons, and character concatenation.
+ - string support, including assignment to change a character in a string, slices, string comparisons, and character concatenation.
  - support for str() so that we can convert booleans, integers and characters to strings.
  - simple f-string support.
  - integer/boolean array support, including reading/writing values using array syntax.
