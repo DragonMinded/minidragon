@@ -164,6 +164,21 @@ class CoreType:
 
         return pre + typestr + post
 
+    def const_clone(self) -> "CoreType":
+        if self.const:
+            return self
+        if self.type not in {"string", "pointer"}:
+            return self
+
+        return CoreType(
+            self.type,
+            self.pointed_type,
+            length=self.length,
+            const=self.const,
+            extern=self.extern,
+            return_padding=self.return_padding,
+        )
+
     @property
     def size(self) -> int:
         # Mostly a dummy type, for void returns.
@@ -232,6 +247,13 @@ class PreservedCoreType(CoreType):
     def __init__(self, base_type: str) -> None:
         super().__init__(base_type, None, const=True)
 
+    def const_clone(self) -> "PreservedCoreType":
+        # Always constant, already.
+        if not self.const:
+            raise Exception("Logic error, PreservedCoreType is somehow not const?")
+
+        return self
+
 
 class InOutCoreType(CoreType):
     """
@@ -242,6 +264,16 @@ class InOutCoreType(CoreType):
 
     def __init__(self, base_type: str) -> None:
         super().__init__(base_type, None, const=False)
+
+    def const_clone(self) -> "InOutCoreType":
+        if self.type not in {"string", "pointer"}:
+            return self
+
+        new_type = InOutCoreType(
+            self.type,
+        )
+        new_type.const = True
+        return new_type
 
 
 class OutCoreType(CoreType):
@@ -255,6 +287,16 @@ class OutCoreType(CoreType):
     def __init__(self, base_type: str) -> None:
         super().__init__(base_type, None, const=False)
 
+    def const_clone(self) -> "OutCoreType":
+        if self.type not in {"string", "pointer"}:
+            return self
+
+        new_type = OutCoreType(
+            self.type,
+        )
+        new_type.const = True
+        return new_type
+
 
 class RegisterCoreType(CoreType):
     """
@@ -262,8 +304,19 @@ class RegisterCoreType(CoreType):
     places its output in a particular register instead of on the stack.
     """
 
-    def __init__(self, register: str) -> None:
-        super().__init__(register, None, const=False)
+    def __init__(self, base_type: str, register: str) -> None:
+        super().__init__(base_type, None, const=False)
+        self.register = register
+
+    def const_clone(self) -> "RegisterCoreType":
+        if self.type not in {"string", "pointer"}:
+            return self
+
+        new_type = RegisterCoreType(
+            self.type, self.register
+        )
+        new_type.const = True
+        return new_type
 
 
 class ParamReturnCoreType(CoreType):
@@ -274,6 +327,10 @@ class ParamReturnCoreType(CoreType):
 
     def __init__(self, position: int) -> None:
         super().__init__("position: " + str(position), None, const=False)
+
+    def const_clone(self) -> "ParamReturnCoreType":
+        # This is just a pointer to a parameter value.
+        return self
 
     @property
     def position(self) -> int:
@@ -288,6 +345,10 @@ class PaddingCoreType(CoreType):
 
     def __init__(self, padbytes: int) -> None:
         super().__init__("padding: " + str(padbytes), None, const=False)
+
+    def const_clone(self) -> "PaddingCoreType":
+        # This is just a padding value.
+        return self
 
     @property
     def padbytes(self) -> int:
@@ -1496,7 +1557,10 @@ def get_function_params_impl(
     param_count: int = 0
     needed_args: List[CoreType] = []
     for needed_arg in function_prototype.params:
-        needed_args.append(needed_arg)
+        # All arguments that are passed by reference (strings, pointers, arrays) need to be marked as const
+        # here, simply to stop any sort of internal copy on assign operation. We don't want to force the
+        # programmer to declare all params of this type const because then they couldn't have mutatable params.
+        needed_args.append(needed_arg.const_clone())
 
         if isinstance(needed_arg, PaddingCoreType):
             # Not the responsibility of the caller, we will set this up.
@@ -1524,7 +1588,7 @@ def get_function_params(
     return args, needed_args
 
 
-def generate_function_call(
+def generate_function_call_internal(
     call: cst.Call,
     destination: Optional[str],
     types: Dict[cst.CSTNode, CoreType],
@@ -1788,15 +1852,15 @@ def generate_function_call(
         if destination is not None:
             if is_register_destination(destination):
                 # We're already returning to a register, so we're done here!
-                if function_prototype.return_type.type != "A":
-                    raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
+                if function_prototype.return_type.register != "A":
+                    raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.register} for function")
             else:
                 compiled += generate_move_to(destination, stack, clobbers, context)
-                if function_prototype.return_type.type == "A":
+                if function_prototype.return_type.register == "A":
                     compiled.append_code("  STORE A")
                     stack.init(destination)
                 else:
-                    raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.type} for function")
+                    raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.register} for function")
 
     # Now, do some bookkeeping, first copying anything that we need to copy that was an in-out param.
     for dst, src in copy_mapping.items():
@@ -1871,6 +1935,44 @@ def generate_function_call(
                     raise CompilerError("Unsupported function return from different variable sizes", context)
 
     return compiled
+
+
+def generate_function_call(
+    call: cst.Call,
+    destination: Optional[str],
+    types: Dict[cst.CSTNode, CoreType],
+    stack: Stack,
+    clobbers: Set[str],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> Sections:
+    # Generate builtins code for python intrinsics that we wish to support.
+    if isinstance(call.func, cst.Name) and call.func.value in {"len"}:
+        function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
+        args, arg_types = get_function_params(call, function_prototype, context)
+
+        if function_prototype.name == "len":
+            if len(args) != 1 or len(arg_types) != 1:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            # String or array length calculation.
+            return generate_function_call_internal(
+                create_call("strlen", [args[0].value]),
+                destination,
+                types,
+                stack,
+                clobbers,
+                refs,
+                local_consts,
+                context,
+            )
+
+        else:
+            raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
+
+    else:
+        return generate_function_call_internal(call, destination, types, stack, clobbers, refs, local_consts, context)
 
 
 __comment_ref_count: int = 0
@@ -2058,7 +2160,7 @@ def generate_variable_lookup(
                     stack.location += 2
 
                     # Now call strcpy.
-                    compiled += generate_function_call(
+                    compiled += generate_function_call_internal(
                         create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
                         None,
                         types,
@@ -2244,7 +2346,7 @@ def generate_variable_lookup(
             compiled += generate_memcpy_unrolled(source_loc, dest_loc, 2, stack, clobbers, context)
 
             # Now call strcpy.
-            compiled += generate_function_call(
+            compiled += generate_function_call_internal(
                 create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
                 None,
                 types,
@@ -2370,7 +2472,7 @@ def generate_unary_expr(
             if isinstance(expression.operator, cst.Minus):
                 # Using the neg16 or neg32 function that's part of our stdlib.
                 function = "neg16" if destination_size == 2 else "neg32"
-                compiled += generate_function_call(
+                compiled += generate_function_call_internal(
                     create_call(
                         function,
                         [UnvalidatedName(internal_dest)],
@@ -2517,9 +2619,7 @@ def generate_binary_expr(
             if not destination_type.is_integer:
                 raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
-            # If we ever fix our argument overlapping in the function call, we should see
-            # surprising optimization here with no need to copy parameters around.
-            compiled += generate_function_call(
+            compiled += generate_function_call_internal(
                 create_call(
                     "mult",
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
@@ -2540,7 +2640,7 @@ def generate_binary_expr(
             # Division is weird, since the built-in stdlib function handles both modulo and division.
             # The stdlib function is setup to return both in the input stack locations, so we need to
             # copy the correct one out.
-            compiled += generate_function_call(
+            compiled += generate_function_call_internal(
                 create_call(
                     "udiv",
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
@@ -2584,7 +2684,7 @@ def generate_binary_expr(
 
             # Using the neg16 or neg32 fnction that's part of our stdlib.
             negfunc = "neg16" if destination_size == 2 else "neg32"
-            compiled += generate_function_call(
+            compiled += generate_function_call_internal(
                 create_call(
                     negfunc,
                     [UnvalidatedName(rhs_dest)],
@@ -2601,9 +2701,7 @@ def generate_binary_expr(
             # Using the add16 or add32 function that's part of our stdlib.
             addfunc = "add16" if destination_size == 2 else "add32"
 
-            # If we ever fix our argument overlapping in the function call, we should see
-            # surprising optimization here with no need to copy parameters around.
-            compiled += generate_function_call(
+            compiled += generate_function_call_internal(
                 create_call(
                     addfunc,
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)],
@@ -2634,9 +2732,7 @@ def generate_binary_expr(
             else:
                 raise Exception("Logic error, unexpected operator {expression.operator)}")
 
-            # If we ever fix our argument overlapping in the function call, we should see
-            # surprising optimization here with no need to copy parameters around.
-            compiled += generate_function_call(
+            compiled += generate_function_call_internal(
                 create_call(
                     function,
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
@@ -2662,7 +2758,7 @@ def generate_binary_expr(
             # The stdlib function is setup to return both in the input stack locations, so we need to
             # copy the correct one out.
             function = "udiv16" if destination_size == 2 else "udiv32"
-            compiled += generate_function_call(
+            compiled += generate_function_call_internal(
                 create_call(
                     function,
                     [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
@@ -3238,7 +3334,7 @@ def generate_comparison_expr(
         else:
             raise Exception(f"Logic error, unexpected comparison size {comparison_size}!")
 
-        compiled += generate_function_call(
+        compiled += generate_function_call_internal(
             create_call(
                 func_name,
                 [UnvalidatedName(x) for x in unequal_cleanup],
@@ -3494,7 +3590,7 @@ def generate_expr_internal(
                     stack.location += 2
 
                     # Now call strcpy.
-                    compiled += generate_function_call(
+                    compiled += generate_function_call_internal(
                         create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
                         None,
                         types,
@@ -3686,7 +3782,7 @@ def infer_expr_types_impl(
         return inferred
 
     elif isinstance(expression, cst.Call):
-        function_prototype = get_function_prototype(expression, stack, refs, local_consts, context)
+        function_prototype = get_function_prototype(expression, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(expression, function_prototype, context)
 
         for i, (arg, argtype) in enumerate(zip(args, arg_types)):
@@ -5200,6 +5296,12 @@ def parse_and_compile_module(module: str, code: str) -> Sections:
     return compile_module(module, code, forward_refs)
 
 
+def builtin_functions() -> List[FunctionPrototype]:
+    return [
+        FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("string")]),
+    ]
+
+
 def builtin_consts() -> List[Constant]:
     return [
         Constant("True", CoreType("bool", const=True), value=True),
@@ -5211,29 +5313,29 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
     prototypes: List[Union[FunctionPrototype, GlobalVariable]] = [
         # STDLIB string functions.
         FunctionPrototype("strcat", VoidType, [PreservedCoreType("string"), PreservedCoreType("string")]),
-        FunctionPrototype("strcmp", RegisterCoreType("A"), [PreservedCoreType("string"), PreservedCoreType("string")]),
+        FunctionPrototype("strcmp", RegisterCoreType("int8", "A"), [PreservedCoreType("string"), PreservedCoreType("string")]),
         FunctionPrototype("strcpy", VoidType, [PreservedCoreType("string"), PreservedCoreType("string")]),
-        FunctionPrototype("strlen", RegisterCoreType("A"), [PreservedCoreType("string")]),
+        FunctionPrototype("strlen", RegisterCoreType("uint8", "A"), [PreservedCoreType("string")]),
 
         # STDLIB string/integer conversion functions.
-        FunctionPrototype("atoi", RegisterCoreType("A"), [InOutCoreType("string")]),
+        FunctionPrototype("atoi", RegisterCoreType("int8", "A"), [InOutCoreType("string")]),
         FunctionPrototype("atoi16", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int16")]),
         FunctionPrototype("atoi32", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int32")]),
-        FunctionPrototype("itoa", VoidType, [RegisterCoreType("A"), PreservedCoreType("string")]),
+        FunctionPrototype("itoa", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("string")]),
         FunctionPrototype("itoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("string")]),
         FunctionPrototype("itoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("string")]),
 
         # STDLIB integer math functions.
-        FunctionPrototype("abs", RegisterCoreType("A"), [RegisterCoreType("A")]),
+        FunctionPrototype("abs", RegisterCoreType("int8", "A"), [RegisterCoreType("int8", "A")]),
         FunctionPrototype("abs16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
         FunctionPrototype("abs32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
-        FunctionPrototype("neg", RegisterCoreType("A"), [PreservedCoreType("int8")]),
+        FunctionPrototype("neg", RegisterCoreType("int8", "A"), [PreservedCoreType("int8")]),
         FunctionPrototype("neg16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
         FunctionPrototype("neg32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
-        FunctionPrototype("add", RegisterCoreType("A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
+        FunctionPrototype("add", RegisterCoreType("int8", "A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
         FunctionPrototype("add16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("add32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
-        FunctionPrototype("mult", RegisterCoreType("A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
+        FunctionPrototype("mult", RegisterCoreType("int8", "A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
         FunctionPrototype("mult16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("mult32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
         FunctionPrototype("udiv", VoidType, [InOutCoreType("int8"), InOutCoreType("int8")]),
@@ -5241,16 +5343,16 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("udiv32", VoidType, [InOutCoreType("int32"), InOutCoreType("int32")]),
 
         # STDLIB integer comparison functions.
-        FunctionPrototype("ucmp", RegisterCoreType("A"), [InOutCoreType("uint8"), InOutCoreType("uint8")]),
-        FunctionPrototype("ucmp16", RegisterCoreType("A"), [InOutCoreType("uint16"), InOutCoreType("uint16")]),
-        FunctionPrototype("ucmp32", RegisterCoreType("A"), [InOutCoreType("uint32"), InOutCoreType("uint32")]),
-        FunctionPrototype("cmp", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
-        FunctionPrototype("cmp16", RegisterCoreType("A"), [InOutCoreType("int16"), InOutCoreType("int16")]),
-        FunctionPrototype("cmp32", RegisterCoreType("A"), [InOutCoreType("int32"), InOutCoreType("int32")]),
-        FunctionPrototype("umin", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("ucmp", RegisterCoreType("int8", "A"), [InOutCoreType("uint8"), InOutCoreType("uint8")]),
+        FunctionPrototype("ucmp16", RegisterCoreType("int8", "A"), [InOutCoreType("uint16"), InOutCoreType("uint16")]),
+        FunctionPrototype("ucmp32", RegisterCoreType("int8", "A"), [InOutCoreType("uint32"), InOutCoreType("uint32")]),
+        FunctionPrototype("cmp", RegisterCoreType("int8", "A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("cmp16", RegisterCoreType("int8", "A"), [InOutCoreType("int16"), InOutCoreType("int16")]),
+        FunctionPrototype("cmp32", RegisterCoreType("int8", "A"), [InOutCoreType("int32"), InOutCoreType("int32")]),
+        FunctionPrototype("umin", RegisterCoreType("int8", "A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("umin16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("umin32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
-        FunctionPrototype("umax", RegisterCoreType("A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("umax", RegisterCoreType("int8", "A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("umax16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("umax32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
     ]

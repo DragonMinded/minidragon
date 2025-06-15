@@ -9962,6 +9962,200 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for stringreturn: {int(instructions/count)}")
 
 
+def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "stringlength" not in only and "compiler" not in only:
+        return
+
+    print("Verifying stringlength...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+    with open("lib/string/strlen.S", "r") as fp:
+        strlenlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Attempt to do string length on a constant string.
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            STRING_CONST: const[string] = "{val}"
+
+            def string_length() -> uint8:
+                return len(STRING_CONST)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL string_length",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Attempt to do string length on a function parameter with an intermediate variable.
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            def string_length(which: string) -> uint8:
+                return len(which)
+
+            def caller() -> uint8:
+                val: const[string] = "{val}"
+                return string_length(val)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL caller",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Attempt to do string length on a function parameter without an intermediate variable.
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            def string_length(which: string) -> uint8:
+                return len(which)
+
+            def caller() -> uint8:
+                return string_length("{val}")
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL caller",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for stringlength: {int(cycles/count)}")
+    print(f"Average instructions for stringlength: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -10083,3 +10277,4 @@ if __name__ == "__main__":
     verifywhilestatements(only, args.full)
     verifyforstatements(only, args.full)
     verifystringreturn(only, args.full)
+    verifystringlength(only, args.full)

@@ -1,10 +1,10 @@
 Things that I think I am going to need if I want to use this compiler:
- - string support, including initializing with constant values, concatenation, length, character indexing, etc.
+ - string support, including concatenation, character indexing, comparison, etc.
  - integer/boolean array support, including reading/writing values using array syntax.
  - support for allocating local and global arrays using int[length].
  - support for allocating extern global arrays using int[inf] or similar syntax.
  - << and >> expressions, since we forgot about bit shifting.
- - builtins that will be needed such as abs(), len(), bool(), chr(), ord(), str(), int(), min(), max()
+ - builtins that will be needed such as abs(), bool(), chr(), ord(), str(), int(), hex(), min(), max()
 
 Things that would be nice to have for convenience:
  - import statements for supporting inter-module variables and functions.
