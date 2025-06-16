@@ -1291,6 +1291,20 @@ def can_relocate_return(function_type: CoreType, stack: Stack, clobbers: Set[str
     if function_type is VoidType:
         raise Exception("Logic error, cannot calculate overlap with void function!")
 
+    # If we are a string type and we overlap with actual values on the stack, we can't relocate since
+    # we could end up needing to use those in the expression that we're relocating. Unlike other expression
+    # types that only write to the destination on final result, strings check for allocation since they're
+    # pointers, and so we could end up writing the pointer over an input param.
+    if function_type.is_string:
+        for loc in [0, 1]:
+            val = stack.at(loc)
+            if val is None:
+                continue
+            if val.name == "builtin(padding)":
+                continue
+            return False
+        return True
+
     # Figure out if we need to move the retptr to make room for our final value on the stack.
     retval_abs = 0
     retval_size = stack.sizeof("builtin(retval)")
@@ -3573,18 +3587,18 @@ def generate_subscript_expr(
 ) -> Sections:
     compiled = Sections()
 
-    # We always end up needing the string on the left hand size, regardless of whether we're
-    # indexing or slicing into it.
-    base_dest = expr_temp_name()
-    stack.alloc(StackVar(base_dest, CoreType("string", const=True)))
-    compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.value))
-
     if len(expression.slice) != 1:
         raise CompilerError("Unsupported slice count in subscript expression", context)
     slice_or_index = expression.slice[0].slice
 
     if isinstance(slice_or_index, cst.Index):
+        # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
+        base_dest = expr_temp_name()
+        stack.alloc(StackVar(base_dest, CoreType("string", const=True)))
+        compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.value))
+
         # Calculate the offset into the string that we're gonna need, first.
+        clobbers.add("A")
         compiled += generate_expr_internal(slice_or_index.value, "register(A, uint8)", types, stack, clobbers, refs, local_consts, context.wrap(slice_or_index.value))
 
         # We clobber the SPC to do this index lookup.
@@ -3616,8 +3630,204 @@ def generate_subscript_expr(
                 compiled += generate_move_to(destination, stack, clobbers, context)
                 compiled.append_code("  STORE A")
 
+        stack.free(base_dest)
+
     elif isinstance(slice_or_index, cst.Slice):
-        raise Exception("TODO")
+        if destination is None:
+            raise CompilerError("Unsupported expression without assignment!", context)
+
+        destination_type = stack.typeof(destination)
+        if destination_type is None:
+            raise Exception("Logic error, could not calculate type of destination!")
+
+        # This is a subscript in the form of var[:] which in Python land is a copy,
+        # so we can do that here.
+        if not stack.initof(destination):
+            if not destination_type.is_array:
+                raise CompilerError("Non-constant local strings require a length", context)
+
+            local_destination_storage = stack.labelof(destination)
+            if local_destination_storage is None:
+                raise Exception("Logic error, couldn't get local storage for string!")
+            compiled.append_data(f"{local_destination_storage}:")
+            compiled.append_data(f"  .pad {destination_type.length or MAX_STRING_LENGTH}")
+
+            # We only clobber the A register with the string init macro.
+            clobbers.add("A")
+
+            compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
+            compiled.append_code(f"  PUSHADDR {local_destination_storage}")
+            stack.location += 2
+
+            # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+            stack.init(destination)
+
+        # We copy this here, because if we don't, then the function call ends up needing to copy a ton more
+        # on the stack later.
+        if stack[-1].name != destination:
+            # In order to ensure that it's possible to do stack math on this value, locate it in
+            # a temporary location for the time being if the destination isn't the top of the stack.
+            lhs_dest = expr_temp_name()
+            stack.alloc(StackVar(lhs_dest, CoreType("string"), initialized=True))
+
+            source_loc = stack.absfind(destination)
+            dest_loc = stack.absfind(lhs_dest)
+            if source_loc is None or dest_loc is None:
+                raise Exception("Logic error, expected to find location of internal variables!")
+
+            compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
+        else:
+            # Safe to put first parameter in the top of the stack where it already is useful for math.
+            lhs_dest = destination
+
+        # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
+        base_dest = expr_temp_name()
+        stack.alloc(StackVar(base_dest, CoreType("string", const=True)))
+        compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.value))
+
+        if slice_or_index.step is not None:
+            # We don't support copying with a step size other than the default.
+            raise CompilerError("Unsupported step for slice in subscript expression", context)
+
+        # Figure out if this is a copy operation, or a substring operation.
+        beginning = slice_or_index.lower
+        ending = slice_or_index.upper
+
+        if beginning is None and ending is None:
+            # Now, just strcpy it over.
+            compiled += generate_function_call_internal(
+                create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest)]),
+                None,
+                types,
+                stack,
+                clobbers,
+                refs,
+                local_consts,
+                context.wrap(expression),
+            )
+
+        elif beginning is None and ending is not None:
+            # This can be mapped onto a simple strncmp, so we should calculate the ending value and do that.
+            ending_dest = expr_temp_name()
+            stack.alloc(StackVar(ending_dest, CoreType("uint8")))
+            compiled += generate_expr_internal(ending, ending_dest, types, stack, clobbers, refs, local_consts, context.wrap(ending))
+            compiled += generate_function_call_internal(
+                create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
+                None,
+                types,
+                stack,
+                clobbers,
+                refs,
+                local_consts,
+                context.wrap(expression),
+            )
+
+            stack.free(ending_dest)
+
+        else:
+            if beginning is None:
+                raise Exception("Logic error, shouldn't be possible to get a null beginning here!")
+
+            # The beginning is non-null, regardless of whether the ending is present. So, we must adjust the
+            # local base destination forward by the slice value.
+            clobbers.add("A")
+            clobbers.add("SPC")
+            compiled += generate_expr_internal(beginning, "register(A, uint8)", types, stack, clobbers, refs, local_consts, context.wrap(beginning))
+
+            # Move to the correct spot on the stack to move the pointer to the right offset.
+            compiled += generate_move_to(base_dest, stack, clobbers, context, offset=1)
+
+            # Instead of just using ADDPC here to increment past the bytes we don't want, we increment one at
+            # a time. This is so we can check for an early null-terminator to make start indexing memory safe
+            # just like end indexing is.
+            clobbers.add("U")
+            clobbers.add("V")
+
+            advance_top = local_label_name("advance_top")
+            advance_bottom = local_label_name("advance_bottom")
+
+            # Swap over so we can check the string one byte at a time.
+            compiled.append_code("  MOV A, V")
+            compiled.append_code("  POP SPC")
+            compiled.append_code("  SWAP PC, SPC")
+
+            # Loop through, checking for termination conditions. First check for end of loop by advancing enough.
+            # Then, check if we've hit a null byte.
+            compiled.append_code(f"{advance_top}:")
+            compiled.append_code("  ADDI 0")
+            compiled.append_code(f"  JRIZ {advance_bottom}")
+            compiled.append_code("  DEC")
+            compiled.append_code("  MOV A, U")
+            compiled.append_code("  LOAD A")
+            compiled.append_code("  ADDI 0")
+            compiled.append_code(f"  JRIZ {advance_bottom}")
+            compiled.append_code("  INCPC")
+            compiled.append_code("  MOV U, A")
+            compiled.append_code(f"  JRI {advance_top}")
+            compiled.append_code(f"{advance_bottom}:")
+            compiled.append_code("  SWAP PC, SPC")
+            compiled.append_code("  PUSH SPC")
+            compiled.append_code("  MOV V, A")
+
+            if ending is None:
+                # Now, just strcpy it over.
+                compiled += generate_function_call_internal(
+                    create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest)]),
+                    None,
+                    types,
+                    stack,
+                    clobbers,
+                    refs,
+                    local_consts,
+                    context.wrap(expression),
+                )
+
+            else:
+                try:
+                    # Attempt to do a constant unroll to avoild a bunch of nasty codegen.
+                    expr = cst.BinaryOperation(left=ending, operator=cst.Subtract(), right=beginning)
+                    codegen_eval(expr, local_consts)
+
+                    ending_dest = expr_temp_name()
+                    stack.alloc(StackVar(ending_dest, CoreType("int8")))
+                    compiled += generate_expr_internal(expr, ending_dest, types, stack, clobbers, refs, local_consts, context.virtual(expr))
+
+                except NonConstantExpressionException:
+                    # First, store the beginning value that we calculated so that we can subtract it later.
+                    ending_dest = expr_temp_name()
+                    stack.alloc(StackVar(ending_dest, CoreType("int8"), initialized=True))
+                    compiled += generate_move_to(ending_dest, stack, clobbers, context)
+                    compiled.append_code("  NEG")
+                    compiled.append_code("  STORE A")
+
+                    # This can be mapped onto a simple strncmp, so we should calculate the ending value and do that.
+                    ending_temp = expr_temp_name()
+                    stack.alloc(StackVar(ending_temp, CoreType("uint8")))
+                    compiled += generate_expr_internal(ending, ending_temp, types, stack, clobbers, refs, local_consts, context.wrap(ending))
+                    compiled += generate_move_to(ending_temp, stack, clobbers, context)
+                    compiled.append_code("  LOAD A")
+                    stack.free(ending_temp)
+
+                    compiled += generate_move_to(ending_dest, stack, clobbers, context)
+                    compiled.append_code("  ADD")
+                    compiled.append_code("  STORE A")
+
+                compiled += generate_function_call_internal(
+                    create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
+                    None,
+                    types,
+                    stack,
+                    clobbers,
+                    refs,
+                    local_consts,
+                    context.wrap(expression),
+                )
+
+                stack.free(ending_dest)
+
+        stack.free(base_dest)
+        if lhs_dest != destination:
+            stack.free(lhs_dest)
 
     else:
         raise Exception("Logic error, unexpected node {slice_or_index} for subscript slice!")
@@ -4089,7 +4299,7 @@ def infer_expr_types_impl(
                     continue
 
                 slice_tree = infer_expr_types_impl(node, stack, refs, local_consts, context.wrap(node))
-                slice_type = index_tree[node]
+                slice_type = slice_tree[node]
 
                 if slice_type.type == "int":
                     infer_tree(slice_tree, CoreType("uint8", const=True), context)
@@ -4098,6 +4308,7 @@ def infer_expr_types_impl(
 
                 inferred.update(slice_tree)
 
+            inferred.update(array_tree)
             inferred[expression] = CoreType("string")
 
         else:
@@ -5548,6 +5759,7 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("strcat", VoidType, [PreservedCoreType("string"), PreservedCoreType("string")]),
         FunctionPrototype("strcmp", RegisterCoreType("int8", "A"), [PreservedCoreType("string"), PreservedCoreType("string")]),
         FunctionPrototype("strcpy", VoidType, [PreservedCoreType("string"), PreservedCoreType("string")]),
+        FunctionPrototype("strncpy", VoidType, [PreservedCoreType("string"), PreservedCoreType("string"), PreservedCoreType("uint8")]),
         FunctionPrototype("strlen", RegisterCoreType("uint8", "A"), [PreservedCoreType("string")]),
 
         # STDLIB string/integer conversion functions.

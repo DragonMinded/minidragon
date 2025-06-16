@@ -23,6 +23,8 @@ BACK_AND_CLEAR_LINE = "\033[F\033[K\033[F"
 
 
 verbose: bool = False
+highlight_changes: bool = False
+print_code: bool = False
 
 
 def _assert(statement: bool, msg: str) -> None:
@@ -41,6 +43,14 @@ def getlines(instr: str) -> List[str]:
 
 
 def getmemory(instr: str) -> List[int]:
+    if print_code:
+        lines = instr.split(os.linesep)
+        lines = [line for line in lines if line.strip()]
+        print("Assembly Printout")
+        print("=================")
+        print(os.linesep.join(lines))
+        print("")
+
     memory = [0] * 0x10000
     assembled = assemble(getlines(instr))
     for loc, intval in assembled:
@@ -51,8 +61,9 @@ def getmemory(instr: str) -> List[int]:
 def rununtilhalt(cpu: CPUCore) -> None:
     while True:
         if verbose:
-            cpu.print()
-            cpu.dump()
+            cpu.print(highlight_changes)
+            cpu.dump(highlight_changes)
+            cpu.mark()
             print("")
         if cpu.mnemonic == "HALT":
             return
@@ -9390,7 +9401,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9443,7 +9454,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9494,7 +9505,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9546,7 +9557,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9600,7 +9611,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9654,7 +9665,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9705,7 +9716,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9757,7 +9768,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9810,7 +9821,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9868,7 +9879,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9926,7 +9937,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -9982,7 +9993,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10036,7 +10047,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10117,7 +10128,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringlength simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10174,7 +10185,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringlength simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10230,7 +10241,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringlength simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10313,7 +10324,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
         _assert(
             result == expected,
             "Failed to stringconcatenation simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10369,7 +10380,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
         _assert(
             result == expected,
             "Failed to stringconcatenation simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10445,7 +10456,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringsubscript simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10497,7 +10508,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringsubscript simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10550,7 +10561,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringsubscript simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10604,7 +10615,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringsubscript simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10658,7 +10669,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to stringsubscript simple, "
-            + f"got {result} instead of {expected}!",
+            + f"got {result!r} instead of {expected!r}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -10710,7 +10721,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
             _assert(
                 result == expected,
                 "Failed to stringsubscript simple, "
-                + f"got {result} instead of {expected}!",
+                + f"got {result!r} instead of {expected!r}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
@@ -10765,7 +10776,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
             _assert(
                 result == expected,
                 "Failed to stringsubscript simple, "
-                + f"got {result} instead of {expected}!",
+                + f"got {result!r} instead of {expected!r}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
@@ -10773,6 +10784,311 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
 
     print(f"Average cycles for stringsubscript: {int(cycles/count)}")
     print(f"Average instructions for stringsubscript: {int(instructions/count)}")
+
+
+def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "stringslice" not in only and "compiler" not in only:
+        return
+
+    print("Verifying stringslice...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # First, test constant evaluation in the compiler.
+    for sliceval in [":", ":8", "4:", "4:8"]:
+        sliceable = "this is a test"
+        sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+            def sliceme() -> string[32]:
+                return "{sliceable}"[{sliceval}]
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL sliceme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringslice", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringslice changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringslice changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringslice changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = eval(f'"{sliceable}"[{sliceval}]')
+        _assert(
+            result == expected,
+            "Failed to stringslice simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, test expression evaluation with constant slices.
+    for sliceval in [":", ":8", "4:", "4:8"]:
+        sliceable = "this is a test"
+        sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+            def getstr() -> const[string]:
+                return "{sliceable}"
+
+            def sliceme() -> string[32]:
+                return getstr()[{sliceval}]
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL sliceme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringslice", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringslice changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringslice changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringslice changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = eval(f'"{sliceable}"[{sliceval}]')
+        _assert(
+            result == expected,
+            "Failed to stringslice simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now test non-constant slice values
+    for sliceint in [0, 2, 4, 8, 16]:
+        sliceable = "this is a test"
+        sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+            def getstr() -> const[string]:
+                return "{sliceable}"
+
+            def sliceme(loc: uint8) -> string[32]:
+                return getstr()[:loc]
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {sliceint}",
+            "DECPC",
+            "LOADI 123",
+            "CALL sliceme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringslice", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringslice changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringslice changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringslice changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = sliceable[:sliceint]
+        _assert(
+            result == expected,
+            "Failed to stringslice simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for sliceint in [0, 2, 4, 8, 16]:
+        sliceable = "this is a test"
+        sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+            def getstr() -> const[string]:
+                return "{sliceable}"
+
+            def sliceme(loc: uint8) -> string[32]:
+                return getstr()[loc:]
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {sliceint}",
+            "DECPC",
+            "LOADI 123",
+            "CALL sliceme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringslice", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringslice changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringslice changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringslice changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = sliceable[sliceint:]
+        _assert(
+            result == expected,
+            "Failed to stringslice simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, test slices with both a start and an end.
+    for sliceint in [0, 2, 4, 8, 16]:
+        for extendval in [0, 1, 3, 7, 11]:
+            sliceable = "this is a test"
+            sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+                def getstr() -> const[string]:
+                    return "{sliceable}"
+
+                def sliceme(loc1: uint8, loc2: uint8) -> string[32]:
+                    return getstr()[loc1:loc2]
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                f"PUSHI {sliceint}",
+                f"PUSHI {sliceint + extendval}",
+                "LOADI 123",
+                "CALL sliceme",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringslice", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringslice changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringslice changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringslice changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            expected = sliceable[sliceint:(sliceint + extendval)]
+            _assert(
+                result == expected,
+                "Failed to stringslice simple, "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for stringslice: {int(cycles/count)}")
+    print(f"Average instructions for stringslice: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -10792,6 +11108,18 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "-c",
+        "--highlight-changes",
+        help="Highlight changes between instructions in red.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-p",
+        "--print-code",
+        help="Print code before sending it to the assembler.",
+        action="store_true",
+    )
+    parser.add_argument(
         "-o",
         "--only",
         help="Only run this test (comma separated values allowed).",
@@ -10805,6 +11133,8 @@ if __name__ == "__main__":
 
     # Make sure we can debug.
     verbose = args.verbose
+    highlight_changes = args.highlight_changes
+    print_code = args.print_code
 
     # Verify assembler errors
     verifyassembler(only, args.full)
@@ -10900,3 +11230,4 @@ if __name__ == "__main__":
     verifystringlength(only, args.full)
     verifystringconcatenation(only, args.full)
     verifystringsubscript(only, args.full)
+    verifystringslice(only, args.full)
