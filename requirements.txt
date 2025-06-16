@@ -1,2 +1,5 @@
 LibCST
+colorama
+types-colorama
 mypy
+flake8

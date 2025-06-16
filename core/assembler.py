@@ -1,5 +1,7 @@
 #! /usr/bin/python3
 import struct
+from colorama import Fore, Style
+
 from ast import literal_eval
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, List, Optional, Set, Tuple, TypeVar
@@ -24,6 +26,13 @@ def sign_extend(val: int, msb: int) -> int:
     if (val & high_bit) != 0:
         val = val | rest_mask
     return val
+
+
+def highlight(val: str, key: str, changes: Set[str]) -> str:
+    if key not in changes:
+        return val
+
+    return f"{Fore.RED}{val}{Style.RESET_ALL}"
 
 
 def hexstr(num: int, digits: int) -> str:
@@ -4079,6 +4088,9 @@ class CPUCore:
     FLAGS_PC = 0x04
 
     def __init__(self, ram: List[int]) -> None:
+        # List of changes since last time mark was called.
+        self.changes: Set[str] = set()
+
         # General purpose registers. A is read/write, while
         # P+C are write and update only.
         self.a = 0
@@ -4151,7 +4163,7 @@ class CPUCore:
         sc = sc & 0xFF
         return sp + sc
 
-    def print(self) -> None:
+    def print(self, highlight_changes: bool = False) -> None:
         # Look up the current bus values if we're about to store on this
         # instruction.
         ip = self.data if self.last_instruction.ip_input else self.ip
@@ -4194,14 +4206,16 @@ class CPUCore:
         v = self.data if self.last_instruction.v_input else self.v
         v_dec = bintoint(v & 0xFF)
 
+        changes = self.changes if highlight_changes else set()
+
         print("\n".join([
-            f"IP:    {hexstr(ip, 4)}",
-            f"PC:    {hexstr(pandc, 4)}",
-            f"SPC:   {hexstr(spandsc, 4)}",
-            f"A:     {hexstr(a, 2)} (unsigned: {a}, signed: {a_dec})",
-            f"U:     {hexstr(u, 2)} (unsigned: {u}, signed: {u_dec})",
-            f"V:     {hexstr(v, 2)} (unsigned: {v}, signed: {v_dec})",
-            f"Flags: {hexstr(flags, 3)} (cf: {cf}, zf: {zf}, pc: {pc})",
+            f"IP:    {highlight(hexstr(ip, 4), 'ip', changes)}",
+            f"PC:    {highlight(hexstr(pandc, 4), 'pc', changes)}",
+            f"SPC:   {highlight(hexstr(spandsc, 4), 'spc', changes)}",
+            f"A:     {highlight(hexstr(a, 2), 'a', changes)} (unsigned: {a}, signed: {a_dec})",
+            f"U:     {highlight(hexstr(u, 2), 'u', changes)} (unsigned: {u}, signed: {u_dec})",
+            f"V:     {highlight(hexstr(v, 2), 'v', changes)} (unsigned: {v}, signed: {v_dec})",
+            f"Flags: {highlight(hexstr(flags, 2), 'flags', changes)} (cf: {cf}, zf: {zf}, pc: {pc})",
             f"NextI: {disassemble(self.ram[ip])} ({binstr(self.ram[ip], 8)})",
         ]))
 
@@ -4210,12 +4224,20 @@ class CPUCore:
         ip = self.data if self.last_instruction.ip_input else self.ip
         return disassemble(self.ram[ip])
 
-    def dump(self) -> None:
+    def dump(self, highlight_changes: bool = False) -> None:
         # Print the contents of RAM
         def asc(val: int) -> str:
             if val >= 0x20 and val <= 0x7F:
                 return chr(val)
             return "."
+
+        if highlight_changes:
+            def highlightram(val: str, offset: int) -> str:
+                return highlight(val, f"ram({offset})", self.changes)
+
+        else:
+            def highlightram(val: str, offset: int) -> str:
+                return val
 
         starred = False
         for start in range(0, len(self.ram), 16):
@@ -4224,13 +4246,17 @@ class CPUCore:
                 starred = False
                 print(
                     f"{hexstr(start, 4)}: " +
-                    f"{' '.join(hexstr(x, 2) for x in chunk)} "
-                    f"{''.join(asc(x) for x in chunk)}"
+                    f"{' '.join(highlightram(hexstr(x, 2), start + i) for i, x in enumerate(chunk))} "
+                    f"{''.join(highlightram(asc(x), start + i) for i, x in enumerate(chunk))}"
                 )
             else:
                 if not starred:
                     print("*")
                     starred = True
+
+    def mark(self) -> None:
+        # Mark everything as having no changes.
+        self.changes = set()
 
     def disassemble(self) -> None:
         # Disassemble the contents of RAM
@@ -4279,9 +4305,11 @@ class CPUCore:
             # Store flags if we need to (its on its own bus)
             if self.last_instruction.flags_input:
                 self.flags = self.current_flags()
+                self.changes.add("flags")
             # Swap the PC flag if we need to (its implemented as a T flip-flop)
             if self.last_instruction.pc_swap:
                 self.flags = self.flags ^ self.FLAGS_PC
+                self.changes.add("flags")
 
             # Shortcut our PC calculation.
             which_pc = 1 if self.flags & self.FLAGS_PC else 0
@@ -4289,31 +4317,34 @@ class CPUCore:
             # Load from the bus if we're told to.
             if self.last_instruction.ip_input:
                 self.ip = self.data
+                self.changes.add("ip")
             if self.last_instruction.a_input:
                 self.a = self.data & 0xFF
+                self.changes.add("a")
             if self.last_instruction.b_input:
                 self.b = self.data & 0xFF
             if self.last_instruction.d_input:
                 self.d = self.data & 0xFF
             if self.last_instruction.u_input:
                 self.u = self.data & 0xFF
+                self.changes.add("u")
             if self.last_instruction.v_input:
                 self.v = self.data & 0xFF
+                self.changes.add("v")
             if self.last_instruction.p_input:
                 self.p[which_pc] = (self.data >> 8) & 0xFF
+                self.changes.add("spc" if which_pc != 0 else "pc")
             if self.last_instruction.c_input:
                 self.c[which_pc] = self.data & 0xFF
+                self.changes.add("spc" if which_pc != 0 else "pc")
             if self.last_instruction.sram_input:
                 if self.address >= len(self.ram) or self.address < 0:
                     raise Exception(
                         f"Address {self.address} outside of bounds of " +
                         f"given memory when executing instruction {hint} at {hintaddr}!"
                     )
-                self.ram = (
-                    self.ram[:self.address] +
-                    [self.data & 0xFF] +
-                    self.ram[(self.address + 1):]
-                )
+                self.ram[self.address] = self.data & 0xFF
+                self.changes.add(f"ram({self.address})")
             if self.last_instruction.ir_input:
                 self.ir = self.data & 0xFF
                 hint, instructions, hintaddr = self.instruction_decode()
