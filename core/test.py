@@ -40,18 +40,18 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(get_type(self.__get_expr("void"), []) is VoidType)
 
         # Now, simple parsing.
-        self.assertEqual(CoreType("string"), get_type(self.__get_expr("string"), []))
+        self.assertEqual(CoreType("str"), get_type(self.__get_expr("str"), []))
         self.assertEqual(CoreType("char"), get_type(self.__get_expr("char"), []))
         self.assertEqual(CoreType("int8"), get_type(self.__get_expr("int8"), []))
         self.assertEqual(CoreType("int16"), get_type(self.__get_expr("int16"), []))
         self.assertEqual(CoreType("int32"), get_type(self.__get_expr("int32"), []))
 
         # Now, test length/array syntax.
-        self.assertIsNone(get_type(self.__get_expr("string[16]"), []))
-        self.assertEqual(CoreType("string", length=16), get_type(self.__get_expr("string[16]"), [], allow_array=True))
+        self.assertIsNone(get_type(self.__get_expr("str[16]"), []))
+        self.assertEqual(CoreType("str", length=16), get_type(self.__get_expr("str[16]"), [], allow_array=True))
 
         # Now, make sure that constant parsing works.
-        self.assertEqual(CoreType("string", const=True), get_type(self.__get_expr("const[string]"), []))
+        self.assertEqual(CoreType("str", const=True), get_type(self.__get_expr("const[str]"), []))
         self.assertEqual(CoreType("char", const=True), get_type(self.__get_expr("const[char]"), []))
         self.assertEqual(CoreType("int8", const=True), get_type(self.__get_expr("const[int8]"), []))
         self.assertEqual(CoreType("int16", const=True), get_type(self.__get_expr("const[int16]"), []))
@@ -86,7 +86,7 @@ class TestCompiler(unittest.TestCase):
 
     def assertTypesValid(self, types: Dict[cst.CSTNode, CoreType]) -> None:
         for node, ctype in types.items():
-            if ctype.type not in {"void", "int8", "uint8", "int16", "uint16", "int32", "uint32", "char", "bool", "string", "pointer"}:
+            if ctype.type not in {"void", "int8", "uint8", "int16", "uint16", "int32", "uint32", "char", "bool", "str", "pointer"}:
                 self.fail(f"Unexpected type {ctype.type} for node {node}")
 
     def test_infer_types_const(self) -> None:
@@ -238,9 +238,9 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
-        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[string] = "test"')
+        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[str] = "test"')
         self.assertEqual([
-            '  ; __test__ line 1: UINT8_CONST: const[string] = "test"',
+            '  ; __test__ line 1: UINT8_CONST: const[str] = "test"',
             'UINT8_CONST:',
             "  .char 't'",
             "  .char 'e'",

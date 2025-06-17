@@ -167,7 +167,7 @@ class CoreType:
     def const_clone(self) -> "CoreType":
         if self.const:
             return self
-        if self.type not in {"string", "pointer"}:
+        if self.type not in {"str", "pointer"}:
             return self
 
         return CoreType(
@@ -197,7 +197,7 @@ class CoreType:
         if self.type == "bool":
             return 1
         # Strings are passed by reference pointer.
-        if self.type == "string":
+        if self.type == "str":
             return 2
         # Pointers are 16 bit due to CPU arch.
         if self.type == "pointer":
@@ -206,7 +206,7 @@ class CoreType:
 
     @property
     def is_unsigned(self) -> bool:
-        return self.type in {"uint8", "uint16", "uint32", "char", "bool", "string", "pointer"}
+        return self.type in {"uint8", "uint16", "uint32", "char", "bool", "str", "pointer"}
 
     @property
     def is_signed(self) -> bool:
@@ -227,7 +227,7 @@ class CoreType:
 
     @property
     def is_string(self) -> bool:
-        return self.type == "string"
+        return self.type == "str"
 
     @property
     def is_pointer(self) -> bool:
@@ -266,7 +266,7 @@ class InOutCoreType(CoreType):
         super().__init__(base_type, None, const=False)
 
     def const_clone(self) -> "InOutCoreType":
-        if self.type not in {"string", "pointer"}:
+        if self.type not in {"str", "pointer"}:
             return self
 
         new_type = InOutCoreType(
@@ -288,7 +288,7 @@ class OutCoreType(CoreType):
         super().__init__(base_type, None, const=False)
 
     def const_clone(self) -> "OutCoreType":
-        if self.type not in {"string", "pointer"}:
+        if self.type not in {"str", "pointer"}:
             return self
 
         new_type = OutCoreType(
@@ -309,7 +309,7 @@ class RegisterCoreType(CoreType):
         self.register = register
 
     def const_clone(self) -> "RegisterCoreType":
-        if self.type not in {"string", "pointer"}:
+        if self.type not in {"str", "pointer"}:
             return self
 
         new_type = RegisterCoreType(
@@ -399,6 +399,10 @@ def type_comparison_compatible(left: CoreType, right: CoreType) -> bool:
     if left.is_string and right.is_string:
         return True
     if left.is_pointer and right.is_pointer:
+        return True
+    if left.type == "string" and (right.is_string or right.is_char):
+        return True
+    if right.type == "string" and (left.is_string or left.is_char):
         return True
     return False
 
@@ -510,9 +514,9 @@ def get_type(
                 else:
                     return VoidType
             else:
-                if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "bool", "char", "string"}:
+                if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "bool", "char", "str"}:
                     return None
-                if length and expr.value not in {"string"}:
+                if length and expr.value not in {"str"}:
                     return None
 
                 return CoreType(expr.value, None, length=length, const=const, extern=extern, return_padding=not nopad)
@@ -659,7 +663,7 @@ class StackVar:
 
     @property
     def label(self) -> str:
-        if self.type.type not in {"string"}:
+        if self.type.type not in {"str"}:
             raise Exception("Logic error, trying to get a label name for a non-string type!")
 
         label = ""
@@ -965,7 +969,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             compiled.append_code(f"  .char {value[0]!r}")
 
-        elif assign_type == "string":
+        elif assign_type == "str":
             if not isinstance(value, str):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
 
@@ -1004,7 +1008,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
             raise CompilerError(f"Unsupported type {assign_type.type} for global variable definition", context)
 
         # Since this was successfully handled, add it to our constants, so future constants may reference it as well.
-        if assign_type == "string":
+        if assign_type == "str":
             # String constants are not inlined.
             globs.append(GlobalVariable(assign_name, assign_type))
         else:
@@ -1104,7 +1108,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
             if not assign_type.extern:
                 compiled.append_data("  .pad 1")
 
-        elif assign_type == "string":
+        elif assign_type == "str":
             if not assign_type.is_array:
                 raise CompilerError("Non-constant global strings require a length", context)
 
@@ -2212,7 +2216,7 @@ def generate_variable_lookup(
                         # In order to ensure that it's possible to do stack math on this value, locate it in
                         # a temporary location for the time being if the destination isn't the top of the stack.
                         lhs_dest = expr_temp_name()
-                        stack.alloc(StackVar(lhs_dest, CoreType("string"), initialized=True))
+                        stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
 
                         source_loc = stack.absfind(destination)
                         dest_loc = stack.absfind(lhs_dest)
@@ -2228,7 +2232,7 @@ def generate_variable_lookup(
                     clobbers.add("A")
 
                     rhs_dest = expr_temp_name()
-                    stack.alloc(StackVar(rhs_dest, CoreType("string"), initialized=True))
+                    stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
                     compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=-1)
                     compiled.append_code(f"  PUSHADDR {global_var.name}")
                     stack.location += 2
@@ -2397,7 +2401,7 @@ def generate_variable_lookup(
                 # In order to ensure that it's possible to do stack math on this value, locate it in
                 # a temporary location for the time being if the destination isn't the top of the stack.
                 lhs_dest = expr_temp_name()
-                stack.alloc(StackVar(lhs_dest, CoreType("string"), initialized=True))
+                stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
 
                 source_loc = stack.absfind(destination)
                 dest_loc = stack.absfind(lhs_dest)
@@ -2411,7 +2415,7 @@ def generate_variable_lookup(
 
             # Now, point at it.
             rhs_dest = expr_temp_name()
-            stack.alloc(StackVar(rhs_dest, CoreType("string"), initialized=True))
+            stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
 
             source_loc = stack.absfind(source)
             dest_loc = stack.absfind(rhs_dest)
@@ -2635,7 +2639,7 @@ def generate_binary_expr(
         # First, generate the left hand side of the expression.
         if stack[-1].name != destination:
             lhs_dest = expr_temp_name()
-            stack.alloc(StackVar(lhs_dest, CoreType("string", length=destination_type.length)))
+            stack.alloc(StackVar(lhs_dest, CoreType("str", length=destination_type.length)))
         else:
             lhs_dest = destination
 
@@ -2643,7 +2647,7 @@ def generate_binary_expr(
 
         # Now, again with the right!
         rhs_dest = expr_temp_name()
-        stack.alloc(StackVar(rhs_dest, CoreType("string", const=True)))
+        stack.alloc(StackVar(rhs_dest, CoreType("str", const=True)))
         compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.right))
 
         # Now, call strcat to concatenate the two together!
@@ -3125,209 +3129,233 @@ def generate_comparison_expr(
         right_expr = expression.comparisons[0].comparator
         right_type = types[right_expr]
 
-        equal_cleanup: List[str] = []
-        if left_type.size == right_type.size:
-            # First, evaluate both expressions so that we can compare them.
-            first_dest = expr_temp_name()
-            equal_cleanup.append(first_dest)
-            stack.alloc(StackVar(first_dest, left_type))
-            compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(left_expr))
+        if left_type.is_string or right_type.is_string:
+            if not (left_type.is_string and right_type.is_string):
+                raise CompilerError("Unsupported comparison expression against types {left_type.type} and {right_type.type}", context)
 
-            second_dest = expr_temp_name()
-            equal_cleanup.append(second_dest)
-            stack.alloc(StackVar(second_dest, right_type))
-            compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, refs, local_consts, context.wrap(right_expr))
+            # In this case, don't even try to set up the stack, just let the function call handle it.
+            compiled += generate_function_call_internal(
+                create_call(
+                    "strcmp",
+                    [left_expr, right_expr],
+                ),
+                "register(A, int8)",
+                types,
+                stack,
+                clobbers,
+                refs,
+                local_consts,
+                context.wrap(expression),
+            )
+            compiled.append_code("  ADDI 0")
+            compiled.append_code(f"  LOADI {preload_value}")
+            compiled.append_code("  SKIPIF !ZF")
+            compiled.append_code("  INV")
 
         else:
-            # Figure out which one is bigger, we'll evaluate that one first.
-            if left_type.size > right_type.size:
-                first_expr = left_expr
-                first_type = left_type
-                second_expr = right_expr
-                second_type = right_type
+            equal_cleanup: List[str] = []
+            if left_type.size == right_type.size:
+                # First, evaluate both expressions so that we can compare them.
+                first_dest = expr_temp_name()
+                equal_cleanup.append(first_dest)
+                stack.alloc(StackVar(first_dest, left_type))
+                compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(left_expr))
+
+                second_dest = expr_temp_name()
+                equal_cleanup.append(second_dest)
+                stack.alloc(StackVar(second_dest, right_type))
+                compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, refs, local_consts, context.wrap(right_expr))
+
             else:
-                first_expr = right_expr
-                first_type = right_type
-                second_expr = left_expr
-                second_type = left_type
+                # Figure out which one is bigger, we'll evaluate that one first.
+                if left_type.size > right_type.size:
+                    first_expr = left_expr
+                    first_type = left_type
+                    second_expr = right_expr
+                    second_type = right_type
+                else:
+                    first_expr = right_expr
+                    first_type = right_type
+                    second_expr = left_expr
+                    second_type = left_type
 
-            # First, handle the expression that's the wider of the two already.
-            first_dest = expr_temp_name()
-            equal_cleanup.append(first_dest)
-            stack.alloc(StackVar(first_dest, first_type))
-            compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(first_expr))
+                # First, handle the expression that's the wider of the two already.
+                first_dest = expr_temp_name()
+                equal_cleanup.append(first_dest)
+                stack.alloc(StackVar(first_dest, first_type))
+                compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(first_expr))
 
-            # Now, allocate a spot for the second to be sign extended into.
-            second_dest = expr_temp_name()
-            equal_cleanup.append(second_dest)
-            stack.alloc(StackVar(second_dest, first_type))
+                # Now, allocate a spot for the second to be sign extended into.
+                second_dest = expr_temp_name()
+                equal_cleanup.append(second_dest)
+                stack.alloc(StackVar(second_dest, first_type))
 
-            # And allocate where we'll calculate it before sign-extending.
-            second_temp = expr_temp_name()
-            stack.alloc(StackVar(second_temp, second_type))
-            compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+                # And allocate where we'll calculate it before sign-extending.
+                second_temp = expr_temp_name()
+                stack.alloc(StackVar(second_temp, second_type))
+                compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
 
-            # Now, copy it with a sign extension.
-            compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, refs, local_consts, context.wrap(second_expr))
+                # Now, copy it with a sign extension.
+                compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, refs, local_consts, context.wrap(second_expr))
 
-            # Now, we don't need the temp location now that we've computed and sign extended.
-            stack.free(second_temp)
+                # Now, we don't need the temp location now that we've computed and sign extended.
+                stack.free(second_temp)
 
-        # Doing the comparison itself requires the A register.
-        clobbers.add("A")
+            # Doing the comparison itself requires the A register.
+            clobbers.add("A")
 
-        comparison_size = max(left_type.size, right_type.size)
-        if comparison_size == 1:
-            compiled += generate_move_to(second_dest, stack, clobbers, context)
-            compiled.append_code("  LOAD A")
-            compiled += generate_move_to(first_dest, stack, clobbers, context)
+            comparison_size = max(left_type.size, right_type.size)
+            if comparison_size == 1:
+                compiled += generate_move_to(second_dest, stack, clobbers, context)
+                compiled.append_code("  LOAD A")
+                compiled += generate_move_to(first_dest, stack, clobbers, context)
 
-            # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append_code("  XOR")
+                # XOR the two numbers, which will give us 0 if they equal.
+                compiled.append_code("  XOR")
 
-            # Preload condition result into A.
-            compiled.append_code(f"  LOADI {preload_value}")
+                # Preload condition result into A.
+                compiled.append_code(f"  LOADI {preload_value}")
 
-            # Skip the invert instruction if we were non-zero, which meant not equal.
-            compiled.append_code("  SKIPIF !ZF")
+                # Skip the invert instruction if we were non-zero, which meant not equal.
+                compiled.append_code("  SKIPIF !ZF")
 
-            # Set our output to true instead of false.
-            compiled.append_code("  INV")
+                # Set our output to true instead of false.
+                compiled.append_code("  INV")
 
-        elif comparison_size == 2:
-            if stack_is_at(second_dest, stack, offset=1):
-                # We're already at the top of the stack, generate the load/func/store loop downwards
-                # instead of upwards to shave off a move instruction.
-                def actual_expr_offset(offset: int) -> int:
-                    return 1 - offset
-            else:
-                # We're anywhere else in the stack, so it costs us no unnecessary move instructions
-                # to perform the first move.
-                def actual_expr_offset(offset: int) -> int:
-                    return offset
+            elif comparison_size == 2:
+                if stack_is_at(second_dest, stack, offset=1):
+                    # We're already at the top of the stack, generate the load/func/store loop downwards
+                    # instead of upwards to shave off a move instruction.
+                    def actual_expr_offset(offset: int) -> int:
+                        return 1 - offset
+                else:
+                    # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+                    # to perform the first move.
+                    def actual_expr_offset(offset: int) -> int:
+                        return offset
 
-            # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
-            second_byte_comparison = local_label_name("second_byte_comparison")
-            finished_comparison = local_label_name("finished_comparison")
+                # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
+                second_byte_comparison = local_label_name("second_byte_comparison")
+                finished_comparison = local_label_name("finished_comparison")
 
-            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-            compiled.append_code("  LOAD A")
-            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
+                compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
+                compiled.append_code("  LOAD A")
+                compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
-            # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append_code("  XOR")
-            compiled.append_code(f"  JRIZ {second_byte_comparison}")
+                # XOR the two numbers, which will give us 0 if they equal.
+                compiled.append_code("  XOR")
+                compiled.append_code(f"  JRIZ {second_byte_comparison}")
 
-            # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
-            compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(1))
-            compiled.append_code(f"  LOADI {preload_value}")
-            compiled.append_code(f"  JRI {finished_comparison}")
+                # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
+                compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(1))
+                compiled.append_code(f"  LOADI {preload_value}")
+                compiled.append_code(f"  JRI {finished_comparison}")
 
-            # Now, do the second byte comparison.
-            compiled.append_code(f"{second_byte_comparison}:")
-            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-            compiled.append_code("  LOAD A")
-            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
+                # Now, do the second byte comparison.
+                compiled.append_code(f"{second_byte_comparison}:")
+                compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
+                compiled.append_code("  LOAD A")
+                compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
-            # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append_code("  XOR")
+                # XOR the two numbers, which will give us 0 if they equal.
+                compiled.append_code("  XOR")
 
-            # Preload condition result into A.
-            compiled.append_code(f"  LOADI {preload_value}")
+                # Preload condition result into A.
+                compiled.append_code(f"  LOADI {preload_value}")
 
-            # Skip the invert instruction if we were non-zero, which meant not equal.
-            compiled.append_code("  SKIPIF !ZF")
+                # Skip the invert instruction if we were non-zero, which meant not equal.
+                compiled.append_code("  SKIPIF !ZF")
 
-            # Set our output to true instead of false.
-            compiled.append_code("  INV")
+                # Set our output to true instead of false.
+                compiled.append_code("  INV")
 
-            # Provide a jump point to get here from the first half comparison.
-            compiled.append_code(f"{finished_comparison}:")
+                # Provide a jump point to get here from the first half comparison.
+                compiled.append_code(f"{finished_comparison}:")
 
-        elif comparison_size == 4:
-            if stack_is_at(second_dest, stack, offset=3):
-                # We're already at the top of the stack, generate the load/func/store loop downwards
-                # instead of upwards to shave off a move instruction.
-                def actual_expr_offset(offset: int) -> int:
-                    return 3 - offset
-            else:
-                # We're anywhere else in the stack, so it costs us no unnecessary move instructions
-                # to perform the first move.
-                def actual_expr_offset(offset: int) -> int:
-                    return offset
+            elif comparison_size == 4:
+                if stack_is_at(second_dest, stack, offset=3):
+                    # We're already at the top of the stack, generate the load/func/store loop downwards
+                    # instead of upwards to shave off a move instruction.
+                    def actual_expr_offset(offset: int) -> int:
+                        return 3 - offset
+                else:
+                    # We're anywhere else in the stack, so it costs us no unnecessary move instructions
+                    # to perform the first move.
+                    def actual_expr_offset(offset: int) -> int:
+                        return offset
 
-            # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
-            second_byte_comparison = local_label_name("second_byte_comparison")
-            third_byte_comparison = local_label_name("third_byte_comparison")
-            fourth_byte_comparison = local_label_name("fourth_byte_comparison")
-            finished_comparison = local_label_name("finished_comparison")
+                # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
+                second_byte_comparison = local_label_name("second_byte_comparison")
+                third_byte_comparison = local_label_name("third_byte_comparison")
+                fourth_byte_comparison = local_label_name("fourth_byte_comparison")
+                finished_comparison = local_label_name("finished_comparison")
 
-            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-            compiled.append_code("  LOAD A")
-            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
+                compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
+                compiled.append_code("  LOAD A")
+                compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
-            # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append_code("  XOR")
-            compiled.append_code(f"  JRIZ {second_byte_comparison}")
+                # XOR the two numbers, which will give us 0 if they equal.
+                compiled.append_code("  XOR")
+                compiled.append_code(f"  JRIZ {second_byte_comparison}")
 
-            # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
-            compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
-            compiled.append_code(f"  LOADI {preload_value}")
-            compiled.append_code(f"  JRI {finished_comparison}")
+                # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
+                compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
+                compiled.append_code(f"  LOADI {preload_value}")
+                compiled.append_code(f"  JRI {finished_comparison}")
 
-            # Now, do the second byte comparison.
-            compiled.append_code(f"{second_byte_comparison}:")
-            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-            compiled.append_code("  LOAD A")
-            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
+                # Now, do the second byte comparison.
+                compiled.append_code(f"{second_byte_comparison}:")
+                compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
+                compiled.append_code("  LOAD A")
+                compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
-            # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append_code("  XOR")
-            compiled.append_code(f"  JRIZ {third_byte_comparison}")
+                # XOR the two numbers, which will give us 0 if they equal.
+                compiled.append_code("  XOR")
+                compiled.append_code(f"  JRIZ {third_byte_comparison}")
 
-            # We failed the comparison on the second byte, move to where we would have moved to and set our result to False.
-            compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
-            compiled.append_code(f"  LOADI {preload_value}")
-            compiled.append_code(f"  JRI {finished_comparison}")
+                # We failed the comparison on the second byte, move to where we would have moved to and set our result to False.
+                compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
+                compiled.append_code(f"  LOADI {preload_value}")
+                compiled.append_code(f"  JRI {finished_comparison}")
 
-            # Now, do the third byte comparison.
-            compiled.append_code(f"{third_byte_comparison}:")
-            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(2))
-            compiled.append_code("  LOAD A")
-            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(2))
+                # Now, do the third byte comparison.
+                compiled.append_code(f"{third_byte_comparison}:")
+                compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(2))
+                compiled.append_code("  LOAD A")
+                compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(2))
 
-            # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append_code("  XOR")
-            compiled.append_code(f"  JRIZ {fourth_byte_comparison}")
+                # XOR the two numbers, which will give us 0 if they equal.
+                compiled.append_code("  XOR")
+                compiled.append_code(f"  JRIZ {fourth_byte_comparison}")
 
-            # We failed the comparison on the third byte, move to where we would have moved to and set our result to False.
-            compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
-            compiled.append_code(f"  LOADI {preload_value}")
-            compiled.append_code(f"  JRI {finished_comparison}")
+                # We failed the comparison on the third byte, move to where we would have moved to and set our result to False.
+                compiled += generate_move_to(first_dest, stack.clone(), clobbers, context, offset=actual_expr_offset(3))
+                compiled.append_code(f"  LOADI {preload_value}")
+                compiled.append_code(f"  JRI {finished_comparison}")
 
-            # Now, do the fourth byte comparison.
-            compiled.append_code(f"{fourth_byte_comparison}:")
-            compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(3))
-            compiled.append_code("  LOAD A")
-            compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(3))
+                # Now, do the fourth byte comparison.
+                compiled.append_code(f"{fourth_byte_comparison}:")
+                compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(3))
+                compiled.append_code("  LOAD A")
+                compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(3))
 
-            # XOR the two numbers, which will give us 0 if they equal.
-            compiled.append_code("  XOR")
+                # XOR the two numbers, which will give us 0 if they equal.
+                compiled.append_code("  XOR")
 
-            # Preload condition result into A.
-            compiled.append_code(f"  LOADI {preload_value}")
+                # Preload condition result into A.
+                compiled.append_code(f"  LOADI {preload_value}")
 
-            # Skip the invert instruction if we were non-zero, which meant not equal.
-            compiled.append_code("  SKIPIF !ZF")
+                # Skip the invert instruction if we were non-zero, which meant not equal.
+                compiled.append_code("  SKIPIF !ZF")
 
-            # Set our output to true instead of false.
-            compiled.append_code("  INV")
+                # Set our output to true instead of false.
+                compiled.append_code("  INV")
 
-            # Provide a jump point to get here from the first half comparison.
-            compiled.append_code(f"{finished_comparison}:")
+                # Provide a jump point to get here from the first half comparison.
+                compiled.append_code(f"{finished_comparison}:")
 
-        for entry in reversed(equal_cleanup):
-            stack.free(entry)
+            for entry in reversed(equal_cleanup):
+                stack.free(entry)
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
@@ -3354,100 +3382,121 @@ def generate_comparison_expr(
         else:
             raise Exception("Logic error, unexpected comparison type!")
 
-        unequal_cleanup: List[str] = []
-        if left_type.size == right_type.size:
-            # First, evaluate both expressions so that we can compare them.
-            first_dest = expr_temp_name()
-            unequal_cleanup.append(first_dest)
-            stack.alloc(StackVar(first_dest, left_type))
-            compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(left_expr))
+        if left_type.is_string or right_type.is_string:
+            if not (left_type.is_string and right_type.is_string):
+                raise CompilerError("Unsupported comparison expression against types {left_type.type} and {right_type.type}", context)
 
-            second_dest = expr_temp_name()
-            unequal_cleanup.append(second_dest)
-            stack.alloc(StackVar(second_dest, right_type))
-            compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, refs, local_consts, context.wrap(right_expr))
+            # In this case, don't even try to set up the stack, just let the function call handle it.
+            compiled += generate_function_call_internal(
+                create_call(
+                    "strcmp",
+                    [left_expr, right_expr],
+                ),
+                "register(A, int8)",
+                types,
+                stack,
+                clobbers,
+                refs,
+                local_consts,
+                context.wrap(expression),
+            )
 
         else:
-            # Figure out which one is bigger, we'll evaluate that one first.
-            if left_type.size > right_type.size:
-                first_expr = left_expr
-                first_type = left_type
-                second_expr = right_expr
-                second_type = right_type
+            unequal_cleanup: List[str] = []
+
+            if left_type.size == right_type.size:
+                # First, evaluate both expressions so that we can compare them.
+                first_dest = expr_temp_name()
+                unequal_cleanup.append(first_dest)
+                stack.alloc(StackVar(first_dest, left_type))
+                compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(left_expr))
+
+                second_dest = expr_temp_name()
+                unequal_cleanup.append(second_dest)
+                stack.alloc(StackVar(second_dest, right_type))
+                compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, refs, local_consts, context.wrap(right_expr))
+
             else:
-                first_expr = right_expr
-                first_type = right_type
-                second_expr = left_expr
-                second_type = left_type
+                # Figure out which one is bigger, we'll evaluate that one first.
+                if left_type.size > right_type.size:
+                    first_expr = left_expr
+                    first_type = left_type
+                    second_expr = right_expr
+                    second_type = right_type
+                else:
+                    first_expr = right_expr
+                    first_type = right_type
+                    second_expr = left_expr
+                    second_type = left_type
 
-                # Since the two params are swapped, we must swap the op as well.
-                op = {
-                    ">": "<",
-                    "<": ">",
-                    ">=": "<=",
-                    "<=": ">=",
-                }[op]
+                    # Since the two params are swapped, we must swap the op as well.
+                    op = {
+                        ">": "<",
+                        "<": ">",
+                        ">=": "<=",
+                        "<=": ">=",
+                    }[op]
 
-            # First, handle the expression that's the wider of the two already.
-            first_dest = expr_temp_name()
-            unequal_cleanup.append(first_dest)
-            stack.alloc(StackVar(first_dest, first_type))
-            compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(first_expr))
+                # First, handle the expression that's the wider of the two already.
+                first_dest = expr_temp_name()
+                unequal_cleanup.append(first_dest)
+                stack.alloc(StackVar(first_dest, first_type))
+                compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(first_expr))
 
-            # Now, allocate a spot for the second to be sign extended into.
-            second_dest = expr_temp_name()
-            unequal_cleanup.append(second_dest)
-            stack.alloc(StackVar(second_dest, first_type, initialized=True))
+                # Now, allocate a spot for the second to be sign extended into.
+                second_dest = expr_temp_name()
+                unequal_cleanup.append(second_dest)
+                stack.alloc(StackVar(second_dest, first_type, initialized=True))
 
-            # And allocate where we'll calculate it before sign-extending.
-            second_temp = expr_temp_name()
-            stack.alloc(StackVar(second_temp, second_type))
-            compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+                # And allocate where we'll calculate it before sign-extending.
+                second_temp = expr_temp_name()
+                stack.alloc(StackVar(second_temp, second_type))
+                compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
 
-            # Now, copy it with a sign extension.
-            compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, refs, local_consts, context.wrap(second_expr))
+                # Now, copy it with a sign extension.
+                compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, refs, local_consts, context.wrap(second_expr))
 
-            # Now, we don't need the temp location now that we've computed and sign extended.
-            stack.free(second_temp)
+                # Now, we don't need the temp location now that we've computed and sign extended.
+                stack.free(second_temp)
 
-        # Doing the comparison itself requires the A register.
-        clobbers.add("A")
+            # Doing the comparison itself requires the A register.
+            clobbers.add("A")
 
-        comparison_size = max(left_type.size, right_type.size)
-        if comparison_size == 1:
-            if left_type.is_unsigned:
-                func_name = "ucmp"
+            comparison_size = max(left_type.size, right_type.size)
+            if comparison_size == 1:
+                if left_type.is_unsigned:
+                    func_name = "ucmp"
+                else:
+                    func_name = "cmp"
+            elif comparison_size == 2:
+                if left_type.is_unsigned:
+                    func_name = "ucmp16"
+                else:
+                    func_name = "cmp16"
+            elif comparison_size == 4:
+                if left_type.is_unsigned:
+                    func_name = "ucmp32"
+                else:
+                    func_name = "cmp32"
             else:
-                func_name = "cmp"
-        elif comparison_size == 2:
-            if left_type.is_unsigned:
-                func_name = "ucmp16"
-            else:
-                func_name = "cmp16"
-        elif comparison_size == 4:
-            if left_type.is_unsigned:
-                func_name = "ucmp32"
-            else:
-                func_name = "cmp32"
-        else:
-            raise Exception(f"Logic error, unexpected comparison size {comparison_size}!")
+                raise Exception(f"Logic error, unexpected comparison size {comparison_size}!")
 
-        compiled += generate_function_call_internal(
-            create_call(
-                func_name,
-                [UnvalidatedName(x) for x in unequal_cleanup],
-            ),
-            "register(A, int8)",
-            types,
-            stack,
-            clobbers,
-            refs,
-            local_consts,
-            context.wrap(expression),
-        )
+            compiled += generate_function_call_internal(
+                create_call(
+                    func_name,
+                    [UnvalidatedName(x) for x in unequal_cleanup],
+                ),
+                "register(A, int8)",
+                types,
+                stack,
+                clobbers,
+                refs,
+                local_consts,
+                context.wrap(expression),
+            )
 
-        for entry in reversed(unequal_cleanup):
-            stack.free(entry)
+            for entry in reversed(unequal_cleanup):
+                stack.free(entry)
 
         # Now, set the output to True or False depending on which comparison we wanted.
         if op == ">":
@@ -3594,7 +3643,7 @@ def generate_subscript_expr(
     if isinstance(slice_or_index, cst.Index):
         # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
         base_dest = expr_temp_name()
-        stack.alloc(StackVar(base_dest, CoreType("string", const=True)))
+        stack.alloc(StackVar(base_dest, CoreType("str", const=True)))
         compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.value))
 
         # Calculate the offset into the string that we're gonna need, first.
@@ -3668,7 +3717,7 @@ def generate_subscript_expr(
             # In order to ensure that it's possible to do stack math on this value, locate it in
             # a temporary location for the time being if the destination isn't the top of the stack.
             lhs_dest = expr_temp_name()
-            stack.alloc(StackVar(lhs_dest, CoreType("string"), initialized=True))
+            stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
 
             source_loc = stack.absfind(destination)
             dest_loc = stack.absfind(lhs_dest)
@@ -3682,7 +3731,7 @@ def generate_subscript_expr(
 
         # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
         base_dest = expr_temp_name()
-        stack.alloc(StackVar(base_dest, CoreType("string", const=True)))
+        stack.alloc(StackVar(base_dest, CoreType("str", const=True)))
         compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.value))
 
         if slice_or_index.step is not None:
@@ -3939,7 +3988,7 @@ def generate_expr_internal(
                         # In order to ensure that it's possible to do stack math on this value, locate it in
                         # a temporary location for the time being if the destination isn't the top of the stack.
                         lhs_dest = expr_temp_name()
-                        stack.alloc(StackVar(lhs_dest, CoreType("string"), initialized=True))
+                        stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
 
                         source_loc = stack.absfind(destination)
                         dest_loc = stack.absfind(lhs_dest)
@@ -3955,7 +4004,7 @@ def generate_expr_internal(
                     clobbers.add("A")
 
                     rhs_dest = expr_temp_name()
-                    stack.alloc(StackVar(rhs_dest, CoreType("string"), initialized=True))
+                    stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
                     compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=-1)
                     compiled.append_code(f"  PUSHADDR {static_source_storage}")
                     stack.location += 2
@@ -4063,12 +4112,24 @@ def infer_tree(
 ) -> None:
     if concrete_type.type == "int":
         raise Exception("Logic error, attempting to infer tree with unspecified type!")
+    if concrete_type.type == "string":
+        raise Exception("Logic error, attempting to infer tree with unspecified type!")
 
     for _, ctype in types.items():
         if ctype.type == "int":
-            if ctype.type == "void":
-                raise CompilerError("Unsupported expression without assignment!", context)
+            if concrete_type.type == "void":
+                raise CompilerError("Unsupported expression without assignment", context)
+            if not concrete_type.is_integer:
+                raise CompilerError(f"Unsupported integer expression assignment to non-integer type {concrete_type.type}", context)
             ctype.type = concrete_type.type
+        if ctype.type == "string":
+            if concrete_type.type == "void":
+                raise CompilerError("Unsupported expression without assignment", context)
+            if not (concrete_type.is_string or concrete_type.is_char):
+                raise CompilerError(f"Unsupported string expression assignment to non-string type {concrete_type.type}", context)
+            ctype.type = concrete_type.type
+            if concrete_type.is_char:
+                ctype.length = 0
 
 
 def infer_expr_types_impl(
@@ -4137,9 +4198,14 @@ def infer_expr_types_impl(
 
         if isinstance(expression.operator, (cst.Add, cst.Subtract, cst.BitAnd, cst.BitOr, cst.BitXor, cst.Multiply, cst.Divide, cst.FloorDivide, cst.Modulo)):
             if isinstance(expression.operator, cst.Add):
+                if left_inferred.type == "string":
+                    infer_tree(left_tree, CoreType("str"), context)
+                if right_inferred.type == "string":
+                    infer_tree(right_tree, CoreType("str"), context)
+
                 if left_inferred.is_string and right_inferred.is_string:
                     # This is string concatenation.
-                    inferred[expression] = CoreType("string", None, const=False, extern=False)
+                    inferred[expression] = CoreType("str", None, const=False, extern=False)
                     inferred.update(left_tree)
                     inferred.update(right_tree)
                     return inferred
@@ -4202,12 +4268,16 @@ def infer_expr_types_impl(
                 infer_tree(left_tree, right_tree[comparison.comparator], context)
             if left_tree[expression.left].type != "int" and right_tree[comparison.comparator].type == "int":
                 infer_tree(right_tree, left_tree[expression.left], context)
+            if left_tree[expression.left].type == "string" and right_tree[comparison.comparator].type != "string":
+                infer_tree(left_tree, right_tree[comparison.comparator], context)
+            if left_tree[expression.left].type != "string" and right_tree[comparison.comparator].type == "string":
+                infer_tree(right_tree, left_tree[expression.left], context)
 
             # Verify that we're comparing two equivalent types.
             if not type_comparison_compatible(left_tree[expression.left], right_tree[comparison.comparator]):
-                raise CompilerError(f"Unsupported comparison of types {inferred[expression.left].type} and {inferred[comparison.comparator].type}", context)
+                raise CompilerError(f"Unsupported comparison of types {left_tree[expression.left].type} and {right_tree[comparison.comparator].type}", context)
             if left_tree[expression.left].is_unsigned != right_tree[comparison.comparator].is_unsigned:
-                raise CompilerError(f"Unsupported comparison of types {inferred[expression.left].type} and {inferred[comparison.comparator].type}", context)
+                raise CompilerError(f"Unsupported comparison of types {left_tree[expression.left].type} and {right_tree[comparison.comparator].type}", context)
 
             inferred.update(right_tree)
 
@@ -4242,6 +4312,8 @@ def infer_expr_types_impl(
         orelse_inferred = orelse_tree[expression.orelse]
         if not type_comparison_compatible(body_inferred, orelse_inferred):
             raise CompilerError(f"Unsupported mixed types {body_inferred.type} and {orelse_inferred.type} in if expression", context)
+        if body_inferred.is_unsigned != orelse_inferred.is_unsigned:
+            raise CompilerError(f"Unsupported mixed types {body_inferred.type} and {orelse_inferred.type} in if expression", context)
 
         # Infer constants and pick the widest of the two sides for this expression's type.
         if orelse_inferred.type == "int":
@@ -4252,6 +4324,18 @@ def infer_expr_types_impl(
             picked = body_inferred
 
         elif body_inferred.type == "int" and orelse_inferred != "int":
+            # Pick the right since it is specified, the left will have to be filled in later.
+            infer_tree(body_tree, orelse_inferred, context)
+            picked = orelse_inferred
+
+        elif orelse_inferred.type == "string":
+            if body_inferred.type != "string":
+                infer_tree(orelse_tree, body_inferred, context)
+
+            # Just arbitrarily pick the left, which could be an unspecified int as well.
+            picked = body_inferred
+
+        elif body_inferred.type == "string" and orelse_inferred != "string":
             # Pick the right since it is specified, the left will have to be filled in later.
             infer_tree(body_tree, orelse_inferred, context)
             picked = orelse_inferred
@@ -4270,6 +4354,8 @@ def infer_expr_types_impl(
     elif isinstance(expression, cst.Subscript):
         array_tree = infer_expr_types_impl(expression.value, stack, refs, local_consts, context.wrap(expression.value))
         array_inferred = array_tree[expression.value]
+        if array_inferred.type == "string":
+            infer_tree(array_tree, CoreType("str"), context)
         if not array_inferred.is_string:
             raise CompilerError(f"Unsupported non-string type {array_inferred.type} in subscript expression", context)
 
@@ -4282,7 +4368,7 @@ def infer_expr_types_impl(
             index_type = index_tree[slice_or_index.value]
 
             if index_type.type == "int":
-                infer_tree(index_tree, CoreType("uint8", const=True), context)
+                infer_tree(index_tree, CoreType("uint8"), context)
             if not index_type.is_integer:
                 raise CompilerError(f"Unsupported non-integer index type {index_type.type} in subscript expression", context)
 
@@ -4309,7 +4395,7 @@ def infer_expr_types_impl(
                 inferred.update(slice_tree)
 
             inferred.update(array_tree)
-            inferred[expression] = CoreType("string")
+            inferred[expression] = CoreType("str", length=array_inferred.length)
 
         else:
             raise Exception("Logic error, unexpected node {slice_or_index} for subscript slice!")
@@ -5610,7 +5696,7 @@ def is_assign_type_definition(assign: cst.Assign) -> bool:
     if not isinstance(target.target, cst.Name):
         return False
 
-    if target.target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "string", "char", "bool", "void"}:
+    if target.target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "str", "char", "bool", "void"}:
         return False
 
     if not isinstance(assign.value, cst.Name):
@@ -5627,7 +5713,7 @@ def is_annassign_type_definition(assign: cst.AnnAssign) -> bool:
     if not isinstance(target, cst.Name):
         return False
 
-    if target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "string", "char", "bool", "void"}:
+    if target.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "pointer", "str", "char", "bool", "void"}:
         return False
 
     if not isinstance(assign.value, cst.Name):
@@ -5742,7 +5828,7 @@ def parse_and_compile_module(module: str, code: str) -> Sections:
 
 def builtin_functions() -> List[FunctionPrototype]:
     return [
-        FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("string")]),
+        FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("str")]),
     ]
 
 
@@ -5756,19 +5842,19 @@ def builtin_consts() -> List[Constant]:
 def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
     prototypes: List[Union[FunctionPrototype, GlobalVariable]] = [
         # STDLIB string functions.
-        FunctionPrototype("strcat", VoidType, [PreservedCoreType("string"), PreservedCoreType("string")]),
-        FunctionPrototype("strcmp", RegisterCoreType("int8", "A"), [PreservedCoreType("string"), PreservedCoreType("string")]),
-        FunctionPrototype("strcpy", VoidType, [PreservedCoreType("string"), PreservedCoreType("string")]),
-        FunctionPrototype("strncpy", VoidType, [PreservedCoreType("string"), PreservedCoreType("string"), PreservedCoreType("uint8")]),
-        FunctionPrototype("strlen", RegisterCoreType("uint8", "A"), [PreservedCoreType("string")]),
+        FunctionPrototype("strcat", VoidType, [PreservedCoreType("str"), PreservedCoreType("str")]),
+        FunctionPrototype("strcmp", RegisterCoreType("int8", "A"), [PreservedCoreType("str"), PreservedCoreType("str")]),
+        FunctionPrototype("strcpy", VoidType, [PreservedCoreType("str"), PreservedCoreType("str")]),
+        FunctionPrototype("strncpy", VoidType, [PreservedCoreType("str"), PreservedCoreType("str"), PreservedCoreType("uint8")]),
+        FunctionPrototype("strlen", RegisterCoreType("uint8", "A"), [PreservedCoreType("str")]),
 
         # STDLIB string/integer conversion functions.
-        FunctionPrototype("atoi", RegisterCoreType("int8", "A"), [InOutCoreType("string")]),
-        FunctionPrototype("atoi16", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int16")]),
-        FunctionPrototype("atoi32", ParamReturnCoreType(1), [InOutCoreType("string"), OutCoreType("int32")]),
-        FunctionPrototype("itoa", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("string")]),
-        FunctionPrototype("itoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("string")]),
-        FunctionPrototype("itoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("string")]),
+        FunctionPrototype("atoi", RegisterCoreType("int8", "A"), [InOutCoreType("str")]),
+        FunctionPrototype("atoi16", ParamReturnCoreType(1), [InOutCoreType("str"), OutCoreType("int16")]),
+        FunctionPrototype("atoi32", ParamReturnCoreType(1), [InOutCoreType("str"), OutCoreType("int32")]),
+        FunctionPrototype("itoa", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
+        FunctionPrototype("itoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
+        FunctionPrototype("itoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),
 
         # STDLIB integer math functions.
         FunctionPrototype("abs", RegisterCoreType("int8", "A"), [RegisterCoreType("int8", "A")]),

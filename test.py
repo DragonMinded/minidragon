@@ -6794,6 +6794,10 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
         initlines = fp.readlines()
     with open("lib/start.S", "r") as fp:
         initlines += fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/string/strcmp.S", "r") as fp:
+        strcmplines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -7105,6 +7109,115 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
             instructions += cpu.ticks
             count += 1
 
+    for first in ['0', '7', 'a', 'd', 'A', 'Z']:
+        for second in ['0', '7', 'a', 'd', 'A', 'Z']:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *parse_and_compile_module("equalityexpression", textwrap.dedent("""
+                    def func(val1: char, val2: char) -> bool:
+                        return val1 == val2
+                """)).code,
+                "main:",
+                f"PUSHI {first!r}",
+                f"PUSHI {second!r}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"equalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"equalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"equalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = first == second
+            _assert(
+                result == expected,
+                "Failed to equalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    for first in ['apples', 'bananas', 'carrots', 'dragons']:
+        for second in ['apples', 'bananas', 'carrots', 'dragons']:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *cmplines,
+                *strcmplines,
+                *parse_and_compile_module("equalityexpression", textwrap.dedent("""
+                    def func(val1: str, val2: str) -> bool:
+                        return val1 == val2
+                """)).code,
+                ".org 0x1000",
+                "first:",
+                *[f".char {c!r}" for c in first],
+                ".byte 0x00",
+                ".org 0x2000",
+                "second:",
+                *[f".char {c!r}" for c in second],
+                ".byte 0x00",
+                ".org 0x3000",
+                "main:",
+                "PUSHADDR first",
+                "PUSHADDR second",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"equalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"equalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"equalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = first == second
+            _assert(
+                result == expected,
+                "Failed to equalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
     print(f"Average cycles for equalityexpression: {int(cycles/count)}")
     print(f"Average instructions for equalityexpression: {int(instructions/count)}")
 
@@ -7119,6 +7232,10 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
         initlines = fp.readlines()
     with open("lib/start.S", "r") as fp:
         initlines += fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/string/strcmp.S", "r") as fp:
+        strcmplines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -7426,6 +7543,115 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
             instructions += cpu.ticks
             count += 1
 
+    for first in ['0', '7', 'a', 'd', 'A', 'Z']:
+        for second in ['0', '7', 'a', 'd', 'A', 'Z']:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *parse_and_compile_module("equalityexpression", textwrap.dedent("""
+                    def func(val1: char, val2: char) -> bool:
+                        return val1 != val2
+                """)).code,
+                "main:",
+                f"PUSHI {first!r}",
+                f"PUSHI {second!r}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"equalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"equalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"equalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = first != second
+            _assert(
+                result == expected,
+                "Failed to equalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    for first in ['apples', 'bananas', 'carrots', 'dragons']:
+        for second in ['apples', 'bananas', 'carrots', 'dragons']:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *cmplines,
+                *strcmplines,
+                *parse_and_compile_module("equalityexpression", textwrap.dedent("""
+                    def func(val1: str, val2: str) -> bool:
+                        return val1 != val2
+                """)).code,
+                ".org 0x1000",
+                "first:",
+                *[f".char {c!r}" for c in first],
+                ".byte 0x00",
+                ".org 0x2000",
+                "second:",
+                *[f".char {c!r}" for c in second],
+                ".byte 0x00",
+                ".org 0x3000",
+                "main:",
+                "PUSHADDR first",
+                "PUSHADDR second",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL func",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"equalityexpression changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"equalityexpression changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"equalityexpression changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = first != second
+            _assert(
+                result == expected,
+                "Failed to equalityexpression, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
     print(f"Average cycles for inequalityexpression: {int(cycles/count)}")
     print(f"Average instructions for inequalityexpression: {int(instructions/count)}")
 
@@ -7442,12 +7668,14 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
+    with open("lib/string/strcmp.S", "r") as fp:
+        strcmplines = fp.readlines()
 
     cycles = 0
     instructions = 0
     count = 0
-    for val1 in [0, 10, 57, 123, 234, 255]:
-        for val2 in [0, 10, 57, 123, 234, 255]:
+    for val1 in [0, 57, 123, 127, 255]:
+        for val2 in [0, 57, 123, 127, 255]:
             for secondtype in ["uint8", "uint16", "uint32"]:
                 for operator in ["<=", "<", ">=", ">="]:
                     memory = getmemory(os.linesep.join([
@@ -7555,6 +7783,118 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
                     cycles += cpu.cycles
                     instructions += cpu.ticks
                     count += 1
+
+    for first in ['0', '7', 'a', 'd', 'A', 'Z']:
+        for second in ['0', '7', 'a', 'd', 'A', 'Z']:
+            for operator in ["<=", "<", ">=", ">="]:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
+                        def func(val1: char, val2: char) -> bool:
+                            return val1 {operator} val2
+                    """)).code,
+                    "main:",
+                    f"PUSHI {first!r}",
+                    f"PUSHI {second!r}",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL func",
+                    "HALT",
+                    *cmplines,
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"alligatorexpression changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"alligatorexpression changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"alligatorexpression changed V value from {222} to {cpu.v}!",
+                )
+                _assert(
+                    cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                    f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+                )
+                result = bool(cpu.ram[cpu.pc + 0])
+                expected = eval(f"{first!r} {operator} {second!r}")
+                _assert(
+                    result == expected,
+                    "Failed to alligatorexpression, "
+                    + f"got {result} instead of {expected} for {val1} {operator} {val2}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+    for first in ['apples', 'bananas', 'carrots', 'dragons']:
+        for second in ['apples', 'bananas', 'carrots', 'dragons']:
+            for operator in ["<=", "<", ">=", ">="]:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
+                        def func(val1: str, val2: str) -> bool:
+                            return val1 {operator} val2
+                    """)).code,
+                    ".org 0x1000",
+                    "first:",
+                    *[f".char {c!r}" for c in first],
+                    ".byte 0x00",
+                    ".org 0x2000",
+                    "second:",
+                    *[f".char {c!r}" for c in second],
+                    ".byte 0x00",
+                    ".org 0x3000",
+                    "main:",
+                    "PUSHADDR first",
+                    "PUSHADDR second",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL func",
+                    "HALT",
+                    *cmplines,
+                    *strcmplines,
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"alligatorexpression changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"alligatorexpression changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"alligatorexpression changed V value from {222} to {cpu.v}!",
+                )
+                _assert(
+                    cpu.ram[cpu.pc + 0] in {0x00, 0xFF},
+                    f"compulted boolean was invalid value {cpu.ram[cpu.pc + 0]}!",
+                )
+                result = bool(cpu.ram[cpu.pc + 0])
+                expected = eval(f"{first!r} {operator} {second!r}")
+                _assert(
+                    result == expected,
+                    "Failed to alligatorexpression, "
+                    + f"got {result} instead of {expected} for {val1} {operator} {val2}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
 
     print(f"Average cycles for alligatorexpression: {int(cycles/count)}")
     print(f"Average instructions for alligatorexpression: {int(instructions/count)}")
@@ -9357,9 +9697,9 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # First, see if we can return a global constant string, and that we get the right value.
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            STRING_CONST: const[string] = "This is a test."
+            STRING_CONST: const[str] = "This is a test."
 
-            def return_string() -> const[string]:
+            def return_string() -> const[str]:
                 return STRING_CONST
         """))
         memory = getmemory(os.linesep.join([
@@ -9410,9 +9750,9 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # Now, see if we can return a global non-constant string, and that we get the right value.
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            string_global: string[16] = "This is a test."
+            string_global: str[16] = "This is a test."
 
-            def return_string() -> string:
+            def return_string() -> str:
                 return string_global
         """))
         memory = getmemory(os.linesep.join([
@@ -9463,7 +9803,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # Now, see if we can return a local constant string, and that we get the right value.
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string() -> const[string]:
+            def return_string() -> const[str]:
                 return "This is a test."
         """))
         memory = getmemory(os.linesep.join([
@@ -9514,7 +9854,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # Now, see if we can return a local non-constant string, and that we get the right value.
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string() -> string[32]:
+            def return_string() -> str[32]:
                 return "This is a test."
         """))
         memory = getmemory(os.linesep.join([
@@ -9566,10 +9906,10 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # Now, iterate a few times on assigning local variables from constants/non constants.
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            STRING_CONST: const[string] = "This is a test."
+            STRING_CONST: const[str] = "This is a test."
 
-            def return_string() -> const[string]:
-                LOCAL_CONST: const[string] = STRING_CONST
+            def return_string() -> const[str]:
+                LOCAL_CONST: const[str] = STRING_CONST
                 return LOCAL_CONST
         """))
         memory = getmemory(os.linesep.join([
@@ -9619,10 +9959,10 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
 
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            STRING_CONST: const[string] = "This is a test."
+            STRING_CONST: const[str] = "This is a test."
 
-            def return_string() -> const[string]:
-                local: string[32] = STRING_CONST
+            def return_string() -> const[str]:
+                local: str[32] = STRING_CONST
                 return local
         """))
         memory = getmemory(os.linesep.join([
@@ -9673,8 +10013,8 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
 
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string() -> const[string]:
-                LOCAL_CONST: const[string] = "This is a test."
+            def return_string() -> const[str]:
+                LOCAL_CONST: const[str] = "This is a test."
                 return LOCAL_CONST
         """))
         memory = getmemory(os.linesep.join([
@@ -9724,8 +10064,8 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
 
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string() -> string:
-                local: string[32] = "This is a test."
+            def return_string() -> str:
+                local: str[32] = "This is a test."
                 return local
         """))
         memory = getmemory(os.linesep.join([
@@ -9776,9 +10116,9 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
 
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string() -> string:
-                LOCAL_CONST: const[string] = "This is a test."
-                local: string[32] = LOCAL_CONST
+            def return_string() -> str:
+                LOCAL_CONST: const[str] = "This is a test."
+                local: str[32] = LOCAL_CONST
                 return local
         """))
         memory = getmemory(os.linesep.join([
@@ -9830,8 +10170,8 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # Test if statements with uninitialized variable.
     for var in [True, False]:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string(var: bool) -> string:
-                local: string[32]
+            def return_string(var: bool) -> str:
+                local: str[32]
                 if var:
                     local = "Test 1."
                 else:
@@ -9888,8 +10228,8 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # Test if statements with initialized variable.
     for var in [True, False]:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string(var: bool) -> string:
-                local: string[32] = ""
+            def return_string(var: bool) -> str:
+                local: str[32] = ""
                 if var:
                     local = "Test 1."
                 else:
@@ -9946,7 +10286,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # Test if statements with string returns.
     for var in [True, False]:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string(var: bool) -> string[32]:
+            def return_string(var: bool) -> str[32]:
                 if var:
                     return "Test 1."
                 else:
@@ -10001,7 +10341,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
 
     for var in [True, False]:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string(var: bool) -> const[string]:
+            def return_string(var: bool) -> const[str]:
                 if var:
                     return "Test 1."
                 else:
@@ -10083,7 +10423,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
     # Attempt to do string length on a constant string.
     for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
-            STRING_CONST: const[string] = "{val}"
+            STRING_CONST: const[str] = "{val}"
 
             def string_length() -> uint8:
                 return len(STRING_CONST)
@@ -10137,11 +10477,11 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
     # Attempt to do string length on a function parameter with an intermediate variable.
     for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
-            def string_length(which: string) -> uint8:
+            def string_length(which: str) -> uint8:
                 return len(which)
 
             def caller() -> uint8:
-                val: const[string] = "{val}"
+                val: const[str] = "{val}"
                 return string_length(val)
         """))
         memory = getmemory(os.linesep.join([
@@ -10194,7 +10534,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
     # Attempt to do string length on a function parameter without an intermediate variable.
     for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
-            def string_length(which: string) -> uint8:
+            def string_length(which: str) -> uint8:
                 return len(which)
 
             def caller() -> uint8:
@@ -10277,10 +10617,10 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
     # Concatenate string that is passed in via parameters.
     for val in ["jen", "dragon", "world"]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
-            def say_hello(thing: string) -> string[64]:
+            def say_hello(thing: str) -> str[64]:
                 return "Hello, " + thing + "!"
 
-            def caller() -> const[string]:
+            def caller() -> const[str]:
                 return say_hello("{val}")
         """))
         memory = getmemory(os.linesep.join([
@@ -10333,10 +10673,10 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
     # Concatenate string that is returned from a function.
     for val in ["jen", "dragon", "world"]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
-            def who() -> const[string]:
+            def who() -> const[str]:
                 return "{val}"
 
-            def say_hello() -> string[64]:
+            def say_hello() -> str[64]:
                 return "Hello, " + who() + "!"
         """))
         memory = getmemory(os.linesep.join([
@@ -10464,7 +10804,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
 
     for val in ["jen", "dragon", "world"]:
         sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-            CONST_STR: const[string] = "{val}"
+            CONST_STR: const[str] = "{val}"
 
             def subscript() -> char:
                 return CONST_STR[2]
@@ -10517,7 +10857,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
     # Now, verify non-constant global loads.
     for val in ["jen", "dragon", "world"]:
         sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-            global_str: string[16] = "{val}"
+            global_str: str[16] = "{val}"
 
             def subscript() -> char:
                 return global_str[2]
@@ -10571,7 +10911,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
     for val in ["jen", "dragon", "world"]:
         sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
             def subscript() -> char:
-                some_str: string[16]
+                some_str: str[16]
                 some_str = "{val}" + "!"
                 return some_str[2]
         """))
@@ -10623,7 +10963,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
 
     for val in ["jen", "dragon", "world"]:
         sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-            def getstr() -> const[string]:
+            def getstr() -> const[str]:
                 return "{val}"
 
             def subscript() -> char:
@@ -10730,7 +11070,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
     for val in ["jen", "dragon", "world"]:
         for loc in [0, 1, 2]:
             sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-                def subscript_impl(str: string, loc: uint8) -> char:
+                def subscript_impl(str: str, loc: uint8) -> char:
                     return str[loc]
 
                 def subscript(loc: uint8) -> char:
@@ -10811,7 +11151,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
     for sliceval in [":", ":8", "4:", "4:8"]:
         sliceable = "this is a test"
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
-            def sliceme() -> string[32]:
+            def sliceme() -> str[32]:
                 return "{sliceable}"[{sliceval}]
         """))
         memory = getmemory(os.linesep.join([
@@ -10864,10 +11204,10 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
     for sliceval in [":", ":8", "4:", "4:8"]:
         sliceable = "this is a test"
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
-            def getstr() -> const[string]:
+            def getstr() -> const[str]:
                 return "{sliceable}"
 
-            def sliceme() -> string[32]:
+            def sliceme() -> str[32]:
                 return getstr()[{sliceval}]
         """))
         memory = getmemory(os.linesep.join([
@@ -10920,10 +11260,10 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
     for sliceint in [0, 2, 4, 8, 16]:
         sliceable = "this is a test"
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
-            def getstr() -> const[string]:
+            def getstr() -> const[str]:
                 return "{sliceable}"
 
-            def sliceme(loc: uint8) -> string[32]:
+            def sliceme(loc: uint8) -> str[32]:
                 return getstr()[:loc]
         """))
         memory = getmemory(os.linesep.join([
@@ -10976,10 +11316,10 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
     for sliceint in [0, 2, 4, 8, 16]:
         sliceable = "this is a test"
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
-            def getstr() -> const[string]:
+            def getstr() -> const[str]:
                 return "{sliceable}"
 
-            def sliceme(loc: uint8) -> string[32]:
+            def sliceme(loc: uint8) -> str[32]:
                 return getstr()[loc:]
         """))
         memory = getmemory(os.linesep.join([
@@ -11034,10 +11374,10 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         for extendval in [0, 1, 3, 7, 11]:
             sliceable = "this is a test"
             sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
-                def getstr() -> const[string]:
+                def getstr() -> const[str]:
                     return "{sliceable}"
 
-                def sliceme(loc1: uint8, loc2: uint8) -> string[32]:
+                def sliceme(loc1: uint8, loc2: uint8) -> str[32]:
                     return getstr()[loc1:loc2]
             """))
             memory = getmemory(os.linesep.join([
