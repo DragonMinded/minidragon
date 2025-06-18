@@ -1,5 +1,5 @@
 Things that I think I am going to need if I want to use this compiler:
- - string support, including assignment to change a character in a string, and character concatenation.
+ - string support, including assignment to change a character in a string.
  - support for str() so that we can convert booleans, integers and characters to strings.
  - simple f-string support.
  - integer/boolean array support, including reading/writing values using array syntax.
@@ -24,6 +24,7 @@ Optimizations that would be nice to have:
  - find JRI/LNGJUMP that points at the next instruction and remove it.
  - duplicate instruction chain finder, replace with LNGJUMP to save on space.
  - replace LNGJUMP with JRI when appropriately small jumps exist.
+ - non-const string initialization to "" shouldn't call strcpy.
  - look at what functions in the stdlib can be made less "safe" by removing stack parameter restores.
 
 Things that would be good for a complete compiler that I probably will not need:

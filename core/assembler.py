@@ -207,6 +207,14 @@ class InvalidInstructionException(Exception):
     pass
 
 
+class DuplicateLabelDefinitionException(Exception):
+    pass
+
+
+class InvalidLabelDefinitionException(Exception):
+    pass
+
+
 class ParameterOutOfRangeException(Exception):
     pass
 
@@ -363,7 +371,14 @@ def assemble(
         # Labels.
         elif mnemonic.endswith(":"):
             # A label of some sort.
-            labels[mnemonic[:-1].strip()] = org
+            labelname = mnemonic[:-1].strip()
+            if labelname in labels:
+                raise DuplicateLabelDefinitionException(f"Duplicate label {labelname} found")
+            allowed_characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
+            for ch in labelname:
+                if ch not in allowed_characters:
+                    raise InvalidLabelDefinitionException(f"Invalid label {labelname} found")
+            labels[labelname] = org
 
         # Regular opcodes.
         else:

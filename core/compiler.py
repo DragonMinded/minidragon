@@ -588,13 +588,13 @@ def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionProto
     compiled = [c for c in compiled if c]
 
     # Doesn't matter where these labels point, they're just going to be used with SETPC and CALL instrutions.
+    deduped_labels: Set[str] = set()
     for ref in refs:
-        compiled.append(f"{ref.name}:")
+        deduped_labels.add(ref.name)
     for label in labels:
-        compiled.append(f"{label}:")
+        deduped_labels.add(label)
 
     # Fix up any sort of string pointer references.
-    extras: List[str] = []
     for line in compiled:
         if "PUSHADDR" in line:
             label = line.split("PUSHADDR", 1)[1]
@@ -602,9 +602,9 @@ def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionProto
             label = label.split(";", 1)[0]
             label = label.split(",", 1)[0]
             label = label.strip()
-            extras.append(label)
+            deduped_labels.add(label)
 
-    for label in extras:
+    for label in deduped_labels:
         compiled.append(f"{label}:")
 
     memory = assemble(compiled)
@@ -668,7 +668,7 @@ class StackVar:
 
         label = ""
         for c in self.name:
-            if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_":
+            if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_":
                 label += c
             else:
                 label += "_"
@@ -1672,6 +1672,7 @@ def generate_function_call_internal(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -1866,7 +1867,7 @@ def generate_function_call_internal(
                 copy_mapping[arg_in_question.value] = expr_dest
             stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg, initialized=True))
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(arg_in_question, expr_dest, types, stack, clobbers, refs, local_consts, context.wrap(arg_in_question))
+            compiled += generate_expr_internal(arg_in_question, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(arg_in_question))
             which_arg += 1
 
         elif isinstance(needed_arg, PreservedCoreType):
@@ -1874,7 +1875,7 @@ def generate_function_call_internal(
             expr_dest = expr_temp_name()
             stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg))
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, refs, local_consts, context.wrap(args[which_arg].value))
+            compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
 
         else:
@@ -1883,7 +1884,7 @@ def generate_function_call_internal(
             expr_dest = expr_temp_name()
             stack.alloc(StackVar(expr_dest, needed_arg))
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, refs, local_consts, context.wrap(args[which_arg].value))
+            compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
 
     # Now, load our registers up with any register parameters.
@@ -1900,7 +1901,7 @@ def generate_function_call_internal(
             raise Exception(f"Logic error, tried to assign a param to unsupported register {needed_arg.type} in function {function_prototype.name}")
 
         stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.type])))
-        compiled += generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, refs, local_consts, context.wrap(provided_arg.value))
+        compiled += generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(provided_arg.value))
         compiled += generate_move_to(reg_dest, stack, clobbers, context)
         compiled.append_code(f"POP {needed_arg.type}")
         stack.free(reg_dest)
@@ -2021,6 +2022,7 @@ def generate_function_call(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -2041,6 +2043,7 @@ def generate_function_call(
                 types,
                 stack,
                 clobbers,
+                allocations,
                 refs,
                 local_consts,
                 context,
@@ -2050,7 +2053,7 @@ def generate_function_call(
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
 
     else:
-        return generate_function_call_internal(call, destination, types, stack, clobbers, refs, local_consts, context)
+        return generate_function_call_internal(call, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
 
 __comment_ref_count: int = 0
@@ -2115,12 +2118,58 @@ def expr_integer_type(size: int) -> CoreType:
         raise Exception("Logic error, unrecognized integer size!")
 
 
+def generate_local_storage_alloc(
+    destination: str,
+    stack: Stack,
+    clobbers: Set[str],
+    allocations: Dict[str, int],
+    context: Context,
+) -> Sections:
+    compiled = Sections()
+
+    dest_type = stack.typeof(destination)
+    if dest_type is None:
+        raise Exception("Logic error, cannot find destination to allocate local storage for!")
+
+    if not dest_type.is_array:
+        if destination == "builtin(retval)":
+            raise CompilerError("Non-constant string return requires a length", context)
+        else:
+            raise CompilerError("Non-constant local strings require a length", context)
+
+    local_destination_storage = stack.labelof(destination)
+    if local_destination_storage is None:
+        raise Exception("Logic error, couldn't get local storage for string!")
+
+    requested_length = dest_type.length or MAX_STRING_LENGTH
+    if local_destination_storage in allocations:
+        if allocations[local_destination_storage] != requested_length:
+            raise Exception("Logic error, re-allocation of local storage with different size!")
+    else:
+        compiled.append_data(f"{local_destination_storage}:")
+        compiled.append_data(f"  .pad {requested_length}")
+
+    # We only clobber the A register with the string init macro.
+    clobbers.add("A")
+
+    compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
+    compiled.append_code(f"  PUSHADDR {local_destination_storage}")
+    stack.location += 2
+
+    # Remember that we did this so we don't duplicate the allocation if we're conditionally allocating,
+    # such as when an unallocated variable gets assigned two values in an if/else conditional.
+    allocations[local_destination_storage] = requested_length
+
+    return compiled
+
+
 def generate_variable_lookup(
     source: str,
     destination: Optional[str],
     stack: Stack,
     types: Dict[cst.CSTNode, CoreType],
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -2191,21 +2240,7 @@ def generate_variable_lookup(
                 if not dest_type.const and global_var.type.const:
                     # We need to allocate locally and strcpy over.
                     if not stack.initof(destination):
-                        if not dest_type.is_array:
-                            raise CompilerError("Non-constant local strings require a length", context)
-
-                        local_destination_storage = stack.labelof(destination)
-                        if local_destination_storage is None:
-                            raise Exception("Logic error, couldn't get local storage for string!")
-                        compiled.append_data(f"{local_destination_storage}:")
-                        compiled.append_data(f"  .pad {dest_type.length or MAX_STRING_LENGTH}")
-
-                        # We only clobber the A register with the string init macro.
-                        clobbers.add("A")
-
-                        compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
-                        compiled.append_code(f"  PUSHADDR {local_destination_storage}")
-                        stack.location += 2
+                        compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
 
                         # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
                         stack.init(destination)
@@ -2244,6 +2279,7 @@ def generate_variable_lookup(
                         types,
                         stack,
                         clobbers,
+                        allocations,
                         refs,
                         local_consts,
                         context,
@@ -2370,27 +2406,42 @@ def generate_variable_lookup(
         if dest_loc is None or dest_type is None:
             raise Exception("Logic error, cannot find destination to copy variable value to!")
 
-        if dest_type.is_string and not source_type.is_string:
-            raise CompilerError("Unsupported string assignment to non-string expression", context)
+        if dest_type.is_string and not (source_type.is_string or source_type.is_char):
+            raise CompilerError("Unsupported non-string expression in string assignment", context)
 
-        if dest_type.is_string and not dest_type.const and source_type.const:
+        if dest_type.is_string and source_type.is_char:
+            # Regardless of whether the destination is constant, we need to allocate space for it.
+            if not stack.initof(destination):
+                compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+
+                # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                stack.init(destination)
+
+            # Initializing this requires us to clobber the SPC and A.
+            clobbers.add("SPC")
+            clobbers.add("A")
+
+            # Grab the character value itself.
+            compiled += generate_move_to(source, stack, clobbers, context)
+            compiled.append_code("  LOAD A")
+
+            # Set up the SPC to point at the string.
+            compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
+            compiled.append_code("  POP SPC")
+            stack.move(-2)
+            compiled.code += comment_stack(stack)
+
+            # Set the character value to the string, null-terminate.
+            compiled.append_code("  SWAP PC, SPC")
+            compiled.append_code("  STORE A")
+            compiled.append_code("  INCPC")
+            compiled.append_code("  STOREI 0")
+            compiled.append_code("  SWAP PC, SPC")
+
+        elif dest_type.is_string and not dest_type.const and source_type.const:
             # We need to allocate locally and strcpy over.
             if not stack.initof(destination):
-                if not dest_type.is_array:
-                    raise CompilerError("Non-constant local strings require a length", context)
-
-                local_destination_storage = stack.labelof(destination)
-                if local_destination_storage is None:
-                    raise Exception("Logic error, couldn't get local storage for string!")
-                compiled.append_data(f"{local_destination_storage}:")
-                compiled.append_data(f"  .pad {dest_type.length or MAX_STRING_LENGTH}")
-
-                # We only clobber the A register with the string init macro.
-                clobbers.add("A")
-
-                compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
-                compiled.append_code(f"  PUSHADDR {local_destination_storage}")
-                stack.location += 2
+                compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
 
                 # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
                 stack.init(destination)
@@ -2430,6 +2481,7 @@ def generate_variable_lookup(
                 types,
                 stack,
                 clobbers,
+                allocations,
                 refs,
                 local_consts,
                 context,
@@ -2485,6 +2537,7 @@ def generate_unary_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -2512,7 +2565,7 @@ def generate_unary_expr(
                 # Safe to put the expression evaluation in our destination because we're just going to negate it.
                 internal_dest = destination
 
-            compiled += generate_expr_internal(expression.expression, internal_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.expression))
+            compiled += generate_expr_internal(expression.expression, internal_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.expression))
 
             # Negation clobbers the A register, since it is the accumulator.
             clobbers.add("A")
@@ -2545,7 +2598,7 @@ def generate_unary_expr(
             else:
                 internal_dest = destination
 
-            compiled += generate_expr_internal(expression.expression, internal_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.expression))
+            compiled += generate_expr_internal(expression.expression, internal_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.expression))
 
             if isinstance(expression.operator, cst.Minus):
                 # Using the neg16 or neg32 function that's part of our stdlib.
@@ -2559,6 +2612,7 @@ def generate_unary_expr(
                     types,
                     stack,
                     clobbers,
+                    allocations,
                     refs,
                     local_consts,
                     context.wrap(expression),
@@ -2601,7 +2655,7 @@ def generate_unary_expr(
         # This one is simple, evaluate the operation and then invert it.
         clobbers.add("A")
 
-        compiled += generate_expr_internal(expression.expression, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+        compiled += generate_expr_internal(expression.expression, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context)
         compiled.append_code("  INV")
 
         if not is_register_destination(destination):
@@ -2621,6 +2675,7 @@ def generate_binary_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -2636,43 +2691,94 @@ def generate_binary_expr(
 
     # First, determine if this is string concatenation.
     if destination_type.is_string:
-        # First, generate the left hand side of the expression.
-        if stack[-1].name != destination:
-            lhs_dest = expr_temp_name()
-            stack.alloc(StackVar(lhs_dest, CoreType("str", length=destination_type.length)))
+        if not isinstance(expression.operator, cst.Add):
+            raise CompilerError("Unsupported binary expression with string destination", context)
+
+        if not types[expression.left].is_string:
+            raise Exception("Logic error, somehow assigning to string without the LHS being a string!")
+
+        if types[expression.right].is_string:
+            # First, generate the left hand side of the expression.
+            if stack[-1].name != destination:
+                lhs_dest = expr_temp_name()
+                stack.alloc(StackVar(lhs_dest, CoreType("str", length=destination_type.length)))
+            else:
+                lhs_dest = destination
+
+            compiled += generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
+
+            # Now, again with the right!
+            rhs_dest = expr_temp_name()
+            stack.alloc(StackVar(rhs_dest, CoreType("str", const=True)))
+            compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
+
+            # Now, call strcat to concatenate the two together!
+            compiled += generate_function_call_internal(
+                create_call(
+                    "strcat",
+                    [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                ),
+                None,
+                types,
+                stack,
+                clobbers,
+                allocations,
+                refs,
+                local_consts,
+                context.wrap(expression),
+            )
+
+            # No longer needed since we concatenated it.
+            stack.free(rhs_dest)
+
+            # Now, copy the destination pointer if needed.
+            if lhs_dest != destination:
+                compiled += generate_memcpy_stackvars(destination, lhs_dest, stack, clobbers, context)
+
+            # Now that we copied this to the destination, this is useless.
+            if lhs_dest != destination:
+                stack.free(lhs_dest)
+
+        elif types[expression.right].is_char:
+            # First, generate the left hand side of the expression.
+            compiled += generate_expr_internal(expression.left, destination, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
+
+            # Now, generate the right hand side so we can assign it to the end of the string.
+            clobbers.add("A")
+            compiled += generate_expr_internal(expression.right, "register(A, char)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
+
+            # Save that character, since we need to use the A register to advance until the null pointer.
+            clobbers.add("V")
+            compiled.append_code("  MOV A, V")
+
+            # Need to clobber the SPC to move to that location.
+            clobbers.add("SPC")
+            compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
+            compiled.append_code("  POP SPC")
+            stack.move(-2)
+            compiled.code += comment_stack(stack)
+
+            advance_top = local_label_name("advance_top")
+            advance_bottom = local_label_name("advance_bottom")
+
+            # Swap over so we can check the string one byte at a time.
+            compiled.append_code("  SWAP PC, SPC")
+
+            # Loop through, looking for the null termination character.
+            compiled.append_code(f"{advance_top}:")
+            compiled.append_code("  LOAD A")
+            compiled.append_code("  ADDI 0")
+            compiled.append_code(f"  JRIZ {advance_bottom}")
+            compiled.append_code("  INCPC")
+            compiled.append_code(f"  JRI {advance_top}")
+            compiled.append_code(f"{advance_bottom}:")
+            compiled.append_code("  STORE V")
+            compiled.append_code("  INCPC")
+            compiled.append_code("  STOREI 0")
+            compiled.append_code("  SWAP PC, SPC")
+
         else:
-            lhs_dest = destination
-
-        compiled += generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
-
-        # Now, again with the right!
-        rhs_dest = expr_temp_name()
-        stack.alloc(StackVar(rhs_dest, CoreType("str", const=True)))
-        compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.right))
-
-        # Now, call strcat to concatenate the two together!
-        compiled += generate_function_call_internal(
-            create_call(
-                "strcat",
-                [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
-            ),
-            None,
-            types,
-            stack,
-            clobbers,
-            refs,
-            local_consts,
-            context.wrap(expression),
-        )
-
-        # Now, copy the destination pointer if needed.
-        if lhs_dest != destination:
-            compiled += generate_memcpy_stackvars(destination, lhs_dest, stack, clobbers, context)
-
-        # Now that we copied this to the destination, this is useless.
-        stack.free(rhs_dest)
-        if lhs_dest != destination:
-            stack.free(lhs_dest)
+            raise CompilerError(f"Unsupported string concatenation with {types[expression.right].type}", context)
 
     else:
         if is_register_destination(destination) or stack[-1].name != destination:
@@ -2684,12 +2790,12 @@ def generate_binary_expr(
             # Safe to put first parameter in the top of the stack where it already is useful for math.
             lhs_dest = destination
 
-        compiled += generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
+        compiled += generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
 
         # Now, get the second parameter onto the stack in the right spot.
         rhs_dest = expr_temp_name()
         stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
-        compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.right))
+        compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
 
         # Now, perform some math of matics!
         if destination_size == 1:
@@ -2747,6 +2853,7 @@ def generate_binary_expr(
                     types,
                     stack,
                     clobbers,
+                    allocations,
                     refs,
                     local_consts,
                     context.wrap(expression),
@@ -2768,6 +2875,7 @@ def generate_binary_expr(
                     types,
                     stack,
                     clobbers,
+                    allocations,
                     refs,
                     local_consts,
                     context.wrap(expression),
@@ -2812,6 +2920,7 @@ def generate_binary_expr(
                     types,
                     stack,
                     clobbers,
+                    allocations,
                     refs,
                     local_consts,
                     context.wrap(expression.right, extra="-"),
@@ -2829,6 +2938,7 @@ def generate_binary_expr(
                     types,
                     stack,
                     clobbers,
+                    allocations,
                     refs,
                     local_consts,
                     context.wrap(expression),
@@ -2860,6 +2970,7 @@ def generate_binary_expr(
                     types,
                     stack,
                     clobbers,
+                    allocations,
                     refs,
                     local_consts,
                     context.wrap(expression),
@@ -2886,6 +2997,7 @@ def generate_binary_expr(
                     types,
                     stack,
                     clobbers,
+                    allocations,
                     refs,
                     local_consts,
                     context.wrap(expression),
@@ -2954,6 +3066,7 @@ def generate_boolean_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -2975,10 +3088,10 @@ def generate_boolean_expr(
         # is False immediately skipping the second half.
         clobbers.add("A")
 
-        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
+        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
 
         cloned_stack = stack.clone()
-        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context.wrap(expression.right))
+        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
 
         # Not unifying the stack here because short circuiting could mean that a walrus assign doesn't get run.
         if stack.size != cloned_stack.size:
@@ -3020,10 +3133,10 @@ def generate_boolean_expr(
         # is True immediately skipping the second half.
         clobbers.add("A")
 
-        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context.wrap(expression.left))
+        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
 
         cloned_stack = stack.clone()
-        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, refs, local_consts, context.wrap(expression.right))
+        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
 
         # Not unifying the stack here because short circuiting could mean that a walrus assign doesn't get run.
         if stack.size != cloned_stack.size:
@@ -3072,6 +3185,7 @@ def generate_comparison_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -3110,7 +3224,7 @@ def generate_comparison_expr(
         # all conditional statements are based on it.
         clobbers.add("A")
 
-        compiled += generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+        compiled += generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context)
         if value is False:
             # Gotta invert our output since it's already a boolean.
             compiled.append_code("  INV")
@@ -3143,6 +3257,7 @@ def generate_comparison_expr(
                 types,
                 stack,
                 clobbers,
+                allocations,
                 refs,
                 local_consts,
                 context.wrap(expression),
@@ -3159,12 +3274,12 @@ def generate_comparison_expr(
                 first_dest = expr_temp_name()
                 equal_cleanup.append(first_dest)
                 stack.alloc(StackVar(first_dest, left_type))
-                compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(left_expr))
+                compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(left_expr))
 
                 second_dest = expr_temp_name()
                 equal_cleanup.append(second_dest)
                 stack.alloc(StackVar(second_dest, right_type))
-                compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, refs, local_consts, context.wrap(right_expr))
+                compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(right_expr))
 
             else:
                 # Figure out which one is bigger, we'll evaluate that one first.
@@ -3183,7 +3298,7 @@ def generate_comparison_expr(
                 first_dest = expr_temp_name()
                 equal_cleanup.append(first_dest)
                 stack.alloc(StackVar(first_dest, first_type))
-                compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(first_expr))
+                compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(first_expr))
 
                 # Now, allocate a spot for the second to be sign extended into.
                 second_dest = expr_temp_name()
@@ -3193,10 +3308,10 @@ def generate_comparison_expr(
                 # And allocate where we'll calculate it before sign-extending.
                 second_temp = expr_temp_name()
                 stack.alloc(StackVar(second_temp, second_type))
-                compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+                compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, allocations, refs, local_consts, context.wrap(second_expr))
 
                 # Now, copy it with a sign extension.
-                compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, refs, local_consts, context.wrap(second_expr))
+                compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, allocations, refs, local_consts, context.wrap(second_expr))
 
                 # Now, we don't need the temp location now that we've computed and sign extended.
                 stack.free(second_temp)
@@ -3396,6 +3511,7 @@ def generate_comparison_expr(
                 types,
                 stack,
                 clobbers,
+                allocations,
                 refs,
                 local_consts,
                 context.wrap(expression),
@@ -3409,12 +3525,12 @@ def generate_comparison_expr(
                 first_dest = expr_temp_name()
                 unequal_cleanup.append(first_dest)
                 stack.alloc(StackVar(first_dest, left_type))
-                compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(left_expr))
+                compiled += generate_expr_internal(left_expr, first_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(left_expr))
 
                 second_dest = expr_temp_name()
                 unequal_cleanup.append(second_dest)
                 stack.alloc(StackVar(second_dest, right_type))
-                compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, refs, local_consts, context.wrap(right_expr))
+                compiled += generate_expr_internal(right_expr, second_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(right_expr))
 
             else:
                 # Figure out which one is bigger, we'll evaluate that one first.
@@ -3441,7 +3557,7 @@ def generate_comparison_expr(
                 first_dest = expr_temp_name()
                 unequal_cleanup.append(first_dest)
                 stack.alloc(StackVar(first_dest, first_type))
-                compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, refs, local_consts, context.wrap(first_expr))
+                compiled += generate_expr_internal(first_expr, first_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(first_expr))
 
                 # Now, allocate a spot for the second to be sign extended into.
                 second_dest = expr_temp_name()
@@ -3451,10 +3567,10 @@ def generate_comparison_expr(
                 # And allocate where we'll calculate it before sign-extending.
                 second_temp = expr_temp_name()
                 stack.alloc(StackVar(second_temp, second_type))
-                compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, refs, local_consts, context.wrap(second_expr))
+                compiled += generate_expr_internal(second_expr, second_temp, types, stack, clobbers, allocations, refs, local_consts, context.wrap(second_expr))
 
                 # Now, copy it with a sign extension.
-                compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, refs, local_consts, context.wrap(second_expr))
+                compiled += generate_variable_lookup(second_temp, second_dest, stack, types, clobbers, allocations, refs, local_consts, context.wrap(second_expr))
 
                 # Now, we don't need the temp location now that we've computed and sign extended.
                 stack.free(second_temp)
@@ -3490,6 +3606,7 @@ def generate_comparison_expr(
                 types,
                 stack,
                 clobbers,
+                allocations,
                 refs,
                 local_consts,
                 context.wrap(expression),
@@ -3543,6 +3660,7 @@ def generate_ternary_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -3561,7 +3679,7 @@ def generate_ternary_expr(
 
     # First, compile the boolean expression, putting the result in A, so we know which
     # of the two expressions to evaluate.
-    compiled += generate_expr_internal(expression.test, "register(A, bool)", types, stack, clobbers, refs, local_consts, context.wrap(expression.test))
+    compiled += generate_expr_internal(expression.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.test))
 
     # Now, we need a place to jump to if the expression above is false, as well as a
     # place to jump to at the end of the true expression.
@@ -3571,10 +3689,10 @@ def generate_ternary_expr(
     # Now, compile the two expressions themselves, so that we can calculate whether
     # we can JRI or LNGJUMP to the various locations.
     left_stack = stack.clone()
-    left_compiled = generate_expr_internal(expression.body, destination, types, left_stack, clobbers, refs, local_consts, context.wrap(expression.body))
+    left_compiled = generate_expr_internal(expression.body, destination, types, left_stack, clobbers, allocations, refs, local_consts, context.wrap(expression.body))
 
     right_stack = stack.clone()
-    right_compiled = generate_expr_internal(expression.orelse, destination, types, right_stack, clobbers, refs, local_consts, context.wrap(expression.orelse))
+    right_compiled = generate_expr_internal(expression.orelse, destination, types, right_stack, clobbers, allocations, refs, local_consts, context.wrap(expression.orelse))
 
     # We could add this manually at the end of this function, but then we wouldn't be able
     # to compile the left hand side to determine length since it would have an undefined
@@ -3630,6 +3748,7 @@ def generate_subscript_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -3644,11 +3763,11 @@ def generate_subscript_expr(
         # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
         base_dest = expr_temp_name()
         stack.alloc(StackVar(base_dest, CoreType("str", const=True)))
-        compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.value))
+        compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
 
         # Calculate the offset into the string that we're gonna need, first.
         clobbers.add("A")
-        compiled += generate_expr_internal(slice_or_index.value, "register(A, uint8)", types, stack, clobbers, refs, local_consts, context.wrap(slice_or_index.value))
+        compiled += generate_expr_internal(slice_or_index.value, "register(A, uint8)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(slice_or_index.value))
 
         # We clobber the SPC to do this index lookup.
         clobbers.add("SPC")
@@ -3692,21 +3811,7 @@ def generate_subscript_expr(
         # This is a subscript in the form of var[:] which in Python land is a copy,
         # so we can do that here.
         if not stack.initof(destination):
-            if not destination_type.is_array:
-                raise CompilerError("Non-constant local strings require a length", context)
-
-            local_destination_storage = stack.labelof(destination)
-            if local_destination_storage is None:
-                raise Exception("Logic error, couldn't get local storage for string!")
-            compiled.append_data(f"{local_destination_storage}:")
-            compiled.append_data(f"  .pad {destination_type.length or MAX_STRING_LENGTH}")
-
-            # We only clobber the A register with the string init macro.
-            clobbers.add("A")
-
-            compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
-            compiled.append_code(f"  PUSHADDR {local_destination_storage}")
-            stack.location += 2
+            compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
 
             # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
             stack.init(destination)
@@ -3732,7 +3837,7 @@ def generate_subscript_expr(
         # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
         base_dest = expr_temp_name()
         stack.alloc(StackVar(base_dest, CoreType("str", const=True)))
-        compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, refs, local_consts, context.wrap(expression.value))
+        compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
 
         if slice_or_index.step is not None:
             # We don't support copying with a step size other than the default.
@@ -3750,6 +3855,7 @@ def generate_subscript_expr(
                 types,
                 stack,
                 clobbers,
+                allocations,
                 refs,
                 local_consts,
                 context.wrap(expression),
@@ -3759,13 +3865,14 @@ def generate_subscript_expr(
             # This can be mapped onto a simple strncmp, so we should calculate the ending value and do that.
             ending_dest = expr_temp_name()
             stack.alloc(StackVar(ending_dest, CoreType("uint8")))
-            compiled += generate_expr_internal(ending, ending_dest, types, stack, clobbers, refs, local_consts, context.wrap(ending))
+            compiled += generate_expr_internal(ending, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
             compiled += generate_function_call_internal(
                 create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
                 None,
                 types,
                 stack,
                 clobbers,
+                allocations,
                 refs,
                 local_consts,
                 context.wrap(expression),
@@ -3781,7 +3888,7 @@ def generate_subscript_expr(
             # local base destination forward by the slice value.
             clobbers.add("A")
             clobbers.add("SPC")
-            compiled += generate_expr_internal(beginning, "register(A, uint8)", types, stack, clobbers, refs, local_consts, context.wrap(beginning))
+            compiled += generate_expr_internal(beginning, "register(A, uint8)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(beginning))
 
             # Move to the correct spot on the stack to move the pointer to the right offset.
             compiled += generate_move_to(base_dest, stack, clobbers, context, offset=1)
@@ -3826,6 +3933,7 @@ def generate_subscript_expr(
                     types,
                     stack,
                     clobbers,
+                    allocations,
                     refs,
                     local_consts,
                     context.wrap(expression),
@@ -3839,7 +3947,7 @@ def generate_subscript_expr(
 
                     ending_dest = expr_temp_name()
                     stack.alloc(StackVar(ending_dest, CoreType("int8")))
-                    compiled += generate_expr_internal(expr, ending_dest, types, stack, clobbers, refs, local_consts, context.virtual(expr))
+                    compiled += generate_expr_internal(expr, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.virtual(expr))
 
                 except NonConstantExpressionException:
                     # First, store the beginning value that we calculated so that we can subtract it later.
@@ -3852,7 +3960,7 @@ def generate_subscript_expr(
                     # This can be mapped onto a simple strncmp, so we should calculate the ending value and do that.
                     ending_temp = expr_temp_name()
                     stack.alloc(StackVar(ending_temp, CoreType("uint8")))
-                    compiled += generate_expr_internal(ending, ending_temp, types, stack, clobbers, refs, local_consts, context.wrap(ending))
+                    compiled += generate_expr_internal(ending, ending_temp, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
                     compiled += generate_move_to(ending_temp, stack, clobbers, context)
                     compiled.append_code("  LOAD A")
                     stack.free(ending_temp)
@@ -3867,6 +3975,7 @@ def generate_subscript_expr(
                     types,
                     stack,
                     clobbers,
+                    allocations,
                     refs,
                     local_consts,
                     context.wrap(expression),
@@ -3890,6 +3999,7 @@ def generate_expr_internal(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -3955,23 +4065,7 @@ def generate_expr_internal(
                 else:
                     # Need to allocate static space for the string, then strcpy it over.
                     if not stack.initof(destination):
-                        if not destination_type.is_array:
-                            raise CompilerError("Non-constant local strings require a length", context)
-                        if len(value) >= (destination_type.length or MAX_STRING_LENGTH):
-                            raise CompilerError("Attempting to assign a constant that is too long for the destination", context)
-
-                        local_destination_storage = stack.labelof(destination)
-                        if local_destination_storage is None:
-                            raise Exception("Logic error, couldn't get local storage for string!")
-                        compiled.append_data(f"{local_destination_storage}:")
-                        compiled.append_data(f"  .pad {destination_type.length or MAX_STRING_LENGTH}")
-
-                        # We only clobber the A register with the string init macro.
-                        clobbers.add("A")
-
-                        compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
-                        compiled.append_code(f"  PUSHADDR {local_destination_storage}")
-                        stack.location += 2
+                        compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
 
                         # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
                         stack.init(destination)
@@ -4016,6 +4110,7 @@ def generate_expr_internal(
                         types,
                         stack,
                         clobbers,
+                        allocations,
                         refs,
                         local_consts,
                         context.wrap(expression),
@@ -4038,15 +4133,15 @@ def generate_expr_internal(
 
     if isinstance(expression, cst.Name):
         # Explicitly allowing variable lookup because it could allow a register clear on read.
-        compiled += generate_variable_lookup(expression.value, destination, stack, types, clobbers, refs, local_consts, context)
+        compiled += generate_variable_lookup(expression.value, destination, stack, types, clobbers, allocations, refs, local_consts, context)
 
     elif isinstance(expression, cst.UnaryOperation):
         if destination is not None:
-            compiled += generate_unary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+            compiled += generate_unary_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     elif isinstance(expression, cst.BinaryOperation):
         if destination is not None:
-            compiled += generate_binary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+            compiled += generate_binary_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     elif isinstance(expression, cst.Call):
         function_return_type = types[expression]
@@ -4055,29 +4150,29 @@ def generate_expr_internal(
             return_temp = expr_temp_name()
             stack.alloc(StackVar(return_temp, function_return_type))
 
-            compiled += generate_function_call(expression, return_temp, types, stack, clobbers, refs, local_consts, context.wrap(expression))
-            compiled += generate_variable_lookup(return_temp, destination, stack, types, clobbers, refs, local_consts, context.wrap(expression))
+            compiled += generate_function_call(expression, return_temp, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression))
+            compiled += generate_variable_lookup(return_temp, destination, stack, types, clobbers, allocations, refs, local_consts, context.wrap(expression))
 
             stack.free(return_temp)
         else:
             # We could possibly be making a function call with no destination here, such as calling a void function.
-            compiled += generate_function_call(expression, destination, types, stack, clobbers, refs, local_consts, context.wrap(expression))
+            compiled += generate_function_call(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression))
 
     elif isinstance(expression, cst.Comparison):
         if destination is not None:
-            compiled += generate_comparison_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+            compiled += generate_comparison_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     elif isinstance(expression, cst.BooleanOperation):
         if destination is not None:
-            compiled += generate_boolean_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+            compiled += generate_boolean_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     elif isinstance(expression, cst.IfExp):
         if destination is not None:
-            compiled += generate_ternary_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+            compiled += generate_ternary_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     elif isinstance(expression, cst.Subscript):
         # Allowing subscript operation without a destination because it could allow register clear on read.
-        compiled += generate_subscript_expr(expression, destination, types, stack, clobbers, refs, local_consts, context)
+        compiled += generate_subscript_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
@@ -4205,6 +4300,13 @@ def infer_expr_types_impl(
 
                 if left_inferred.is_string and right_inferred.is_string:
                     # This is string concatenation.
+                    inferred[expression] = CoreType("str", None, const=False, extern=False)
+                    inferred.update(left_tree)
+                    inferred.update(right_tree)
+                    return inferred
+
+                elif left_inferred.is_string and right_inferred.is_char:
+                    # This is adding a character to the end of a string.
                     inferred[expression] = CoreType("str", None, const=False, extern=False)
                     inferred.update(left_tree)
                     inferred.update(right_tree)
@@ -4411,6 +4513,7 @@ def generate_expr(
     destination: Optional[str],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -4448,12 +4551,12 @@ def generate_expr(
         else:
             raise Exception("Logic error, unexpected type {dtype} for register allocation!")
 
-        compiled += generate_expr_internal(expression, dest, types, stack, clobbers, refs, local_consts, context)
+        compiled += generate_expr_internal(expression, dest, types, stack, clobbers, allocations, refs, local_consts, context)
         compiled += generate_move_to(destination, stack, clobbers, context)
         compiled.append_code("  STORE A")
     else:
         # Just do stack-based operations.
-        compiled += generate_expr_internal(expression, destination, types, stack, clobbers, refs, local_consts, context)
+        compiled += generate_expr_internal(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     if destination is not None:
         # We're gonna assign to this, so it should be considered initialized. Do this here instead of at the top
@@ -4468,6 +4571,7 @@ def global_variable_assign(
     assign_value: cst.BaseExpression,
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -4481,7 +4585,7 @@ def global_variable_assign(
     expr_temp = expr_temp_name()
     stack.alloc(StackVar(expr_temp, assign_target.type))
 
-    compiled += generate_expr(assign_value, expr_temp, stack, clobbers, refs, local_consts, context.wrap(assign_value))
+    compiled += generate_expr(assign_value, expr_temp, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
 
     for i in range(assign_target.type.size):
         # First, we need to set the SPC to our variable pointer, which clobbers A.
@@ -4513,6 +4617,7 @@ def generate_assign_expr(
     assign_value: Optional[cst.BaseExpression],
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -4532,7 +4637,7 @@ def generate_assign_expr(
         if assign_value is None:
             raise CompilerError("Unsupported global variable assignment", context)
 
-        compiled += global_variable_assign(global_var, assign_value, stack, clobbers, refs, local_consts, context)
+        compiled += global_variable_assign(global_var, assign_value, stack, clobbers, allocations, refs, local_consts, context)
         return compiled
 
     # See if this is a re-assign or a definition.
@@ -4593,7 +4698,7 @@ def generate_assign_expr(
                 raise Exception("Logic error, we should always have a type in this condition!")
             stack.alloc(StackVar(assign_name, assign_type))
 
-        compiled += generate_expr(assign_value, assign_name, stack, clobbers, refs, local_consts, context.wrap(assign_value))
+        compiled += generate_expr(assign_value, assign_name, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
 
     else:
         if needs_alloc:
@@ -4611,6 +4716,7 @@ def generate_augassign_expr(
     assign_value: cst.BaseExpression,
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -4651,6 +4757,7 @@ def generate_augassign_expr(
         op,
         stack,
         clobbers,
+        allocations,
         refs,
         local_consts,
         context.virtual(op),
@@ -4661,6 +4768,7 @@ def generate_if_statement(
     statement: cst.If,
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     loop: Optional[LoopInfo],
@@ -4676,14 +4784,14 @@ def generate_if_statement(
         # TODO: Coerce from empty string, zero-valued integer, etc.
         raise CompilerError("Unsupported non-boolean expression in if statement test", context)
 
-    compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+    compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context)
 
     # Now, depending on if this if statement has an else body or not,
     if statement.orelse is None:
         # Simpler logic, no need to generate two labels for skipping between each, no worrying about unifying the stack.
         if_body_stack = stack.clone()
         child_compiled, _, _ = compile_chunk(
-            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
+            statement.body, if_body_stack, clobbers, allocations, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         # Not unifying the stack here because in the false case we skip the body and don't initialize.
@@ -4721,12 +4829,12 @@ def generate_if_statement(
         # This one can be compiled as if it was just a body like the statement.body
         if_body_stack = stack.clone()
         if_body_compiled, if_body_returned, if_body_continued = compile_chunk(
-            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
+            statement.body, if_body_stack, clobbers, allocations, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         else_body_stack = stack.clone()
         else_body_compiled, else_body_returned, else_body_continued = compile_chunk(
-            statement.orelse.body, else_body_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
+            statement.orelse.body, else_body_stack, clobbers, allocations, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         false_case = local_label_name("false_case")
@@ -4787,10 +4895,12 @@ def generate_if_statement(
         # to the empty else case.
         if_body_stack = stack.clone()
         if_body_compiled, if_body_returned, if_body_continued = compile_chunk(
-            statement.body, if_body_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
+            statement.body, if_body_stack, clobbers, allocations, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
         )
 
-        else_body_compiled, else_body_returned, else_body_continued = generate_if_statement(statement.orelse, stack, clobbers, function_type, refs, loop, local_consts, context)
+        else_body_compiled, else_body_returned, else_body_continued = generate_if_statement(
+            statement.orelse, stack, clobbers, allocations, function_type, refs, loop, local_consts, context
+        )
 
         false_case = local_label_name("false_case")
 
@@ -4853,6 +4963,7 @@ def generate_while_statement(
     statement: cst.While,
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     parent_loop: Optional[LoopInfo],
@@ -4877,13 +4988,13 @@ def generate_while_statement(
 
     # We're at the point we want to loop back to, so label it now, and generate the test itself.
     compiled.append_code(f"{test_label}:")
-    compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, refs, local_consts, context)
+    compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context)
 
     # Now, generate the code necessary to perform the loop, as well as optionally the else.
     if statement.orelse is None:
         loop_stack = stack.clone()
         loop_compiled, _, _ = compile_chunk(
-            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
+            statement.body, loop_stack, clobbers, allocations, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
         )
 
         # Now, figure out how far we need to jump on loop condition is false.
@@ -4918,12 +5029,12 @@ def generate_while_statement(
     else:
         loop_stack = stack.clone()
         loop_compiled, _, _ = compile_chunk(
-            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
+            statement.body, loop_stack, clobbers, allocations, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
         )
 
         else_stack = stack.clone()
         else_compiled, _, _ = compile_chunk(
-            statement.orelse.body, else_stack, clobbers, function_type, refs, parent_loop, local_consts, context, require_return=False, require_continue=False,
+            statement.orelse.body, else_stack, clobbers, allocations, function_type, refs, parent_loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         # We always jump to the else from the while conditional, so we don't need to move to our expected position until the end of the else.
@@ -4988,6 +5099,7 @@ def generate_for_statement(
     statement: cst.For,
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     parent_loop: Optional[LoopInfo],
@@ -5020,6 +5132,7 @@ def generate_for_statement(
         range_params[0],
         stack,
         clobbers,
+        allocations,
         refs,
         local_consts,
         context,
@@ -5045,6 +5158,7 @@ def generate_for_statement(
         types,
         increment_stack,
         clobbers,
+        allocations,
         refs,
         local_consts,
         context.virtual(increment),
@@ -5064,6 +5178,7 @@ def generate_for_statement(
         types,
         stack,
         clobbers,
+        allocations,
         refs,
         local_consts,
         context.virtual(comparison),
@@ -5073,7 +5188,7 @@ def generate_for_statement(
     if statement.orelse is None:
         loop_stack = stack.clone()
         loop_compiled, _, _ = compile_chunk(
-            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
+            statement.body, loop_stack, clobbers, allocations, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
         )
 
         # Now, figure out how far we need to jump on loop condition is false.
@@ -5123,12 +5238,12 @@ def generate_for_statement(
         # same spot at the end of the test where we would fall into the loop stack.
         loop_stack = stack.clone()
         loop_compiled, _, _ = compile_chunk(
-            statement.body, loop_stack, clobbers, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
+            statement.body, loop_stack, clobbers, allocations, function_type, refs, loop, local_consts, context, require_return=False, require_continue=True,
         )
 
         else_stack = stack.clone()
         else_compiled, _, _ = compile_chunk(
-            statement.orelse.body, else_stack, clobbers, function_type, refs, parent_loop, local_consts, context, require_return=False, require_continue=False,
+            statement.orelse.body, else_stack, clobbers, allocations, function_type, refs, parent_loop, local_consts, context, require_return=False, require_continue=False,
         )
 
         # We always jump to the else from the loop conditional, so we don't need to move to our expected position until the end of the else.
@@ -5214,6 +5329,7 @@ def compile_chunk(
     chunk: cst.BaseSuite,
     stack: Stack,
     clobbers: Set[str],
+    allocations: Dict[str, int],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     loop: Optional[LoopInfo],
@@ -5258,6 +5374,7 @@ def compile_chunk(
                             "builtin(retval)",
                             stack,
                             clobbers,
+                            allocations,
                             refs_copy,
                             local_consts,
                             context.wrap(simple_statement.value),
@@ -5275,6 +5392,7 @@ def compile_chunk(
                         simple_statement.value,
                         stack,
                         clobbers,
+                        allocations,
                         refs_copy,
                         local_consts,
                         context.wrap(simple_statement),
@@ -5292,6 +5410,7 @@ def compile_chunk(
                         simple_statement.value,
                         stack,
                         clobbers,
+                        allocations,
                         refs_copy,
                         local_consts,
                         context.wrap(simple_statement),
@@ -5306,6 +5425,7 @@ def compile_chunk(
                         simple_statement.value,
                         stack,
                         clobbers,
+                        allocations,
                         refs_copy,
                         local_consts,
                         context.wrap(simple_statement),
@@ -5336,6 +5456,7 @@ def compile_chunk(
                         None,
                         stack,
                         clobbers,
+                        allocations,
                         refs_copy,
                         local_consts,
                         context.wrap(simple_statement.value),
@@ -5369,6 +5490,7 @@ def compile_chunk(
                 statement,
                 stack,
                 clobbers,
+                allocations,
                 function_type,
                 refs_copy,
                 loop,
@@ -5382,6 +5504,7 @@ def compile_chunk(
                 statement,
                 stack,
                 clobbers,
+                allocations,
                 function_type,
                 refs_copy,
                 loop,
@@ -5395,6 +5518,7 @@ def compile_chunk(
                 statement,
                 stack,
                 clobbers,
+                allocations,
                 function_type,
                 refs_copy,
                 loop,
@@ -5531,7 +5655,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     clobbers: Set[str] = set()
 
     push_names()
-    compile_chunk(func.body, stack.clone(), clobbers, function_type, refs, None, builtin_consts(), context, require_return=True, require_continue=False)
+    compile_chunk(func.body, stack.clone(), clobbers, {}, function_type, refs, None, builtin_consts(), context, require_return=True, require_continue=False)
     pop_names()
 
     # Unwind our temporary return value location.
@@ -5594,7 +5718,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    chunk, _, _ = compile_chunk(func.body, stack, set(), function_type, refs, None, builtin_consts(), context, require_return=True, require_continue=False)
+    chunk, _, _ = compile_chunk(func.body, stack, set(), {}, function_type, refs, None, builtin_consts(), context, require_return=True, require_continue=False)
     compiled += chunk
 
     # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
