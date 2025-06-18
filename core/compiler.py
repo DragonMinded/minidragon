@@ -564,10 +564,10 @@ class FunctionPrototype:
 
 
 class GlobalVariable:
-    def __init__(self, name: str, vartype: CoreType) -> None:
+    def __init__(self, name: str, vartype: CoreType, marked: bool = False) -> None:
         self.name = name
         self.type = vartype
-        self.marked = False
+        self.marked = marked
 
     def mark(self) -> None:
         self.marked = True
@@ -4176,7 +4176,6 @@ def generate_expr_internal(
 
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
-        # TODO: Looks like also string/character assignments and such, and everything with string manipulation.
         raise CompilerError(f"Unsupported expression type {expression} in expression compiler!", context)
 
     if destination is not None:
@@ -4578,35 +4577,54 @@ def global_variable_assign(
 ) -> Sections:
     compiled = Sections(code=[context.comment()])
 
-    # To grab a global variable offset, we need to use the SPC. To copy we need A.
-    clobbers.add("SPC")
-    clobbers.add("A")
+    if assign_target.type.is_string:
+        # We don't need to generate the expression into a temporary variable and copy it, we just need to strcpy
+        # to the destination. That's easiest, however, if we pretend like it's going into a temporary destination,
+        # so we don't have to teach all of the downstream functions to look up global destinations.
+        clobbers.add("A")
 
-    expr_temp = expr_temp_name()
-    stack.alloc(StackVar(expr_temp, assign_target.type))
+        expr_temp = expr_temp_name()
+        stack.alloc(StackVar(expr_temp, assign_target.type, initialized=True))
 
-    compiled += generate_expr(assign_value, expr_temp, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
+        compiled += generate_move_to(expr_temp, stack, clobbers, context, offset=-1)
+        compiled.append_code(f"  PUSHADDR {assign_target.name}")
+        stack.location += 2
 
-    for i in range(assign_target.type.size):
-        # First, we need to set the SPC to our variable pointer, which clobbers A.
-        if i == 0:
-            compiled.append_code("  SWAP PC, SPC")
-            compiled.append_code(f"  SETPC {assign_target.name}, {assign_target.type.size - 1}")
-            compiled.append_code("  SWAP PC, SPC")
+        compiled += generate_expr(assign_value, expr_temp, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
+        stack.free(expr_temp)
 
-        compiled += generate_move_to(expr_temp, stack, clobbers, context, offset=i)
-        compiled.append_code("  LOAD A")
+    else:
+        # To grab a global variable offset, we need to use the SPC. To copy we need A.
+        clobbers.add("SPC")
+        clobbers.add("A")
 
-        # Now, we need to copy the loaded A from our current expression result to the global value.
-        if i == 0:
-            compiled.append_code("  SWAP PC, SPC")
-            compiled.append_code("  STORE A")
-            compiled.append_code("  SWAP PC, SPC")
-        else:
-            compiled.append_code("  SWAP PC, SPC")
-            compiled.append_code("  DECPC")
-            compiled.append_code("  STORE A")
-            compiled.append_code("  SWAP PC, SPC")
+        expr_temp = expr_temp_name()
+        stack.alloc(StackVar(expr_temp, assign_target.type))
+
+        compiled += generate_expr(assign_value, expr_temp, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
+
+        for i in range(assign_target.type.size):
+            # First, we need to set the SPC to our variable pointer, which clobbers A.
+            if i == 0:
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code(f"  SETPC {assign_target.name}, {assign_target.type.size - 1}")
+                compiled.append_code("  SWAP PC, SPC")
+
+            compiled += generate_move_to(expr_temp, stack, clobbers, context, offset=i)
+            compiled.append_code("  LOAD A")
+
+            # Now, we need to copy the loaded A from our current expression result to the global value.
+            if i == 0:
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  SWAP PC, SPC")
+            else:
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  DECPC")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  SWAP PC, SPC")
+
+        stack.free(expr_temp)
 
     return compiled
 
@@ -4624,88 +4642,171 @@ def generate_assign_expr(
 ) -> Sections:
     compiled = Sections(code=[context.comment()])
 
-    if not isinstance(assign_target, cst.Name):
-        # TODO: This is where we would handle memory writes and arrays.
-        raise CompilerError("Unsupported name for local variable definition", context)
-
-    assign_name = assign_target.value
     assign_type = get_type(assign_annotation.annotation, local_consts, allow_array=True) if assign_annotation is not None else None
 
-    global_var = global_by_name(refs, assign_name)
-    if global_var is not None and global_var.marked:
-        # This is a global variable assignment.
-        if assign_value is None:
-            raise CompilerError("Unsupported global variable assignment", context)
+    if isinstance(assign_target, cst.Subscript):
+        if len(assign_target.slice) != 1:
+            raise CompilerError("Unsupported slice count in subscript assignment", context)
+        slice_or_index = assign_target.slice[0].slice
 
-        compiled += global_variable_assign(global_var, assign_value, stack, clobbers, allocations, refs, local_consts, context)
+        if not isinstance(slice_or_index, cst.Index):
+            raise CompilerError("Unsupported slice in subscript assignment", context)
+
+        if not isinstance(assign_target.value, cst.Name):
+            raise CompilerError("Unsupported name for subscript assignment", context)
+
+        assign_name = assign_target.value.value
+        assign_offset = slice_or_index.value
+
+        if assign_type is not None:
+            raise CompilerError("Unsupported type for subscript assignment", context)
+
+        if assign_value is None:
+            raise CompilerError("Expecting initialization value for subscript assignment", context)
+
+        assign_types: Dict[cst.CSTNode, CoreType] = infer_expr_types(assign_value, CoreType("char"), stack, refs, local_consts, context)
+        if not assign_types[assign_value].is_char:
+            raise CompilerError(f"Unsupported non-character assignment {assign_types[assign_value].type} in subscript assignment", context)
+
+        offset_types: Dict[cst.CSTNode, CoreType] = infer_expr_types(assign_offset, CoreType("uint8"), stack, refs, local_consts, context)
+        if not offset_types[assign_offset].is_integer:
+            raise CompilerError(f"Unsupported non-integer offset {offset_types[assign_offset].type} in subscript assignment", context)
+
+        # We're going to clobber the SPC and A register to assign the value.
+        clobbers.add("SPC")
+        clobbers.add("A")
+
+        # Figure out if this is a global or local variable assignment.
+        orig_type = stack.typeof(assign_name)
+        global_var = global_by_name(refs, assign_name)
+        if global_var is not None:
+            # This is a global variable assignment. No need for checking if it's marked since array access
+            # is done without initializing.
+            if global_var.type.const:
+                raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
+
+            compiled.append_code("  SWAP PC, SPC")
+            compiled.append_code(f"  SETPC {assign_name}")
+            compiled.append_code("  SWAP PC, SPC")
+
+        elif orig_type is None:
+            # For assignment, we need to simply check if it's const.
+            if const_by_name(local_consts, assign_name) is not None:
+                raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
+            else:
+                raise CompilerError(f"Unknown local variable {assign_name!r} in subscript assignment", context)
+
+        elif orig_type is not None:
+            if orig_type.const:
+                raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
+            if not orig_type.is_string:
+                raise CompilerError(f"Unsupported subscript assignment to variable {assign_name!r}", context)
+            if not stack.initof(assign_name):
+                raise CompilerError(f"Use of uninitialized variable {assign_name!r}", context)
+
+            compiled += generate_move_to(assign_name, stack, clobbers, context, offset=1)
+            compiled.append_code("  POP SPC")
+            stack.move(-2)
+            compiled.code += comment_stack(stack)
+
+        # Now, calculate the offset we need to assign at.
+        compiled += generate_expr_internal(assign_offset, "register(A, uint8)", offset_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_offset))
+
+        compiled.append_code("  SWAP PC, SPC")
+        compiled.append_code("  ADDPC")
+        compiled.append_code("  SWAP PC, SPC")
+
+        # Now, calculate the character that we're assigning.
+        compiled += generate_expr_internal(assign_value, "register(A, char)", assign_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
+
+        compiled.append_code("  SWAP PC, SPC")
+        compiled.append_code("  STORE A")
+        compiled.append_code("  SWAP PC, SPC")
+
         return compiled
 
-    # See if this is a re-assign or a definition.
-    orig_loc = stack.absfind(assign_name)
-    needs_alloc = False
+    elif isinstance(assign_target, cst.Name):
+        assign_name = assign_target.value
 
-    if orig_loc is None:
-        # For definitions, we need a type. For constants, we need an initial value.
-        if const_by_name(local_consts, assign_name) is not None:
-            raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
+        global_var = global_by_name(refs, assign_name)
+        if global_var is not None and global_var.marked:
+            # This is a global variable assignment.
+            if assign_value is None:
+                raise CompilerError("Unsupported global variable assignment", context)
 
-        if assign_type is None:
-            raise CompilerError("Unsupported type for local variable definition", context)
+            compiled += global_variable_assign(global_var, assign_value, stack, clobbers, allocations, refs, local_consts, context)
+            return compiled
 
-        if assign_type.const and assign_value is None:
-            raise CompilerError("Expecting initialization value for local const definition", context)
+        # See if this is a re-assign or a definition.
+        orig_loc = stack.absfind(assign_name)
+        needs_alloc = False
 
-        if assign_type.is_string and not assign_type.const and not assign_type.is_array:
-            raise CompilerError("Expecting length specifier for local string definition", context)
+        if orig_loc is None:
+            # For definitions, we need a type. For constants, we need an initial value.
+            if const_by_name(local_consts, assign_name) is not None:
+                raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
 
-        needs_alloc = True
+            if assign_type is None:
+                raise CompilerError("Unsupported type for local variable definition", context)
+
+            if assign_type.const and assign_value is None:
+                raise CompilerError("Expecting initialization value for local const definition", context)
+
+            if assign_type.is_string and not assign_type.const and not assign_type.is_array:
+                raise CompilerError("Expecting length specifier for local string definition", context)
+
+            needs_alloc = True
+
+        else:
+            # Variables cannot be re-assigned with types. Variables cannot be re-assigned without values.
+            if assign_type is not None:
+                raise CompilerError("Unsupported type redefinition for local variable assignment", context)
+            if assign_value is None:
+                raise CompilerError("Unsupported local variable assignment", context)
+
+            # Make sure we're not overwriting a const.
+            stack_var = stack.at(orig_loc)
+            if stack_var is None:
+                raise Exception(f"Logic error, could not find stack variable for {assign_name} after identifying it exists!")
+
+            if stack_var.const:
+                raise CompilerError(f"Cannot assign to variable {stack_var.name!r} declared const", context)
+
+        # Now, if relevant, generate the expression for the assignment and put it in the stack variable.
+        if assign_value is not None:
+            if not isinstance(assign_value, cst.BaseExpression):
+                raise CompilerError(f"Cannot assign local variable with results of {assign_value}", context)
+
+            if assign_type is not None and assign_type.const and not assign_type.is_string:
+                try:
+                    # Constant evaluation, make sure it's not redefined.
+                    if const_by_name(local_consts, assign_name) is not None:
+                        raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
+
+                    value = codegen_eval(assign_value, local_consts)
+                    local_consts.append(Constant(assign_name, assign_type, value))
+                    return compiled
+                except NonConstantExpressionException:
+                    pass
+
+            if needs_alloc:
+                # Allocate space on the stack for this local variable.
+                if assign_type is None:
+                    raise Exception("Logic error, we should always have a type in this condition!")
+                stack.alloc(StackVar(assign_name, assign_type))
+
+            compiled += generate_expr(assign_value, assign_name, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
+
+        else:
+            if needs_alloc:
+                # Allocate space on the stack for this local variable.
+                if assign_type is None:
+                    raise Exception("Logic error, we should always have a type in this condition!")
+                stack.alloc(StackVar(assign_name, assign_type))
 
     else:
-        # Variables cannot be re-assigned with types. Variables cannot be re-assigned without values.
-        if assign_type is not None:
-            raise CompilerError("Unsupported type redefinition for local variable assignment", context)
-        if assign_value is None:
-            raise CompilerError("Unsupported local variable assignment", context)
-
-        # Make sure we're not overwriting a const.
-        stack_var = stack.at(orig_loc)
-        if stack_var is None:
-            raise Exception(f"Logic error, could not find stack variable for {assign_name} after identifying it exists!")
-
-        if stack_var.const:
-            raise CompilerError(f"Cannot assign to variable {stack_var.name!r} declared const", context)
-
-    # Now, if relevant, generate the expression for the assignment and put it in the stack variable.
-    if assign_value is not None:
-        if not isinstance(assign_value, cst.BaseExpression):
-            raise CompilerError(f"Cannot assign local variable with results of {assign_value}", context)
-
-        if assign_type is not None and assign_type.const and not assign_type.is_string:
-            try:
-                # Constant evaluation, make sure it's not redefined.
-                if const_by_name(local_consts, assign_name) is not None:
-                    raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
-
-                value = codegen_eval(assign_value, local_consts)
-                local_consts.append(Constant(assign_name, assign_type, value))
-                return compiled
-            except NonConstantExpressionException:
-                pass
-
-        if needs_alloc:
-            # Allocate space on the stack for this local variable.
-            if assign_type is None:
-                raise Exception("Logic error, we should always have a type in this condition!")
-            stack.alloc(StackVar(assign_name, assign_type))
-
-        compiled += generate_expr(assign_value, assign_name, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
-
-    else:
-        if needs_alloc:
-            # Allocate space on the stack for this local variable.
-            if assign_type is None:
-                raise Exception("Logic error, we should always have a type in this condition!")
-            stack.alloc(StackVar(assign_name, assign_type))
+        # Not one of our supported expression types.
+        raise CompilerError("Unsupported name for local variable definition", context)
 
     return compiled
 
@@ -5343,7 +5444,7 @@ def compile_chunk(
 
     # We need to track which global variables we know about, so that we can support local assignment over global names.
     refs_copy: List[Union[FunctionPrototype, GlobalVariable]] = [x for x in refs if isinstance(x, FunctionPrototype)]
-    globals_copy: List[GlobalVariable] = [GlobalVariable(x.name, x.type) for x in refs if isinstance(x, GlobalVariable)]
+    globals_copy: List[GlobalVariable] = [GlobalVariable(x.name, x.type, x.marked) for x in refs if isinstance(x, GlobalVariable)]
     refs_copy += globals_copy
 
     last_statement_was_return = False
@@ -5436,7 +5537,7 @@ def compile_chunk(
                 elif isinstance(simple_statement, cst.Global):
                     for name in simple_statement.names:
                         global_name = name.name.value
-                        for i, ref in enumerate(refs_copy):
+                        for ref in refs_copy:
                             if isinstance(ref, GlobalVariable) and ref.name == global_name:
                                 if ref.marked:
                                     raise CompilerError(f"Duplicate global declaration for {global_name}", context.wrap(simple_statement))
@@ -5482,7 +5583,6 @@ def compile_chunk(
                     last_statement_was_continue = True
 
                 else:
-                    # TODO: Assignment expressions, function calls, memory assignments.
                     raise CompilerError(f"Unsupported node to compile {simple_statement}", context)
 
         elif isinstance(statement, cst.If):
