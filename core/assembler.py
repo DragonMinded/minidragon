@@ -66,7 +66,7 @@ def _splitparams(blob: str) -> Tuple[str, ...]:
         elif quote is None and char in {"'", '"'}:
             # Start quote, open it
             curparam += char
-            quote = quote
+            quote = char
         elif quote is None and char == ",":
             # We aren't quoted, so this is a parameter separator
             params.append(curparam.strip())

@@ -1127,7 +1127,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
             if value is not None:
                 for c in value:
-                    compiled.append_init(f"  STOREI {c[0]!r}")
+                    compiled.append_init(f"  STOREI {c!r}")
                     compiled.append_init("  INCPC")
             compiled.append_init("  STOREI 0x00")
 
@@ -2184,6 +2184,7 @@ def generate_variable_lookup(
                     raise CompilerError("Unsupported destination for non-integer assignment", context)
 
                 # We clobber the SPC to be able to point at the variable.
+                clobbers.add("A")
                 clobbers.add("SPC")
 
                 compiled.append_code("  SWAP PC, SPC")

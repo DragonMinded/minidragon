@@ -1,5 +1,4 @@
 Things that I think I am going to need if I want to use this compiler:
- - test non-const global strings in all string test variants.
  - support for str() so that we can convert booleans, integers and characters to strings.
  - simple f-string support.
  - << and >> expressions, since we forgot about bit shifting.

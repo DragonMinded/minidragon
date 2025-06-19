@@ -10474,6 +10474,60 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    # Attempt to do string length on a global string.
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            global_string: str[40] = "{val}"
+
+            def string_length() -> uint8:
+                return len(global_string)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL string_length",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     # Attempt to do string length on a function parameter with an intermediate variable.
     for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
@@ -10626,6 +10680,66 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
 
             def caller() -> const[str]:
                 return say_hello("{val}")
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *strcatlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL caller",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringconcatenation", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringconcatenation changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringconcatenation changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringconcatenation changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = f"Hello, {val}!"
+        _assert(
+            result == expected,
+            "Failed to stringconcatenation simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Concatenate global string and return that.
+    for val in ["jen", "dragon", "world"]:
+        sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
+            global_string: str[64]
+
+            def caller() -> const[str]:
+                global global_string
+
+                global_string = "Hello, "
+                global_string += {val!r}
+                global_string += "!"
+                return global_string
         """))
         memory = getmemory(os.linesep.join([
             *initlines,
