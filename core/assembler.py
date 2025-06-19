@@ -223,7 +223,13 @@ class CodeOutOfRangeException(Exception):
     pass
 
 
+__icache: Dict[int, Tuple[str, List["ControlSignals"]]] = {}
+
+
 def disassemble(instruction: int) -> str:
+    if instruction in __icache:
+        return __icache[instruction][0]
+
     for inst in instructions:
         if inst.handles(instruction):
             return inst.mnemonic(instruction)
@@ -231,6 +237,9 @@ def disassemble(instruction: int) -> str:
 
 
 def decode(instruction: int) -> Tuple[str, List["ControlSignals"]]:
+    if instruction in __icache:
+        return __icache[instruction]
+
     for inst in instructions:
         if inst.handles(instruction):
             signals = inst.signals()
@@ -238,7 +247,9 @@ def decode(instruction: int) -> Tuple[str, List["ControlSignals"]]:
                 raise InvalidInstructionException(
                     "Instruction contains too many microcodes"
                 )
-            return inst.mnemonic(instruction), signals
+            retval = inst.mnemonic(instruction), signals
+            __icache[instruction] = retval
+            return retval
     else:
         raise InvalidInstructionException("Instruction not implemented")
 
@@ -310,6 +321,9 @@ def getint(
 
     # Return it masked.
     return int(intval & ((2 ** bits) - 1))
+
+
+__mcache: Dict[str, BaseInstruction] = {}
 
 
 def assemble(
@@ -391,21 +405,26 @@ def assemble(
                 params = ()
 
             mnemonic = mnemonic.upper()
-            for inst in instructions:
-                if inst.assembles(mnemonic):
-                    # Assemble without labels, telling the instruction to
-                    # substitute whatever.
-                    for val in inst.vals(
-                        mnemonic, params, org, labels, loose=True
-                    ):
-                        data[org] = val
-                        seen.add(org)
-                        org += 1
-                    break
+            if mnemonic in __mcache:
+                inst = __mcache[mnemonic]
             else:
-                raise InvalidInstructionException(
-                    f"Unrecognized instruction {mnemonic} {param}"
-                )
+                for inst in instructions:
+                    if inst.assembles(mnemonic):
+                        __mcache[mnemonic] = inst
+                        break
+                else:
+                    raise InvalidInstructionException(
+                        f"Unrecognized instruction {mnemonic} {param}"
+                    )
+
+            # Assemble without labels, telling the instruction to
+            # substitute whatever.
+            for val in inst.vals(
+                mnemonic, params, org, labels, loose=True
+            ):
+                data[org] = val
+                seen.add(org)
+                org += 1
 
     # Now, do the whole thing again, ignoring seen state and non-instructions
     # and let the instructions re-generate themselves with correct labels.
@@ -438,20 +457,25 @@ def assemble(
                 params = ()
 
             mnemonic = mnemonic.upper()
-            for inst in instructions:
-                if inst.assembles(mnemonic):
-                    # Assemble without labels, telling the instruction to
-                    # substitute whatever.
-                    for val in inst.vals(
-                        mnemonic, params, org, labels, loose=False
-                    ):
-                        data[org] = val
-                        org += 1
-                    break
+            if mnemonic in __mcache:
+                inst = __mcache[mnemonic]
             else:
-                raise InvalidInstructionException(
-                    f"Unrecognized instruction {mnemonic} {param}"
-                )
+                for inst in instructions:
+                    if inst.assembles(mnemonic):
+                        __mcache[mnemonic] = inst
+                        break
+                else:
+                    raise InvalidInstructionException(
+                        f"Unrecognized instruction {mnemonic} {param}"
+                    )
+
+            # Assemble without labels, telling the instruction to
+            # substitute whatever.
+            for val in inst.vals(
+                mnemonic, params, org, labels, loose=False
+            ):
+                data[org] = val
+                org += 1
 
     # Finally, reformat as a list of tuples of memory address, memory value.
     return list(data.items())
