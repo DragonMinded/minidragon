@@ -12136,7 +12136,6 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
 
     # Verify casting from characters.
     for char in ['a', 'b', 'c', 'd']:
-        break
         sections = parse_and_compile_module("stringcast", textwrap.dedent("""
             def castme(c: char) -> str:
                 lvar: str[16] = str(c)
@@ -12191,7 +12190,6 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
 
     # Verify casting from booleans.
     for boolean in [True, False]:
-        break
         sections = parse_and_compile_module("stringcast", textwrap.dedent("""
             def castme(b: bool) -> str:
                 lvar: str[16] = str(b)
@@ -12246,7 +12244,6 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
 
     # Verify casting from strings.
     for string in ["testing", "derg derg derg"]:
-        break
         sections = parse_and_compile_module("stringcast", textwrap.dedent(f"""
             def castme_impl(s: str) -> str:
                 lvar: str[16] = str(s)
@@ -12518,6 +12515,326 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for stringcast: {int(instructions/count)}")
 
 
+def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "stringformat" not in only and "compiler" not in only:
+        return
+
+    print("Verifying stringformat...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+    with open("lib/string/strcat.S", "r") as fp:
+        strcatlines = fp.readlines()
+    with open("lib/conversion/itoa.S", "r") as fp:
+        itoalines = fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Verify f-strings with other strings.
+    for string in ["dragon", "jen", "test"]:
+        sections = parse_and_compile_module("stringformat", textwrap.dedent(f"""
+            def formatme(string: str) -> str[100]:
+                return f"A string: {{string}}"
+
+            def call() -> str:
+                return formatme({string!r})
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *strcatlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL call",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringformat", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringformat changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringformat changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringformat changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = f"A string: {string}"
+        _assert(
+            result == expected,
+            "Failed to stringformat string, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Verify f-strings with characters.
+    for char in ["a", "b", "d", "z"]:
+        sections = parse_and_compile_module("stringformat", textwrap.dedent("""
+            def formatme(ch: char) -> str[100]:
+                return f"A character: {ch}"
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *strcatlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {char!r}",
+            "SUBPCI 1",
+            "LOADI 123",
+            "CALL formatme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringformat", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringformat changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringformat changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringformat changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = f"A character: {char}"
+        _assert(
+            result == expected,
+            "Failed to stringformat character, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Verify f-strings with booleans.
+    for boolean in [True, False]:
+        sections = parse_and_compile_module("stringformat", textwrap.dedent("""
+            def formatme(b: bool) -> str[100]:
+                return f"A boolean: {b}"
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *strcatlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {'0xFF' if boolean else '0x00'}",
+            "SUBPCI 1",
+            "LOADI 123",
+            "CALL formatme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringformat", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringformat changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringformat changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringformat changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = f"A boolean: {boolean}"
+        _assert(
+            result == expected,
+            "Failed to stringformat boolean, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Verify f-strings with integers.
+    for integer in [0, 37, -37, 69, 100, -100]:
+        sections = parse_and_compile_module("stringformat", textwrap.dedent("""
+            def formatme(i: int8) -> str[100]:
+                return f"An integer: {i}"
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *strcatlines,
+            *itoalines,
+            *dividelines,
+            *neglines,
+            *addlines,
+            *cmplines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {integer}",
+            "SUBPCI 1",
+            "LOADI 123",
+            "CALL formatme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringformat", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringformat changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringformat changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringformat changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = f"An integer: {integer}"
+        _assert(
+            result == expected,
+            "Failed to stringformat integer, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Finally, let's do something interesting.
+    for x in [0, 37, -37, 69, 100, -100]:
+        for y in [0, 5, -5, 7, -7]:
+            sections = parse_and_compile_module("stringformat", textwrap.dedent("""
+                def formatme(x: int8, y: int8) -> str[100]:
+                    return f"The sum of {x} and {y} is {x + y}"
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                *strcatlines,
+                *itoalines,
+                *dividelines,
+                *neglines,
+                *addlines,
+                *cmplines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                f"PUSHI {x}",
+                f"PUSHI {y}",
+                "LOADI 123",
+                "CALL formatme",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringformat", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringformat changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringformat changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringformat changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            expected = f"The sum of {x} and {y} is {x + y}"
+            _assert(
+                result == expected,
+                "Failed to stringformat integer, "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for stringformat: {int(cycles/count)}")
+    print(f"Average instructions for stringformat: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -12663,3 +12980,4 @@ if __name__ == "__main__":
     verifystringslice(only, args.full)
     verifystringassignment(only, args.full)
     verifystringcast(only, args.full)
+    verifystringformat(only, args.full)

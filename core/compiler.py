@@ -47,6 +47,13 @@ class Context:
         context.mapping[node] = self.node
         return context
 
+    def coderange(self) -> Optional[meta.CodeRange]:
+        # Look up virtual references.
+        node = self.node
+        while node in self.mapping:
+            node = self.mapping[node]
+        return self.meta.get(node)
+
     def comment(self) -> str:
         # Look up virtual references.
         node = self.node
@@ -64,7 +71,7 @@ class Context:
 
 class CompilerError(Exception):
     def __init__(self, error: str, context: Context) -> None:
-        metaval = context.meta.get(context.node)
+        metaval = context.coderange()
         if metaval:
             super().__init__(f"{context.module} line {metaval.start.line}: " + error)
         else:
@@ -4138,6 +4145,68 @@ def generate_subscript_expr(
     return compiled
 
 
+def generate_fstring_expr(
+    expression: cst.FormattedString,
+    destination: Optional[str],
+    types: Dict[cst.CSTNode, CoreType],
+    stack: Stack,
+    clobbers: Set[str],
+    allocations: Dict[str, int],
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> Sections:
+    node: cst.BaseExpression
+    concatenation: List[cst.BaseExpression] = []
+    virtual = context
+
+    # Grab all of the pieces of this so we can desugar it.
+    for part in expression.parts:
+        if isinstance(part, cst.FormattedStringText):
+            node = cst.SimpleString(repr(part.value))
+            types[node] = CoreType("str", const=True, length=len(part.value) + 1)
+            virtual = virtual.virtual(node)
+            concatenation.append(node)
+
+        elif isinstance(part, cst.FormattedStringExpression):
+            if part.conversion is not None:
+                raise CompilerError(f"Unsupported conversion {part.conversion!r} in f-string", context)
+            if part.format_spec is not None:
+                raise CompilerError(f"Unsupported format specifier {part.format_spec!r} in f-string", context)
+
+            node = create_call("str", [part.expression])
+            types[node] = CoreType("str", const=True)
+            virtual = virtual.virtual(node)
+            concatenation.append(node)
+
+        else:
+            raise Exception("Logic error, unexpected node in f-string!")
+
+    if len(concatenation) == 0:
+        node = cst.SimpleString('""')
+        types[node] = CoreType("str", const=True, length=1)
+        return generate_expr_internal(node, destination, types, stack, clobbers, allocations, refs, local_consts, virtual.virtual(node))
+
+    if len(concatenation) == 1:
+        return generate_expr_internal(concatenation[0], destination, types, stack, clobbers, allocations, refs, local_consts, virtual)
+
+    # We need to construct a concatenation tree from the list of things to concatenate.
+    tree: cst.BinaryOperation = cst.BinaryOperation(left=concatenation[0], right=concatenation[1], operator=cst.Add())
+    types[tree] = CoreType("str", const=True)
+    virtual = virtual.virtual(tree)
+    concatenation = concatenation[2:]
+
+    while concatenation:
+        node = concatenation[0]
+        concatenation = concatenation[1:]
+
+        tree = cst.BinaryOperation(left=tree, right=node, operator=cst.Add())
+        types[tree] = CoreType("str", const=True)
+        virtual = virtual.virtual(tree)
+
+    return generate_expr_internal(tree, destination, types, stack, clobbers, allocations, refs, local_consts, virtual)
+
+
 def generate_expr_internal(
     expression: cst.BaseExpression,
     destination: Optional[str],
@@ -4318,6 +4387,10 @@ def generate_expr_internal(
     elif isinstance(expression, cst.Subscript):
         # Allowing subscript operation without a destination because it could allow register clear on read.
         compiled += generate_subscript_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
+
+    elif isinstance(expression, cst.FormattedString):
+        if destination is not None:
+            compiled += generate_fstring_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     else:
         # TODO: What other expression types are we missing? Probably array and memory operations.
@@ -4654,6 +4727,24 @@ def infer_expr_types_impl(
         else:
             raise Exception("Logic error, unexpected node {slice_or_index} for subscript slice!")
 
+        return inferred
+
+    elif isinstance(expression, cst.FormattedString):
+        for part in expression.parts:
+            if isinstance(part, cst.FormattedStringText):
+                inferred[part] = CoreType("str", length=len(part.value) + 1, const=True)
+            elif isinstance(part, cst.FormattedStringExpression):
+                expr_tree = infer_expr_types_impl(part.expression, stack, refs, local_consts, context.wrap(part.expression))
+                expr_type = expr_tree[part.expression]
+
+                if expr_type.type in {"int", "string"}:
+                    infer_tree(expr_tree, CoreType("any"), context)
+
+                inferred.update(expr_tree)
+            else:
+                raise Exception("Logic error, unexpected node in f-string!")
+
+        inferred[expression] = CoreType("str", const=True)
         return inferred
 
     else:
