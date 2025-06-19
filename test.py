@@ -2553,6 +2553,229 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for strcmp: {int(instructions/count)}")
 
 
+def verifyutoa(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "utoa" not in only and "stringlib" not in only:
+        return
+
+    print("Verifying utoa...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/conversion/itoa.S", "r") as fp:
+        itoalines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 256, 1 if full else 7):
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "main:",
+            "PUSHI 0x00",
+            "PUSHI 0x10",
+            f"LOADI {x}",
+            "CALL utoa",
+            "HALT",
+            *itoalines,
+            *dividelines,
+            *cmplines,
+            *addlines,
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == x,
+            f"utoa changed A register from {x} to {cpu.a}!",
+        )
+        stack_input = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        _assert(
+            stack_input == 0x1000,
+            f"utoa changed stack input from {0x1000} to {stack_input}!",
+        )
+        _assert(
+            getstring(cpu, 0x1000) == str(x),
+            f"Failed to utoa({x}), "
+            + f"got {getstring(cpu, 0x1000)} instead of {str(x)}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for utoa: {int(cycles/count)}")
+    print(f"Average instructions for utoa: {int(instructions/count)}")
+
+
+def verifyutoa16(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "utoa16" not in only and "stringlib" not in only:
+        return
+
+    print("Verifying utoa16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/conversion/itoa.S", "r") as fp:
+        itoalines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 65536, 123 if full else 2763):
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "main:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            "PUSHI 0x00",
+            "PUSHI 0x10",
+            "LOADI 123",
+            "CALL utoa16",
+            "HALT",
+            *itoalines,
+            *dividelines,
+            *cmplines,
+            *addlines,
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"utoa16 changed accumulator value from {123} to {cpu.a}!",
+        )
+        stack_input = ((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
+        original_number = (
+            (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
+        )
+        _assert(
+            stack_input == 0x1000,
+            f"utoa16 changed stack input from {0x1000} to {stack_input}!",
+        )
+        _assert(
+            getstring(cpu, 0x1000) == str(x),
+            f"Failed to utoa({x}), "
+            + f"got {getstring(cpu, 0x1000)} instead of {str(x)}!",
+        )
+        _assert(
+            original_number == x,
+            f"utoa16 changed original number input from {x} to {original_number}!"
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for utoa16: {int(cycles/count)}")
+    print(f"Average instructions for utoa16: {int(instructions/count)}")
+
+
+def verifyutoa32(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "utoa32" not in only and "stringlib" not in only:
+        return
+
+    print("Verifying utoa32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/conversion/itoa.S", "r") as fp:
+        itoalines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 4294967296, 8060929 if full else 381075969):
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "main:",
+            f"PUSHI {x & 0xFF}",
+            f"PUSHI {(x >> 8) & 0xFF}",
+            f"PUSHI {(x >> 16) & 0xFF}",
+            f"PUSHI {(x >> 24) & 0xFF}",
+            "PUSHI 0x00",
+            "PUSHI 0x10",
+            "LOADI 123",
+            "CALL utoa32",
+            "HALT",
+            *itoalines,
+            *dividelines,
+            *cmplines,
+            *addlines,
+            *neglines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"utoa32 changed accumulator value from {123} to {cpu.a}!",
+        )
+        stack_input = ((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
+        original_number = (
+            (cpu.ram[cpu.pc + 2] << 24) +
+            (cpu.ram[cpu.pc + 3] << 16) +
+            (cpu.ram[cpu.pc + 4] << 8) +
+            (cpu.ram[cpu.pc + 5] << 0)
+        )
+        _assert(
+            stack_input == 0x1000,
+            f"utoa32 changed stack input from {0x1000} to {stack_input}!",
+        )
+        _assert(
+            getstring(cpu, 0x1000) == str(x),
+            f"Failed to utoa({x}), "
+            + f"got {getstring(cpu, 0x1000)} instead of {str(x)}!",
+        )
+        _assert(
+            original_number == x,
+            f"utoa32 changed original number input from {x} to {original_number}!"
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 2**32)}% complete...")
+
+    print(f"{CLEAR_LINE}Average cycles for utoa32: {int(cycles/count)}")
+    print(f"Average instructions for utoa32: {int(instructions/count)}")
+
+
 def verifyitoa(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "itoa" not in only and "stringlib" not in only:
         return
@@ -2598,7 +2821,7 @@ def verifyitoa(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             bintoint(cpu.a) == x,
-            f"itoa changed A register from {x} to {cpu.a}!",
+            f"itoa changed A register from {x} to {bintoint(cpu.a)}!",
         )
         stack_input = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
         _assert(
@@ -11977,6 +12200,9 @@ if __name__ == "__main__":
     verifyitoa(only, args.full)
     verifyitoa16(only, args.full)
     verifyitoa32(only, args.full)
+    verifyutoa(only, args.full)
+    verifyutoa16(only, args.full)
+    verifyutoa32(only, args.full)
     verifyatoi(only, args.full)
     verifyatoi16(only, args.full)
     verifyatoi32(only, args.full)
