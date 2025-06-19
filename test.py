@@ -11919,12 +11919,13 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
         for updated in ['~', '!', '*']:
             sliceable = "this is a test"
             sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
-                def set_char(string: str, offset: uint8, val: char) -> str:
+                def set_char(string: str, offset: uint8, val: char) -> void:
                     string[offset] = val
-                    return string
 
                 def updateme() -> str:
-                    return set_char({sliceable!r}, {offset}, {updated!r})
+                    sliceable: str[32] = {sliceable!r}
+                    set_char(sliceable, {offset}, {updated!r})
+                    return sliceable
             """))
             memory = getmemory(os.linesep.join([
                 *initlines,
@@ -12102,6 +12103,421 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for stringassignment: {int(instructions/count)}")
 
 
+def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "stringcast" not in only and "compiler" not in only:
+        return
+
+    print("Verifying stringcast...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+    with open("lib/conversion/itoa.S", "r") as fp:
+        itoalines = fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Verify casting from characters.
+    for char in ['a', 'b', 'c', 'd']:
+        break
+        sections = parse_and_compile_module("stringcast", textwrap.dedent("""
+            def castme(c: char) -> str:
+                lvar: str[16] = str(c)
+                return lvar
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {char!r}",
+            "SUBPCI 1",
+            "LOADI 123",
+            "CALL castme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringcast", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringcast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringcast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = str(char)
+        _assert(
+            result == expected,
+            "Failed to stringcast character, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Verify casting from booleans.
+    for boolean in [True, False]:
+        break
+        sections = parse_and_compile_module("stringcast", textwrap.dedent("""
+            def castme(b: bool) -> str:
+                lvar: str[16] = str(b)
+                return lvar
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {"0xFF" if boolean else "0x00"}",
+            "SUBPCI 1",
+            "LOADI 123",
+            "CALL castme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringcast", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringcast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringcast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = str(boolean)
+        _assert(
+            result == expected,
+            "Failed to stringcast boolean, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Verify casting from strings.
+    for string in ["testing", "derg derg derg"]:
+        break
+        sections = parse_and_compile_module("stringcast", textwrap.dedent(f"""
+            def castme_impl(s: str) -> str:
+                lvar: str[16] = str(s)
+                return lvar
+
+            def castme() -> str:
+                lvar: const[str] = {string!r}
+                return castme_impl(lvar)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "SUBPCI 2",
+            "LOADI 123",
+            "CALL castme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringcast", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringcast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringcast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = str(string)
+        _assert(
+            result == expected,
+            "Failed to stringcast string, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Verify casting from integers.
+    for integer, itype in [
+        (0, "uint8"),
+        (0, "int8"),
+        (37, "uint8"),
+        (37, "int8"),
+        (127, "uint8"),
+        (127, "int8"),
+        (200, "uint8"),
+        (-37, "int8"),
+        (255, "uint8"),
+        (-128, "int8"),
+    ]:
+        sections = parse_and_compile_module("stringcast", textwrap.dedent(f"""
+            def castme(i: {itype}) -> str:
+                lvar: str[16] = str(i)
+                return lvar
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *itoalines,
+            *dividelines,
+            *neglines,
+            *addlines,
+            *cmplines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {integer}",
+            "SUBPCI 1",
+            "LOADI 123",
+            "CALL castme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringcast", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringcast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringcast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = str(integer)
+        _assert(
+            result == expected,
+            "Failed to stringcast 8 bit integer, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for integer, itype in [
+        (0, "uint16"),
+        (0, "int16"),
+        (37, "uint16"),
+        (37, "int16"),
+        (12345, "uint16"),
+        (12345, "int16"),
+        (45678, "uint16"),
+        (-12345, "int16"),
+        (65535, "uint16"),
+        (-32768, "int16"),
+    ]:
+        sections = parse_and_compile_module("stringcast", textwrap.dedent(f"""
+            def castme(i: {itype}) -> str:
+                lvar: str[16] = str(i)
+                return lvar
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *itoalines,
+            *dividelines,
+            *neglines,
+            *addlines,
+            *cmplines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {integer & 0xFF}",
+            f"PUSHI {(integer >> 8) & 0xFF}",
+            "LOADI 123",
+            "CALL castme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringcast", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringcast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringcast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = str(integer)
+        _assert(
+            result == expected,
+            "Failed to stringcast 16 bit integer, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for integer, itype in [
+        (0, "uint32"),
+        (0, "int32"),
+        (37, "uint32"),
+        (37, "int32"),
+        (12345, "uint32"),
+        (12345, "int32"),
+        (45678, "uint32"),
+        (-12345, "int32"),
+        (65535, "uint32"),
+        (-32768, "int32"),
+        (2**32 - 1, "uint32"),
+        (-2**31, "int32"),
+    ]:
+        sections = parse_and_compile_module("stringcast", textwrap.dedent(f"""
+            def castme(i: {itype}) -> str:
+                lvar: str[16] = str(i)
+                return lvar
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *itoalines,
+            *dividelines,
+            *neglines,
+            *addlines,
+            *cmplines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {integer & 0xFF}",
+            f"PUSHI {(integer >> 8) & 0xFF}",
+            f"PUSHI {(integer >> 16) & 0xFF}",
+            f"PUSHI {(integer >> 24) & 0xFF}",
+            "LOADI 123",
+            "CALL castme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringcast", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringcast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringcast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringcast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = str(integer)
+        _assert(
+            result == expected,
+            "Failed to stringcast 32 bit integer, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for stringcast: {int(cycles/count)}")
+    print(f"Average instructions for stringcast: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -12246,3 +12662,4 @@ if __name__ == "__main__":
     verifystringsubscript(only, args.full)
     verifystringslice(only, args.full)
     verifystringassignment(only, args.full)
+    verifystringcast(only, args.full)

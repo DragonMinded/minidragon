@@ -1,8 +1,7 @@
 Things that I think I am going to need if I want to use this compiler:
- - support for str() so that we can convert booleans, integers and characters to strings.
  - simple f-string support.
  - << and >> expressions, since we forgot about bit shifting.
- - builtins that will be needed such as abs(), bool(), chr(), ord(), str(), int(), hex(), min(), max()
+ - builtins that will be needed such as abs(), bool(), chr(), ord(), int(), hex(), min(), max()
  - peek() and poke() support since we aren't working towards arrays.
 
 Things that would be nice to have for convenience:

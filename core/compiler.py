@@ -126,8 +126,7 @@ class CoreType:
         self.type = base_type
         self.pointed_type = pointed_type
         self.const = const
-        self.length = length or 0
-        self.is_array = length is not None
+        self.__length = length
         self.extern = extern
         self.return_padding = return_padding
         if self.type == "pointer" and pointed_type is None:
@@ -159,7 +158,7 @@ class CoreType:
             pre = "extern[" + pre
             post = post + "]"
 
-        if self.length is not None and self.length > 0:
+        if self.__length is not None:
             typestr = f"{typestr}[{self.length}]"
 
         return pre + typestr + post
@@ -174,10 +173,24 @@ class CoreType:
             self.type,
             self.pointed_type,
             length=self.length,
-            const=self.const,
+            const=True,
             extern=self.extern,
             return_padding=self.return_padding,
         )
+
+    @property
+    def length(self) -> int:
+        return self.__length or 0
+
+    @length.setter
+    def length(self, newval: Optional[int]) -> None:
+        if newval is not None and newval < 1:
+            raise Exception("Logic error, setting length to negative or zero!")
+        self.__length = newval
+
+    @property
+    def is_array(self) -> bool:
+        return self.__length is not None
 
     @property
     def size(self) -> int:
@@ -390,6 +403,10 @@ def const_by_name(consts: List[Constant], name: str) -> Optional[Constant]:
 
 
 def type_comparison_compatible(left: CoreType, right: CoreType) -> bool:
+    if left.type == "any":
+        return True
+    if right.type == "any":
+        return True
     if left.is_integer and right.is_integer:
         return True
     if left.is_char and right.is_char:
@@ -1682,7 +1699,7 @@ def generate_function_call_internal(
 
     # Ensure that we're not trying to assign a void function call to an expression.
     if destination is not None and function_prototype.return_type is VoidType:
-        raise CompilerError(f"Cannot assign result of function {call.func} returning void", context)
+        raise CompilerError(f"Cannot assign result of function {function_prototype.name} returning void", context)
 
     # Make sure that the prototype's params actually make sense.
     seen_nonpreserved = False
@@ -1701,6 +1718,8 @@ def generate_function_call_internal(
                 )
         elif isinstance(param, OutCoreType):
             seen_outtype = True
+        elif isinstance(param, RegisterCoreType):
+            pass
         else:
             seen_nonpreserved = True
             if seen_outtype:
@@ -1897,13 +1916,17 @@ def generate_function_call_internal(
         reg_to_type = {
             "A": "int8",
         }
-        if needed_arg.type not in reg_to_type:
-            raise Exception(f"Logic error, tried to assign a param to unsupported register {needed_arg.type} in function {function_prototype.name}")
+        if needed_arg.register not in reg_to_type:
+            raise Exception(f"Logic error, tried to assign a param to unsupported register {needed_arg.register} in function {function_prototype.name}")
 
-        stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.type])))
+        # Make sure we mark this as clobbered since we're going to mess it up.
+        clobbers.add(needed_arg.register)
+
+        stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.register])))
         compiled += generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(provided_arg.value))
         compiled += generate_move_to(reg_dest, stack, clobbers, context)
-        compiled.append_code(f"POP {needed_arg.type}")
+        compiled.append_code(f"  POP {needed_arg.register}")
+        stack.location -= 1
         stack.free(reg_dest)
 
     # Now, we're ready to actually call the function. Move to the last byte of the last parameter on the stack.
@@ -2028,13 +2051,16 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
         if function_prototype.name == "len":
             if len(args) != 1 or len(arg_types) != 1:
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment!", context)
 
             # String or array length calculation.
             return generate_function_call_internal(
@@ -2048,6 +2074,124 @@ def generate_function_call(
                 local_consts,
                 context,
             )
+
+        if function_prototype.name == "str":
+            if len(args) != 1 or len(arg_types) != 1:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment!", context)
+
+            # Cast from whatever data type to string, so we must handle this on a case by case basis.
+            expr = args[0].value
+
+            if types[expr].is_string:
+                # We're done, this is already a string.
+                return generate_expr_internal(expr, destination, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+            elif types[expr].is_char:
+                compiled = Sections()
+
+                # We need to cast this by creating a string, so we need to allocate that string on the stack.
+                if not stack.initof(destination):
+                    # We're creating a string in an unusual place, given that normally we only create strings on the LHS
+                    # of any assignment. So, we must hand-check our destination's size in case it was declared const as
+                    # an optimization for avoiding strcpy.
+                    destination_type = stack.typeof(destination)
+                    if destination_type is None:
+                        raise Exception("Logic error, cannot find destination type for str() conversion!")
+
+                    if (not destination_type.is_array) and destination_type.const:
+                        destination_type.length = 2
+
+                    compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+
+                    # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                    stack.init(destination)
+
+                # We need to do a strcpy at this point, to the destination.
+                clobbers.add("SPC")
+                clobbers.add("A")
+
+                # Calculate the expression we're converting to a string.
+                compiled += generate_expr_internal(expr, "register(A, char)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+                # Set up the SPC to point at the string.
+                compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+                # Set the character value to the string, null-terminate.
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  STOREI 0")
+                compiled.append_code("  SWAP PC, SPC")
+
+                return compiled
+
+            elif types[expr].is_bool:
+                true = cst.SimpleString('"True"')
+                false = cst.SimpleString('"False"')
+                fake_expr = cst.IfExp(test=expr, body=true, orelse=false)
+                return generate_expr_internal(fake_expr, destination, types, stack, clobbers, allocations, refs, local_consts, context.virtual(true).virtual(false).virtual(fake_expr))
+
+            elif types[expr].is_integer:
+                compiled = Sections()
+
+                # Figure out the needed length for any allocation.
+                needed_length = {
+                    "uint8": 4,
+                    "int8": 5,
+                    "uint16": 6,
+                    "int16": 7,
+                    "uint32": 11,
+                    "int32": 12,
+                }[types[expr].type]
+
+                # We need to cast this by creating a string, so we need to allocate that string on the stack.
+                if not stack.initof(destination):
+                    # We're creating a string in an unusual place, given that normally we only create strings on the LHS
+                    # of any assignment. So, we must hand-check our destination's size in case it was declared const as
+                    # an optimization for avoiding strcpy.
+                    destination_type = stack.typeof(destination)
+                    if destination_type is None:
+                        raise Exception("Logic error, cannot find destination type for str() conversion!")
+
+                    if (not destination_type.is_array) and destination_type.const:
+                        destination_type.length = needed_length
+
+                    compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+
+                    # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                    stack.init(destination)
+
+                # Now, call the correct function to convert.
+                needed_function = {
+                    "uint8": "utoa",
+                    "int8": "itoa",
+                    "uint16": "utoa16",
+                    "int16": "itoa16",
+                    "uint32": "utoa32",
+                    "int32": "itoa32",
+                }[types[expr].type]
+                compiled += generate_function_call_internal(
+                    create_call(needed_function, [expr, UnvalidatedName(destination)]),
+                    None,
+                    types,
+                    stack,
+                    clobbers,
+                    allocations,
+                    refs,
+                    local_consts,
+                    context,
+                )
+
+                return compiled
+
+            else:
+                raise Exception(f"Logic error, attempted to convert unsupported type {types[expr].type} to string!")
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -2439,7 +2583,7 @@ def generate_variable_lookup(
             compiled.append_code("  STOREI 0")
             compiled.append_code("  SWAP PC, SPC")
 
-        elif dest_type.is_string and not dest_type.const and source_type.const:
+        elif dest_type.is_string and not dest_type.const and destination != "builtin(retval)":
             # We need to allocate locally and strcpy over.
             if not stack.initof(destination):
                 compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
@@ -4214,6 +4358,10 @@ def infer_tree(
         if ctype.type == "int":
             if concrete_type.type == "void":
                 raise CompilerError("Unsupported expression without assignment", context)
+            if concrete_type.type == "any":
+                # Assume the worst case.
+                ctype.type = "uint32"
+                continue
             if not concrete_type.is_integer:
                 raise CompilerError(f"Unsupported integer expression assignment to non-integer type {concrete_type.type}", context)
             ctype.type = concrete_type.type
@@ -4222,9 +4370,13 @@ def infer_tree(
                 raise CompilerError("Unsupported expression without assignment", context)
             if not (concrete_type.is_string or concrete_type.is_char):
                 raise CompilerError(f"Unsupported string expression assignment to non-string type {concrete_type.type}", context)
+            if concrete_type.type == "any":
+                # Arbitrarily force to string.
+                ctype.type = "str"
+                continue
             ctype.type = concrete_type.type
             if concrete_type.is_char:
-                ctype.length = 0
+                ctype.length = None
 
 
 def infer_expr_types_impl(
@@ -6054,6 +6206,7 @@ def parse_and_compile_module(module: str, code: str) -> Sections:
 def builtin_functions() -> List[FunctionPrototype]:
     return [
         FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("str")]),
+        FunctionPrototype("str", CoreType("str"), [CoreType("any")])
     ]
 
 
@@ -6080,6 +6233,9 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("itoa", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
         FunctionPrototype("itoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
         FunctionPrototype("itoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),
+        FunctionPrototype("utoa", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
+        FunctionPrototype("utoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
+        FunctionPrototype("utoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),
 
         # STDLIB integer math functions.
         FunctionPrototype("abs", RegisterCoreType("int8", "A"), [RegisterCoreType("int8", "A")]),
