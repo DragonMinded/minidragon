@@ -916,6 +916,300 @@ def verifyudiv32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for udiv32: {int(instructions/count)}")
 
 
+def verifylshift(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "lshift" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying lshift...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/shift.S", "r") as fp:
+        shiftlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 256, 5 if full else 11):
+        for y in range(0, 8):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {x}",
+                f"LOADI {y}",
+                "CALL lshift",
+                "HALT",
+                *shiftlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            calculated = cpu.a
+            real = (x << y) & 0xFF
+            _assert(
+                real == calculated,
+                f"Failed to {x} << {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for lshift: {int(cycles/count)}")
+    print(f"Average instructions for lshift: {int(instructions/count)}")
+
+
+def verifylshift16(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "lshift16" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying lshift16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/shift.S", "r") as fp:
+        shiftlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 65536, 1234 if full else 12345):
+        for y in range(0, 16):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"LOADI {y}",
+                "CALL lshift16",
+                "HALT",
+                *shiftlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            calculated = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+            real = (x << y) & 0xFFFF
+            _assert(
+                real == calculated,
+                f"Failed to {x} << {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for lshift16: {int(cycles/count)}")
+    print(f"Average instructions for lshift16: {int(instructions/count)}")
+
+
+def verifylshift32(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "lshift32" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying lshift32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/shift.S", "r") as fp:
+        shiftlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 2**32, 80904192 if full else 809041923):
+        for y in range(0, 32):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"PUSHI {(x >> 16) & 0xFF}",
+                f"PUSHI {(x >> 24) & 0xFF}",
+                f"LOADI {y}",
+                "CALL lshift32",
+                "HALT",
+                *shiftlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            calculated = (
+                (cpu.ram[cpu.pc] << 24) +
+                (cpu.ram[cpu.pc + 1] << 16) +
+                (cpu.ram[cpu.pc + 2] << 8) +
+                cpu.ram[cpu.pc + 3]
+            )
+            real = (x << y) & 0xFFFFFFFF
+            _assert(
+                real == calculated,
+                f"Failed to {x} << {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / (2**32))}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for lshift32: {int(cycles/count)}")
+    print(f"Average instructions for lshift32: {int(instructions/count)}")
+
+
+def verifyrshift(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "rshift" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying rshift...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/shift.S", "r") as fp:
+        shiftlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 256, 5 if full else 11):
+        for y in range(0, 8):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {x}",
+                f"LOADI {y}",
+                "CALL rshift",
+                "HALT",
+                *shiftlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            calculated = cpu.a
+            real = (x >> y) & 0xFF
+            _assert(
+                real == calculated,
+                f"Failed to {x} << {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for rshift: {int(cycles/count)}")
+    print(f"Average instructions for rshift: {int(instructions/count)}")
+
+
+def verifyrshift16(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "rshift16" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying rshift16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/shift.S", "r") as fp:
+        shiftlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 65536, 1234 if full else 12345):
+        for y in range(0, 16):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"LOADI {y}",
+                "CALL rshift16",
+                "HALT",
+                *shiftlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            calculated = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+            real = (x >> y) & 0xFFFF
+            _assert(
+                real == calculated,
+                f"Failed to {x} << {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / 65536)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for rshift16: {int(cycles/count)}")
+    print(f"Average instructions for rshift16: {int(instructions/count)}")
+
+
+def verifyrshift32(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "rshift32" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying rshift32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/shift.S", "r") as fp:
+        shiftlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 2**32, 80904192 if full else 809041923):
+        for y in range(0, 32):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {x & 0xFF}",
+                f"PUSHI {(x >> 8) & 0xFF}",
+                f"PUSHI {(x >> 16) & 0xFF}",
+                f"PUSHI {(x >> 24) & 0xFF}",
+                f"LOADI {y}",
+                "CALL rshift32",
+                "HALT",
+                *shiftlines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            calculated = (
+                (cpu.ram[cpu.pc] << 24) +
+                (cpu.ram[cpu.pc + 1] << 16) +
+                (cpu.ram[cpu.pc + 2] << 8) +
+                cpu.ram[cpu.pc + 3]
+            )
+            real = (x >> y) & 0xFFFFFFFF
+            _assert(
+                real == calculated,
+                f"Failed to {x} << {y}, "
+                + f"got {calculated} instead of {real}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int((x * 100) / (2**32))}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for rshift32: {int(cycles/count)}")
+    print(f"Average instructions for rshift32: {int(instructions/count)}")
+
+
 def verifymathadd(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "mathadd" not in only and "mathlib" not in only:
         return
@@ -12894,6 +13188,12 @@ if __name__ == "__main__":
     verifyshift(only, args.full)
 
     # Math library verification
+    verifylshift(only, args.full)
+    verifylshift16(only, args.full)
+    verifylshift32(only, args.full)
+    verifyrshift(only, args.full)
+    verifyrshift16(only, args.full)
+    verifyrshift32(only, args.full)
     verifymathadd(only, args.full)
     verifyadd16(only, args.full)
     verifyadd32(only, args.full)
