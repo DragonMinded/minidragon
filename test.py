@@ -5828,6 +5828,176 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
         print(f"Average instructions for moduloandreturn: {int(instructions/count)}")
 
 
+def verifyshiftandreturn(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "shiftandreturn" not in only and "compiler" not in only:
+        return
+
+    print("Verifying shiftandreturn...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/shift.S", "r") as fp:
+        shiftlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for x in range(0, 256, 29 if full else 51):
+        for y in range(0, 8):
+            for op in ["<<", ">>"]:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    *shiftlines,
+                    *parse_and_compile_module("shiftandreturn", textwrap.dedent(f"""
+                        def shiftandreturn(param1: uint8, param2: uint8) -> uint8:
+                            return param1 {op} param2
+                    """)).code,
+                    "main:",
+                    f"PUSHI {x}",
+                    f"PUSHI {y}",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL shiftandreturn",
+                    "HALT",
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"shiftandreturn changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"shiftandreturn changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"shiftandreturn changed V value from {222} to {cpu.v}!",
+                )
+                result = cpu.ram[cpu.pc + 0]
+                expected = ((x << y) if op == "<<" else (x >> y)) & 0xFF
+                _assert(
+                    result == expected,
+                    "Failed to shiftandreturn, "
+                    + f"got {result} instead of {expected}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+    for x in range(0, 65536, 7281 if full else 13107):
+        for y in range(0, 16):
+            for op in ["<<", ">>"]:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    *shiftlines,
+                    *parse_and_compile_module("shiftandreturn", textwrap.dedent(f"""
+                        def shiftandreturn(param1: uint16, param2: uint8) -> uint16:
+                            return param1 {op} param2
+                    """)).code,
+                    "main:",
+                    f"PUSHI {x & 0xFF}",
+                    f"PUSHI {(x >> 8) & 0xFF}",
+                    f"PUSHI {y}",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL shiftandreturn",
+                    "HALT",
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"shiftandreturn changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"shiftandreturn changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"shiftandreturn changed V value from {222} to {cpu.v}!",
+                )
+                result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+                expected = ((x << y) if op == "<<" else (x >> y)) & 0xFFFF
+                _assert(
+                    result == expected,
+                    "Failed to shiftandreturn, "
+                    + f"got {result} instead of {expected}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+    for x in range(0, 2**32, 477218589 if full else 858993459):
+        for y in range(0, 16):
+            for op in ["<<", ">>"]:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    *shiftlines,
+                    *parse_and_compile_module("shiftandreturn", textwrap.dedent(f"""
+                        def shiftandreturn(param1: uint32, param2: uint8) -> uint32:
+                            return param1 {op} param2
+                    """)).code,
+                    "main:",
+                    f"PUSHI {x & 0xFF}",
+                    f"PUSHI {(x >> 8) & 0xFF}",
+                    f"PUSHI {(x >> 16) & 0xFF}",
+                    f"PUSHI {(x >> 24) & 0xFF}",
+                    f"PUSHI {y}",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL shiftandreturn",
+                    "HALT",
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"shiftandreturn changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"shiftandreturn changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"shiftandreturn changed V value from {222} to {cpu.v}!",
+                )
+                result = (
+                    (cpu.ram[cpu.pc + 0] << 24) +
+                    (cpu.ram[cpu.pc + 1] << 16) +
+                    (cpu.ram[cpu.pc + 2] << 8) +
+                    (cpu.ram[cpu.pc + 3] << 0)
+                )
+                expected = ((x << y) if op == "<<" else (x >> y)) & 0xFFFFFFFF
+                _assert(
+                    result == expected,
+                    "Failed to shiftandreturn, "
+                    + f"got {result} instead of {expected}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+    print(f"Average cycles for shiftandreturn: {int(cycles/count)}")
+    print(f"Average instructions for shiftandreturn: {int(instructions/count)}")
+
+
 def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "bitwiseand" not in only and "compiler" not in only:
         return
@@ -13251,6 +13421,7 @@ if __name__ == "__main__":
     verifymultiplyandreturn(only, args.full)
     verifydivideandreturn(only, args.full)
     verifymoduloandreturn(only, args.full)
+    verifyshiftandreturn(only, args.full)
     verifybitwiseand(only, args.full)
     verifybitwiseor(only, args.full)
     verifybitwisexor(only, args.full)

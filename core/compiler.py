@@ -1745,6 +1745,7 @@ def generate_function_call_internal(
     out_mapping: Dict[int, str] = {}
     delayed_params: List[RegisterCoreType] = []
     delayed_args: List[cst.Arg] = []
+    delayed_generate: List[bool] = []
     temporary_stack_entries: List[str] = []
     stack_on_exit: int = stack.size - 1
     normal_return_loc: int = stack.size
@@ -1757,6 +1758,9 @@ def generate_function_call_internal(
         if len(stack) < arglen:
             # Can't possibly be a match
             continue
+
+        # Only allow register-based matching on the final parameter.
+        full_params = arglen == len(args)
 
         considered = args[:arglen]
         stackvars = stack[-arglen:]
@@ -1789,10 +1793,10 @@ def generate_function_call_internal(
                 # optimization if the first parameter is a normal core type and the return
                 # value is a normal return type, or if the first parameter is in/out or out
                 # and the return value comes from this parameter.
-                if isinstance(stackvars[0], (PreservedCoreType, RegisterCoreType, PaddingCoreType)):
+                if isinstance(params[0], (PreservedCoreType, RegisterCoreType, PaddingCoreType)):
                     # Cannot make these match under any circumstances.
                     continue
-                elif isinstance(stackvars[0], (InOutCoreType, OutCoreType)):
+                elif isinstance(params[0], (InOutCoreType, OutCoreType)):
                     # Can only match these if the return is this stack position.
                     if isinstance(function_prototype.return_type, ParamReturnCoreType):
                         if function_prototype.return_type.position != 0:
@@ -1806,16 +1810,21 @@ def generate_function_call_internal(
 
             match = False
             for i in range(arglen):
-                if isinstance(stackvars[i], (RegisterCoreType, PaddingCoreType)):
+                if isinstance(params[i], RegisterCoreType):
+                    # These can match if they're the final param, because we'll end up popping
+                    # it off the stack to put the value in a register.
+                    if not full_params or i != (arglen - 1):
+                        break
+                elif isinstance(params[i], PaddingCoreType):
                     # These can never match. We'd need to be even more clever with picking out
                     # register types from the middle of the argument list, and padding needs to
                     # be inserted in the stack at the right spot.
                     break
-                elif isinstance(stackvars[i], OutCoreType):
+                elif isinstance(params[i], OutCoreType):
                     # This is added to the stack, and I genuinely don't know what to do in this
                     # optimization case if this shows up here.
                     break
-                elif isinstance(stackvars[i], (PreservedCoreType, InOutCoreType)):
+                elif isinstance(params[i], (PreservedCoreType, InOutCoreType)):
                     # These are a match, since they either preserve the value, or replace it.
                     pass
                 else:
@@ -1833,18 +1842,26 @@ def generate_function_call_internal(
                 match = True
 
             if match:
-                # Need to fix up where the stack is going to be on exit based on paramst that will
+                # Need to fix up where the stack is going to be on exit based on params that will
                 # be "consumed" by the function call.
                 for i in range(arglen):
+                    param_in_question = params[i]
+
                     if not stackvars[i].initialized:
                         raise CompilerError(f"Use of uninitialized variable {stackvars[i].name!r}", context)
-                    if isinstance(params[i], (RegisterCoreType, PaddingCoreType, OutCoreType)):
+                    if isinstance(param_in_question, (PaddingCoreType, OutCoreType)):
                         raise Exception("Logic error, unexpected stackvar type!")
-                    elif isinstance(params[i], PreservedCoreType):
+                    elif isinstance(param_in_question, PreservedCoreType):
                         continue
-                    elif isinstance(params[i], InOutCoreType):
+                    elif isinstance(param_in_question, InOutCoreType):
                         out_mapping[i] = stackvars[i].name
                         continue
+                    elif isinstance(param_in_question, RegisterCoreType):
+                        delayed_params.append(param_in_question)
+                        delayed_args.append(considered[i])
+                        delayed_generate.append(False)
+                        stack_on_exit -= stackvars[i].size
+                        normal_return_loc -= stackvars[i].size
                     else:
                         # The calling function is going to consume this.
                         stack_on_exit -= stackvars[i].size
@@ -1880,6 +1897,7 @@ def generate_function_call_internal(
             # might clobber one of the registers, we delay this so that we do this after everything else.
             delayed_params.append(needed_arg)
             delayed_args.append(args[which_arg])
+            delayed_generate.append(True)
             which_arg += 1
 
         elif isinstance(needed_arg, InOutCoreType):
@@ -1914,8 +1932,8 @@ def generate_function_call_internal(
             which_arg += 1
 
     # Now, load our registers up with any register parameters.
-    for i in range(len(delayed_params)):
-        reg_dest = expr_temp_name()
+    stack_skip = 0
+    for i in range(len(delayed_params) - 1, -1, -1):
         needed_arg = delayed_params[i]
         provided_arg = delayed_args[i]
 
@@ -1929,15 +1947,25 @@ def generate_function_call_internal(
         # Make sure we mark this as clobbered since we're going to mess it up.
         clobbers.add(needed_arg.register)
 
-        stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.register])))
-        compiled += generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(provided_arg.value))
-        compiled += generate_move_to(reg_dest, stack, clobbers, context)
-        compiled.append_code(f"  POP {needed_arg.register}")
-        stack.location -= 1
-        stack.free(reg_dest)
+        if delayed_generate[i]:
+            reg_dest = expr_temp_name()
+            stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.register])))
+            compiled += generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(provided_arg.value))
+            compiled += generate_move_to(reg_dest, stack, clobbers, context)
+            compiled.append_code(f"  POP {needed_arg.register}")
+            stack.location -= 1
+            stack.free(reg_dest)
+        else:
+            if not isinstance(arg.value, UnvalidatedName):
+                raise Exception("Logic error, params that don't need generation should be on the stack!")
+            reg_dest = arg.value.value
+            compiled += generate_move_to(reg_dest, stack, clobbers, context)
+            compiled.append_code(f"  POP {needed_arg.register}")
+            stack.location -= 1
+            stack_skip += 1
 
     # Now, we're ready to actually call the function. Move to the last byte of the last parameter on the stack.
-    move_amount = stack.diff(stack.size - 1)
+    move_amount = stack.diff(stack.size - (stack_skip + 1))
     compiled += generate_move_by("moving to last parameter", move_amount, stack, clobbers, context)
     compiled.append_code(f"  CALL {function_prototype.name}")
 
@@ -2946,7 +2974,10 @@ def generate_binary_expr(
 
         # Now, get the second parameter onto the stack in the right spot.
         rhs_dest = expr_temp_name()
-        stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
+        if isinstance(expression.operator, (cst.LeftShift, cst.RightShift)):
+            stack.alloc(StackVar(rhs_dest, CoreType("uint8")))
+        else:
+            stack.alloc(StackVar(rhs_dest, expr_integer_type(destination_size)))
         compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
 
         # Now, perform some math of matics!
@@ -2992,13 +3023,23 @@ def generate_binary_expr(
                 else:
                     raise Exception("Logic error, unexpected operator {expression.operator)}")
 
-            elif isinstance(expression.operator, cst.Multiply):
+            elif isinstance(expression.operator, (cst.Multiply, cst.LeftShift, cst.RightShift)):
                 if not destination_type.is_integer:
                     raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
+                if isinstance(expression.operator, cst.Multiply):
+                    func = "mult"
+                elif isinstance(expression.operator, cst.LeftShift):
+                    func = "lshift"
+                elif isinstance(expression.operator, cst.RightShift):
+                    func = "rshift"
+                else:
+                    raise Exception("Logic error, unexpected operator!")
+
+                compiled.append_code("  ; just before function call")
                 compiled += generate_function_call_internal(
                     create_call(
-                        "mult",
+                        func,
                         [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
                     ),
                     destination,
@@ -3100,7 +3141,7 @@ def generate_binary_expr(
                 if lhs_dest != destination:
                     stack.free(lhs_dest)
 
-            elif isinstance(expression.operator, (cst.Add, cst.Multiply)):
+            elif isinstance(expression.operator, (cst.Add, cst.Multiply, cst.LeftShift, cst.RightShift)):
                 if not destination_type.is_integer:
                     raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
@@ -3110,6 +3151,12 @@ def generate_binary_expr(
                 elif isinstance(expression.operator, cst.Multiply):
                     # Using the mult16 or mult32 function that's part of our stdlib.
                     function = "mult16" if destination_size == 2 else "mult32"
+                elif isinstance(expression.operator, cst.LeftShift):
+                    # Using the lshift16 or lshift32 function that's part of our stdlib.
+                    function = "lshift16" if destination_size == 2 else "lshift32"
+                elif isinstance(expression.operator, cst.RightShift):
+                    # Using the rshift16 or rshift32 function that's part of our stdlib.
+                    function = "rshift16" if destination_size == 2 else "rshift32"
                 else:
                     raise Exception("Logic error, unexpected operator {expression.operator)}")
 
@@ -4564,6 +4611,26 @@ def infer_expr_types_impl(
                 picked = right_inferred
 
             inferred[expression] = CoreType(picked.type, picked.pointed_type, const=picked.const, extern=picked.extern, return_padding=picked.return_padding)
+            inferred.update(left_tree)
+            inferred.update(right_tree)
+
+        elif isinstance(expression.operator, (cst.LeftShift, cst.RightShift)):
+            if not left_inferred.is_integer:
+                raise CompilerError(f"Unsupported binary operation for type {left_inferred.type}", context)
+            if not right_inferred.is_integer:
+                raise CompilerError(f"Unsupported binary operation for type {right_inferred.type}", context)
+
+            # We only infer the right hand side sinde it never needs to be more than 8 bit.
+            if right_inferred.type == "int":
+                infer_tree(right_tree, CoreType("uint8"), context)
+
+            inferred[expression] = CoreType(
+                left_inferred.type,
+                left_inferred.pointed_type,
+                const=left_inferred.const,
+                extern=left_inferred.extern,
+                return_padding=left_inferred.return_padding,
+            )
             inferred.update(left_tree)
             inferred.update(right_tree)
 
@@ -6344,6 +6411,12 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("udiv", VoidType, [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("udiv16", VoidType, [InOutCoreType("int16"), InOutCoreType("int16")]),
         FunctionPrototype("udiv32", VoidType, [InOutCoreType("int32"), InOutCoreType("int32")]),
+        FunctionPrototype("lshift", RegisterCoreType("uint8", "A"), [PreservedCoreType("uint8"), RegisterCoreType("uint8", "A")]),
+        FunctionPrototype("lshift16", ParamReturnCoreType(0), [InOutCoreType("uint16"), RegisterCoreType("uint8", "A")]),
+        FunctionPrototype("lshift32", ParamReturnCoreType(0), [InOutCoreType("uint32"), RegisterCoreType("uint8", "A")]),
+        FunctionPrototype("rshift", RegisterCoreType("uint8", "A"), [PreservedCoreType("uint8"), RegisterCoreType("uint8", "A")]),
+        FunctionPrototype("rshift16", ParamReturnCoreType(0), [InOutCoreType("uint16"), RegisterCoreType("uint8", "A")]),
+        FunctionPrototype("rshift32", ParamReturnCoreType(0), [InOutCoreType("uint32"), RegisterCoreType("uint8", "A")]),
 
         # STDLIB integer comparison functions.
         FunctionPrototype("ucmp", RegisterCoreType("int8", "A"), [InOutCoreType("uint8"), InOutCoreType("uint8")]),
