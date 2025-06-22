@@ -1,5 +1,6 @@
 from .assembler import (
     CPUCore,
+    MemoryFilter,
     InvalidInstructionException,
     ParameterOutOfRangeException,
     CodeOutOfRangeException,
@@ -30,6 +31,7 @@ __all__ = [
     "GlobalVariable",
     "Sections",
     "CPUCore",
+    "MemoryFilter",
     "InvalidInstructionException",
     "ParameterOutOfRangeException",
     "CodeOutOfRangeException",

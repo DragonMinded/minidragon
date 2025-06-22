@@ -4003,6 +4003,24 @@ def InstructionLoadControlSignals() -> ControlSignals:
     )
 
 
+class MemoryFilter:
+    def read(self, address: int) -> Optional[int]:
+        """
+        Optionally filter a read for an address. Return an integer to specify that the returned
+        value should be what is "read" from memory. Return None to specify the original read
+        should be performed without filtering.
+        """
+        return None
+
+    def write(self, address: int, data: int) -> Optional[int]:
+        """
+        Optionally filter a write for an address. Return an integer to specify the new value that
+        should be written to memory. Return None to specify that the original write should not be
+        performed.
+        """
+        return data
+
+
 class ALU:
 
     # Add 16-bit value from "A" source to 8-bit value from "B" source,
@@ -4126,9 +4144,12 @@ class CPUCore:
     FLAGS_ZF = 0x02
     FLAGS_PC = 0x04
 
-    def __init__(self, ram: List[int]) -> None:
+    def __init__(self, ram: List[int], memory_filter: Optional[MemoryFilter] = None) -> None:
         # List of changes since last time mark was called.
         self.changes: Set[str] = set()
+
+        # Memory read/write filter for emulating more complex memory maps.
+        self.memory_filter = memory_filter
 
         # General purpose registers. A is read/write, while
         # P+C are write and update only.
@@ -4157,8 +4178,8 @@ class CPUCore:
 
         # CPU RAM, fully read/write.
         self.ram = ram[:]
-        while len(self.ram) < 0x8000:
-            self.ram.append(0)
+        if len(self.ram) < 0x10000:
+            self.ram += ([0] * (0x10000 - len(self.ram)))
 
         # ALU
         self.alu = ALU(ALU.OPERATION_NULL, ALU.CARRY_CLEAR, 0, 0, False)
@@ -4169,6 +4190,25 @@ class CPUCore:
 
         # Control signals
         self.last_instruction = ControlSignals()
+
+    def __write_memory(self, address: int, data: int) -> None:
+        address = address & 0xFFFF
+        data = data & 0xFF
+        if self.memory_filter:
+            new_data = self.memory_filter.write(address, data)
+            if new_data is None:
+                return
+            data = new_data & 0xFF
+        self.ram[address] = data
+        self.changes.add(f"ram({address})")
+
+    def __read_memory(self, address: int) -> int:
+        address = address & 0xFFFF
+        if self.memory_filter:
+            read_data = self.memory_filter.read(address)
+            if read_data:
+                return read_data & 0xFF
+        return self.ram[address]
 
     @property
     def pc(self) -> int:
@@ -4247,6 +4287,9 @@ class CPUCore:
 
         changes = self.changes if highlight_changes else set()
 
+        # Don't filter reads/writes here since this is only for debugging and not part of any full system emulation.
+        curmem = self.ram[ip]
+
         print("\n".join([
             f"IP:    {highlight(hexstr(ip, 4), 'ip', changes)}",
             f"PC:    {highlight(hexstr(pandc, 4), 'pc', changes)}",
@@ -4255,12 +4298,13 @@ class CPUCore:
             f"U:     {highlight(hexstr(u, 2), 'u', changes)} (unsigned: {u}, signed: {u_dec})",
             f"V:     {highlight(hexstr(v, 2), 'v', changes)} (unsigned: {v}, signed: {v_dec})",
             f"Flags: {highlight(hexstr(flags, 2), 'flags', changes)} (cf: {cf}, zf: {zf}, pc: {pc})",
-            f"NextI: {disassemble(self.ram[ip])} ({binstr(self.ram[ip], 8)})",
+            f"NextI: {disassemble(curmem)} ({binstr(curmem, 8)})",
         ]))
 
     @property
     def mnemonic(self) -> str:
         ip = self.data if self.last_instruction.ip_input else self.ip
+        # Don't filter reads/writes here since this is only for debugging and not part of any full system emulation.
         return disassemble(self.ram[ip])
 
     def dump(self, highlight_changes: bool = False) -> None:
@@ -4279,6 +4323,7 @@ class CPUCore:
                 return val
 
         starred = False
+        # Don't filter reads/writes here since this is only for debugging and not part of any full system emulation.
         for start in range(0, len(self.ram), 16):
             chunk = self.ram[start:(start+16)]
             if any(x for x in chunk):
@@ -4300,6 +4345,7 @@ class CPUCore:
     def disassemble(self) -> None:
         # Disassemble the contents of RAM
         starred = False
+        # Don't filter reads/writes here since this is only for debugging and not part of any full system emulation.
         for start in range(0, len(self.ram), 16):
             chunk = self.ram[start:(start+16)]
             if any(x for x in chunk):
@@ -4382,8 +4428,7 @@ class CPUCore:
                         f"Address {self.address} outside of bounds of " +
                         f"given memory when executing instruction {hint} at {hintaddr}!"
                     )
-                self.ram[self.address] = self.data & 0xFF
-                self.changes.add(f"ram({self.address})")
+                self.__write_memory(self.address, self.data & 0xFF)
             if self.last_instruction.ir_input:
                 self.ir = self.data & 0xFF
                 hint, instructions, hintaddr = self.instruction_decode()
@@ -4443,7 +4488,7 @@ class CPUCore:
                     )
                 self.data = (
                     (self.data & 0xFF00) +
-                    (self.ram[self.address] & 0xFF)
+                    (self.__read_memory(self.address) & 0xFF)
                 )
             if instruction.a_output:
                 self.data = (self.data & 0xFF00) + (self.a & 0xFF)
