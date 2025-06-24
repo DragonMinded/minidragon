@@ -1,6 +1,6 @@
 Things that I think I am going to need if I want to use this compiler:
  - builtins that will be needed such as abs(), bool(), chr(), ord(), int(), hex(), min(), max()
- - peek() and poke() support since we aren't working towards arrays.
+ - poke() support since we aren't working towards arrays.
 
 Things that would be nice to have for convenience:
  - import statements for supporting inter-module variables and functions.

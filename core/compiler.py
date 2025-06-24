@@ -758,6 +758,14 @@ class Stack:
 
         self.stack.sort(key=lambda s: s.location or 0)
 
+    def retype(self, name: str, newtype: CoreType) -> None:
+        for entry in self.stack:
+            if entry.name == name:
+                entry.type = newtype
+                break
+        else:
+            raise Exception(f"Logic error, tried retyping stack entry {name!r} that doesn't exist!")
+
     def init(self, name: str) -> None:
         # Special case handling
         if is_register_destination(name):
@@ -2086,7 +2094,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -2110,7 +2118,7 @@ def generate_function_call(
                 context,
             )
 
-        if function_prototype.name == "str":
+        elif function_prototype.name == "str":
             if len(args) != 1 or len(arg_types) != 1:
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
@@ -2227,6 +2235,173 @@ def generate_function_call(
 
             else:
                 raise Exception(f"Logic error, attempted to convert unsupported type {types[expr].type} to string!")
+
+        elif function_prototype.name == "peek":
+            compiled = Sections()
+
+            if len(args) != 1 or len(arg_types) != 1:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            # Generate the actual memory address that we're going to peek from.
+            addr_expr = args[0].value
+            addr_dest = expr_temp_name()
+            stack.alloc(StackVar(addr_dest, CoreType("uint16"), initialized=True))
+            compiled += generate_expr_internal(addr_expr, addr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(addr_expr))
+
+            # This is going to clobber the SPC no matter what.
+            clobbers.add("SPC")
+
+            if destination is None:
+                # Assume that this is just a read of an address to clear a hardware register that's clear on read.
+                compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+                clobbers.add("A")
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+
+            else:
+                # Figure out what to do based on the destination type.
+                destination_type = stack.typeof(destination)
+                if destination_type is None:
+                    raise Exception("Logic error, couldn't determine destination type for peek!")
+
+                if destination_type.type in {"int8", "uint8", "char"}:
+                    # This one's an easy one, just move to the right spot and load the value, copying it over.
+                    compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  POP SPC")
+                    stack.move(-2)
+                    compiled.code += comment_stack(stack)
+
+                    clobbers.add("A")
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                    if not is_register_destination(destination):
+                        compiled += generate_move_to(destination, stack, clobbers, context)
+                        compiled.append_code("  STORE A")
+
+                elif destination_type.type == "bool":
+                    # Can't just load like above, our compiler assumes that boolean true/false is always 0xff/0x00.
+                    # So if we load a value and pretend it's boolean it could mess up any other boolean checks.
+                    compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  POP SPC")
+                    stack.move(-2)
+                    compiled.code += comment_stack(stack)
+
+                    clobbers.add("A")
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  ADDI 0")
+                    compiled.append_code("  LOADI 0x00")
+                    compiled.append_code("  SKIPIF ZF")
+                    compiled.append_code("  INV")
+
+                    if not is_register_destination(destination):
+                        compiled += generate_move_to(destination, stack, clobbers, context)
+                        compiled.append_code("  STORE A")
+
+                elif destination_type.type in {"int16", "uint16"}:
+                    # This one's slightly harder, need to copy two things, but that's manageable.
+                    compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  POP SPC")
+                    stack.move(-2)
+                    compiled.code += comment_stack(stack)
+
+                    clobbers.add("A")
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
+                    compiled.append_code("  STORE A")
+
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  STORE A")
+                    stack.move(-1)
+
+                elif destination_type.type in {"int32", "uint32"}:
+                    # This one needs to copy 4 things, but I'm gonna unroll that since it's easier than writing a loop.
+                    compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  POP SPC")
+                    stack.move(-2)
+                    compiled.code += comment_stack(stack)
+
+                    clobbers.add("A")
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                    compiled += generate_move_to(destination, stack, clobbers, context, offset=3)
+                    compiled.append_code("  STORE A")
+
+                    # Second byte.
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  STORE A")
+
+                    # Third byte.
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  STORE A")
+
+                    # Fourth byte.
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  STORE A")
+                    stack.move(-3)
+
+                elif destination_type.type == "str":
+                    # Recast this as a string pointer, since that's what it is.
+                    stack.retype(addr_dest, CoreType("str", const=True))
+
+                    # We also need to make sure the destination is initalized so we can do a strcpy.
+                    if not stack.initof(destination):
+                        compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+
+                        # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                        stack.init(destination)
+
+                    compiled += generate_function_call_internal(
+                        create_call("strcpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest)]),
+                        None,
+                        types,
+                        stack,
+                        clobbers,
+                        allocations,
+                        refs,
+                        local_consts,
+                        context,
+                    )
+
+                else:
+                    raise Exception(f"Logic error, unexpected type {destination_type.type} in peek() evaluation!")
+
+            # Free our temporary variable and move on.
+            stack.free(addr_dest)
+            return compiled
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -4406,7 +4581,7 @@ def generate_expr_internal(
 
     elif isinstance(expression, cst.Call):
         function_return_type = types[expression]
-        if destination is not None and function_return_type.size != destination_size:
+        if destination is not None and function_return_type.type != "any" and function_return_type.size != destination_size:
             # We need to put this in a local temporary variable, and then copy it out.
             return_temp = expr_temp_name()
             stack.alloc(StackVar(return_temp, function_return_type))
@@ -6364,7 +6539,8 @@ def parse_and_compile_module(module: str, code: str) -> Sections:
 def builtin_functions() -> List[FunctionPrototype]:
     return [
         FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("str")]),
-        FunctionPrototype("str", CoreType("str"), [CoreType("any")])
+        FunctionPrototype("str", CoreType("str"), [CoreType("any")]),
+        FunctionPrototype("peek", CoreType("any"), [CoreType("uint16")]),
     ]
 
 

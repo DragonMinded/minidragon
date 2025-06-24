@@ -4,7 +4,7 @@ import os
 import struct
 import textwrap
 from itertools import chain
-from typing import Container, Dict, List, Optional
+from typing import Any, Container, Dict, List, Optional
 from core import (
     InvalidInstructionException,
     ParameterOutOfRangeException,
@@ -13299,6 +13299,331 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for stringformat: {int(instructions/count)}")
 
 
+def verifypeek(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "peek" not in only and "compiler" not in only:
+        return
+
+    print("Verifying peek...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Mypy throws a fit because variables in Python are scoped outside of their for loops, whatever.
+    val: Any
+    result: Any
+    expected: Any
+
+    # Test signed integers.
+    for width in ["int8", "int16", "int32"]:
+        for val in [0, 37, -37] + ([12345, -12345] if width in {"int16", "int32"} else []) + ([123456789, -123456789] if width == "int32" else []):
+            sections = parse_and_compile_module("peek", textwrap.dedent(f"""
+                def callable() -> {width}:
+                    return peek(0x1337)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                ".org 0x1337",
+                *([f".byte {(val >> 24) & 0xFF}", f".byte {(val >> 16 & 0xFF)}"] if width == "int32" else []),
+                *([f".byte {(val >> 8) & 0xFF}"] if width in {"int16", "int32"} else []),
+                f".byte {(val >> 0) & 0xFF}",
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                f"SUBPCI {4 if width == 'int32' else (2 if width == 'int16' else 1)}",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"peek changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"peek changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"peek changed V value from {222} to {cpu.v}!",
+            )
+            if width == "int8":
+                result = bintoint(cpu.ram[cpu.pc])
+            elif width == "int16":
+                result = bintoint16(
+                    (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+                )
+            elif width == "int32":
+                result = bintoint32(
+                    (cpu.ram[cpu.pc + 0] << 24) +
+                    (cpu.ram[cpu.pc + 1] << 16) +
+                    (cpu.ram[cpu.pc + 2] << 8) +
+                    cpu.ram[cpu.pc + 3]
+                )
+            else:
+                result = 0xDEADBEEF
+            expected = val
+            _assert(
+                result == expected,
+                f"Failed to peek at {width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test unsigned integers.
+    for width in ["uint8", "uint16", "uint32"]:
+        for val in [0, 37, 69, 200] + ([12345, 65432] if width in {"uint16", "uint32"} else []) + ([123456789, 987654321] if width == "uint32" else []):
+            sections = parse_and_compile_module("peek", textwrap.dedent(f"""
+                def callable() -> {width}:
+                    return peek(0x1337)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                ".org 0x1337",
+                *([f".byte {(val >> 24) & 0xFF}", f".byte {(val >> 16 & 0xFF)}"] if width == "uint32" else []),
+                *([f".byte {(val >> 8) & 0xFF}"] if width in {"uint16", "uint32"} else []),
+                f".byte {(val >> 0) & 0xFF}",
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                f"SUBPCI {4 if width == 'uint32' else (2 if width == 'uint16' else 1)}",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"peek changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"peek changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"peek changed V value from {222} to {cpu.v}!",
+            )
+            if width == "uint8":
+                result = cpu.ram[cpu.pc]
+            elif width == "uint16":
+                result = (
+                    (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+                )
+            elif width == "uint32":
+                result = (
+                    (cpu.ram[cpu.pc + 0] << 24) +
+                    (cpu.ram[cpu.pc + 1] << 16) +
+                    (cpu.ram[cpu.pc + 2] << 8) +
+                    cpu.ram[cpu.pc + 3]
+                )
+            else:
+                result = 0xDEADBEEF
+            expected = val
+            _assert(
+                result == expected,
+                f"Failed to peek at {width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test characters
+    for val in ['a', 'b', 'y', 'z']:
+        sections = parse_and_compile_module("peek", textwrap.dedent("""
+            def callable() -> char:
+                return peek(0x1337)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            ".org 0x1337",
+            f".char {val!r}",
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 1",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"peek changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"peek changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"peek changed V value from {222} to {cpu.v}!",
+        )
+        result = chr(cpu.ram[cpu.pc])
+        expected = val
+        _assert(
+            result == expected,
+            "Failed to peek at char, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Test booleans
+    for val, expected in [(0, False), (1, True), (69, True), (255, True)]:
+        sections = parse_and_compile_module("peek", textwrap.dedent("""
+            def callable() -> bool:
+                return peek(0x1337)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            ".org 0x1337",
+            f".byte {val}",
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 1",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"peek changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"peek changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"peek changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to peek at bool, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Test strings
+    for val in ["This is a test.", "The quick brown fox jumps over the lazy dog.", ""]:
+        sections = parse_and_compile_module("peek", textwrap.dedent("""
+            def callable() -> str[40]:
+                return peek(0x1337)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *strcpylines,
+            *sections.code,
+            ".org 0x1337",
+            f".str {val!r}",
+            ".byte 0x00",
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"peek changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"peek changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"peek changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = val
+        _assert(
+            result == expected,
+            "Failed to peek at str, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for peek: {int(cycles/count)}")
+    print(f"Average instructions for peek: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -13452,3 +13777,4 @@ if __name__ == "__main__":
     verifystringassignment(only, args.full)
     verifystringcast(only, args.full)
     verifystringformat(only, args.full)
+    verifypeek(only, args.full)
