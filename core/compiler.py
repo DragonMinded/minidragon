@@ -2094,7 +2094,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -2400,6 +2400,135 @@ def generate_function_call(
                     raise Exception(f"Logic error, unexpected type {destination_type.type} in peek() evaluation!")
 
             # Free our temporary variable and move on.
+            stack.free(addr_dest)
+            return compiled
+
+        elif function_prototype.name == "poke":
+            compiled = Sections()
+
+            if len(args) != 2 or len(arg_types) != 2:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is not None:
+                raise CompilerError("Cannot assign result of function poke returning void", context)
+
+            # Generate the actual memory address that we're going to poke to.
+            addr_expr = args[0].value
+            addr_dest = expr_temp_name()
+            stack.alloc(StackVar(addr_dest, CoreType("uint16"), initialized=True))
+            compiled += generate_expr_internal(addr_expr, addr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(addr_expr))
+
+            # Then, generate the expression we're going to poke into the above address.
+            data_expr = args[1].value
+            data_dest = expr_temp_name()
+            stack.alloc(StackVar(data_dest, types[data_expr].const_clone(), initialized=True))
+            compiled += generate_expr_internal(data_expr, data_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(data_expr))
+
+            # This is going to clobber the SPC and A no matter what.
+            clobbers.add("SPC")
+            clobbers.add("A")
+
+            if types[data_expr].type in {"int8", "uint8", "char", "bool"}:
+                # This one's an easy one, just move to the right spot and store the value, copying it over.
+                # There's no special case for bool here, since we control it's contents and are just storing it.
+                compiled += generate_move_to(data_dest, stack, clobbers, context)
+                compiled.append_code("  LOAD A")
+
+                compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  SWAP PC, SPC")
+
+            elif types[data_expr].type in {"int16", "uint16"}:
+                # This one's slightly harder, need to copy two things, but that's manageable.
+                compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+                compiled += generate_move_to(data_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  STORE A")
+
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+
+                compiled.append_code("  INCPC")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  SWAP PC, SPC")
+
+                stack.move(-1)
+
+            elif types[data_expr].type in {"int32", "uint32"}:
+                # This one needs to copy 4 things, but I'm gonna unroll that since it's easier than writing a loop.
+                compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+                compiled += generate_move_to(data_dest, stack, clobbers, context, offset=3)
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  STORE A")
+
+                # Second byte.
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+
+                compiled.append_code("  INCPC")
+                compiled.append_code("  STORE A")
+
+                # Third byte.
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+
+                compiled.append_code("  INCPC")
+                compiled.append_code("  STORE A")
+
+                # Fourth byte.
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+
+                compiled.append_code("  INCPC")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  SWAP PC, SPC")
+
+                stack.move(-3)
+
+            elif types[data_expr].type == "str":
+                # Recast this as a string pointer, since that's what it is.
+                stack.retype(addr_dest, CoreType("str"))
+
+                compiled += generate_function_call_internal(
+                    create_call("strcpy", [UnvalidatedName(addr_dest), UnvalidatedName(data_dest)]),
+                    None,
+                    types,
+                    stack,
+                    clobbers,
+                    allocations,
+                    refs,
+                    local_consts,
+                    context,
+                )
+
+            else:
+                raise Exception(f"Logic error, unexpected type {types[data_expr]} in poke() evaluation!")
+
+            # Free our temporary variable and move on.
+            stack.free(data_dest)
             stack.free(addr_dest)
             return compiled
 
@@ -4654,8 +4783,8 @@ def infer_tree(
             if concrete_type.type == "void":
                 raise CompilerError("Unsupported expression without assignment", context)
             if concrete_type.type == "any":
-                # Assume the worst case.
-                ctype.type = "uint32"
+                # Assume the most favorable case.
+                ctype.type = "uint8"
                 continue
             if not concrete_type.is_integer:
                 raise CompilerError(f"Unsupported integer expression assignment to non-integer type {concrete_type.type}", context)
@@ -6541,6 +6670,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("str")]),
         FunctionPrototype("str", CoreType("str"), [CoreType("any")]),
         FunctionPrototype("peek", CoreType("any"), [CoreType("uint16")]),
+        FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")]),
     ]
 
 

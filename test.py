@@ -13624,6 +13624,374 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for peek: {int(instructions/count)}")
 
 
+def verifypoke(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "poke" not in only and "compiler" not in only:
+        return
+
+    print("Verifying poke...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Mypy throws a fit because variables in Python are scoped outside of their for loops, whatever.
+    val: Any
+    result: Any
+    expected: Any
+
+    # Test signed integers.
+    for width in ["int8", "int16", "int32"]:
+        for val in [0, 37, -37] + ([12345, -12345] if width in {"int16", "int32"} else []) + ([123456789, -123456789] if width == "int32" else []):
+            sections = parse_and_compile_module("poke", textwrap.dedent(f"""
+                def callable(input: {width}) -> void:
+                    poke(0x9000, input)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                "main:",
+                f"PUSHI {(val >> 0) & 0xFF}",
+                *([f"PUSHI {(val >> 8) & 0xFF}"] if width in {"int16", "int32"} else []),
+                *([f"PUSHI {(val >> 16) & 0xFF}", f"PUSHI {(val >> 24 & 0xFF)}"] if width == "int32" else []),
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+                ".org 0x9000",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"poke changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"poke changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"poke changed V value from {222} to {cpu.v}!",
+            )
+            if width == "int8":
+                result = bintoint(cpu.ram[0x9000])
+            elif width == "int16":
+                result = bintoint16(
+                    (cpu.ram[0x9000 + 0] << 8) + cpu.ram[0x9000 + 1]
+                )
+            elif width == "int32":
+                result = bintoint32(
+                    (cpu.ram[0x9000 + 0] << 24) +
+                    (cpu.ram[0x9000 + 1] << 16) +
+                    (cpu.ram[0x9000 + 2] << 8) +
+                    cpu.ram[0x9000 + 3]
+                )
+            else:
+                result = 0xDEADBEEF
+            expected = val
+            _assert(
+                result == expected,
+                f"Failed to poke at {width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test unsigned integers.
+    for width in ["uint8", "uint16", "uint32"]:
+        for val in [0, 37, 69, 200] + ([12345, 65432] if width in {"uint16", "uint32"} else []) + ([123456789, 987654321] if width == "uint32" else []):
+            sections = parse_and_compile_module("poke", textwrap.dedent(f"""
+                def callable(input: {width}) -> void:
+                    poke(0x9000, input)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                "main:",
+                f"PUSHI {(val >> 0) & 0xFF}",
+                *([f"PUSHI {(val >> 8) & 0xFF}"] if width in {"uint16", "uint32"} else []),
+                *([f"PUSHI {(val >> 16) & 0xFF}", f"PUSHI {(val >> 24 & 0xFF)}"] if width == "uint32" else []),
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+                ".org 0x9000",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"poke changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"poke changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"poke changed V value from {222} to {cpu.v}!",
+            )
+            if width == "uint8":
+                result = cpu.ram[0x9000]
+            elif width == "uint16":
+                result = (
+                    (cpu.ram[0x9000 + 0] << 8) + cpu.ram[0x9000 + 1]
+                )
+            elif width == "uint32":
+                result = (
+                    (cpu.ram[0x9000 + 0] << 24) +
+                    (cpu.ram[0x9000 + 1] << 16) +
+                    (cpu.ram[0x9000 + 2] << 8) +
+                    cpu.ram[0x9000 + 3]
+                )
+            else:
+                result = 0xDEADBEEF
+            expected = val
+            _assert(
+                result == expected,
+                f"Failed to poke at {width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test characters
+    for val in ['a', 'b', 'y', 'z']:
+        sections = parse_and_compile_module("poke", textwrap.dedent("""
+            def callable(input: char) -> void:
+                poke(0x9000, input)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {val!r}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+            ".org 0x9000",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"poke changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"poke changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"poke changed V value from {222} to {cpu.v}!",
+        )
+        result = chr(cpu.ram[0x9000])
+        expected = val
+        _assert(
+            result == expected,
+            "Failed to poke at char, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Test booleans
+    for val, expected in [(False, 0x00), (True, 0xFF)]:
+        sections = parse_and_compile_module("poke", textwrap.dedent("""
+            def callable(input: bool) -> void:
+                poke(0x9000, input)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {'0xFF' if val else '0x00'}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+            ".org 0x9000",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"poke changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"poke changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"poke changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[0x9000]
+        _assert(
+            result == expected,
+            "Failed to poke at bool, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Test constants
+    for val in [0, 37, 69, 123, 234, 255]:
+        sections = parse_and_compile_module("poke", textwrap.dedent(f"""
+            def callable() -> void:
+                poke(0x9000, {val})
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+            ".org 0x9000",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"poke changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"poke changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"poke changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[0x9000]
+        expected = val
+        _assert(
+            result == expected,
+            "Failed to poke at bool, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Test strings
+    for val in ["This is a test.", "The quick brown fox jumps over the lazy dog.", ""]:
+        sections = parse_and_compile_module("poke", textwrap.dedent(f"""
+            def callable() -> void:
+                string: str[40] = {val!r}
+                poke(0x9000, string)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *strcpylines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"poke changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"poke changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"poke changed V value from {222} to {cpu.v}!",
+        )
+        result = getstring(cpu, 0x9000)
+        expected = val
+        _assert(
+            result == expected,
+            "Failed to poke at str, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for poke: {int(cycles/count)}")
+    print(f"Average instructions for poke: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -13778,3 +14146,4 @@ if __name__ == "__main__":
     verifystringcast(only, args.full)
     verifystringformat(only, args.full)
     verifypeek(only, args.full)
+    verifypoke(only, args.full)
