@@ -2009,19 +2009,17 @@ def generate_function_call_internal(
 
     # Now, do some bookkeeping, first copying anything that we need to copy that was an in-out param.
     for dst, src in copy_mapping.items():
-        source_loc = stack.absfind(src)
         source_size = stack.sizeof(src)
-        dest_loc = stack.absfind(dst)
         dest_size = stack.sizeof(dst)
-        if source_loc is None or source_size is None:
+        if source_size is None:
             raise Exception(f"Logic error, Undefined variable reference to {src!r}", context)
-        if dest_loc is None or dest_size is None:
+        if dest_size is None:
             raise Exception("Logic error, cannot find destination to copy variable value to!")
 
         stack.init(dst)
 
         if source_size == dest_size:
-            compiled += generate_memcpy_locations(source_loc, dest_loc, dest_size, stack, clobbers, context)
+            compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context)
         else:
             raise CompilerError("Unsupported byref assignment from different variable sizes", context)
 
@@ -2032,19 +2030,17 @@ def generate_function_call_internal(
             src = out_mapping[function_prototype.return_type.position]
             dst = destination
 
-            source_loc = stack.absfind(src)
             source_size = stack.sizeof(src)
-            dest_loc = stack.absfind(dst)
             dest_size = stack.sizeof(dst)
-            if source_loc is None or source_size is None:
+            if source_size is None:
                 raise Exception(f"Logic error, undefined variable reference to {src!r}", context)
-            if dest_loc is None or dest_size is None:
+            if dest_size is None:
                 raise Exception("Logic error, cannot find destination to copy variable value to!")
 
             stack.init(dst)
 
             if source_size == dest_size:
-                compiled += generate_memcpy_locations(source_loc, dest_loc, dest_size, stack, clobbers, context)
+                compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context)
             else:
                 raise CompilerError("Unsupported function return from different variable sizes", context)
 
@@ -2737,12 +2733,7 @@ def generate_variable_lookup(
                         lhs_dest = expr_temp_name()
                         stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
 
-                        source_loc = stack.absfind(destination)
-                        dest_loc = stack.absfind(lhs_dest)
-                        if source_loc is None or dest_loc is None:
-                            raise Exception("Logic error, expected to find location of internal variables!")
-
-                        compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
+                        compiled += generate_memcpy_stackvars(lhs_dest, destination, stack, clobbers, context)
                     else:
                         # Safe to put first parameter in the top of the stack where it already is useful for math.
                         lhs_dest = destination
@@ -2938,12 +2929,7 @@ def generate_variable_lookup(
                 lhs_dest = expr_temp_name()
                 stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
 
-                source_loc = stack.absfind(destination)
-                dest_loc = stack.absfind(lhs_dest)
-                if source_loc is None or dest_loc is None:
-                    raise Exception("Logic error, expected to find location of internal variables!")
-
-                compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
+                compiled += generate_memcpy_stackvars(lhs_dest, destination, stack, clobbers, context)
             else:
                 # Safe to put first parameter in the top of the stack where it already is useful for math.
                 lhs_dest = destination
@@ -2952,11 +2938,7 @@ def generate_variable_lookup(
             rhs_dest = expr_temp_name()
             stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
 
-            source_loc = stack.absfind(source)
-            dest_loc = stack.absfind(rhs_dest)
-            if source_loc is None or dest_loc is None:
-                raise Exception("Logic error, expected to find location of internal variables!")
-            compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
+            compiled += generate_memcpy_stackvars(rhs_dest, source, stack, clobbers, context)
 
             # Now call strcpy.
             compiled += generate_function_call_internal(
@@ -2978,7 +2960,7 @@ def generate_variable_lookup(
 
         elif source_type.size == dest_type.size:
             # Direct copy from source stack to destination stack.
-            compiled += generate_memcpy_locations(source_loc, dest_loc, dest_type.size, stack, clobbers, context)
+            compiled += generate_memcpy_stackvars(destination, source, stack, clobbers, context)
         elif source_type.size > dest_type.size:
             # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
             compiled += generate_memcpy_locations(source_loc, dest_loc, dest_type.size, stack, clobbers, context)
@@ -4327,12 +4309,7 @@ def generate_subscript_expr(
             lhs_dest = expr_temp_name()
             stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
 
-            source_loc = stack.absfind(destination)
-            dest_loc = stack.absfind(lhs_dest)
-            if source_loc is None or dest_loc is None:
-                raise Exception("Logic error, expected to find location of internal variables!")
-
-            compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
+            compiled += generate_memcpy_stackvars(lhs_dest, destination, stack, clobbers, context)
         else:
             # Safe to put first parameter in the top of the stack where it already is useful for math.
             lhs_dest = destination
@@ -4649,12 +4626,7 @@ def generate_expr_internal(
                         lhs_dest = expr_temp_name()
                         stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
 
-                        source_loc = stack.absfind(destination)
-                        dest_loc = stack.absfind(lhs_dest)
-                        if source_loc is None or dest_loc is None:
-                            raise Exception("Logic error, expected to find location of internal variables!")
-
-                        compiled += generate_memcpy_locations(source_loc, dest_loc, 2, stack, clobbers, context)
+                        compiled += generate_memcpy_stackvars(lhs_dest, destination, stack, clobbers, context)
                     else:
                         # Safe to put first parameter in the top of the stack where it already is useful for math.
                         lhs_dest = destination
