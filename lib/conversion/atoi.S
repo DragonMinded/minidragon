@@ -1,4 +1,4 @@
-atoi:
+atoi8:
     ; Given a string pointed to on the stack, as long as it represents an
     ; integer either in the range of [-128, 127] or [0, 255], convert that
     ; string to an integer. Skips all leading whitespace, and allows for
@@ -16,7 +16,7 @@ atoi:
     ; If you have a string buffer at 0x1234, call this similar to:
     ;     PUSHI 0x34
     ;     PUSHI 0x12
-    ;     CALL atoi
+    ;     CALL atoi8
     ;
     ; Stack layout at start:
     ; PC + 0 - Saved V.
@@ -47,7 +47,7 @@ atoi:
     POP SPC
     SWAP PC, SPC
 
-_atoi_skip_whitespace:
+_atoi8_skip_whitespace:
     ; Stack layout when skipping leading space:
     ; PC + -8 - saved V register.
     ; PC + -7 - saved U register.
@@ -63,44 +63,44 @@ _atoi_skip_whitespace:
 
     ; XOR the byte in the string against the space to check if they equal.
     XOR
-    JRIZ _atoi_skip_ws_inc
+    JRIZ _atoi8_skip_ws_inc
 
     ; See if the character is a tab.
     LOADI "\t"
     XOR
-    JRIZ _atoi_skip_ws_inc
+    JRIZ _atoi8_skip_ws_inc
 
     ; It is none of the characters we want to skip.
-    JRI _atoi_check_positive
+    JRI _atoi8_check_positive
 
-_atoi_skip_ws_inc:
+_atoi8_skip_ws_inc:
     ; Increment our string pointer to skip the character.
     INCPC
 
     ; Do it again!
-    jri _atoi_skip_whitespace
+    jri _atoi8_skip_whitespace
 
-_atoi_check_positive:
+_atoi8_check_positive:
     ; Compare current pointed to byte against a "+"
     LOADI "+"
     XOR
-    JRIZ _atoi_skip_plus_inc
+    JRIZ _atoi8_skip_plus_inc
 
     ; Check for a - sign, consume it if found.
     LOADI "-"
     XOR
-    JRINZ _atoi_number_loop
+    JRINZ _atoi8_number_loop
 
     ; Remember that this was negative.
     LOADI 1
     MOV A, U
 
-_atoi_skip_plus_inc:
+_atoi8_skip_plus_inc:
     ; Increment our string pointer to skip the character.
     INCPC
 
     ; Now, start consuming digit characters and adding them to our accumulator.
-_atoi_number_loop:
+_atoi8_number_loop:
     ; Stack layout at start of loop:
     ; PC + -8 - saved V register.
     ; PC + -7 - saved U register.
@@ -119,7 +119,7 @@ _atoi_number_loop:
 
     ; See if it is negative (meaning a value < "0")
     SHL
-    JRIC _atoi_number_end
+    JRIC _atoi8_number_end
 
     ; Do the above again, but checking to make sure it is <= "9"
     LOADI -58
@@ -127,7 +127,7 @@ _atoi_number_loop:
     SHL
 
     ; See if it is negative (meaning we are between "0" and "9" inclusive).
-    JRINC _atoi_number_end
+    JRINC _atoi8_number_end
 
     ; We know the digit is between "0" and "9" inclusive, so let's multiply our
     ; current accumulated result and add the digit value in.
@@ -137,7 +137,7 @@ _atoi_number_loop:
 
     ; Multiply by 10, getting the result in A.
     PUSHI 10
-    CALL mult
+    CALL mult8
     ADDPCI 10
     SWAP PC, SPC
 
@@ -152,9 +152,9 @@ _atoi_number_loop:
     MOV A, V
 
     ; Do it again!
-    LNGJUMP _atoi_number_loop
+    LNGJUMP _atoi8_number_loop
 
-_atoi_number_end:
+_atoi8_number_end:
     ; The stack now points at the end of the string, whether that's a null byte
     ; or the beginning of a non-integer. Save it back so the calling function
     ; can implement things like sscanf().
@@ -165,12 +165,12 @@ _atoi_number_end:
     MOV U, A
     ADDI 0
     MOV V, A
-    JRIZ _atoi_return_positive
+    JRIZ _atoi8_return_positive
 
     ; Load and negate the number, return.
     NEG
 
-_atoi_return_positive:
+_atoi8_return_positive:
     ; Restore U/V
     SUBPCI 6
     POP V

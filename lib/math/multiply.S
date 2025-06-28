@@ -1,4 +1,4 @@
-mult:
+mult8:
     ; Multiply two 8-bit numbers on the stack, returning value in A. Does not
     ; clobber U, V or SPC registers. Leaves the two operands alone on the stack
     ;  unmodified.
@@ -8,7 +8,7 @@ mult:
     ; Call this similar to:
     ;   PUSHI 5
     ;   PUSHI 7
-    ;   CALL mult
+    ;   CALL mult8
     ;
     ; Stack layout
     ; PC + 0 - Saved V register
@@ -34,31 +34,31 @@ mult:
     LOAD U
     SUBPCI 4
 
-_mult_loop:
+_mult8_loop:
     ; See if first operand is zero
     SWAP A, V
     ADDI 0
-    JRIZ _mult_finished
+    JRIZ _mult8_finished
 
     ; See if first operand's bottom bit set, also perform
     ; first operand >>= 1.
     SHR
     SWAP V, A
-    JRINC _mult_shift
+    JRINC _mult8_shift
 
     ; Add the second operand to the accumulated result.
     ADDU
 
-_mult_shift:
+_mult8_shift:
     ; Second operand <<= 1
     SWAP A, U
     SHL
     SWAP U, A
 
     ; Back to loop
-    JRI _mult_loop
+    JRI _mult8_loop
 
-_mult_finished:
+_mult8_finished:
     ; Place accumulated result back into A register (MOV faster than SWAP
     ; in this case).
     MOV V, A

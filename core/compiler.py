@@ -2208,8 +2208,8 @@ def generate_function_call(
 
                 # Now, call the correct function to convert.
                 needed_function = {
-                    "uint8": "utoa",
-                    "int8": "itoa",
+                    "uint8": "utoa8",
+                    "int8": "itoa8",
                     "uint16": "utoa16",
                     "int16": "itoa16",
                     "uint32": "utoa32",
@@ -3314,11 +3314,11 @@ def generate_binary_expr(
                     raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
 
                 if isinstance(expression.operator, cst.Multiply):
-                    func = "mult"
+                    func = "mult8"
                 elif isinstance(expression.operator, cst.LeftShift):
-                    func = "lshift"
+                    func = "lshift8"
                 elif isinstance(expression.operator, cst.RightShift):
-                    func = "rshift"
+                    func = "rshift8"
                 else:
                     raise Exception("Logic error, unexpected operator!")
 
@@ -3347,7 +3347,7 @@ def generate_binary_expr(
                 # copy the correct one out.
                 compiled += generate_function_call_internal(
                     create_call(
-                        "udiv",
+                        "udiv8",
                         [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
                     ),
                     None,
@@ -4066,9 +4066,9 @@ def generate_comparison_expr(
             comparison_size = max(left_type.size, right_type.size)
             if comparison_size == 1:
                 if left_type.is_unsigned:
-                    func_name = "ucmp"
+                    func_name = "ucmp8"
                 else:
-                    func_name = "cmp"
+                    func_name = "cmp8"
             elif comparison_size == 2:
                 if left_type.is_unsigned:
                     func_name = "ucmp16"
@@ -6663,50 +6663,50 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("strlen", RegisterCoreType("uint8", "A"), [PreservedCoreType("str")]),
 
         # STDLIB string/integer conversion functions.
-        FunctionPrototype("atoi", RegisterCoreType("int8", "A"), [InOutCoreType("str")]),
+        FunctionPrototype("atoi8", RegisterCoreType("int8", "A"), [InOutCoreType("str")]),
         FunctionPrototype("atoi16", ParamReturnCoreType(1), [InOutCoreType("str"), OutCoreType("int16")]),
         FunctionPrototype("atoi32", ParamReturnCoreType(1), [InOutCoreType("str"), OutCoreType("int32")]),
-        FunctionPrototype("itoa", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
+        FunctionPrototype("itoa8", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
         FunctionPrototype("itoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
         FunctionPrototype("itoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),
-        FunctionPrototype("utoa", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
+        FunctionPrototype("utoa8", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
         FunctionPrototype("utoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
         FunctionPrototype("utoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),
 
         # STDLIB integer math functions.
-        FunctionPrototype("abs", RegisterCoreType("int8", "A"), [RegisterCoreType("int8", "A")]),
+        FunctionPrototype("abs8", RegisterCoreType("int8", "A"), [RegisterCoreType("int8", "A")]),
         FunctionPrototype("abs16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
         FunctionPrototype("abs32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
-        FunctionPrototype("neg", RegisterCoreType("int8", "A"), [PreservedCoreType("int8")]),
+        FunctionPrototype("neg8", RegisterCoreType("int8", "A"), [PreservedCoreType("int8")]),
         FunctionPrototype("neg16", ParamReturnCoreType(0), [InOutCoreType("int16")]),
         FunctionPrototype("neg32", ParamReturnCoreType(0), [InOutCoreType("int32")]),
-        FunctionPrototype("add", RegisterCoreType("int8", "A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
+        FunctionPrototype("add8", RegisterCoreType("int8", "A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
         FunctionPrototype("add16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("add32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
-        FunctionPrototype("mult", RegisterCoreType("int8", "A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
+        FunctionPrototype("mult8", RegisterCoreType("int8", "A"), [PreservedCoreType("int8"), PreservedCoreType("int8")]),
         FunctionPrototype("mult16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("mult32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
-        FunctionPrototype("udiv", VoidType, [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("udiv8", VoidType, [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("udiv16", VoidType, [InOutCoreType("int16"), InOutCoreType("int16")]),
         FunctionPrototype("udiv32", VoidType, [InOutCoreType("int32"), InOutCoreType("int32")]),
-        FunctionPrototype("lshift", RegisterCoreType("uint8", "A"), [PreservedCoreType("uint8"), RegisterCoreType("uint8", "A")]),
+        FunctionPrototype("lshift8", RegisterCoreType("uint8", "A"), [PreservedCoreType("uint8"), RegisterCoreType("uint8", "A")]),
         FunctionPrototype("lshift16", ParamReturnCoreType(0), [InOutCoreType("uint16"), RegisterCoreType("uint8", "A")]),
         FunctionPrototype("lshift32", ParamReturnCoreType(0), [InOutCoreType("uint32"), RegisterCoreType("uint8", "A")]),
-        FunctionPrototype("rshift", RegisterCoreType("uint8", "A"), [PreservedCoreType("uint8"), RegisterCoreType("uint8", "A")]),
+        FunctionPrototype("rshift8", RegisterCoreType("uint8", "A"), [PreservedCoreType("uint8"), RegisterCoreType("uint8", "A")]),
         FunctionPrototype("rshift16", ParamReturnCoreType(0), [InOutCoreType("uint16"), RegisterCoreType("uint8", "A")]),
         FunctionPrototype("rshift32", ParamReturnCoreType(0), [InOutCoreType("uint32"), RegisterCoreType("uint8", "A")]),
 
         # STDLIB integer comparison functions.
-        FunctionPrototype("ucmp", RegisterCoreType("int8", "A"), [InOutCoreType("uint8"), InOutCoreType("uint8")]),
+        FunctionPrototype("ucmp8", RegisterCoreType("int8", "A"), [InOutCoreType("uint8"), InOutCoreType("uint8")]),
         FunctionPrototype("ucmp16", RegisterCoreType("int8", "A"), [InOutCoreType("uint16"), InOutCoreType("uint16")]),
         FunctionPrototype("ucmp32", RegisterCoreType("int8", "A"), [InOutCoreType("uint32"), InOutCoreType("uint32")]),
-        FunctionPrototype("cmp", RegisterCoreType("int8", "A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("cmp8", RegisterCoreType("int8", "A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("cmp16", RegisterCoreType("int8", "A"), [InOutCoreType("int16"), InOutCoreType("int16")]),
         FunctionPrototype("cmp32", RegisterCoreType("int8", "A"), [InOutCoreType("int32"), InOutCoreType("int32")]),
-        FunctionPrototype("umin", RegisterCoreType("int8", "A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("umin8", RegisterCoreType("int8", "A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("umin16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("umin32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
-        FunctionPrototype("umax", RegisterCoreType("int8", "A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
+        FunctionPrototype("umax8", RegisterCoreType("int8", "A"), [InOutCoreType("int8"), InOutCoreType("int8")]),
         FunctionPrototype("umax16", CoreType("int16"), [CoreType("int16"), CoreType("int16")]),
         FunctionPrototype("umax32", CoreType("int32"), [CoreType("int32"), CoreType("int32")]),
     ]

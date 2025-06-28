@@ -1,4 +1,4 @@
-lshift:
+lshift8:
     ; Given an integer value on the stack and an integer shift amount in the A
     ; register, shift the integer value left by the number of times specified in
     ; the shift amount. A negative shift amount is not supported, so negative
@@ -10,7 +10,7 @@ lshift:
     ; To shift the number 33 left by two positions, call like so:
     ;     PUSHI 33
     ;     LOADI 2
-    ;     CALL lshift
+    ;     CALL lshift8
     ;
     ; Stack layout:
     ; PC + 0 - saved U
@@ -25,9 +25,9 @@ lshift:
     ADDPCI 3
     LOAD U
 
-_lshift_finish_check:
+_lshift8_finish_check:
     ADDI 0
-    JRIZ _lshift_finished
+    JRIZ _lshift8_finished
 
     ; Count that we're about to shift left by 1.
     DEC
@@ -38,9 +38,9 @@ _lshift_finish_check:
     SWAP A, U
 
     ; Done with the loop, check for termination again.
-    JRI _lshift_finish_check
+    JRI _lshift8_finish_check
 
-_lshift_finished:
+_lshift8_finished:
     ; The number is in U, so move it to A.
     MOV U, A
 
@@ -184,7 +184,7 @@ _lshift32_finished:
     RET
 
 
-rshift:
+rshift8:
     ; Given an integer value on the stack and an integer shift amount in the A
     ; register, shift the integer value right by the number of times specified in
     ; the shift amount. A negative shift amount is not supported, so negative
@@ -196,7 +196,7 @@ rshift:
     ; To shift the number 33 right by two positions, call like so:
     ;     PUSHI 33
     ;     LOADI 2
-    ;     CALL rshift
+    ;     CALL rshift8
     ;
     ; Stack layout:
     ; PC + 0 - saved U
@@ -211,9 +211,9 @@ rshift:
     ADDPCI 3
     LOAD U
 
-_rshift_finish_check:
+_rshift8_finish_check:
     ADDI 0
-    JRIZ _rshift_finished
+    JRIZ _rshift8_finished
 
     ; Count that we're about to shift right by 1.
     DEC
@@ -224,9 +224,9 @@ _rshift_finish_check:
     SWAP A, U
 
     ; Done with the loop, check for termination again.
-    JRI _rshift_finish_check
+    JRI _rshift8_finish_check
 
-_rshift_finished:
+_rshift8_finished:
     ; The number is in U, so move it to A.
     MOV U, A
 

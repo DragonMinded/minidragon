@@ -1,4 +1,4 @@
-neg:
+neg8:
     ; Given an integer on the stack, assume it is a two's compliment number
     ; and return the negation of it in the A register. This function is
     ; somewhat useless as there's an assembler macro for it, but it keeps
@@ -8,7 +8,7 @@ neg:
     ;
     ; Call this similar to:
     ;     PUSHI -32
-    ;     CALL neg
+    ;     CALL neg8
     ;
     ; Stack layout:
     ; PC + 0 - return address

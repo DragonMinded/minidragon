@@ -1,4 +1,4 @@
-abs:
+abs8:
     ; Given an integer in the A register, assume it is a two's compliment
     ; number and return the absolute value of the number in the A register.
     ; Does not clobber the U, V or SPC registers.
@@ -7,7 +7,7 @@ abs:
     ;
     ; Call this similar to:
     ;     LOADI -32
-    ;     CALL abs
+    ;     CALL abs8
     ;
     ; Stack layout:
     ; PC + 0 - return address
@@ -15,13 +15,13 @@ abs:
 
     ; Now, check if it is negative.
     SHL
-    JRIC _abs_negative
+    JRIC _abs8_negative
 
     ; Its already positive, so just return it.
     RCR
     RET
 
-_abs_negative:
+_abs8_negative:
     ; Gotta two's compliment it.
     RCR
     NEG

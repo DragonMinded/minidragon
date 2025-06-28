@@ -1,4 +1,4 @@
-itoa:
+itoa8:
     ; Given an integer in the A register and a pointer on the stack
     ; to output a string to, converts the value in the A register to
     ; a decimal string. Works on signed 8 bit integers only. Does not
@@ -11,7 +11,7 @@ itoa:
     ;   PUSHI 0x34
     ;   PUSHI 0x12
     ;   LOADI 123
-    ;   CALL itoa
+    ;   CALL itoa8
     ;
     ; Stack layout at call and return time
     ; PC + 0 - return address
@@ -82,16 +82,16 @@ itoa:
 
     ; Now, figure out if A is negative.
     SHL
-    JRIC _itoa_neg
+    JRIC _itoa8_neg
 
     ; Its already positive, we don't need to fix anything.
     INCPC
     STOREI 0
     DECPC
 
-    JRI _itoa_loop
+    JRI _itoa8_loop
 
-_itoa_neg:
+_itoa8_neg:
     ; Negate it
     LOAD A
     NEG
@@ -106,10 +106,10 @@ _itoa_neg:
     LOADI 2
     MOV A, U
 
-_itoa_loop:
+_itoa8_loop:
     ; Divide A by 10
     PUSHI 10
-    CALL udiv
+    CALL udiv8
 
     ; Now, load the zero character constant so we can change the
     ; raw integer value to a character.
@@ -135,18 +135,18 @@ _itoa_loop:
     SUBPCI 7
     LOAD A
     ADDI 0
-    JRIZ _itoa_negative_check
+    JRIZ _itoa8_negative_check
 
     ; We got more work to do
-    JRI _itoa_loop
+    JRI _itoa8_loop
 
-_itoa_negative_check:
+_itoa8_negative_check:
     ; See if the number was negative.
     INCPC
     LOAD A
     ADDPCI 6
     ADDI 0
-    JRIZ _itoa_copy
+    JRIZ _itoa8_copy
 
     ; It is negative, output a '-' sign.
     LOADI "-"
@@ -158,7 +158,7 @@ _itoa_negative_check:
     SWAP PC, SPC
     PUSH SPC
 
-_itoa_copy:
+_itoa8_copy:
     ; Now, copy bytes one at a time to the output buffer. We
     ; output backwards in this routine because we do the low
     ; digits first, so we can now copy until we hit the null
@@ -180,9 +180,9 @@ _itoa_copy:
 
     ; See if we copied a null
     ADDI 0
-    JRINZ _itoa_copy
+    JRINZ _itoa8_copy
 
-_itoa_done:
+_itoa8_done:
     ; Now, restore the pointer on the stack, by loading how many
     ; bytes we output and advancing backwards that much.
     ADDPCI 8
@@ -202,7 +202,7 @@ _itoa_done:
     RET
 
 
-utoa:
+utoa8:
     ; Given an unsigned integer in the A register and a pointer on the stack
     ; to output a string to, converts the value in the A register to a
     ; decimal string. Works on unsigned 8 bit integers only. Does not
@@ -215,7 +215,7 @@ utoa:
     ;   PUSHI 0x34
     ;   PUSHI 0x12
     ;   LOADI 123
-    ;   CALL utoa
+    ;   CALL utoa8
     ;
     ; Stack layout at call and return time
     ; PC + 0 - return address
@@ -289,7 +289,7 @@ utoa:
     STOREI 0
     DECPC
 
-    LNGJUMP _itoa_loop
+    LNGJUMP _itoa8_loop
 
 
 itoa16:

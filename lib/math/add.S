@@ -1,4 +1,4 @@
-add:
+add8:
     ; Add two 8-bit numbers on the stack, returning the value in the A
     ; register. This is somewhat useless as we already have add, but it
     ; keeps the stdlib orthogonal. Does not clobber the U, V or SPC
@@ -9,7 +9,7 @@ add:
     ; To add 0x12 to 0x32, call like so:
     ;   PUSHI 0x12
     ;   PUSHI 0x34
-    ;   CALL add
+    ;   CALL add8
     ;
     ; Stack layout
     ; PC + 0 - return address

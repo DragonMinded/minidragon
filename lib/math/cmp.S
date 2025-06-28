@@ -1,4 +1,4 @@
-cmp:
+cmp8:
     ; Given two signed integers on the stack, return -1 if the first is less
     ; than the second, 0 if the first equals the second, and 1 if the
     ; first is greater than the second. Returns the value in the A
@@ -11,7 +11,7 @@ cmp:
     ; call this similar to:
     ;     PUSHI 5
     ;     PUSHI 7
-    ;     CALL ucmp
+    ;     CALL cmp8
     ;
     ; Stack layout:
     ; PC + 1 - return address
@@ -31,7 +31,7 @@ cmp:
 
     ; Second is negative. First is indeterminate.
     SHL
-    JRIC ucmp
+    JRIC ucmp8
 
     ; First is positive, second is negative.
     LOADI 1
@@ -39,14 +39,14 @@ cmp:
 
 _cmp_second_positive:
     SHL
-    JRINC ucmp
+    JRINC ucmp8
 
     ; First is negative, second is positive.
     LOADI -1
     RET
 
 
-ucmp:
+ucmp8:
     ; Given two unsigned integers on the stack, return -1 if the first is less
     ; than the second, 0 if the first equals the second, and 1 if the
     ; first is greater than the second. Returns the value in the A
@@ -59,7 +59,7 @@ ucmp:
     ; call this similar to:
     ;     PUSHI 5
     ;     PUSHI 7
-    ;     CALL ucmp
+    ;     CALL ucmp8
     ;
     ; Stack layout:
     ; PC + 0 - saved U register
@@ -74,13 +74,13 @@ ucmp:
     DECPC
     XOR
     SUBPCI 2
-    JRINZ _ucmp_ne
+    JRINZ _ucmp8_ne
 
     ; Its equal, so lets bail.
     LOADI 0
     RET
 
-_ucmp_ne:
+_ucmp8_ne:
     ; Save the U register.
     PUSH U
     ADDPCI 3
@@ -95,7 +95,7 @@ _ucmp_ne:
 
     ; Now, because subtraction comparison only works for numbers between 0-127,
     ; do an oldschool comparison on the high bit.
-_ucmp_loop:
+_ucmp8_loop:
     ; First, shift the first number left.
     SWAP A, U
     SHL
@@ -103,23 +103,23 @@ _ucmp_loop:
 
     ; If the top bit is 1, then A is >= B, so we check for that
     ; in the second if.
-    JRINC _ucmp_check_second
+    JRINC _ucmp8_check_second
 
     ; If the top bit is 0, then A > B
     SHL
-    JRINC _ucmp_first_larger
-    JRI _ucmp_subtract
+    JRINC _ucmp8_first_larger
+    JRI _ucmp8_subtract
 
-_ucmp_check_second:
+_ucmp8_check_second:
     ; If the top bit is 0, then A is <= B, so we check for that
     ; here.
     SHL
 
     ; If the top bit is 1, then A < B since we only get here if the
     ; top bit of A is unset.
-    JRIC _ucmp_second_larger
+    JRIC _ucmp8_second_larger
 
-_ucmp_subtract:
+_ucmp8_subtract:
     ; We know that both top bits are unset, so we can do the subtraction
     ; trick to figure out the rest.
     SHR
@@ -130,15 +130,15 @@ _ucmp_subtract:
     ; Check after addition to see if the top bit is set.
     ADDU
     SHL
-    JRIC _ucmp_second_larger
+    JRIC _ucmp8_second_larger
 
-_ucmp_first_larger:
+_ucmp8_first_larger:
     ; We know that A > B here, so lets bail.
     POP U
     LOADI 1
     RET
 
-_ucmp_second_larger:
+_ucmp8_second_larger:
     ; We know that A < B here, so lets bail.
     POP U
     LOADI -1
@@ -255,7 +255,7 @@ _ucmp16_high_ne:
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
-    LNGJUMP _ucmp_loop
+    LNGJUMP _ucmp8_loop
 
 _ucmp16_low_ne:
     ; Make copies so we can mess with the numbers
@@ -266,7 +266,7 @@ _ucmp16_low_ne:
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
-    LNGJUMP _ucmp_loop
+    LNGJUMP _ucmp8_loop
 
 
 cmp32:
@@ -416,7 +416,7 @@ _ucmp32_1st_ne:
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
-    LNGJUMP _ucmp_loop
+    LNGJUMP _ucmp8_loop
 
 _ucmp32_2nd_ne:
     ; Make copies so we can mess with the numbers
@@ -427,7 +427,7 @@ _ucmp32_2nd_ne:
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
-    LNGJUMP _ucmp_loop
+    LNGJUMP _ucmp8_loop
 
 _ucmp32_3rd_ne:
     ; Make copies so we can mess with the numbers
@@ -438,7 +438,7 @@ _ucmp32_3rd_ne:
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
-    LNGJUMP _ucmp_loop
+    LNGJUMP _ucmp8_loop
 
 _ucmp32_4th_ne:
     ; Make copies so we can mess with the numbers
@@ -449,10 +449,10 @@ _ucmp32_4th_ne:
 
     ; The rest of this algorithm is identical to other versions, since we
     ; know the bytes don't equal and we are just shifting out of stack.
-    LNGJUMP _ucmp_loop
+    LNGJUMP _ucmp8_loop
 
 
-umin:
+umin8:
     ; Given two unsigned integers on the stack, return the smaller of the
     ; two in the A register. Does not clobber the U, V or SPC registers.
     ; Does not clobber the numbers on the stack.
@@ -462,7 +462,7 @@ umin:
     ; To get the min of 5 and 7, call it like so:
     ;     PUSHI 5
     ;     PUSHI 7
-    ;     CALL umin
+    ;     CALL umin8
     ;
     ; Stack layout:
     ; PC + 0 - temporary second number storage
@@ -483,18 +483,18 @@ umin:
     STORE A
 
     ; Now, figure out which is less
-    CALL ucmp
+    CALL ucmp8
 
     ; Return the first number if 1st < 2nd, otherwise return second.
     SHL
-    JRINC _umin_ge
+    JRINC _umin8_ge
 
     INCPC
     LOAD A
     INCPC
     RET
 
-_umin_ge:
+_umin8_ge:
     ; First number is >= second number, return second number.
     LOAD A
     ADDPCI 2
@@ -746,7 +746,7 @@ _umin32_ge:
     RET
 
 
-umax:
+umax8:
     ; Given two unsigned integers on the stack, return the larger of the
     ; two in the A register. Does not clobber the U, V or SPC registers.
     ; Does not clobber the numbers on the stack.
@@ -756,7 +756,7 @@ umax:
     ; To get the max of 5 and 7, call it like so:
     ;     PUSHI 5
     ;     PUSHI 7
-    ;     CALL umax
+    ;     CALL umax8
     ;
     ; Stack layout:
     ; PC + 0 - temporary second number storage
@@ -777,18 +777,18 @@ umax:
     STORE A
 
     ; Now, figure out which is less
-    CALL ucmp
+    CALL ucmp8
 
     ; Return the first number if 1st > 2nd, otherwise return second.
     SHL
-    JRIC _umax_le
+    JRIC _umax8_le
 
     INCPC
     LOAD A
     INCPC
     RET
 
-_umax_le:
+_umax8_le:
     ; First number is >= second number, return second number.
     LOAD A
     ADDPCI 2

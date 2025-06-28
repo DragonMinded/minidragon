@@ -470,11 +470,11 @@ def verifyshift(only: Optional[Container[str]], full: bool) -> None:
             )
 
 
-def verifymult(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "mult" not in only and "mathlib" not in only:
+def verifymult8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "mult8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying mult...")
+    print("Verifying mult8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -508,7 +508,7 @@ def verifymult(only: Optional[Container[str]], full: bool) -> None:
                 "main:",
                 f"PUSHI {x}",
                 f"PUSHI {y}",
-                "CALL mult",
+                "CALL mult8",
                 "HALT",
                 *multiplylines,
                 *addlines,
@@ -517,7 +517,7 @@ def verifymult(only: Optional[Container[str]], full: bool) -> None:
             rununtilhalt(cpu)
             _assert(
                 cpu.a == x * y,
-                f"Failed to mult {x} by {y}, "
+                f"Failed to mult8 {x} by {y}, "
                 + f"got {cpu.a} instead of {x * y}!",
             )
             cycles += cpu.cycles
@@ -525,8 +525,8 @@ def verifymult(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for mult: {int(cycles/count)}")
-    print(f"Average instructions for mult: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for mult8: {int(cycles/count)}")
+    print(f"Average instructions for mult8: {int(instructions/count)}")
 
 
 def verifymult16(only: Optional[Container[str]], full: bool) -> None:
@@ -695,11 +695,11 @@ def verifymult32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for mult32: {int(instructions/count)}")
 
 
-def verifyudiv(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "udiv" not in only and "mathlib" not in only:
+def verifyudiv8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "udiv8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying udiv...")
+    print("Verifying udiv8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -726,7 +726,7 @@ def verifyudiv(only: Optional[Container[str]], full: bool) -> None:
                 f"PUSHI {dividend}",
                 f"PUSHI {divisor}",
                 "LOADI 123",
-                "CALL udiv",
+                "CALL udiv8",
                 "HALT",
                 *dividelines,
                 *cmplines,
@@ -739,25 +739,25 @@ def verifyudiv(only: Optional[Container[str]], full: bool) -> None:
             remainder = cpu.ram[cpu.pc]
             _assert(
                 quotient == dividend // divisor,
-                f"Failed to udiv {dividend} by {divisor}, "
+                f"Failed to udiv8 {dividend} by {divisor}, "
                 + f"got {cpu.a} instead of {dividend // divisor}!",
             )
             _assert(
                 remainder == dividend % divisor,
-                f"Failed to udiv {dividend} by {divisor}, "
+                f"Failed to udiv8 {dividend} by {divisor}, "
                 + f"got {remainder} instead of {dividend % divisor}!",
             )
             _assert(
                 cpu.a == 123,
-                f"udiv16 changed A register from 123 to {cpu.a}!",
+                f"udiv8 changed A register from 123 to {cpu.a}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
             count += 1
 
         print(f"{CLEAR_LINE}{int((dividend * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for udiv: {int(cycles/count)}")
-    print(f"Average instructions for udiv: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for udiv8: {int(cycles/count)}")
+    print(f"Average instructions for udiv8: {int(instructions/count)}")
 
 
 def verifyudiv16(only: Optional[Container[str]], full: bool) -> None:
@@ -916,11 +916,11 @@ def verifyudiv32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for udiv32: {int(instructions/count)}")
 
 
-def verifylshift(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "lshift" not in only and "mathlib" not in only:
+def verifylshift8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "lshift8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying lshift...")
+    print("Verifying lshift8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -940,7 +940,7 @@ def verifylshift(only: Optional[Container[str]], full: bool) -> None:
                 "main:",
                 f"PUSHI {x}",
                 f"LOADI {y}",
-                "CALL lshift",
+                "CALL lshift8",
                 "HALT",
                 *shiftlines,
             ]))
@@ -958,8 +958,8 @@ def verifylshift(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for lshift: {int(cycles/count)}")
-    print(f"Average instructions for lshift: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for lshift8: {int(cycles/count)}")
+    print(f"Average instructions for lshift8: {int(instructions/count)}")
 
 
 def verifylshift16(only: Optional[Container[str]], full: bool) -> None:
@@ -1063,11 +1063,11 @@ def verifylshift32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for lshift32: {int(instructions/count)}")
 
 
-def verifyrshift(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "rshift" not in only and "mathlib" not in only:
+def verifyrshift8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "rshift8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying rshift...")
+    print("Verifying rshift8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -1087,7 +1087,7 @@ def verifyrshift(only: Optional[Container[str]], full: bool) -> None:
                 "main:",
                 f"PUSHI {x}",
                 f"LOADI {y}",
-                "CALL rshift",
+                "CALL rshift8",
                 "HALT",
                 *shiftlines,
             ]))
@@ -1105,8 +1105,8 @@ def verifyrshift(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for rshift: {int(cycles/count)}")
-    print(f"Average instructions for rshift: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for rshift8: {int(cycles/count)}")
+    print(f"Average instructions for rshift8: {int(instructions/count)}")
 
 
 def verifyrshift16(only: Optional[Container[str]], full: bool) -> None:
@@ -1210,11 +1210,11 @@ def verifyrshift32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for rshift32: {int(instructions/count)}")
 
 
-def verifymathadd(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "mathadd" not in only and "mathlib" not in only:
+def verifyadd8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "add8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying add...")
+    print("Verifying add8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -1234,7 +1234,7 @@ def verifymathadd(only: Optional[Container[str]], full: bool) -> None:
                 "main:",
                 f"PUSHI {x}",
                 f"PUSHI {y}",
-                "CALL add",
+                "CALL add8",
                 "HALT",
                 *addlines,
             ]))
@@ -1244,7 +1244,7 @@ def verifymathadd(only: Optional[Container[str]], full: bool) -> None:
             real = (x + y) & 0xFF
             _assert(
                 real == calculated,
-                f"Failed to add {x} and {y}, "
+                f"Failed to add8 {x} and {y}, "
                 + f"got {calculated} instead of {real}!",
             )
             cycles += cpu.cycles
@@ -1252,8 +1252,8 @@ def verifymathadd(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for add: {int(cycles/count)}")
-    print(f"Average instructions for add: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for add8: {int(cycles/count)}")
+    print(f"Average instructions for add8: {int(instructions/count)}")
 
 
 def verifyadd16(only: Optional[Container[str]], full: bool) -> None:
@@ -1371,11 +1371,11 @@ def verifyadd32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for add32: {int(instructions/count)}")
 
 
-def verifyabs(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "abs" not in only and "mathlib" not in only:
+def verifyabs8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "abs8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying abs...")
+    print("Verifying abs8...")
 
     with open("lib/init.S", "r") as fp:
         initlines = fp.readlines()
@@ -1394,7 +1394,7 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
             *initlines,
             "main:",
             f"LOADI {x}",
-            "CALL abs",
+            "CALL abs8",
             "HALT",
             *neglines,
             *abslines,
@@ -1403,14 +1403,14 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
         rununtilhalt(cpu)
         _assert(
             cpu.a == abs(x),
-            f"Failed to abs({x}), got {cpu.a} instead of {x}!",
+            f"Failed to abs8({x}), got {cpu.a} instead of {x}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
         count += 1
 
-    print(f"Average cycles for abs: {int(cycles/count)}")
-    print(f"Average instructions for abs: {int(instructions/count)}")
+    print(f"Average cycles for abs8: {int(cycles/count)}")
+    print(f"Average instructions for abs8: {int(instructions/count)}")
 
 
 def verifyabs16(only: Optional[Container[str]], full: bool) -> None:
@@ -1536,11 +1536,11 @@ def verifyabs32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for abs32: {int(instructions/count)}")
 
 
-def verifyucmp(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "ucmp" not in only and "mathlib" not in only:
+def verifyucmp8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "ucmp8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying ucmp...")
+    print("Verifying ucmp8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -1560,7 +1560,7 @@ def verifyucmp(only: Optional[Container[str]], full: bool) -> None:
                 "main:",
                 f"PUSHI {a}",
                 f"PUSHI {b}",
-                "CALL ucmp",
+                "CALL ucmp8",
                 "HALT",
                 *cmplines,
             ]))
@@ -1574,16 +1574,16 @@ def verifyucmp(only: Optional[Container[str]], full: bool) -> None:
                 answer = 1
             _assert(
                 cpu.ram[cpu.pc + 1] == a,
-                f"ucmp changed stack value from {a} "
+                f"ucmp8 changed stack value from {a} "
                 + f"to {cpu.ram[cpu.pc + 1]}!",
             )
             _assert(
                 cpu.ram[cpu.pc] == b,
-                f"ucmp changed stack value from {b} to {cpu.ram[cpu.pc]}!",
+                f"ucmp8 changed stack value from {b} to {cpu.ram[cpu.pc]}!",
             )
             _assert(
                 bintoint(cpu.a) == answer,
-                f"Failed to ucmp({a}, {b}), "
+                f"Failed to ucmp8({a}, {b}), "
                 + f"got {bintoint(cpu.a)} instead of {answer}!",
             )
             cycles += cpu.cycles
@@ -1591,8 +1591,8 @@ def verifyucmp(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((a * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for ucmp: {int(cycles/count)}")
-    print(f"Average instructions for ucmp: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for ucmp8: {int(cycles/count)}")
+    print(f"Average instructions for ucmp8: {int(instructions/count)}")
 
 
 def verifyucmp16(only: Optional[Container[str]], full: bool) -> None:
@@ -1745,11 +1745,11 @@ def verifyucmp32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for ucmp32: {int(instructions/count)}")
 
 
-def verifycmp(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "cmp" not in only and "mathlib" not in only:
+def verifycmp8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "cmp8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying cmp...")
+    print("Verifying cmp8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -1769,7 +1769,7 @@ def verifycmp(only: Optional[Container[str]], full: bool) -> None:
                 "main:",
                 f"PUSHI {a}",
                 f"PUSHI {b}",
-                "CALL cmp",
+                "CALL cmp8",
                 "HALT",
                 *cmplines,
             ]))
@@ -1783,16 +1783,16 @@ def verifycmp(only: Optional[Container[str]], full: bool) -> None:
                 answer = 1
             _assert(
                 bintoint(cpu.ram[cpu.pc + 1]) == a,
-                f"cmp changed stack value from {a} "
+                f"cmp8 changed stack value from {a} "
                 + f"to {bintoint(cpu.ram[cpu.pc + 1])}!",
             )
             _assert(
                 bintoint(cpu.ram[cpu.pc]) == b,
-                f"cmp changed stack value from {b} to {bintoint(cpu.ram[cpu.pc])}!",
+                f"cmp8 changed stack value from {b} to {bintoint(cpu.ram[cpu.pc])}!",
             )
             _assert(
                 bintoint(cpu.a) == answer,
-                f"Failed to cmp({a}, {b}), "
+                f"Failed to cmp8({a}, {b}), "
                 + f"got {bintoint(cpu.a)} instead of {answer}!",
             )
             cycles += cpu.cycles
@@ -1800,8 +1800,8 @@ def verifycmp(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int(((a + 128) * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for cmp: {int(cycles/count)}")
-    print(f"Average instructions for cmp: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for cmp8: {int(cycles/count)}")
+    print(f"Average instructions for cmp8: {int(instructions/count)}")
 
 
 def verifycmp16(only: Optional[Container[str]], full: bool) -> None:
@@ -1946,11 +1946,11 @@ def verifycmp32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for ucmp32: {int(instructions/count)}")
 
 
-def verifyumin(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "umin" not in only and "mathlib" not in only:
+def verifyumin8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "umin8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying umin...")
+    print("Verifying umin8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -1970,7 +1970,7 @@ def verifyumin(only: Optional[Container[str]], full: bool) -> None:
                 "main:",
                 f"PUSHI {a}",
                 f"PUSHI {b}",
-                "CALL umin",
+                "CALL umin8",
                 "HALT",
                 *cmplines,
             ]))
@@ -1979,16 +1979,16 @@ def verifyumin(only: Optional[Container[str]], full: bool) -> None:
             answer = min(a, b)
             _assert(
                 cpu.ram[cpu.pc + 1] == a,
-                f"umin changed stack value from {a} "
+                f"umin8 changed stack value from {a} "
                 + f"to {cpu.ram[cpu.pc + 1]}!",
             )
             _assert(
                 cpu.ram[cpu.pc] == b,
-                f"umin changed stack value from {b} to {cpu.ram[cpu.pc]}!",
+                f"umin8 changed stack value from {b} to {cpu.ram[cpu.pc]}!",
             )
             _assert(
                 cpu.a == answer,
-                f"Failed to umin({a}, {b}), "
+                f"Failed to umin8({a}, {b}), "
                 + f"got {cpu.a} instead of {answer}!",
             )
             cycles += cpu.cycles
@@ -1996,8 +1996,8 @@ def verifyumin(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((a * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for umin: {int(cycles/count)}")
-    print(f"Average instructions for umin: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for umin8: {int(cycles/count)}")
+    print(f"Average instructions for umin8: {int(instructions/count)}")
 
 
 def verifyumin16(only: Optional[Container[str]], full: bool) -> None:
@@ -2127,11 +2127,11 @@ def verifyumin32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for umin32: {int(instructions/count)}")
 
 
-def verifyumax(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "umax" not in only and "mathlib" not in only:
+def verifyumax8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "umax8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying umax...")
+    print("Verifying umax8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -2151,7 +2151,7 @@ def verifyumax(only: Optional[Container[str]], full: bool) -> None:
                 "main:",
                 f"PUSHI {a}",
                 f"PUSHI {b}",
-                "CALL umax",
+                "CALL umax8",
                 "HALT",
                 *cmplines,
             ]))
@@ -2160,16 +2160,16 @@ def verifyumax(only: Optional[Container[str]], full: bool) -> None:
             answer = max(a, b)
             _assert(
                 cpu.ram[cpu.pc + 1] == a,
-                f"umax changed stack value from {a} "
+                f"umax8 changed stack value from {a} "
                 + f"to {cpu.ram[cpu.pc + 1]}!",
             )
             _assert(
                 cpu.ram[cpu.pc] == b,
-                f"umax changed stack value from {b} to {cpu.ram[cpu.pc]}!",
+                f"umax8 changed stack value from {b} to {cpu.ram[cpu.pc]}!",
             )
             _assert(
                 cpu.a == answer,
-                f"Failed to umax({a}, {b}), "
+                f"Failed to umax8({a}, {b}), "
                 + f"got {cpu.a} instead of {answer}!",
             )
             cycles += cpu.cycles
@@ -2177,8 +2177,8 @@ def verifyumax(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
         print(f"{CLEAR_LINE}{int((a * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for umax: {int(cycles/count)}")
-    print(f"Average instructions for umax: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for umax8: {int(cycles/count)}")
+    print(f"Average instructions for umax8: {int(instructions/count)}")
 
 
 def verifyumax16(only: Optional[Container[str]], full: bool) -> None:
@@ -2308,11 +2308,11 @@ def verifyumax32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for umax32: {int(instructions/count)}")
 
 
-def verifymathneg(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "mathneg" not in only and "mathlib" not in only:
+def verifyneg8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "neg8" not in only and "mathlib" not in only:
         return
 
-    print("Verifying neg...")
+    print("Verifying neg8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -2330,7 +2330,7 @@ def verifymathneg(only: Optional[Container[str]], full: bool) -> None:
             *initlines,
             "main:",
             f"PUSHI {x}",
-            "CALL neg",
+            "CALL neg8",
             "HALT",
             *neglines,
         ]))
@@ -2340,7 +2340,7 @@ def verifymathneg(only: Optional[Container[str]], full: bool) -> None:
         real = -x
         _assert(
             real == calculated,
-            f"Failed to neg {x}, "
+            f"Failed to neg8 {x}, "
             + f"got {calculated} instead of {real}!",
         )
         cycles += cpu.cycles
@@ -2348,8 +2348,8 @@ def verifymathneg(only: Optional[Container[str]], full: bool) -> None:
         count += 1
         print(f"{CLEAR_LINE}{int(((x + 127) * 100) / 256)}% complete...")
 
-    print(f"{CLEAR_LINE}Average cycles for neg: {int(cycles/count)}")
-    print(f"Average instructions for neg: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for neg8: {int(cycles/count)}")
+    print(f"Average instructions for neg8: {int(instructions/count)}")
 
 
 def verifyneg16(only: Optional[Container[str]], full: bool) -> None:
@@ -2847,11 +2847,11 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for strcmp: {int(instructions/count)}")
 
 
-def verifyutoa(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "utoa" not in only and "stringlib" not in only:
+def verifyutoa8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "utoa8" not in only and "stringlib" not in only:
         return
 
-    print("Verifying utoa...")
+    print("Verifying utoa8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -2879,7 +2879,7 @@ def verifyutoa(only: Optional[Container[str]], full: bool) -> None:
             "PUSHI 0x00",
             "PUSHI 0x10",
             f"LOADI {x}",
-            "CALL utoa",
+            "CALL utoa8",
             "HALT",
             *itoalines,
             *dividelines,
@@ -2892,16 +2892,16 @@ def verifyutoa(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == x,
-            f"utoa changed A register from {x} to {cpu.a}!",
+            f"utoa8 changed A register from {x} to {cpu.a}!",
         )
         stack_input = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
         _assert(
             stack_input == 0x1000,
-            f"utoa changed stack input from {0x1000} to {stack_input}!",
+            f"utoa8 changed stack input from {0x1000} to {stack_input}!",
         )
         _assert(
             getstring(cpu, 0x1000) == str(x),
-            f"Failed to utoa({x}), "
+            f"Failed to utoa8({x}), "
             + f"got {getstring(cpu, 0x1000)} instead of {str(x)}!",
         )
         cycles += cpu.cycles
@@ -2909,8 +2909,8 @@ def verifyutoa(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
         print(f"{CLEAR_LINE}{int((x * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for utoa: {int(cycles/count)}")
-    print(f"Average instructions for utoa: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for utoa8: {int(cycles/count)}")
+    print(f"Average instructions for utoa8: {int(instructions/count)}")
 
 
 def verifyutoa16(only: Optional[Container[str]], full: bool) -> None:
@@ -3070,11 +3070,11 @@ def verifyutoa32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for utoa32: {int(instructions/count)}")
 
 
-def verifyitoa(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "itoa" not in only and "stringlib" not in only:
+def verifyitoa8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "itoa8" not in only and "stringlib" not in only:
         return
 
-    print("Verifying itoa...")
+    print("Verifying itoa8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -3102,7 +3102,7 @@ def verifyitoa(only: Optional[Container[str]], full: bool) -> None:
             "PUSHI 0x00",
             "PUSHI 0x10",
             f"LOADI {x}",
-            "CALL itoa",
+            "CALL itoa8",
             "HALT",
             *itoalines,
             *dividelines,
@@ -3115,16 +3115,16 @@ def verifyitoa(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             bintoint(cpu.a) == x,
-            f"itoa changed A register from {x} to {bintoint(cpu.a)}!",
+            f"itoa8 changed A register from {x} to {bintoint(cpu.a)}!",
         )
         stack_input = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
         _assert(
             stack_input == 0x1000,
-            f"itoa changed stack input from {0x1000} to {stack_input}!",
+            f"itoa8 changed stack input from {0x1000} to {stack_input}!",
         )
         _assert(
             getstring(cpu, 0x1000) == str(x),
-            f"Failed to itoa({x}), "
+            f"Failed to itoa8({x}), "
             + f"got {getstring(cpu, 0x1000)} instead of {str(x)}!",
         )
         cycles += cpu.cycles
@@ -3132,8 +3132,8 @@ def verifyitoa(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
         print(f"{CLEAR_LINE}{int(((x + 128) * 100) / 256)}% complete...")
-    print(f"{CLEAR_LINE}Average cycles for itoa: {int(cycles/count)}")
-    print(f"Average instructions for itoa: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for itoa8: {int(cycles/count)}")
+    print(f"Average instructions for itoa8: {int(instructions/count)}")
 
 
 def verifyitoa16(only: Optional[Container[str]], full: bool) -> None:
@@ -3295,11 +3295,11 @@ def verifyitoa32(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for itoa32: {int(instructions/count)}")
 
 
-def verifyatoi(only: Optional[Container[str]], full: bool) -> None:
-    if only is not None and "atoi" not in only and "stringlib" not in only:
+def verifyatoi8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "atoi8" not in only and "stringlib" not in only:
         return
 
-    print("Verifying atoi...")
+    print("Verifying atoi8...")
     print("0% complete...")
 
     with open("lib/init.S", "r") as fp:
@@ -3339,7 +3339,7 @@ def verifyatoi(only: Optional[Container[str]], full: bool) -> None:
                     "SETPC string",
                     "SWAP PC, SPC",
                     "PUSH SPC",
-                    "CALL atoi",
+                    "CALL atoi8",
                     "HALT",
                     *atoilines,
                     *multiplylines,
@@ -3354,12 +3354,12 @@ def verifyatoi(only: Optional[Container[str]], full: bool) -> None:
                 )
                 _assert(
                     stack_input == (0x1000 + len(numstr)),
-                    f"atoi expected stack {hex(0x1000 + len(numstr))} "
+                    f"atoi8 expected stack {hex(0x1000 + len(numstr))} "
                     + f"but got {hex(stack_input)}!",
                 )
                 _assert(
                     bintoint(cpu.a) == x,
-                    f"Failed to atoi({numstr}), "
+                    f"Failed to atoi8({numstr}), "
                     + f"got {bintoint(cpu.a)} instead of {x}!",
                 )
                 cycles += cpu.cycles
@@ -3368,8 +3368,8 @@ def verifyatoi(only: Optional[Container[str]], full: bool) -> None:
 
         print(f"{CLEAR_LINE}{int(((x + 128) * 100) / 256)}% complete...")
 
-    print(f"{CLEAR_LINE}Average cycles for atoi: {int(cycles/count)}")
-    print(f"Average instructions for atoi: {int(instructions/count)}")
+    print(f"{CLEAR_LINE}Average cycles for atoi8: {int(cycles/count)}")
+    print(f"Average instructions for atoi8: {int(instructions/count)}")
 
 
 def verifyatoi16(only: Optional[Container[str]], full: bool) -> None:
@@ -14051,37 +14051,37 @@ if __name__ == "__main__":
     verifyshift(only, args.full)
 
     # Math library verification
-    verifylshift(only, args.full)
+    verifylshift8(only, args.full)
     verifylshift16(only, args.full)
     verifylshift32(only, args.full)
-    verifyrshift(only, args.full)
+    verifyrshift8(only, args.full)
     verifyrshift16(only, args.full)
     verifyrshift32(only, args.full)
-    verifymathadd(only, args.full)
+    verifyadd8(only, args.full)
     verifyadd16(only, args.full)
     verifyadd32(only, args.full)
-    verifymult(only, args.full)
+    verifymult8(only, args.full)
     verifymult16(only, args.full)
     verifymult32(only, args.full)
-    verifyudiv(only, args.full)
+    verifyudiv8(only, args.full)
     verifyudiv16(only, args.full)
     verifyudiv32(only, args.full)
-    verifyabs(only, args.full)
+    verifyabs8(only, args.full)
     verifyabs16(only, args.full)
     verifyabs32(only, args.full)
-    verifyucmp(only, args.full)
+    verifyucmp8(only, args.full)
     verifyucmp16(only, args.full)
     verifyucmp32(only, args.full)
-    verifycmp(only, args.full)
+    verifycmp8(only, args.full)
     verifycmp16(only, args.full)
     verifycmp32(only, args.full)
-    verifyumin(only, args.full)
+    verifyumin8(only, args.full)
     verifyumin16(only, args.full)
     verifyumin32(only, args.full)
-    verifyumax(only, args.full)
+    verifyumax8(only, args.full)
     verifyumax16(only, args.full)
     verifyumax32(only, args.full)
-    verifymathneg(only, args.full)
+    verifyneg8(only, args.full)
     verifyneg16(only, args.full)
     verifyneg32(only, args.full)
 
@@ -14093,13 +14093,13 @@ if __name__ == "__main__":
     verifystrcmp(only, args.full)
 
     # Conversion library verification
-    verifyitoa(only, args.full)
+    verifyitoa8(only, args.full)
     verifyitoa16(only, args.full)
     verifyitoa32(only, args.full)
-    verifyutoa(only, args.full)
+    verifyutoa8(only, args.full)
     verifyutoa16(only, args.full)
     verifyutoa32(only, args.full)
-    verifyatoi(only, args.full)
+    verifyatoi8(only, args.full)
     verifyatoi16(only, args.full)
     verifyatoi32(only, args.full)
 

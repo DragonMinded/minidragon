@@ -1,4 +1,4 @@
-udiv:
+udiv8:
     ; Divide an unsigned number by another unsigned number, returning the
     ; quotient and the remainder on the stack. Assumes that dividend and
     ; divisor are unsigned numbers. Does not modify the A/U/V or stack
@@ -9,7 +9,7 @@ udiv:
     ; If you want to divide 15 by 3, call this similar to:
     ;   PUSHI 15
     ;   PUSHI 3
-    ;   CALL udiv
+    ;   CALL udiv8
     ;
     ; Stack layout at call time
     ; PC + 0 - return address
@@ -56,7 +56,7 @@ udiv:
     SUBPCI 7
     STORE A
 
-_udiv_loop:
+_udiv8_loop:
     ; First, shift out the top bit from the dividend, so we can shift
     ; it into the remainder accumulator.
     ADDPCI 8
@@ -75,22 +75,22 @@ _udiv_loop:
     ; LOT of cases). We know if the remainder is zero, that the
     ; divisor will be greater since you aren't allowed to divide
     ; by zero.
-    JRIZ _udiv_shift_quotient
+    JRIZ _udiv8_shift_quotient
 
     ; Now, see if the remainder is larger than the divisor.
-    CALL ucmp
+    CALL ucmp8
     SHL
-    JRINC _udiv_sub_divisor
+    JRINC _udiv8_sub_divisor
 
-_udiv_shift_quotient:
+_udiv8_shift_quotient:
     ; Remainder is less than the divisor, so just shift our quotient
     ; and loop again.
     MOV V, A
     SHL
     MOV A, V
-    JRI _udiv_check_termination
+    JRI _udiv8_check_termination
 
-_udiv_sub_divisor:
+_udiv8_sub_divisor:
     ; The divisor fits into the remainder, so we have a single bit
     ; division result. Reflect that in the quotient and then drop
     ; the remainder down by the divisor.
@@ -107,17 +107,17 @@ _udiv_sub_divisor:
     STORE A
     DECPC
 
-_udiv_check_termination:
+_udiv8_check_termination:
     ; Now, see if we need to loop or if we're done here.
     MOV U, A
     ADDI -1
     MOV A, U
 
     ; If it is zero, we've done all the loops we need.
-    LNGJUMPNZ _udiv_loop
+    LNGJUMPNZ _udiv8_loop
 
     ; We're finished, so restore all the values to their correct place.
-_udiv_return:
+_udiv8_return:
 
     ; First, relocate the remainder where it should go.
     INCPC
