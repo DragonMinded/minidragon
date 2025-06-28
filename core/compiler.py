@@ -2090,7 +2090,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -2527,6 +2527,43 @@ def generate_function_call(
             stack.free(data_dest)
             stack.free(addr_dest)
             return compiled
+
+        elif function_prototype.name == "abs":
+            if len(args) != 1 or len(arg_types) != 1:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment!", context)
+
+            # Absolute value calculation.
+            destination_type = types[call]
+            if destination_type.size == 1:
+                func = "abs8"
+            elif destination_type.size == 2:
+                func = "abs16"
+            elif destination_type.size == 4:
+                func = "abs32"
+            else:
+                raise Exception("Logic error, unknown destination size!")
+
+            if not destination_type.is_integer:
+                raise CompilerError("The builtin function abs() only works on integers!", context)
+
+            # If it's already unsigned, don't do anything to it.
+            if destination_type.is_unsigned:
+                return generate_expr_internal(args[0].value, destination, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[0].value))
+            else:
+                return generate_function_call_internal(
+                    create_call(func, [args[0].value]),
+                    destination,
+                    types,
+                    stack,
+                    clobbers,
+                    allocations,
+                    refs,
+                    local_consts,
+                    context,
+                )
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -4922,7 +4959,9 @@ def infer_expr_types_impl(
             if not type_comparison_compatible(arg_inferred[arg.value], argtype):
                 raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type} in function call parameter {i + 1}", context)
 
-            infer_tree(arg_inferred, argtype, context)
+            # Special case for functions like abs(), min() and max() where the input and output are both inferred.
+            if argtype.type != "int":
+                infer_tree(arg_inferred, argtype, context)
             inferred.update(arg_inferred)
 
         inferred[expression] = function_prototype.return_type
@@ -6643,6 +6682,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("str", CoreType("str"), [CoreType("any")]),
         FunctionPrototype("peek", CoreType("any"), [CoreType("uint16")]),
         FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")]),
+        FunctionPrototype("abs", CoreType("int"), [CoreType("int")]),
     ]
 
 

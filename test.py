@@ -13992,6 +13992,178 @@ def verifypoke(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for poke: {int(instructions/count)}")
 
 
+def verifyabs(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "abs" not in only and "compiler" not in only:
+        return
+
+    print("Verifying abs...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/abs.S", "r") as fp:
+        abslines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Mypy throws a fit because variables in Python are scoped outside of their for loops, whatever.
+    val: Any
+    result: Any
+    expected: Any
+
+    # Test signed integers.
+    for width in ["int8", "int16", "int32"]:
+        for val in [0, 37, -37] + ([12345, -12345] if width in {"int16", "int32"} else []) + ([123456789, -123456789] if width == "int32" else []):
+            sections = parse_and_compile_module("abs", textwrap.dedent(f"""
+                def callable(input: {width}) -> {width}:
+                    return abs(input)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *abslines,
+                *neglines,
+                *sections.code,
+                "main:",
+                f"PUSHI {(val >> 0) & 0xFF}",
+                *([f"PUSHI {(val >> 8) & 0xFF}"] if width in {"int16", "int32"} else []),
+                *([f"PUSHI {(val >> 16) & 0xFF}", f"PUSHI {(val >> 24 & 0xFF)}"] if width == "int32" else []),
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+                ".org 0x9000",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"abs changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"abs changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"abs changed V value from {222} to {cpu.v}!",
+            )
+            if width == "int8":
+                result = bintoint(cpu.ram[cpu.pc + 0])
+            elif width == "int16":
+                result = bintoint16(
+                    (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+                )
+            elif width == "int32":
+                result = bintoint32(
+                    (cpu.ram[cpu.pc + 0] << 24) +
+                    (cpu.ram[cpu.pc + 1] << 16) +
+                    (cpu.ram[cpu.pc + 2] << 8) +
+                    cpu.ram[cpu.pc + 3]
+                )
+            else:
+                result = 0xDEADBEEF
+            expected = abs(val)
+            _assert(
+                result == expected,
+                f"Failed to abs at {width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test unsigned integers.
+    for width in ["uint8", "uint16", "uint32"]:
+        for val in [0, 37, 69, 200] + ([12345, 65432] if width in {"uint16", "uint32"} else []) + ([123456789, 987654321] if width == "uint32" else []):
+            sections = parse_and_compile_module("abs", textwrap.dedent(f"""
+                def callable(input: {width}) -> {width}:
+                    return abs(input)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *abslines,
+                *neglines,
+                *sections.code,
+                "main:",
+                f"PUSHI {(val >> 0) & 0xFF}",
+                *([f"PUSHI {(val >> 8) & 0xFF}"] if width in {"uint16", "uint32"} else []),
+                *([f"PUSHI {(val >> 16) & 0xFF}", f"PUSHI {(val >> 24 & 0xFF)}"] if width == "uint32" else []),
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+                ".org 0x9000",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"abs changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"abs changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"abs changed V value from {222} to {cpu.v}!",
+            )
+            if width == "uint8":
+                result = cpu.ram[cpu.pc]
+            elif width == "uint16":
+                result = (
+                    (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+                )
+            elif width == "uint32":
+                result = (
+                    (cpu.ram[cpu.pc + 0] << 24) +
+                    (cpu.ram[cpu.pc + 1] << 16) +
+                    (cpu.ram[cpu.pc + 2] << 8) +
+                    cpu.ram[cpu.pc + 3]
+                )
+            else:
+                result = 0xDEADBEEF
+            expected = abs(val)
+            _assert(
+                result == expected,
+                f"Failed to abs at {width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for abs: {int(cycles/count)}")
+    print(f"Average instructions for abs: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -14147,3 +14319,4 @@ if __name__ == "__main__":
     verifystringformat(only, args.full)
     verifypeek(only, args.full)
     verifypoke(only, args.full)
+    verifyabs(only, args.full)
