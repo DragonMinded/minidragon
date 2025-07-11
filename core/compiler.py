@@ -1,3 +1,4 @@
+import builtins
 import os
 import traceback
 import libcst as cst
@@ -889,8 +890,15 @@ def codegen_eval(expr: cst.BaseExpression, constants: List[Constant]) -> object:
             ],
         )
     )
+
+    # If we don't control our builtins, python will eval a bunch of stuff we don't support due to
+    # its own builtins, and it will appear to work but only for constant expressions.
+    builtins_dict: Dict[str, object] = {}
+    for name in ["abs", "bool", "str", "len"]:
+        builtins_dict[name] = getattr(builtins, name)
+
     try:
-        return eval(code, {}, {c.name: c.value for c in constants})
+        return eval(code, {"__builtins__": builtins_dict}, {c.name: c.value for c in constants})
     except Exception:
         pass
 
@@ -2090,7 +2098,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -2564,6 +2572,181 @@ def generate_function_call(
                     local_consts,
                     context,
                 )
+
+        elif function_prototype.name == "bool":
+            if len(args) != 1 or len(arg_types) != 1:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment!", context)
+
+            # Cast from whatever data type to string, so we must handle this on a case by case basis.
+            expr = args[0].value
+
+            if types[expr].is_bool:
+                # We're done, this is already a boolean.
+                return generate_expr_internal(expr, destination, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+            elif types[expr].is_string:
+                # Need to see if this string is an empty string or not.
+                compiled = Sections()
+
+                # Evaluate the expression itself.
+                expr_dest = expr_temp_name()
+                stack.alloc(StackVar(expr_dest, CoreType("str", const=True), initialized=True))
+                compiled += generate_expr_internal(expr, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+                clobbers.add("SPC")
+                clobbers.add("A")
+
+                # Now, dereference the string and find out if it's an empty string or not.
+                compiled += generate_move_to(expr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+                # Grab the first character, either it's a null byte or it's not.
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+
+                compiled.append_code("  ADDI 0")
+                compiled.append_code("  LOADI 0x00")
+                compiled.append_code("  SKIPIF ZF")
+                compiled.append_code("  INV")
+
+                if not is_register_destination(destination):
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
+
+                return compiled
+
+            elif types[expr].size == 1:
+                compiled = Sections()
+
+                if types[expr].is_char:
+                    dest_loc = "register(A, char)"
+                elif types[expr].is_integer:
+                    dest_loc = "register(A, uint8)" if types[expr].is_unsigned else "register(A, int8)"
+                else:
+                    raise Exception("Logic error, unexpected type for 1 byte type!")
+
+                # Evaluate the expression itself.
+                clobbers.add("A")
+                compiled += generate_expr_internal(expr, dest_loc, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+                # Now, figure out if the expression was nonzero (boolean True) or zero (boolean False)
+                compiled.append_code("  ADDI 0")
+                compiled.append_code("  LOADI 0x00")
+                compiled.append_code("  SKIPIF ZF")
+                compiled.append_code("  INV")
+
+                if not is_register_destination(destination):
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
+
+                return compiled
+
+            elif types[expr].size == 2:
+                compiled = Sections()
+
+                # Evaluate the expression itself.
+                expr_dest = expr_temp_name()
+                stack.alloc(StackVar(expr_dest, types[expr], initialized=True))
+                compiled += generate_expr_internal(expr, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+                # Now, figure out if the expression was nonzero (boolean True) or zero (boolean False)
+                compiled += generate_move_to(expr_dest, stack, clobbers, context, offset=1)
+
+                end_conversion = local_label_name("end_conversion")
+
+                # First byte check with short circuiting for non-zero.
+                clobbers.add("A")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code("  LOADI 0xFF")
+                compiled.append_code(f"  JRINZ {end_conversion}")
+
+                # Second byte check.
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code("  LOADI 0x00")
+                compiled.append_code("  SKIPIF ZF")
+                compiled.append_code("  INV")
+                compiled.append_code(f"{end_conversion}:")
+
+                stack.move(-1)
+                stack.free(expr_dest)
+
+                if not is_register_destination(destination):
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
+
+                return compiled
+
+            elif types[expr].size == 4:
+                compiled = Sections()
+
+                # Evaluate the expression itself.
+                expr_dest = expr_temp_name()
+                stack.alloc(StackVar(expr_dest, types[expr], initialized=True))
+                compiled += generate_expr_internal(expr, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+                # Now, figure out if the expression was nonzero (boolean True) or zero (boolean False)
+                compiled += generate_move_to(expr_dest, stack, clobbers, context, offset=3)
+
+                end_conversion_first_byte = local_label_name("end_conversion_first_byte")
+                end_conversion_second_byte = local_label_name("end_conversion_second_byte")
+                end_conversion = local_label_name("end_conversion")
+
+                # First byte check with short circuiting for non-zero.
+                clobbers.add("A")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code("  LOADI 0xFF")
+                compiled.append_code(f"  JRINZ {end_conversion_first_byte}")
+
+                # Second byte check with short circuiting for non-zero.
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code("  LOADI 0xFF")
+                compiled.append_code(f"  JRINZ {end_conversion_second_byte}")
+
+                # Third byte check with short circuiting for non-zero.
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code("  LOADI 0xFF")
+                compiled.append_code(f"  JRINZ {end_conversion}")
+
+                # Fourth byte check.
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code("  LOADI 0x00")
+                compiled.append_code("  SKIPIF ZF")
+                compiled.append_code("  INV")
+                compiled.append_code(f"  JRI {end_conversion}")
+
+                compiled.append_code(f"{end_conversion_first_byte}:")
+                compiled.append_code("  INCPC")
+                compiled.append_code(f"{end_conversion_second_byte}:")
+                compiled.append_code("  INCPC")
+                compiled.append_code(f"{end_conversion}:")
+
+                stack.move(-3)
+                stack.free(expr_dest)
+
+                if not is_register_destination(destination):
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
+
+                return compiled
+
+            else:
+                raise Exception(f"Logic error, unexpected type {types[expr]} in bool() evaluation!")
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -6683,6 +6866,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("peek", CoreType("any"), [CoreType("uint16")]),
         FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")]),
         FunctionPrototype("abs", CoreType("int"), [CoreType("int")]),
+        FunctionPrototype("bool", CoreType("bool"), [CoreType("any")]),
     ]
 
 

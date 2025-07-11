@@ -14048,7 +14048,6 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
                 *datalines,
                 *sections.data,
                 *heaplines,
-                ".org 0x9000",
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
@@ -14118,7 +14117,6 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
                 *datalines,
                 *sections.data,
                 *heaplines,
-                ".org 0x9000",
             ]))
             cpu = CPUCore(memory)
             rununtilhalt(cpu)
@@ -14162,6 +14160,244 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
 
     print(f"Average cycles for abs: {int(cycles/count)}")
     print(f"Average instructions for abs: {int(instructions/count)}")
+
+
+def verifybool(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "bool" not in only and "compiler" not in only:
+        return
+
+    print("Verifying bool...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Mypy throws a fit because variables in Python are scoped outside of their for loops, whatever.
+    val: Any
+    result: Any
+    expected: Any
+
+    # Test integers.
+    for width in ["uint8", "uint16", "uint32"]:
+        for val in (
+            [0x00, 0xA5, 0x5A, 0xFF] +
+            ([0xFF00, 0x00FF, 0xA5A5] if width == "uint16" else []) +
+            ([0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xA5A5A5A5] if width == "uint32" else [])
+        ):
+            sections = parse_and_compile_module("bool", textwrap.dedent(f"""
+                def callable(input: {width}) -> bool:
+                    return bool(input)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                "main:",
+                f"PUSHI {(val >> 0) & 0xFF}",
+                *([f"PUSHI {(val >> 8) & 0xFF}"] if width in {"uint16", "uint32"} else []),
+                *([f"PUSHI {(val >> 16) & 0xFF}", f"PUSHI {(val >> 24 & 0xFF)}"] if width == "uint32" else []),
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"bool changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"bool changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"bool changed V value from {222} to {cpu.v}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = bool(val)
+            _assert(
+                result == expected,
+                f"Failed to bool at {width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test characters.
+    for val in ['\0', 'a', 'b', 'c']:
+        sections = parse_and_compile_module("bool", textwrap.dedent("""
+            def callable(input: char) -> bool:
+                return bool(input)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {val!r}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bool changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bool changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bool changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = False if val == "\0" else True
+        _assert(
+            result == expected,
+            "Failed to bool at char, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Test booleans.
+    for val in [True, False]:
+        sections = parse_and_compile_module("bool", textwrap.dedent("""
+            def callable(input: bool) -> bool:
+                return bool(input)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {'0xff' if val else '0x00'}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bool changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bool changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bool changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = val
+        _assert(
+            result == expected,
+            "Failed to bool at char, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Test strings.
+    for val in ["", "nonzero"]:
+        sections = parse_and_compile_module("bool", textwrap.dedent(f"""
+            def inner(input: const[str]) -> bool:
+                return bool(input)
+
+            def callable() -> bool:
+                return inner({val!r})
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"bool changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"bool changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"bool changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = bool(val)
+        _assert(
+            result == expected,
+            "Failed to bool at char, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for bool: {int(cycles/count)}")
+    print(f"Average instructions for bool: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -14320,3 +14556,4 @@ if __name__ == "__main__":
     verifypeek(only, args.full)
     verifypoke(only, args.full)
     verifyabs(only, args.full)
+    verifybool(only, args.full)
