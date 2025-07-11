@@ -5,7 +5,6 @@ Things that would be nice to have for convenience:
  - import statements for supporting inter-module variables and functions.
  - function default parameter support.
  - function keyword argument support.
- - coercing a boolean from a string/character/integer.
  - asm() block to allow inlining assembly.
  - auto-infer types for variables that can be inferred.
  - walrus operator.
@@ -19,7 +18,7 @@ Optimizations that would be nice to have:
  - replace LNGJUMP with JRI when appropriately small jumps exist.
  - non-const string initialization to "" shouldn't call strcpy.
  - two lines of "SWAP PC, SPC" in a row.
- - look at what functions in the stdlib can be made less "safe" by removing stack parameter restores.
+ - look for booleans that get calculated out only to be "INV" for a JRI or LNGJUMP.
 
 Things that would be good for a complete compiler that I probably will not need:
  - 8/16/32 bit signed division.

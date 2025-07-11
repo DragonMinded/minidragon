@@ -9107,6 +9107,9 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
     instructions = 0
     count = 0
 
+    # Mypy throws a fit because variables in Python are scoped outside of their for loops, whatever.
+    input_val: Any
+
     # First, test if statements with no else case, both when they return and when they
     # expect to naturally flow out past the indented block.
     for input_val, expected in [(True, 15), (False, -25)]:
@@ -9664,6 +9667,112 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    # Now, test boolean coercing from other types.
+    for input_val, expected in [(1, 15), (0, -25)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def simpleif(condition: uint8) -> int8:
+                retval: int8 = -25
+                if condition:
+                    retval = 15
+                return retval
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {input_val}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL simpleif",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements int coerced, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for input_val, expected in [("nonempty", 15), ("", -25)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent(f"""
+            def simpleifimpl(condition: const[str]) -> int8:
+                retval: int8 = -25
+                if condition:
+                    retval = 15
+                return retval
+
+            def simpleif() -> int8:
+                return simpleifimpl({input_val!r})
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simpleif",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements string coerced, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     print(f"Average cycles for ifstatements: {int(cycles/count)}")
     print(f"Average instructions for ifstatements: {int(instructions/count)}")
 
@@ -9684,6 +9793,8 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -9922,6 +10033,67 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             result == expected,
             "Failed to whilestatements else, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Also, verify non-boolean expressions by implementing a terrible string length.
+    for val, expected in [("", 0), ("abcde", 5)]:
+        sections = parse_and_compile_module("whilestatements", textwrap.dedent(f"""
+            def software_strlen(instr: const[str]) -> uint8:
+                local: str[64] = instr
+                actual_len: uint8 = 0
+
+                while local:
+                    actual_len += 1
+                    local = local[1:]
+
+                return actual_len
+
+            def simple_while() -> uint8:
+                return software_strlen({val!r})
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *strcpylines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_while",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"whilestatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"whilestatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"whilestatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to whilestatements strlen implementation, "
             + f"got {result} instead of {expected}!",
         )
         cycles += cpu.cycles

@@ -5691,10 +5691,14 @@ def generate_if_statement(
     types: Dict[cst.CSTNode, CoreType] = infer_expr_types(statement.test, CoreType("bool"), stack, refs, local_consts, context)
 
     if not types[statement.test].is_bool:
-        # TODO: Coerce from empty string, zero-valued integer, etc.
-        raise CompilerError("Unsupported non-boolean expression in if statement test", context)
+        test_coerced = create_call("bool", [statement.test])
+        types[test_coerced] = CoreType("bool")
 
-    compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context)
+        compiled += generate_expr_internal(
+            test_coerced, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.virtual(test_coerced).wrap(test_coerced)
+        )
+    else:
+        compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(statement.test))
 
     # Now, depending on if this if statement has an else body or not,
     if statement.orelse is None:
@@ -5885,10 +5889,6 @@ def generate_while_statement(
     # First, we need to infer the expression type, so we can figure out if we need to implicitly coerce the value.
     types: Dict[cst.CSTNode, CoreType] = infer_expr_types(statement.test, CoreType("bool"), stack, refs, local_consts, context)
 
-    if not types[statement.test].is_bool:
-        # TODO: Coerce from empty string, zero-valued integer, etc.
-        raise CompilerError("Unsupported non-boolean expression in while statement test", context)
-
     # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
     # and so that we can support else statements in while loops.
     test_label = local_label_name("loop_test")
@@ -5898,7 +5898,16 @@ def generate_while_statement(
 
     # We're at the point we want to loop back to, so label it now, and generate the test itself.
     compiled.append_code(f"{test_label}:")
-    compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context)
+
+    if not types[statement.test].is_bool:
+        test_coerced = create_call("bool", [statement.test])
+        types[test_coerced] = CoreType("bool")
+
+        compiled += generate_expr_internal(
+            test_coerced, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.virtual(test_coerced).wrap(test_coerced)
+        )
+    else:
+        compiled += generate_expr_internal(statement.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(statement.test))
 
     # Now, generate the code necessary to perform the loop, as well as optionally the else.
     if statement.orelse is None:
