@@ -7420,6 +7420,11 @@ def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None
     cycles = 0
     instructions = 0
     count = 0
+
+    # Shut mypy up so we don't have to choose different variable names for a test.
+    val: Any
+
+    # First, test normal ternary expressions.
     for a in [-5, 0, 5]:
         for b in [-7, 0, 7]:
             for val in [False, True]:
@@ -7433,6 +7438,56 @@ def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None
                     f"PUSHI {a}",
                     f"PUSHI {b}",
                     f"PUSHI {'0xFF' if val else '0x00'}",
+                    "LOADI 111",
+                    "MOV A, U",
+                    "LOADI 222",
+                    "MOV A, V",
+                    "LOADI 123",
+                    "CALL func",
+                    "HALT",
+                ]))
+                cpu = CPUCore(memory)
+                rununtilhalt(cpu)
+
+                _assert(
+                    cpu.a == 123,
+                    f"ternaryexpressions changed accumulator value from {123} to {cpu.a}!",
+                )
+                _assert(
+                    cpu.u == 111,
+                    f"ternaryexpressions changed U value from {111} to {cpu.u}!",
+                )
+                _assert(
+                    cpu.v == 222,
+                    f"ternaryexpressions changed V value from {222} to {cpu.v}!",
+                )
+                result = bintoint(cpu.ram[cpu.pc + 0])
+                expected = (a + 5) if val else (b - 7)
+                _assert(
+                    result == expected,
+                    "Failed to ternaryexpressions, "
+                    + f"got {result} instead of {expected}!",
+                )
+                cycles += cpu.cycles
+                instructions += cpu.ticks
+                count += 1
+
+    # Now test with coercing to a boolean type.
+    for a in [-5, 0, 5]:
+        for b in [-7, 0, 7]:
+            for val in ["", "nonzero"]:
+                memory = getmemory(os.linesep.join([
+                    *initlines,
+                    *parse_and_compile_module("ternaryexpressions", textwrap.dedent(f"""
+                        def funcimpl(a: int8, b: int8, op: const[str]) -> int8:
+                            return (a + 5) if op else (b - 7)
+
+                        def func(a: int8, b: int8) -> int8:
+                            return funcimpl(a, b, {val!r})
+                    """)).code,
+                    "main:",
+                    f"PUSHI {a}",
+                    f"PUSHI {b}",
                     "LOADI 111",
                     "MOV A, U",
                     "LOADI 222",

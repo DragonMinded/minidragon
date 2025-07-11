@@ -4384,7 +4384,15 @@ def generate_ternary_expr(
 
     # First, compile the boolean expression, putting the result in A, so we know which
     # of the two expressions to evaluate.
-    compiled += generate_expr_internal(expression.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.test))
+    if not types[expression.test].is_bool:
+        test_coerced = create_call("bool", [expression.test])
+        types[test_coerced] = CoreType("bool")
+
+        compiled += generate_expr_internal(
+            test_coerced, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.virtual(test_coerced).wrap(test_coerced)
+        )
+    else:
+        compiled += generate_expr_internal(expression.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.test))
 
     # Now, we need a place to jump to if the expression above is false, as well as a
     # place to jump to at the end of the true expression.
@@ -5195,10 +5203,6 @@ def infer_expr_types_impl(
         body_tree = infer_expr_types_impl(expression.body, stack, refs, local_consts, context.wrap(expression.body))
         orelse_tree = infer_expr_types_impl(expression.orelse, stack, refs, local_consts, context.wrap(expression.orelse))
         inferred.update(infer_expr_types_impl(expression.test, stack, refs, local_consts, context.wrap(expression.test)))
-
-        test_inferred = inferred[expression.test]
-        if not test_inferred.is_bool:
-            raise CompilerError(f"Unsupported non-boolean type {test_inferred.type} in boolean expression", context)
 
         body_inferred = body_tree[expression.body]
         orelse_inferred = orelse_tree[expression.orelse]
