@@ -14761,8 +14761,157 @@ def verifychr(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    print(f"Average cycles for bool: {int(cycles/count)}")
-    print(f"Average instructions for bool: {int(instructions/count)}")
+    print(f"Average cycles for chr: {int(cycles/count)}")
+    print(f"Average instructions for chr: {int(instructions/count)}")
+
+
+def verifyord(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "ord" not in only and "compiler" not in only:
+        return
+
+    print("Verifying ord...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/string/strlen.S", "r") as fp:
+        strlenlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Test integers.
+    for val in [' ', 'A', '!']:
+        for outsize in ['uint8', 'int8', 'uint16', 'int16', 'uint32', 'int32']:
+            sections = parse_and_compile_module("ord", textwrap.dedent(f"""
+                def callable(input: char) -> nopad[{outsize}]:
+                    return ord(input)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                "main:",
+                f"PUSHI {val!r}",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"ord changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"ord changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"ord changed V value from {222} to {cpu.v}!",
+            )
+            if outsize in {"uint8", "int8"}:
+                result = cpu.ram[cpu.pc + 0]
+            elif outsize in {"uint16", "int16"}:
+                result = bintoint16(
+                    (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+                )
+            else:
+                result = bintoint32(
+                    (cpu.ram[cpu.pc] << 24) +
+                    (cpu.ram[cpu.pc + 1] << 16) +
+                    (cpu.ram[cpu.pc + 2] << 8) +
+                    cpu.ram[cpu.pc + 3]
+                )
+            expected = ord(val)
+            _assert(
+                result == expected,
+                "Failed to ord standard, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test silly program.
+    if True:
+        sections = parse_and_compile_module("ord", textwrap.dedent("""
+            def callable() -> uint8:
+                instr: const[str] = "ABCDE"
+                chksum: uint8 = 0
+                pos: uint8
+
+                for pos in range(len(instr)):
+                    chksum += ord(instr[pos])
+
+                return chksum
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *cmplines,
+            *strlenlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 1",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"chr changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"chr changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"chr changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc]
+        expected = sum(ord(x) for x in "ABCDE") & 0xFF
+        _assert(
+            result == expected,
+            "Failed to ord in string loop, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for ord: {int(cycles/count)}")
+    print(f"Average instructions for ord: {int(instructions/count)}")
 
 
 if __name__ == "__main__":
@@ -14923,3 +15072,4 @@ if __name__ == "__main__":
     verifyabs(only, args.full)
     verifybool(only, args.full)
     verifychr(only, args.full)
+    verifyord(only, args.full)

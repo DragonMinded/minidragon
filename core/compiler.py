@@ -2098,7 +2098,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -2798,7 +2798,70 @@ def generate_function_call(
                 return compiled
 
             else:
-                raise Exception(f"Logic error, unexpected type {types[expr]} in bool() evaluation!")
+                raise Exception(f"Logic error, unexpected type {types[expr]} in chr() evaluation!")
+
+        elif function_prototype.name == "ord":
+            if len(args) != 1 or len(arg_types) != 1:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment!", context)
+
+            # Cast from integer to char, but the 8-bit case is simple.
+            expr = args[0].value
+
+            if not types[expr].is_char:
+                raise CompilerError("Unsupported conversion from {types[expr].type} to integer!", context)
+
+            # Figure out what to do based on the destination type.
+            destination_type = stack.typeof(destination)
+            if destination_type is None:
+                raise Exception("Logic error, couldn't determine destination type for ord!")
+
+            # Simply evaluate the expression into the destination directly, but pretend that the destination
+            # is a character instead of an integer.
+            compiled = Sections()
+
+            # Evaluate the expression itself.
+            clobbers.add("A")
+            compiled += generate_expr_internal(expr, "register(A, char)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+            # Intentionally zero-sign in the signed int16/int32 cases below since we know that the ord(some_char) should never be negative.
+            if destination_type.size == 1:
+                if not is_register_destination(destination):
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
+                    stack.init(destination)
+
+                return compiled
+
+            elif destination_type.size == 2:
+                compiled += generate_move_to(destination, stack, clobbers, context)
+                compiled.append_code("  STORE A")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  STOREI 0")
+                stack.move(-1)
+                stack.init(destination)
+
+                return compiled
+
+            elif destination_type.size == 4:
+                compiled += generate_move_to(destination, stack, clobbers, context)
+                compiled.append_code("  STORE A")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  LOADI 0")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  STORE A")
+                stack.move(-3)
+                stack.init(destination)
+
+                return compiled
+
+            else:
+                raise Exception(f"Logic error, unexpected type {types[expr]} in ord() evaluation!")
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -6933,6 +6996,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("abs", CoreType("int"), [CoreType("int")]),
         FunctionPrototype("bool", CoreType("bool"), [CoreType("any")]),
         FunctionPrototype("chr", CoreType("char"), [CoreType("int")]),
+        FunctionPrototype("ord", CoreType("int8"), [CoreType("char")]),
     ]
 
 
