@@ -14914,6 +14914,217 @@ def verifyord(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for ord: {int(instructions/count)}")
 
 
+def verifyint(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "int" not in only and "compiler" not in only:
+        return
+
+    print("Verifying int...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/multiply.S", "r") as fp:
+        multiplylines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
+    with open("lib/conversion/atoi.S", "r") as fp:
+        atoilines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Mypy throws a fit because variables in Python are scoped outside of their for loops, whatever.
+    val: Any
+    result: Any
+    expected: Any
+
+    # Test integers.
+    for width in ["uint8", "int8", "uint16", "int16", "uint32", "int32"]:
+        for val in (
+            [0x00, 0xA5, 0x5A, 0xFF] +
+            ([0xFF00, 0x00FF, 0xA5A5] if width in {"uint16", "int16"} else []) +
+            ([0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xA5A5A5A5] if width in {"uint32", "int32"} else [])
+        ):
+            sections = parse_and_compile_module("int", textwrap.dedent(f"""
+                def callable(input: {width}) -> {width}:
+                    return int(input)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                "main:",
+                f"PUSHI {(val >> 0) & 0xFF}",
+                *([f"PUSHI {(val >> 8) & 0xFF}"] if width in {"uint16", "int16", "uint32", "int32"} else []),
+                *([f"PUSHI {(val >> 16) & 0xFF}", f"PUSHI {(val >> 24 & 0xFF)}"] if width in {"uint32", "int32"} else []),
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"int changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"int changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"int changed V value from {222} to {cpu.v}!",
+            )
+            if width in {"uint8", "int8"}:
+                result = cpu.ram[cpu.pc + 0]
+            elif width in {"uint16", "int16"}:
+                result = (
+                    (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+                )
+            else:
+                result = (
+                    (cpu.ram[cpu.pc] << 24) +
+                    (cpu.ram[cpu.pc + 1] << 16) +
+                    (cpu.ram[cpu.pc + 2] << 8) +
+                    cpu.ram[cpu.pc + 3]
+                )
+            expected = val
+            _assert(
+                result == expected,
+                f"Failed to int at {width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test booleans.
+    for val in [True, False]:
+        sections = parse_and_compile_module("int", textwrap.dedent("""
+            def callable(input: bool) -> int8:
+                return int(input)
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            "main:",
+            f"PUSHI {'0xff' if val else '0x00'}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"int changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"int changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"int changed V value from {222} to {cpu.v}!",
+        )
+        result = int(cpu.ram[cpu.pc + 0])
+        expected = int(val)
+        _assert(
+            result == expected,
+            "Failed to int at bool, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Test strings.
+    for val, expected in [("", 0), ("0", 0), ("123", 123), ("123, 456", 123)]:
+        sections = parse_and_compile_module("int", textwrap.dedent(f"""
+            def inner(input: const[str]) -> uint8:
+                return int(input)
+
+            def callable() -> uint8:
+                return inner({val!r})
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *atoilines,
+            *multiplylines,
+            *addlines,
+            *neglines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"int changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"int changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"int changed V value from {222} to {cpu.v}!",
+        )
+        result = cpu.ram[cpu.pc + 0]
+        _assert(
+            result == expected,
+            "Failed to int at string, "
+            + f"got {result} instead of {expected} for {val!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for int: {int(cycles/count)}")
+    print(f"Average instructions for int: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -15073,3 +15284,4 @@ if __name__ == "__main__":
     verifybool(only, args.full)
     verifychr(only, args.full)
     verifyord(only, args.full)
+    verifyint(only, args.full)

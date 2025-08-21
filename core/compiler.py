@@ -894,7 +894,7 @@ def codegen_eval(expr: cst.BaseExpression, constants: List[Constant]) -> object:
     # If we don't control our builtins, python will eval a bunch of stuff we don't support due to
     # its own builtins, and it will appear to work but only for constant expressions.
     builtins_dict: Dict[str, object] = {}
-    for name in ["abs", "bool", "str", "len"]:
+    for name in ["abs", "bool", "str", "len", "chr", "ord", "int"]:
         builtins_dict[name] = getattr(builtins, name)
 
     try:
@@ -1243,10 +1243,14 @@ def generate_memcpy_locations(
     stack: Stack,
     clobbers: Set[str],
     context: Context,
+    register: str = "A",
 ) -> Sections:
     compiled = Sections()
     if src_loc == dst_loc:
         return compiled
+
+    if register not in {"A", "U", "V"}:
+        raise Exception("Logic error, unsupported register for copying!")
 
     from_rel = stack.diff(src_loc)
     compiled += generate_move_by("memcpy_unrolled", from_rel, stack, clobbers, context)
@@ -1256,15 +1260,15 @@ def generate_memcpy_locations(
 
     if shuffle_amount < 0:
         for i in range(size):
-            clobbers.add("A")
+            clobbers.add(register)
 
-            compiled.append_code("  LOAD A")
+            compiled.append_code(f"  LOAD {register}")
             compiled.append_code(f"  SUBPCI {-shuffle_amount}" + comment_source())
 
             stack.move(-shuffle_amount)
             compiled.code += comment_stack(stack)
 
-            compiled.append_code("  STORE A")
+            compiled.append_code(f"  STORE {register}")
 
             if i < size - 1:
                 compiled.append_code(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
@@ -1273,15 +1277,15 @@ def generate_memcpy_locations(
 
     else:
         for i in range(size):
-            clobbers.add("A")
+            clobbers.add(register)
 
-            compiled.append_code("  LOAD A")
+            compiled.append_code(f"  LOAD {register}")
             compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
 
             stack.move(-shuffle_amount)
             compiled.code += comment_stack(stack)
 
-            compiled.append_code("  STORE A")
+            compiled.append_code(f"  STORE {register}")
 
             if i < size - 1:
                 compiled.append_code(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
@@ -1297,10 +1301,14 @@ def generate_memcpy_stackvars(
     stack: Stack,
     clobbers: Set[str],
     context: Context,
+    register: str = "A",
 ) -> Sections:
     compiled = Sections()
     if source == destination:
         return compiled
+
+    if register not in {"A", "U", "V"}:
+        raise Exception("Logic error, unsupported register for copying!")
 
     source_size = stack.sizeof(source)
     destination_size = stack.sizeof(destination)
@@ -1323,10 +1331,11 @@ def generate_memcpy_stackvars(
     # Move to the right spot on the stack and then perform the operation on the two numbers.
     # Since bitwise operations are independent we can just do this in a loop.
     for offset in range(destination_size):
+        clobbers.add(register)
         compiled += generate_move_to(source, stack, clobbers, context, offset=actual_expr_offset(offset))
-        compiled.append_code("  LOAD A")
+        compiled.append_code(f"  LOAD {register}")
         compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
-        compiled.append_code("  STORE A")
+        compiled.append_code(f"  STORE {register}")
 
     return compiled
 
@@ -2000,6 +2009,7 @@ def generate_function_call_internal(
     return_handled = False
 
     # Now, if the return type is a register type, put it in the destination.
+    unsafe_to_clobber = False
     if isinstance(function_prototype.return_type, RegisterCoreType):
         return_handled = True
         if destination is not None:
@@ -2007,6 +2017,7 @@ def generate_function_call_internal(
                 # We're already returning to a register, so we're done here!
                 if function_prototype.return_type.register != "A":
                     raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.register} for function")
+                unsafe_to_clobber = True
             else:
                 compiled += generate_move_to(destination, stack, clobbers, context)
                 if function_prototype.return_type.register == "A":
@@ -2027,7 +2038,7 @@ def generate_function_call_internal(
         stack.init(dst)
 
         if source_size == dest_size:
-            compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context)
+            compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
         else:
             raise CompilerError("Unsupported byref assignment from different variable sizes", context)
 
@@ -2048,7 +2059,7 @@ def generate_function_call_internal(
             stack.init(dst)
 
             if source_size == dest_size:
-                compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context)
+                compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
             else:
                 raise CompilerError("Unsupported function return from different variable sizes", context)
 
@@ -2079,7 +2090,7 @@ def generate_function_call_internal(
                 stack.init(destination)
 
                 if src_size == dest_size:
-                    compiled += generate_memcpy_locations(src_loc, dest_loc, dest_size, stack, clobbers, context)
+                    compiled += generate_memcpy_locations(src_loc, dest_loc, dest_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
                 else:
                     raise CompilerError("Unsupported function return from different variable sizes", context)
 
@@ -2098,7 +2109,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -2288,6 +2299,7 @@ def generate_function_call(
                     if not is_register_destination(destination):
                         compiled += generate_move_to(destination, stack, clobbers, context)
                         compiled.append_code("  STORE A")
+                        stack.init(destination)
 
                 elif destination_type.type == "bool":
                     # Can't just load like above, our compiler assumes that boolean true/false is always 0xff/0x00.
@@ -2309,6 +2321,7 @@ def generate_function_call(
                     if not is_register_destination(destination):
                         compiled += generate_move_to(destination, stack, clobbers, context)
                         compiled.append_code("  STORE A")
+                        stack.init(destination)
 
                 elif destination_type.type in {"int16", "uint16"}:
                     # This one's slightly harder, need to copy two things, but that's manageable.
@@ -2618,6 +2631,7 @@ def generate_function_call(
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
                     compiled.append_code("  STORE A")
+                    stack.init(destination)
 
                 return compiled
 
@@ -2644,6 +2658,7 @@ def generate_function_call(
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
                     compiled.append_code("  STORE A")
+                    stack.init(destination)
 
                 return compiled
 
@@ -2682,6 +2697,7 @@ def generate_function_call(
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
                     compiled.append_code("  STORE A")
+                    stack.init(destination)
 
                 return compiled
 
@@ -2742,6 +2758,7 @@ def generate_function_call(
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
                     compiled.append_code("  STORE A")
+                    stack.init(destination)
 
                 return compiled
 
@@ -2774,6 +2791,7 @@ def generate_function_call(
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
                     compiled.append_code("  STORE A")
+                    stack.init(destination)
 
                 return compiled
 
@@ -2794,6 +2812,7 @@ def generate_function_call(
                     clobbers.add("A")
                     compiled += generate_move_to(destination, stack, clobbers, context)
                     compiled.append_code("  STORE A")
+                    stack.init(destination)
 
                 return compiled
 
@@ -2861,7 +2880,77 @@ def generate_function_call(
                 return compiled
 
             else:
-                raise Exception(f"Logic error, unexpected type {types[expr]} in ord() evaluation!")
+                raise Exception(f"Logic error, unexpected type {destination_type} in ord() evaluation!")
+
+        elif function_prototype.name == "int":
+            if len(args) != 1 or len(arg_types) != 1:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment!", context)
+
+            # This could be a passthrough, in the case of an integer input, undefined in case of char, a simple
+            # cast in case of bool, and an atoi call in case of a string.
+            expr = args[0].value
+
+            if types[expr].is_integer:
+                compiled = Sections()
+                compiled += generate_expr_internal(expr, destination, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+                return compiled
+
+            elif types[expr].is_char:
+                raise CompilerError("Unsupported conversion from {types[expr].type} to integer!", context)
+
+            elif types[expr].is_bool:
+                clobbers.add("A")
+                compiled = Sections()
+                compiled += generate_expr_internal(expr, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+                # Set to 0 or 1 like python does for boolean values. Load immediate is a 2 byte instruction so we can't
+                # SKIPIF it. However, we know that booleans in our system are either 0x00 or 0xFF so we can set to 0 by
+                # leaving A alone, and set to 1 by adding 2 to 255.
+                compiled.append_code("  ADDI 0")
+                compiled.append_code("  SKIPIF ZF")
+                compiled.append_code("  ADDI 2")
+
+                if not is_register_destination(destination):
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
+                    stack.init(destination)
+
+                return compiled
+
+            elif types[expr].is_string:
+                destination_type = stack.typeof(destination)
+                if destination_type is None:
+                    raise Exception("Logic error, couldn't determine destination type for ord!")
+
+                if not destination_type.is_integer:
+                    raise Exception("Logic error, type checker phase should have guaranteed this!")
+
+                if destination_type.size == 1:
+                    func = "atoi8"
+                elif destination_type.size == 2:
+                    func = "atoi16"
+                elif destination_type.size == 4:
+                    func = "atoi32"
+                else:
+                    raise Exception("Logic error, unsupported destination size for int()!")
+
+                return generate_function_call_internal(
+                    create_call(func, [args[0].value]),
+                    destination,
+                    types,
+                    stack,
+                    clobbers,
+                    allocations,
+                    refs,
+                    local_consts,
+                    context,
+                )
+
+            else:
+                raise Exception(f"Logic error, unexpected type {types[expr]} in int() evaluation!")
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -6991,6 +7080,7 @@ def builtin_functions() -> List[FunctionPrototype]:
     return [
         FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("str")]),
         FunctionPrototype("str", CoreType("str"), [CoreType("any")]),
+        FunctionPrototype("int", CoreType("int"), [CoreType("any")]),
         FunctionPrototype("peek", CoreType("any"), [CoreType("uint16")]),
         FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")]),
         FunctionPrototype("abs", CoreType("int"), [CoreType("int")]),
