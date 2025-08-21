@@ -2098,7 +2098,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -2740,6 +2740,58 @@ def generate_function_call(
                 stack.free(expr_dest)
 
                 if not is_register_destination(destination):
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
+
+                return compiled
+
+            else:
+                raise Exception(f"Logic error, unexpected type {types[expr]} in bool() evaluation!")
+
+        elif function_prototype.name == "chr":
+            if len(args) != 1 or len(arg_types) != 1:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment!", context)
+
+            # Cast from integer to char, but the 8-bit case is simple.
+            expr = args[0].value
+
+            if not types[expr].is_integer:
+                raise CompilerError("Unsupported conversion from {types[expr].type} to character!", context)
+
+            if types[expr].size == 1:
+                # Simply evaluate the expression into the destination directly, but pretend that the destination
+                # is an integer instead of a character.
+                compiled = Sections()
+
+                # Evaluate the expression itself.
+                dest_loc = "register(A, uint8)" if types[expr].is_unsigned else "register(A, int8)"
+                clobbers.add("A")
+                compiled += generate_expr_internal(expr, dest_loc, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+                if not is_register_destination(destination):
+                    compiled += generate_move_to(destination, stack, clobbers, context)
+                    compiled.append_code("  STORE A")
+
+                return compiled
+
+            elif types[expr].size in {2, 4}:
+                compiled = Sections()
+
+                # Evaluate the expression itself.
+                expr_dest = expr_temp_name()
+                stack.alloc(StackVar(expr_dest, types[expr], initialized=True))
+                compiled += generate_expr_internal(expr, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+
+                # Now, load the bottom byte into the A register to return it.
+                compiled += generate_move_to(expr_dest, stack, clobbers, context)
+                compiled.append_code("  LOAD A")
+                stack.free(expr_dest)
+
+                if not is_register_destination(destination):
+                    clobbers.add("A")
                     compiled += generate_move_to(destination, stack, clobbers, context)
                     compiled.append_code("  STORE A")
 
@@ -6880,6 +6932,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")]),
         FunctionPrototype("abs", CoreType("int"), [CoreType("int")]),
         FunctionPrototype("bool", CoreType("bool"), [CoreType("any")]),
+        FunctionPrototype("chr", CoreType("char"), [CoreType("int")]),
     ]
 
 

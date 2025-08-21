@@ -14627,6 +14627,144 @@ def verifybool(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for bool: {int(instructions/count)}")
 
 
+def verifychr(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "chr" not in only and "compiler" not in only:
+        return
+
+    print("Verifying chr...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Test integers.
+    for width in ["uint8", "uint16", "uint32"]:
+        for val in [0x00, 0x20, 0x65, 0x21]:
+            sections = parse_and_compile_module("chr", textwrap.dedent(f"""
+                def callable(input: {width}) -> char:
+                    return chr(input)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                "main:",
+                f"PUSHI {(val >> 0) & 0xFF}",
+                *([f"PUSHI {(val >> 8) & 0xFF}"] if width in {"uint16", "uint32"} else []),
+                *([f"PUSHI {(val >> 16) & 0xFF}", f"PUSHI {(val >> 24 & 0xFF)}"] if width == "uint32" else []),
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"chr changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"chr changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"chr changed V value from {222} to {cpu.v}!",
+            )
+            result = cpu.ram[cpu.pc + 0]
+            expected = val & 0xFF
+            _assert(
+                result == expected,
+                f"Failed to chr at {width}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test silly program.
+    if True:
+        sections = parse_and_compile_module("chr", textwrap.dedent("""
+            def callable() -> str:
+                out: str[8] = ""
+                ascval: int8
+
+                for ascval in range(65, 70):
+                    out += chr(ascval)
+
+                return out
+        """))
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *strcpylines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"chr changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"chr changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"chr changed V value from {222} to {cpu.v}!",
+        )
+        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expectedstr = "ABCDE"
+        _assert(
+            resultstr == expectedstr,
+            "Failed to chr in string concatenation, "
+            + f"got {resultstr} instead of {expectedstr}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for bool: {int(cycles/count)}")
+    print(f"Average instructions for bool: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -14784,3 +14922,4 @@ if __name__ == "__main__":
     verifypoke(only, args.full)
     verifyabs(only, args.full)
     verifybool(only, args.full)
+    verifychr(only, args.full)

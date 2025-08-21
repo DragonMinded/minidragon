@@ -1,5 +1,5 @@
 Things that I think I am going to need if I want to use this compiler:
- - builtins that will be needed such as chr(), ord(), int(), hex(), min(), max()
+ - builtins that will be needed such as ord(), int(), hex(), min(), max()
 
 Things that would be nice to have for convenience:
  - import statements for supporting inter-module variables and functions.
