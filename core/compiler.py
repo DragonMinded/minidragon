@@ -894,7 +894,7 @@ def codegen_eval(expr: cst.BaseExpression, constants: List[Constant]) -> object:
     # If we don't control our builtins, python will eval a bunch of stuff we don't support due to
     # its own builtins, and it will appear to work but only for constant expressions.
     builtins_dict: Dict[str, object] = {}
-    for name in ["abs", "bool", "str", "len", "chr", "ord"]:
+    for name in ["abs", "bool", "str", "len", "chr", "ord", "min", "max"]:
         builtins_dict[name] = getattr(builtins, name)
 
     try:
@@ -2128,7 +2128,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex", "min", "max"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -3022,6 +3022,52 @@ def generate_function_call(
             )
 
             return compiled
+
+        elif function_prototype.name in {"min", "max"}:
+            if len(args) != 2 or len(arg_types) != 2:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment!", context)
+
+            destination_type = stack.typeof(destination)
+            if destination_type is None:
+                raise Exception("Logic error, cannot find destination type for min/max function!")
+
+            left = args[0].value
+            right = args[1].value
+            if not destination_type.is_integer or not types[left].is_integer or not types[right].is_integer:
+                raise CompilerError(f"The builtin function {function_prototype.name}() only compares integers!", context)
+
+            if destination_type.size == 1:
+                if destination_type.is_unsigned:
+                    func_name = f"u{function_prototype.name}8"
+                else:
+                    func_name = f"{function_prototype.name}8"
+            elif destination_type.size == 2:
+                if destination_type.is_unsigned:
+                    func_name = f"u{function_prototype.name}16"
+                else:
+                    func_name = f"{function_prototype.name}16"
+            elif destination_type.size == 4:
+                if destination_type.is_unsigned:
+                    func_name = f"u{function_prototype.name}32"
+                else:
+                    func_name = f"{function_prototype.name}32"
+            else:
+                raise Exception(f"Logic error, unexpected comparison size {destination_type.size}!")
+
+            return generate_function_call_internal(
+                create_call(func_name, [left, right]),
+                destination,
+                types,
+                stack,
+                clobbers,
+                allocations,
+                refs,
+                local_consts,
+                context,
+            )
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -7159,6 +7205,8 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("chr", CoreType("char"), [CoreType("int")]),
         FunctionPrototype("ord", CoreType("int8"), [CoreType("char")]),
         FunctionPrototype("hex", CoreType("str"), [CoreType("int")]),
+        FunctionPrototype("min", CoreType("int"), [CoreType("int"), CoreType("int")]),
+        FunctionPrototype("max", CoreType("int"), [CoreType("int"), CoreType("int")]),
     ]
 
 
