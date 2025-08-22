@@ -452,6 +452,53 @@ _ucmp32_4th_ne:
     LNGJUMP _ucmp8_loop
 
 
+min8:
+    ; Given two signed integers on the stack, return the smaller of the
+    ; two in the A register. Does not clobber the U, V or SPC registers.
+    ; Does not clobber the numbers on the stack.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; To get the min of 5 and 7, call it like so:
+    ;     PUSHI 5
+    ;     PUSHI 7
+    ;     CALL min8
+    ;
+    ; Stack layout:
+    ; PC + 0 - temporary second number storage
+    ; PC + 1 - temporary first number storage
+    ; PC + 2 - return address
+    ; PC + 3 - return address
+    ; PC + 4 - second number
+    ; PC + 5 - first number
+
+    ; First, figure out if either of their signs differ. If so then we
+    ; need to treat the negative number as a positive and swap to using
+    ; umax8 instead of umin8. Otherwise the math works out that we should
+    ; use umin8.
+    ADDPCI 2
+    LOAD A
+    SHL
+    ADDPCI 1
+    LOAD A
+    SUBPCI 3
+    JRINC _min8_second_positive
+
+    ; Second is negative. First is indeterminate.
+    SHL
+    LNGJUMPNC umax8
+
+    ; Second is negative, first is negative.
+    JRI umin8
+
+_min8_second_positive:
+    SHL
+    JRINC umin8
+
+    ; First is negative, second is positive.
+    LNGJUMP umax8
+
+
 umin8:
     ; Given two unsigned integers on the stack, return the smaller of the
     ; two in the A register. Does not clobber the U, V or SPC registers.
@@ -501,6 +548,61 @@ _umin8_ge:
     RET
 
 
+min16:
+    ; Given two signed 16-bit integers on the stack, return the smaller
+    ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to get the min of 0x1234 and 0x5678, call this like:
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     CALL min16
+    ;
+    ; Stack layout:
+    ; PC + 0  - temporary second number storage
+    ; PC + 1  - temporary second number storage
+    ; PC + 2  - temporary first number storage
+    ; PC + 3  - temporary first number storage
+    ; PC + 4  - contents of A register preserved
+    ; PC + 5  - return address
+    ; PC + 6  - return address
+    ; PC + 7  - second number
+    ; PC + 8  - second number
+    ; PC + 9  - first number
+    ; PC + 10 - first number
+
+    PUSH A
+
+    ; First, figure out if either of their signs differ. If so then we
+    ; need to treat the negative number as a positive and swap to using
+    ; umax16 instead of umin16. Otherwise the math works out that we should
+    ; use umin16.
+    ADDPCI 3
+    LOAD A
+    SHL
+    ADDPCI 2
+    LOAD A
+    SUBPCI 5
+    JRINC _min16_second_positive
+
+    ; Second is negative. First is indeterminate.
+    SHL
+    LNGJUMPNC _umax16_skip_a
+
+    ; Second is negative, first is negative.
+    JRI _umin16_skip_a
+
+_min16_second_positive:
+    SHL
+    JRINC _umin16_skip_a
+
+    ; First is negative, second is positive.
+    LNGJUMP _umax16_skip_a
+
+
 umin16:
     ; Given two unsigned 16-bit integers on the stack, return the smaller
     ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
@@ -530,6 +632,7 @@ umin16:
     ; First, save the A register
     PUSH A
 
+_umin16_skip_a:
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
     LOAD A
@@ -605,6 +708,74 @@ _umin16_ge:
     RET
 
 
+min32:
+    ; Given two signed 32-bit integers on the stack, return the smaller
+    ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to get the min of 0x12345678 and 0x56789101, call this
+    ; similar to:
+    ;     PUSHI 0x01
+    ;     PUSHI 0x91
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     CALL min32
+    ;
+    ; Stack layout:
+    ; PC + 0  - temporary second number storage
+    ; PC + 1  - temporary second number storage
+    ; PC + 2  - temporary second number storage
+    ; PC + 3  - temporary second number storage
+    ; PC + 4  - temporary first number storage
+    ; PC + 5  - temporary first number storage
+    ; PC + 6  - temporary first number storage
+    ; PC + 7  - temporary first number storage
+    ; PC + 8  - contents of A register preserved
+    ; PC + 9  - return address
+    ; PC + 10 - return address
+    ; PC + 11 - second number
+    ; PC + 12 - second number
+    ; PC + 13 - second number
+    ; PC + 14 - second number
+    ; PC + 15 - first number
+    ; PC + 16 - first number
+    ; PC + 17 - first number
+    ; PC + 18 - first number
+
+    PUSH A
+
+    ; First, figure out if either of their signs differ. If so then we
+    ; need to treat the negative number as a positive and swap to using
+    ; umax32 instead of umin32. Otherwise the math works out that we should
+    ; use umin32.
+    ADDPCI 3
+    LOAD A
+    SHL
+    ADDPCI 4
+    LOAD A
+    SUBPCI 7
+    JRINC _min32_second_positive
+
+    ; Second is negative. First is indeterminate.
+    SHL
+    LNGJUMPNC _umax32_skip_a
+
+    ; Second is negative, first is negative.
+    JRI _umin32_skip_a
+
+_min32_second_positive:
+    SHL
+    JRINC _umin32_skip_a
+
+    ; First is negative, second is positive.
+    LNGJUMP _umax32_skip_a
+
+
 umin32:
     ; Given two unsigned 32-bit integers on the stack, return the smaller
     ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
@@ -647,6 +818,7 @@ umin32:
     ; First, save the A register
     PUSH A
 
+_umin32_skip_a:
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
     LOAD A
@@ -746,6 +918,52 @@ _umin32_ge:
     RET
 
 
+max8:
+    ; Given two signed integers on the stack, return the larger of the
+    ; two in the A register. Does not clobber the U, V or SPC registers.
+    ; Does not clobber the numbers on the stack.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; To get the max of 5 and 7, call it like so:
+    ;     PUSHI 5
+    ;     PUSHI 7
+    ;     CALL max8
+    ;
+    ; Stack layout:
+    ; PC + 0 - temporary second number storage
+    ; PC + 1 - temporary first number storage
+    ; PC + 2 - return address
+    ; PC + 3 - return address
+    ; PC + 4 - second number
+    ; PC + 5 - first number
+
+    ; First, figure out if either of their signs differ. If so then we
+    ; need to treat the negative number as a positive and swap to using
+    ; umin8 instead of umax8. Otherwise the math works out that we should
+    ; use umax8.
+    ADDPCI 2
+    LOAD A
+    SHL
+    ADDPCI 1
+    LOAD A
+    SUBPCI 3
+    JRINC _max8_second_positive
+
+    ; Second is negative. First is indeterminate.
+    SHL
+    JRIC umax8
+
+    ; Second is negative, first is negative.
+    LNGJUMP umin8
+
+_max8_second_positive:
+    SHL
+    LNGJUMPC umin8
+
+    ; First is negative, second is positive, fall through to umax8
+
+
 umax8:
     ; Given two unsigned integers on the stack, return the larger of the
     ; two in the A register. Does not clobber the U, V or SPC registers.
@@ -795,6 +1013,61 @@ _umax8_le:
     RET
 
 
+max16:
+    ; Given two signed 16-bit integers on the stack, return the larger
+    ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to get the min of 0x1234 and 0x5678, call this like:
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     CALL max16
+    ;
+    ; Stack layout:
+    ; PC + 0  - temporary second number storage
+    ; PC + 1  - temporary second number storage
+    ; PC + 2  - temporary first number storage
+    ; PC + 3  - temporary first number storage
+    ; PC + 4  - contents of A register preserved
+    ; PC + 5  - return address
+    ; PC + 6  - return address
+    ; PC + 7  - second number
+    ; PC + 8  - second number
+    ; PC + 9  - first number
+    ; PC + 10 - first number
+
+    PUSH A
+
+    ; First, figure out if either of their signs differ. If so then we
+    ; need to treat the negative number as a positive and swap to using
+    ; umin16 instead of umax16. Otherwise the math works out that we should
+    ; use umax16.
+    ADDPCI 3
+    LOAD A
+    SHL
+    ADDPCI 2
+    LOAD A
+    SUBPCI 5
+    JRINC _max16_second_positive
+
+    ; Second is negative. First is indeterminate.
+    SHL
+    JRIC _umax16_skip_a
+
+    ; Second is negative, first is negative.
+    LNGJUMP _umin16_skip_a
+
+_max16_second_positive:
+    SHL
+    LNGJUMPC _umin16_skip_a
+
+    ; First is negative, second is positive.
+    JRI _umax16_skip_a
+
+
 umax16:
     ; Given two unsigned 16-bit integers on the stack, return the larger
     ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
@@ -824,6 +1097,7 @@ umax16:
     ; First, save the A register
     PUSH A
 
+_umax16_skip_a:
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
     LOAD A
@@ -899,6 +1173,74 @@ _umax16_le:
     RET
 
 
+max32:
+    ; Given two signed 32-bit integers on the stack, return the smaller
+    ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to get the min of 0x12345678 and 0x56789101, call this
+    ; similar to:
+    ;     PUSHI 0x01
+    ;     PUSHI 0x91
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x78
+    ;     PUSHI 0x56
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     CALL max32
+    ;
+    ; Stack layout:
+    ; PC + 0  - temporary second number storage
+    ; PC + 1  - temporary second number storage
+    ; PC + 2  - temporary second number storage
+    ; PC + 3  - temporary second number storage
+    ; PC + 4  - temporary first number storage
+    ; PC + 5  - temporary first number storage
+    ; PC + 6  - temporary first number storage
+    ; PC + 7  - temporary first number storage
+    ; PC + 8  - contents of A register preserved
+    ; PC + 9  - return address
+    ; PC + 10 - return address
+    ; PC + 11 - second number
+    ; PC + 12 - second number
+    ; PC + 13 - second number
+    ; PC + 14 - second number
+    ; PC + 15 - first number
+    ; PC + 16 - first number
+    ; PC + 17 - first number
+    ; PC + 18 - first number
+
+    PUSH A
+
+    ; First, figure out if either of their signs differ. If so then we
+    ; need to treat the negative number as a positive and swap to using
+    ; umin32 instead of umax32. Otherwise the math works out that we should
+    ; use umax32.
+    ADDPCI 3
+    LOAD A
+    SHL
+    ADDPCI 4
+    LOAD A
+    SUBPCI 7
+    JRINC _max32_second_positive
+
+    ; Second is negative. First is indeterminate.
+    SHL
+    JRIC _umax32_skip_a
+
+    ; Second is negative, first is negative.
+    LNGJUMP _umin32_skip_a
+
+_max32_second_positive:
+    SHL
+    LNGJUMPC _umin32_skip_a
+
+    ; First is negative, second is positive.
+    JRI _umax32_skip_a
+
+
 umax32:
     ; Given two unsigned 32-bit integers on the stack, return the larger
     ; of the two on the stack. Does not clobber the A, U, V or SPC registers.
@@ -941,6 +1283,7 @@ umax32:
     ; First, save the A register
     PUSH A
 
+_umax32_skip_a:
     ; Now, copy the first and second number so we can call ucmp.
     ADDPCI 3
     LOAD A

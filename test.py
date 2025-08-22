@@ -2104,10 +2104,6 @@ def verifyumin32(only: Optional[Container[str]], full: bool) -> None:
         )
         return cpu
 
-    for a in [0, 2**6, 2**13, 2**21, 2**29]:
-        for b in [0, 2**6, 2**13, 2**21, 2**29]:
-            _verify_umin32(a, b)
-
     cycles = 0
     instructions = 0
     count = 0
@@ -2285,10 +2281,6 @@ def verifyumax32(only: Optional[Container[str]], full: bool) -> None:
         )
         return cpu
 
-    for a in [0, 2**6, 2**13, 2**21, 2**29]:
-        for b in [0, 2**6, 2**13, 2**21, 2**29]:
-            _verify_umax32(a, b)
-
     cycles = 0
     instructions = 0
     count = 0
@@ -2306,6 +2298,360 @@ def verifyumax32(only: Optional[Container[str]], full: bool) -> None:
         print(f"{CLEAR_LINE}{int((a * 100) / (2**32))}% complete...")
     print(f"{CLEAR_LINE}Average cycles for umax32: {int(cycles/count)}")
     print(f"Average instructions for umax32: {int(instructions/count)}")
+
+
+def verifymin8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "min8" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying min8...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(-128, 127, 5 if full else 11):
+        for b in range(-128, 127, 3 if full else 7):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {a}",
+                f"PUSHI {b}",
+                "CALL min8",
+                "HALT",
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            answer = min(a, b)
+            _assert(
+                bintoint(cpu.ram[cpu.pc + 1]) == a,
+                f"min8 changed stack value from {a} "
+                + f"to {cpu.ram[cpu.pc + 1]}!",
+            )
+            _assert(
+                bintoint(cpu.ram[cpu.pc]) == b,
+                f"min8 changed stack value from {b} to {cpu.ram[cpu.pc]}!",
+            )
+            _assert(
+                bintoint(cpu.a) == answer,
+                f"Failed to min8({a}, {b}), "
+                + f"got {bintoint(cpu.a)} instead of {answer}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int(((a + 128) * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for min8: {int(cycles/count)}")
+    print(f"Average instructions for min8: {int(instructions/count)}")
+
+
+def verifymin16(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "min16" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying min16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(-32768, 32767, 1281 if full else 2817):
+        for b in range(-32768, 32767, 767 if full else 1791):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {a & 0xFF}",
+                f"PUSHI {(a >> 8) & 0xFF}",
+                f"PUSHI {b & 0xFF}",
+                f"PUSHI {(b >> 8) & 0xFF}",
+                "LOADI 123",
+                "CALL min16",
+                "HALT",
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            answer = min(a, b)
+            _assert(
+                cpu.a == 123,
+                f"min16 changed accumulator value from {123} to {cpu.a}!",
+            )
+            result = bintoint16((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
+            _assert(
+                result == answer,
+                f"Failed to min16({a}, {b}), "
+                + f"got {answer} instead of {result}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int(((a + 32768) * 100) / 65536)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for min16: {int(cycles/count)}")
+    print(f"Average instructions for min16: {int(instructions/count)}")
+
+
+def verifymin32(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "min32" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying min32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    def _verify_min32(a: int, b: int) -> CPUCore:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "main:",
+            f"PUSHI {a & 0xFF}",
+            f"PUSHI {(a >> 8) & 0xFF}",
+            f"PUSHI {(a >> 16) & 0xFF}",
+            f"PUSHI {(a >> 24) & 0xFF}",
+            f"PUSHI {b & 0xFF}",
+            f"PUSHI {(b >> 8) & 0xFF}",
+            f"PUSHI {(b >> 16) & 0xFF}",
+            f"PUSHI {(b >> 24) & 0xFF}",
+            "LOADI 123",
+            "CALL min32",
+            "HALT",
+            *cmplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        answer = min(a, b)
+        result = bintoint32(
+            (cpu.ram[cpu.pc] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            cpu.ram[cpu.pc + 3]
+        )
+        _assert(
+            cpu.a == 123,
+            f"min32 changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            result == answer,
+            f"Failed to min32({a}, {b}), "
+            + f"got {result} instead of {answer}!",
+        )
+        return cpu
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(-(2**31), (2**31) - 1, 2**26 + 2**13 + 19):
+        for b in range(
+            -(2**31), (2**31) - 1, (2**26 + 2**13 + 7)
+            if full
+            else (2**28 + 2**13 + 11)
+        ):
+            cpu = _verify_min32(a, b)
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int(((a + 2**31) * 100) / (2**32))}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for min32: {int(cycles/count)}")
+    print(f"Average instructions for min32: {int(instructions/count)}")
+
+
+def verifymax8(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "max8" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying max8...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(-128, 127, 5 if full else 11):
+        for b in range(-128, 127, 3 if full else 7):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {a}",
+                f"PUSHI {b}",
+                "CALL max8",
+                "HALT",
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            answer = max(a, b)
+            _assert(
+                bintoint(cpu.ram[cpu.pc + 1]) == a,
+                f"max8 changed stack value from {a} "
+                + f"to {cpu.ram[cpu.pc + 1]}!",
+            )
+            _assert(
+                bintoint(cpu.ram[cpu.pc]) == b,
+                f"max8 changed stack value from {b} to {cpu.ram[cpu.pc]}!",
+            )
+            _assert(
+                bintoint(cpu.a) == answer,
+                f"Failed to max8({a}, {b}), "
+                + f"got {bintoint(cpu.a)} instead of {answer}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int(((a + 128) * 100) / 256)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for max8: {int(cycles/count)}")
+    print(f"Average instructions for max8: {int(instructions/count)}")
+
+
+def verifymax16(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "max16" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying max16...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(-32768, 32767, 1281 if full else 2817):
+        for b in range(-32768, 32767, 767 if full else 1791):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                "main:",
+                f"PUSHI {a & 0xFF}",
+                f"PUSHI {(a >> 8) & 0xFF}",
+                f"PUSHI {b & 0xFF}",
+                f"PUSHI {(b >> 8) & 0xFF}",
+                "LOADI 123",
+                "CALL max16",
+                "HALT",
+                *cmplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            answer = max(a, b)
+            _assert(
+                cpu.a == 123,
+                f"max16 changed accumulator value from {123} to {cpu.a}!",
+            )
+            result = bintoint16((cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1])
+            _assert(
+                result == answer,
+                f"Failed to max16({a}, {b}), "
+                + f"got {answer} instead of {result}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int(((a + 32768) * 100) / 65536)}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for max16: {int(cycles/count)}")
+    print(f"Average instructions for max16: {int(instructions/count)}")
+
+
+def verifymax32(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "max32" not in only and "mathlib" not in only:
+        return
+
+    print("Verifying max32...")
+    print("0% complete...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+
+    def _verify_max32(a: int, b: int) -> CPUCore:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            "main:",
+            f"PUSHI {a & 0xFF}",
+            f"PUSHI {(a >> 8) & 0xFF}",
+            f"PUSHI {(a >> 16) & 0xFF}",
+            f"PUSHI {(a >> 24) & 0xFF}",
+            f"PUSHI {b & 0xFF}",
+            f"PUSHI {(b >> 8) & 0xFF}",
+            f"PUSHI {(b >> 16) & 0xFF}",
+            f"PUSHI {(b >> 24) & 0xFF}",
+            "LOADI 123",
+            "CALL max32",
+            "HALT",
+            *cmplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        answer = max(a, b)
+        result = bintoint32(
+            (cpu.ram[cpu.pc] << 24) +
+            (cpu.ram[cpu.pc + 1] << 16) +
+            (cpu.ram[cpu.pc + 2] << 8) +
+            cpu.ram[cpu.pc + 3]
+        )
+        _assert(
+            cpu.a == 123,
+            f"max32 changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            result == answer,
+            f"Failed to max32({a}, {b}), "
+            + f"got {result} instead of {answer}!",
+        )
+        return cpu
+
+    cycles = 0
+    instructions = 0
+    count = 0
+    for a in range(-(2**31), (2**31) - 1, 2**26 + 2**13 + 19):
+        for b in range(
+            -(2**31), (2**31) - 1, (2**26 + 2**13 + 7)
+            if full
+            else (2**28 + 2**13 + 11)
+        ):
+            cpu = _verify_max32(a, b)
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+        print(f"{CLEAR_LINE}{int(((a + 2**31) * 100) / (2**32))}% complete...")
+    print(f"{CLEAR_LINE}Average cycles for max32: {int(cycles/count)}")
+    print(f"Average instructions for max32: {int(instructions/count)}")
 
 
 def verifyneg8(only: Optional[Container[str]], full: bool) -> None:
@@ -15456,6 +15802,12 @@ if __name__ == "__main__":
     verifyumax8(only, args.full)
     verifyumax16(only, args.full)
     verifyumax32(only, args.full)
+    verifymin8(only, args.full)
+    verifymin16(only, args.full)
+    verifymin32(only, args.full)
+    verifymax8(only, args.full)
+    verifymax16(only, args.full)
+    verifymax32(only, args.full)
     verifyneg8(only, args.full)
     verifyneg16(only, args.full)
     verifyneg32(only, args.full)
