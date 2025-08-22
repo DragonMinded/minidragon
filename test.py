@@ -14930,12 +14930,22 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
         heaplines = fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
+    with open("lib/math/divide.S", "r") as fp:
+        dividelines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
     with open("lib/conversion/atoi.S", "r") as fp:
         atoilines = fp.readlines()
+    with open("lib/conversion/itoa.S", "r") as fp:
+        itoalines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+    with open("lib/string/strcat.S", "r") as fp:
+        strcatlines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -15067,59 +15077,194 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
 
     # Test strings.
     for val, expected in [("", 0), ("0", 0), ("123", 123), ("123, 456", 123)]:
-        sections = parse_and_compile_module("int", textwrap.dedent(f"""
-            def inner(input: const[str]) -> uint8:
-                return int(input)
+        for size in ["uint8", "uint16", "uint32"]:
+            sections = parse_and_compile_module("int", textwrap.dedent(f"""
+                def inner(input: const[str]) -> {size}:
+                    return int(input)
 
-            def callable() -> uint8:
-                return inner({val!r})
-        """))
-        memory = getmemory(os.linesep.join([
-            *initlines,
-            *sections.init,
-            *startlines,
-            *atoilines,
-            *multiplylines,
-            *addlines,
-            *neglines,
-            *sections.code,
-            "main:",
-            "LOADI 111",
-            "MOV A, U",
-            "LOADI 222",
-            "MOV A, V",
-            "LOADI 123",
-            "DECPC",
-            "CALL callable",
-            "HALT",
-            *datalines,
-            *sections.data,
-            *heaplines,
-        ]))
-        cpu = CPUCore(memory)
-        rununtilhalt(cpu)
+                def callable() -> {size}:
+                    return inner({val!r})
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *atoilines,
+                *multiplylines,
+                *addlines,
+                *neglines,
+                *sections.code,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "SUBPCI 1" if size == "uint8" else ("SUBPCI 2" if size == "uint16" else "SUBPCI 4"),
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
 
-        _assert(
-            cpu.a == 123,
-            f"int changed accumulator value from {123} to {cpu.a}!",
-        )
-        _assert(
-            cpu.u == 111,
-            f"int changed U value from {111} to {cpu.u}!",
-        )
-        _assert(
-            cpu.v == 222,
-            f"int changed V value from {222} to {cpu.v}!",
-        )
-        result = cpu.ram[cpu.pc + 0]
-        _assert(
-            result == expected,
-            "Failed to int at string, "
-            + f"got {result} instead of {expected} for {val!r}!",
-        )
-        cycles += cpu.cycles
-        instructions += cpu.ticks
-        count += 1
+            _assert(
+                cpu.a == 123,
+                f"int changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"int changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"int changed V value from {222} to {cpu.v}!",
+            )
+            if size == "uint8":
+                result = cpu.ram[cpu.pc + 0]
+            elif size == "uint16":
+                result = (
+                    (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+                )
+            else:
+                result = (
+                    (cpu.ram[cpu.pc] << 24) +
+                    (cpu.ram[cpu.pc + 1] << 16) +
+                    (cpu.ram[cpu.pc + 2] << 8) +
+                    cpu.ram[cpu.pc + 3]
+                )
+            _assert(
+                result == expected,
+                "Failed to int at string, "
+                + f"got {result} instead of {expected} for {val!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test string pointer advancement.
+    for val, expectedstr in [("", ":0"), ("0", ":0"), ("123", ":123"), ("123, 456", ", 456:123"), ("123 456", " 456:123")]:
+        for size in ["uint8", "uint16", "uint32"]:
+            sections = parse_and_compile_module("int", textwrap.dedent(f"""
+                def callable() -> str:
+                    strval: str[16] = {val!r}
+                    intval: {size} = int(strval)
+                    return strval + ":" + str(intval)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *atoilines,
+                *itoalines,
+                *dividelines,
+                *multiplylines,
+                *addlines,
+                *neglines,
+                *cmplines,
+                *strcpylines,
+                *strcatlines,
+                *sections.code,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "SUBPCI 2",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"int changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"int changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"int changed V value from {222} to {cpu.v}!",
+            )
+            resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            _assert(
+                resultstr == expectedstr,
+                "Failed to int at string, "
+                + f"got {resultstr} instead of {expectedstr} for {val!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test string pointer non-advancement for const.
+    for val, expectedstr in [("", ":0"), ("0", "0:0"), ("123", "123:123"), ("123, 456", "123, 456:123"), ("123 456", "123 456:123")]:
+        for size in ["uint8", "uint16", "uint32"]:
+            sections = parse_and_compile_module("int", textwrap.dedent(f"""
+                def callable() -> str:
+                    strval: const[str] = {val!r}
+                    intval: {size} = int(strval)
+                    return strval + ":" + str(intval)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *atoilines,
+                *itoalines,
+                *dividelines,
+                *multiplylines,
+                *addlines,
+                *neglines,
+                *cmplines,
+                *strcpylines,
+                *strcatlines,
+                *sections.code,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "SUBPCI 2",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"int changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"int changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"int changed V value from {222} to {cpu.v}!",
+            )
+            resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            _assert(
+                resultstr == expectedstr,
+                "Failed to int at string, "
+                + f"got {resultstr} instead of {expectedstr} for {val!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
 
     print(f"Average cycles for int: {int(cycles/count)}")
     print(f"Average instructions for int: {int(instructions/count)}")

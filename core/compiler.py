@@ -1833,6 +1833,16 @@ def generate_function_call_internal(
                         # return value.
                         continue
 
+                    # Also can only match if we're not a const InOutCoreType.
+                    if isinstance(params[0], InOutCoreType):
+                        actual_arg = considered[0].value
+                        if isinstance(actual_arg, cst.Name):
+                            arg_type = stack.typeof(actual_arg.value)
+                            if not arg_type:
+                                raise Exception("Logic error, could not determine type of function argument!")
+                            if arg_type.const:
+                                continue
+
             match = False
             for i in range(arglen):
                 if isinstance(params[i], RegisterCoreType):
@@ -1849,9 +1859,18 @@ def generate_function_call_internal(
                     # This is added to the stack, and I genuinely don't know what to do in this
                     # optimization case if this shows up here.
                     break
-                elif isinstance(params[i], (PreservedCoreType, InOutCoreType)):
+                elif isinstance(params[i], PreservedCoreType):
                     # These are a match, since they either preserve the value, or replace it.
                     pass
+                elif isinstance(params[i], InOutCoreType):
+                    # These are a match, since they either preserve the value, or replace it.
+                    actual_arg = considered[i].value
+                    if isinstance(actual_arg, cst.Name):
+                        arg_type = stack.typeof(actual_arg.value)
+                        if not arg_type:
+                            raise Exception("Logic error, could not determine type of function argument!")
+                        if arg_type.const:
+                            break
                 else:
                     # This is a conditional match, but ONLY if we're using internal temporaries
                     # that we know we're good to throw away.
@@ -2029,18 +2048,18 @@ def generate_function_call_internal(
     # Now, do some bookkeeping, first copying anything that we need to copy that was an in-out param.
     for dst, src in copy_mapping.items():
         source_size = stack.sizeof(src)
-        dest_size = stack.sizeof(dst)
+        dest_type = stack.typeof(dst)
         if source_size is None:
             raise Exception(f"Logic error, Undefined variable reference to {src!r}", context)
-        if dest_size is None:
+        if dest_type is None:
             raise Exception("Logic error, cannot find destination to copy variable value to!")
 
-        stack.init(dst)
-
-        if source_size == dest_size:
-            compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
-        else:
-            raise CompilerError("Unsupported byref assignment from different variable sizes", context)
+        if not dest_type.const:
+            stack.init(dst)
+            if source_size == dest_type.size:
+                compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+            else:
+                raise CompilerError("Unsupported byref assignment from different variable sizes", context)
 
     # Now, if the return is in one of the parameters, copy that to our destination.
     if isinstance(function_prototype.return_type, ParamReturnCoreType):
