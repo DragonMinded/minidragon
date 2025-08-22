@@ -19,4 +19,5 @@ python3 assembler.py \
     lib/string/strcmp.S \
     lib/conversion/itoa.S \
     lib/conversion/atoi.S \
+    lib/conversion/hex.S \
     lib/data.S

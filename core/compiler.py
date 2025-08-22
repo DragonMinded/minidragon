@@ -894,7 +894,7 @@ def codegen_eval(expr: cst.BaseExpression, constants: List[Constant]) -> object:
     # If we don't control our builtins, python will eval a bunch of stuff we don't support due to
     # its own builtins, and it will appear to work but only for constant expressions.
     builtins_dict: Dict[str, object] = {}
-    for name in ["abs", "bool", "str", "len", "chr", "ord", "int"]:
+    for name in ["abs", "bool", "str", "len", "chr", "ord"]:
         builtins_dict[name] = getattr(builtins, name)
 
     try:
@@ -2128,7 +2128,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex"}:
         function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -2970,6 +2970,58 @@ def generate_function_call(
 
             else:
                 raise Exception(f"Logic error, unexpected type {types[expr]} in int() evaluation!")
+
+        elif function_prototype.name == "hex":
+            if len(args) != 1 or len(arg_types) != 1:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment!", context)
+
+            destination_type = stack.typeof(destination)
+            if destination_type is None:
+                raise Exception("Logic error, cannot find destination type for hex() conversion!")
+
+            expr = args[0].value
+            if not destination_type.is_string or not types[expr].is_integer:
+                raise CompilerError("The builtin function hex() only converts integers to strings!", context)
+
+            compiled = Sections()
+
+            # Now, convert to hexadecimal.
+            if types[expr].size == 1:
+                needed_function = "itohex8"
+            elif types[expr].size == 2:
+                needed_function = "itohex16"
+            else:
+                needed_function = "itohex32"
+
+            # We need to cast this by creating a string, so we need to allocate that string on the stack.
+            if not stack.initof(destination):
+                # We're creating a string in an unusual place, given that normally we only create strings on the LHS
+                # of any assignment. So, we must hand-check our destination's size in case it was declared const as
+                # an optimization for avoiding strcpy.
+                if (not destination_type.is_array) and destination_type.const:
+                    destination_type.length = needed_length
+
+                compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+
+                # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                stack.init(destination)
+
+            compiled += generate_function_call_internal(
+                create_call(needed_function, [expr, UnvalidatedName(destination)]),
+                None,
+                types,
+                stack,
+                clobbers,
+                allocations,
+                refs,
+                local_consts,
+                context,
+            )
+
+            return compiled
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -7106,6 +7158,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("bool", CoreType("bool"), [CoreType("any")]),
         FunctionPrototype("chr", CoreType("char"), [CoreType("int")]),
         FunctionPrototype("ord", CoreType("int8"), [CoreType("char")]),
+        FunctionPrototype("hex", CoreType("str"), [CoreType("int")]),
     ]
 
 
@@ -7135,6 +7188,9 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("utoa8", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
         FunctionPrototype("utoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
         FunctionPrototype("utoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),
+        FunctionPrototype("itohex8", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
+        FunctionPrototype("itohex16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
+        FunctionPrototype("itohex32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),
 
         # STDLIB integer math functions.
         FunctionPrototype("abs8", RegisterCoreType("int8", "A"), [RegisterCoreType("int8", "A")]),

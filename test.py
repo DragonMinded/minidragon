@@ -15270,6 +15270,103 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for int: {int(instructions/count)}")
 
 
+def verifyhex(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "hex" not in only and "compiler" not in only:
+        return
+
+    print("Verifying hex...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/conversion/hex.S", "r") as fp:
+        hexlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    def realhex(val: int, width: str) -> str:
+        actual = {
+            "uint8": 2,
+            "int8": 2,
+            "uint16": 4,
+            "int16": 4,
+            "uint32": 8,
+            "int32": 8,
+        }[width]
+
+        strval = hex(val)[2:]
+        while len(strval) < actual:
+            strval = "0" + strval
+        return "0x" + strval.upper()
+
+    for width in ["uint8", "int8", "uint16", "int16", "uint32", "int32"]:
+        for val in (
+            [0x00, 0xA5, 0x5A, 0xFF, 0x12, 0x34, 0xCD, 0xEF] +
+            ([0xFF00, 0x00FF, 0xA5A5, 0xABCD, 0x1337] if width in {"uint16", "int16"} else []) +
+            ([0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0xA5A5A5A5, 0xDEADBEEF, 0xCAFEBABE, 0xC0FEBABE] if width in {"uint32", "int32"} else [])
+        ):
+            sections = parse_and_compile_module("hex", textwrap.dedent(f"""
+                def callable(input: {width}) -> nopad[str[16]]:
+                    return hex(input)
+            """))
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *hexlines,
+                "main:",
+                f"PUSHI {(val >> 0) & 0xFF}",
+                *([f"PUSHI {(val >> 8) & 0xFF}"] if width in {"uint16", "int16", "uint32", "int32"} else []),
+                *([f"PUSHI {(val >> 16) & 0xFF}", f"PUSHI {(val >> 24 & 0xFF)}"] if width in {"uint32", "int32"} else []),
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"hex changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"hex changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"hex changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            expected = realhex(val, width)
+            _assert(
+                result == expected,
+                "Failed to hex, "
+                + f"got {result} instead of {expected} for {val!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for hex: {int(cycles/count)}")
+    print(f"Average instructions for hex: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -15430,3 +15527,4 @@ if __name__ == "__main__":
     verifychr(only, args.full)
     verifyord(only, args.full)
     verifyint(only, args.full)
+    verifyhex(only, args.full)
