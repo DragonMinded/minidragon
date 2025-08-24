@@ -27,3 +27,4 @@ sym-lib-table
 *.ses
 *.lck
 ibom.html
+build/
