@@ -23,6 +23,8 @@ from .compiler import (
     parse_forward_refs,
     parse_and_compile_module,
     compile_module,
+    set_working_directory,
+    set_file_loader,
 )
 
 __all__ = [
@@ -47,4 +49,6 @@ __all__ = [
     "parse_forward_refs",
     "parse_and_compile_module",
     "compile_module",
+    "set_working_directory",
+    "set_file_loader",
 ]

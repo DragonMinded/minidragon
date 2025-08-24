@@ -1,10 +1,11 @@
 import builtins
+import copy
 import os
 import traceback
 import libcst as cst
 import libcst.metadata as meta
 
-from typing import Dict, Final, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
+from typing import Callable, Dict, Final, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
 
 from .assembler import assemble
 
@@ -7107,22 +7108,25 @@ def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototyp
     global_consts: List[Constant] = builtin_consts()
     global_vars: List[GlobalVariable] = []
 
+    # Make sure we have a copy of the passed-in forward refs so we can add to them any import statements.
+    refs = copy.deepcopy(refs)
+
     for statement in parsed_module.body:
         context = Context(module, statement, metadata)
 
         if isinstance(statement, cst.SimpleStatementLine):
             bodylines = statement.body
             if len(bodylines) != 1:
-                raise CompilerError("Multi-statement lines are not supported", context)
+                raise CompilerError("Multi-statement lines are not supported", context.wrap(statement))
 
             body = bodylines[0]
             if isinstance(body, cst.Assign):
                 # This could be a mypy type assignment so that the python source files can be typechecked.
                 if not is_assign_type_definition(body):
-                    raise CompilerError("Global variable declarations must have a type", context)
+                    raise CompilerError("Global variable declarations must have a type", context.wrap(body))
             elif isinstance(body, cst.AnnAssign):
                 if not is_annassign_type_definition(body):
-                    compiled += generate_global_variable(body, global_vars, global_consts, context)
+                    compiled += generate_global_variable(body, global_vars, global_consts, context.wrap(body))
             elif isinstance(body, cst.ImportFrom):
                 is_typing_import = False
 
@@ -7130,14 +7134,23 @@ def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototyp
                     is_typing_import = True
 
                 if not is_typing_import:
-                    raise CompilerError("Arbitrary top-level statements are not supported", context)
+                    # Attempt to resolve the imports we need to handle.
+                    new_refs = parse_import_refs(body, context.wrap(body))
+
+                    old_names = {r.name for r in refs}
+                    new_names = {r.name for r in new_refs}
+                    common_names = old_names & new_names
+                    if common_names:
+                        raise CompilerError(f"Import of {', '.join(common_names)} shadows local definitions", context.wrap(body))
+
+                    refs = [*refs, *new_refs]
             else:
-                raise CompilerError("Arbitrary top-level statements are not supported", context)
+                raise CompilerError("Arbitrary top-level statements are not supported", context.wrap(body))
         elif isinstance(statement, cst.FunctionDef):
-            compiled += function(statement, refs, context)
+            compiled += function(statement, refs, context.wrap(statement))
         else:
             # TODO: What other statement types are we missing here?
-            raise CompilerError("Unsupported statement {statement}", context)
+            raise CompilerError("Unsupported statement {statement}", context.wrap(statement))
 
         compiled.append_code("")
 
@@ -7146,6 +7159,86 @@ def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototyp
         raise Exception("Logic error, shouldn't have any unconsumed preamble!")
 
     return compiled
+
+
+def __default_file_loader(filename: str) -> Optional[str]:
+    try:
+        with open(filename, "r") as fp:
+            return fp.read()
+    except FileNotFoundError:
+        return None
+
+
+__file_loader: Callable[[str], Optional[str]] = __default_file_loader
+
+
+def set_file_loader(loader: Optional[Callable[[str], Optional[str]]]) -> None:
+    global __file_loader
+
+    __file_loader = loader or __default_file_loader
+
+
+__working_directory: str = "."
+
+
+def set_working_directory(directory: Optional[str]) -> None:
+    global __working_directory
+
+    __working_directory = directory or "."
+
+
+def parse_import_refs(body: cst.ImportFrom, context: Context) -> List[Union[FunctionPrototype, GlobalVariable]]:
+    # First, figure out any relative import location.
+    relative = len(body.relative)
+    if relative < 1:
+        relative = 1
+
+    # Now figure out the relative file path based on the dotted name.
+    dotted_name = body.module
+    if dotted_name is None:
+        raise CompilerError("Purely relative imports are not supported", context)
+
+    def resolve_path(node: cst.BaseExpression) -> str:
+        if isinstance(node, cst.Name):
+            return node.value
+        elif isinstance(node, cst.Attribute):
+            return os.path.join(resolve_path(node.value), node.attr.value)
+        else:
+            raise Exception("Logic error, unexpected node!")
+
+    path = resolve_path(dotted_name) + ".py"
+    if relative == 1:
+        path = os.path.join(".", path)
+    else:
+        path = os.path.join(*([".."] * (relative - 1)), path)
+
+    # Now load the file and parse its forward refs.
+    path = os.path.abspath(os.path.join(__working_directory, path))
+    code = __file_loader(path)
+
+    if code is None:
+        raise CompilerError(f"File {path} not found when attempting import", context)
+
+    file_refs = parse_forward_refs(path, code)
+
+    # Now, filter them down to what was imported.
+    if not isinstance(body.names, cst.ImportStar):
+        actual_names = set()
+        for name in body.names:
+            if not isinstance(name.name, cst.Name):
+                raise CompilerError("Dotted names are not supported in import statements", context)
+
+            actual_names.add(name.name.value)
+
+        actual_refs = {r.name for r in file_refs}
+        for import_name in actual_names:
+            if import_name not in actual_refs:
+                raise CompilerError(f"File {path} does not export importable {import_name}", context)
+
+        file_refs = [f for f in file_refs if f.name in actual_names]
+
+    # Now, return them.
+    return file_refs
 
 
 def parse_forward_refs(module: str, code: str) -> List[Union[FunctionPrototype, GlobalVariable]]:

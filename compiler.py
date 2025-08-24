@@ -3,7 +3,16 @@ import os
 import sys
 from typing import List, Union
 
-from core import CompilerError, FunctionPrototype, GlobalVariable, Sections, builtin_forward_refs, parse_forward_refs, compile_module
+from core import (
+    CompilerError,
+    FunctionPrototype,
+    GlobalVariable,
+    Sections,
+    builtin_forward_refs,
+    parse_forward_refs,
+    compile_module,
+    set_working_directory,
+)
 
 
 if __name__ == "__main__":
@@ -50,11 +59,17 @@ if __name__ == "__main__":
         refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
         for fname in args.file:
             with open(fname, "r") as fp:
+                fname = os.path.abspath(fname)
+                set_working_directory(os.path.dirname(fname))
+
                 refs += parse_forward_refs(fname, fp.read())
 
         compiled = Sections()
         for fname in args.file:
             with open(fname, "r") as fp:
+                fname = os.path.abspath(fname)
+                set_working_directory(os.path.dirname(fname))
+
                 compiled += compile_module(fname, fp.read(), refs)
 
         with open(args.output, "w") as fp:
@@ -65,11 +80,17 @@ if __name__ == "__main__":
             with open(args.data, "w") as fp:
                 for line in compiled.data:
                     fp.write(line + os.linesep)
+        else:
+            with open(args.data, "w") as fp:
+                fp.write("")
 
         if compiled.init:
             with open(args.init, "w") as fp:
                 for line in compiled.init:
                     fp.write(line + os.linesep)
+        else:
+            with open(args.init, "w") as fp:
+                fp.write("")
 
         sys.exit(0)
 

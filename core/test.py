@@ -1,7 +1,8 @@
 import libcst as cst
+import os
 import textwrap
 import unittest
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from .compiler import (
     CompilerError,
@@ -16,6 +17,8 @@ from .compiler import (
     infer_expr_types,
     parse_forward_refs,
     parse_and_compile_module,
+    set_file_loader,
+    set_working_directory,
 )
 
 
@@ -798,6 +801,87 @@ class TestCompiler(unittest.TestCase):
                 return x
         """)
         parse_and_compile_module("__test__", func)
+
+    def __loader(self, filename: str) -> Optional[str]:
+        filename = os.path.basename(filename)
+
+        if filename == "good.py":
+            return textwrap.dedent("""
+                from lib import math
+
+                def func(a: int8, b: int8) -> int8:
+                    return math(a, b)
+            """)
+        if filename == "bad.py":
+            return textwrap.dedent("""
+                from unk import math
+
+                def func(a: int8, b: int8) -> int8:
+                    return math(a, b)
+            """)
+        if filename == "wrong.py":
+            return textwrap.dedent("""
+                from lib import some_func
+
+                def func(a: int8, b: int8) -> int8:
+                    return some_func(a, b)
+            """)
+        if filename == "shadow.py":
+            return textwrap.dedent("""
+                from lib import *
+
+                def math(a: int8, b: int8) -> int8:
+                    return a + b
+            """)
+        elif filename == "lib.py":
+            return textwrap.dedent("""
+                def math(a: int8, b: int8) -> int8:
+                    return a - b
+            """)
+        else:
+            return None
+
+    def test_no_error_on_import_found(self) -> None:
+        set_file_loader(self.__loader)
+        set_working_directory("/")
+
+        parse_and_compile_module("good.py", self.__loader("good.py") or "")
+
+        set_working_directory(None)
+        set_file_loader(None)
+
+    def test_error_on_import_not_found(self) -> None:
+        set_file_loader(self.__loader)
+        set_working_directory("/")
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("bad.py", self.__loader("bad.py") or "")
+        self.assertEqual("bad.py line 2: File /unk.py not found when attempting import", str(cm.exception))
+
+        set_working_directory(None)
+        set_file_loader(None)
+
+    def test_error_on_import_not_existing(self) -> None:
+        set_file_loader(self.__loader)
+        set_working_directory("/")
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("wrong.py", self.__loader("wrong.py") or "")
+        self.assertEqual("wrong.py line 2: File /lib.py does not export importable some_func", str(cm.exception))
+
+        set_working_directory(None)
+        set_file_loader(None)
+
+    def test_error_on_import_shadow(self) -> None:
+        set_file_loader(self.__loader)
+        set_working_directory("/")
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("shadow.py", self.__loader("shadow.py") or "")
+        self.assertEqual("shadow.py line 2: Import of math shadows local definitions", str(cm.exception))
+
+        set_working_directory(None)
+        set_file_loader(None)
 
 
 if __name__ == '__main__':

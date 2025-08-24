@@ -15,6 +15,7 @@ from core import (
     bintoint,
     hexstr,
     parse_and_compile_module,
+    set_file_loader,
 )
 
 
@@ -3894,6 +3895,137 @@ def verifyatoi32(only: Optional[Container[str]], full: bool) -> None:
 
     print(f"{CLEAR_LINE}Average cycles for atoi32: {int(cycles/count)}")
     print(f"Average instructions for atoi32: {int(instructions/count)}")
+
+
+def verifyimports(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "imports" not in only and "compiler" not in only:
+        return
+
+    print("Verifying imports...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    def loader(filename: str) -> Optional[str]:
+        filename = os.path.basename(filename)
+
+        if filename == "file1.py":
+            return textwrap.dedent("""
+                def math(a: int8, b: int8) -> int8:
+                    return a + b
+            """)
+        elif filename == "file2.py":
+            return textwrap.dedent("""
+                def math(a: int8, b: int8) -> int8:
+                    return a - b
+            """)
+        else:
+            return None
+
+    set_file_loader(loader)
+
+    if True:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *parse_and_compile_module("imports.py", textwrap.dedent("""
+                from file1 import math
+
+                def func() -> int8:
+                    return math(5, 10)
+            """)).code,
+            *parse_and_compile_module("file1.py", loader("file1.py") or "").code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"imports changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"imports changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"imports changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc + 0])
+        expected = 5 + 10
+        _assert(
+            result == expected,
+            "Failed to imports, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    if True:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *parse_and_compile_module("imports.py", textwrap.dedent("""
+                from file2 import math
+
+                def func() -> int8:
+                    return math(5, 10)
+            """)).code,
+            *parse_and_compile_module("file2.py", loader("file2.py") or "").code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"imports changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"imports changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"imports changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc + 0])
+        expected = 5 - 10
+        _assert(
+            result == expected,
+            "Failed to imports, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    set_file_loader(None)
+
+    print(f"Average cycles for imports: {int(cycles/count)}")
+    print(f"Average instructions for imports: {int(instructions/count)}")
 
 
 def verifystaticreturn(only: Optional[Container[str]], full: bool) -> None:
@@ -16085,6 +16217,7 @@ if __name__ == "__main__":
     verifyatoi32(only, args.full)
 
     # Compiler verifications
+    verifyimports(only, args.full)
     verifystaticreturn(only, args.full)
     verifyupcast(only, args.full)
     verifyunsignedupcast(only, args.full)
