@@ -5191,51 +5191,65 @@ def generate_expr_internal(
                         # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
                         stack.init(destination)
 
-                    static_source_storage = local_label_name("function_string_data")
-                    compiled.append_preamble(f"{static_source_storage}:")
-                    for c in value:
-                        compiled.append_preamble(f"  .char {c[0]!r}")
-                    compiled.append_preamble("  .byte 0x00")
+                    if value:
+                        static_source_storage = local_label_name("function_string_data")
+                        compiled.append_preamble(f"{static_source_storage}:")
+                        for c in value:
+                            compiled.append_preamble(f"  .char {c[0]!r}")
+                        compiled.append_preamble("  .byte 0x00")
 
-                    # Now, set up the stack for a strcpy operation, to initialize the local data with
-                    # a copy of the constant we're initializing from.
-                    if stack[-1].name != destination:
-                        # In order to ensure that it's possible to do stack math on this value, locate it in
-                        # a temporary location for the time being if the destination isn't the top of the stack.
-                        lhs_dest = expr_temp_name()
-                        stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
+                        # Now, set up the stack for a strcpy operation, to initialize the local data with
+                        # a copy of the constant we're initializing from.
+                        if stack[-1].name != destination:
+                            # In order to ensure that it's possible to do stack math on this value, locate it in
+                            # a temporary location for the time being if the destination isn't the top of the stack.
+                            lhs_dest = expr_temp_name()
+                            stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
 
-                        compiled += generate_memcpy_stackvars(lhs_dest, destination, stack, clobbers, context)
+                            compiled += generate_memcpy_stackvars(lhs_dest, destination, stack, clobbers, context)
+                        else:
+                            # Safe to put first parameter in the top of the stack where it already is useful for math.
+                            lhs_dest = destination
+
+                        # Now, point at it.
+                        clobbers.add("A")
+
+                        rhs_dest = expr_temp_name()
+                        stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
+                        compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=-1)
+                        compiled.append_code(f"  PUSHADDR {static_source_storage}")
+                        stack.location += 2
+
+                        # Now call strcpy.
+                        compiled += generate_function_call_internal(
+                            create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context.wrap(expression),
+                        )
+
+                        # Finally, free the stack.
+                        stack.free(rhs_dest)
+                        if lhs_dest != destination:
+                            stack.free(lhs_dest)
                     else:
-                        # Safe to put first parameter in the top of the stack where it already is useful for math.
-                        lhs_dest = destination
+                        # We can do a much faster initialization by simply setting the first byte of the string to null.
+                        clobbers.add("A")
+                        clobbers.add("SPC")
 
-                    # Now, point at it.
-                    clobbers.add("A")
+                        compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
+                        compiled.append_code("  POP SPC")
+                        stack.move(-2)
+                        compiled.code += comment_stack(stack)
 
-                    rhs_dest = expr_temp_name()
-                    stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
-                    compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=-1)
-                    compiled.append_code(f"  PUSHADDR {static_source_storage}")
-                    stack.location += 2
-
-                    # Now call strcpy.
-                    compiled += generate_function_call_internal(
-                        create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
-                        None,
-                        types,
-                        stack,
-                        clobbers,
-                        allocations,
-                        refs,
-                        local_consts,
-                        context.wrap(expression),
-                    )
-
-                    # Finally, free the stack.
-                    stack.free(rhs_dest)
-                    if lhs_dest != destination:
-                        stack.free(lhs_dest)
+                        compiled.append_code("  SWAP PC, SPC")
+                        compiled.append_code("  STOREI 0")
+                        compiled.append_code("  SWAP PC, SPC")
 
                 # We're gonna assign to this, so it should be considered initialized. Do this here instead of at the top
                 # so we can catch variables assigning from themselves when unassigned.
