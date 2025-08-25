@@ -1253,45 +1253,74 @@ def generate_memcpy_locations(
     if register not in {"A", "U", "V"}:
         raise Exception("Logic error, unsupported register for copying!")
 
-    from_rel = stack.diff(src_loc)
-    compiled += generate_move_by("memcpy_unrolled", from_rel, stack, clobbers, context)
-    shuffle_amount = stack.location - dst_loc
-    if shuffle_amount == 0:
-        return compiled
+    # First, figure out if we can copy backwards to save an instruction.
+    off_from_end = stack.diff(src_loc + (size - 1))
+    handled = False
+    if off_from_end == 0:
+        shuffle_amount = stack.location - (dst_loc + (size - 1))
+        if shuffle_amount == 0:
+            return compiled
 
-    if shuffle_amount < 0:
-        for i in range(size):
-            clobbers.add(register)
+        if shuffle_amount > 0:
+            # We don't have anything for the < 0 case, so fall back to the below code.
+            handled = True
 
-            compiled.append_code(f"  LOAD {register}")
-            compiled.append_code(f"  SUBPCI {-shuffle_amount}" + comment_source())
+            for i in range(size):
+                clobbers.add(register)
 
-            stack.move(-shuffle_amount)
-            compiled.code += comment_stack(stack)
+                compiled.append_code(f"  LOAD {register}")
+                compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
 
-            compiled.append_code(f"  STORE {register}")
-
-            if i < size - 1:
-                compiled.append_code(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
-                stack.move(-((-shuffle_amount) - 1))
+                stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
 
-    else:
-        for i in range(size):
-            clobbers.add(register)
+                compiled.append_code(f"  STORE {register}")
 
-            compiled.append_code(f"  LOAD {register}")
-            compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
+                if i < size - 1:
+                    compiled.append_code(f"  SUBPCI {shuffle_amount - 1}" + comment_source())
+                    stack.move(shuffle_amount - 1)
+                    compiled.code += comment_stack(stack)
 
-            stack.move(-shuffle_amount)
-            compiled.code += comment_stack(stack)
+    if not handled:
+        from_rel = stack.diff(src_loc)
+        compiled += generate_move_by("memcpy_unrolled", from_rel, stack, clobbers, context)
+        shuffle_amount = stack.location - dst_loc
+        if shuffle_amount == 0:
+            return compiled
 
-            compiled.append_code(f"  STORE {register}")
+        if shuffle_amount < 0:
+            for i in range(size):
+                clobbers.add(register)
 
-            if i < size - 1:
-                compiled.append_code(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
-                stack.move(shuffle_amount + 1)
+                compiled.append_code(f"  LOAD {register}")
+                compiled.append_code(f"  SUBPCI {-shuffle_amount}" + comment_source())
+
+                stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
+
+                compiled.append_code(f"  STORE {register}")
+
+                if i < size - 1:
+                    compiled.append_code(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
+                    stack.move(-((-shuffle_amount) - 1))
+                    compiled.code += comment_stack(stack)
+
+        else:
+            for i in range(size):
+                clobbers.add(register)
+
+                compiled.append_code(f"  LOAD {register}")
+                compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
+
+                stack.move(-shuffle_amount)
+                compiled.code += comment_stack(stack)
+
+                compiled.append_code(f"  STORE {register}")
+
+                if i < size - 1:
+                    compiled.append_code(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
+                    stack.move(shuffle_amount + 1)
+                    compiled.code += comment_stack(stack)
 
     return compiled
 

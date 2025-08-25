@@ -1,7 +1,6 @@
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
  - optimization passes for unnecessary store/load and side-by-side addpci/subpci calls (many such cases), comparison against const is one.
- - optimization passes for memcpy_unrolled for direction of copy in case we're already sitting on a value (add16 test case).
  - find JRI/LNGJUMP that points at the next instruction and remove it.
  - duplicate instruction chain finder, replace with LNGJUMP to save on space.
  - replace LNGJUMP with JRI when appropriately small jumps exist.
