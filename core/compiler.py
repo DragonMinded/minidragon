@@ -7347,6 +7347,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
             stack_counts[stpos] = stack_counts.get(stpos, 0) + 1
 
     stackop = {"ADDPCI", "INCPC", "SUBPCI", "DECPC"}
+    memoryop = {"LOADI", "ADDI", "INV", "SHL", "SHR", "RCL", "RCR", "ROL", "ROR", "ZERO", "NOP", "NEG", "INC", "DEC"}
 
     pos = 0
     while pos < codelen:
@@ -7381,7 +7382,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 replace(pos, 2, [f"  SUBPCI {-total_move}"])
             else:
                 raise Exception("Logic error, unknown move amount!")
-        elif insn(cur) == "LOADI" and insn(prv) in stackop and insn(nxt) in stackop:
+        elif insn(cur) in memoryop and insn(prv) in stackop and insn(nxt) in stackop:
             # In this case, we can reorder instructions since it doesn't matter what order they
             # happen, but it also means that we can possibly fold redundant moves. This may only
             # exist because we reduced redundant store/loads with a constant load.
