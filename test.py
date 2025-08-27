@@ -10,6 +10,7 @@ from core import (
     ParameterOutOfRangeException,
     CodeOutOfRangeException,
     CPUCore,
+    CompilerSettings,
     assemble,
     disassemble,
     bintoint,
@@ -26,6 +27,7 @@ BACK_AND_CLEAR_LINE = "\033[F\033[K\033[F"
 verbose: bool = False
 highlight_changes: bool = False
 print_code: bool = False
+settings: CompilerSettings = CompilerSettings()
 
 
 def _assert(statement: bool, msg: str) -> None:
@@ -3938,8 +3940,8 @@ def verifyimports(only: Optional[Container[str]], full: bool) -> None:
 
                 def func() -> int8:
                     return math(5, 10)
-            """)).code,
-            *parse_and_compile_module("file1.py", loader("file1.py") or "").code,
+            """), settings).code,
+            *parse_and_compile_module("file1.py", loader("file1.py") or "", settings).code,
             "main:",
             "LOADI 111",
             "MOV A, U",
@@ -3984,8 +3986,8 @@ def verifyimports(only: Optional[Container[str]], full: bool) -> None:
 
                 def func() -> int8:
                     return math(5, 10)
-            """)).code,
-            *parse_and_compile_module("file2.py", loader("file2.py") or "").code,
+            """), settings).code,
+            *parse_and_compile_module("file2.py", loader("file2.py") or "", settings).code,
             "main:",
             "LOADI 111",
             "MOV A, U",
@@ -4050,7 +4052,7 @@ def verifystaticreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("staticreturn", textwrap.dedent(f"""
                 def staticreturn() -> int8:
                     return {x}
-            """)).code,
+            """), settings).code,
             "main:",
             "LOADI 111",
             "MOV A, U",
@@ -4108,7 +4110,7 @@ def verifystaticreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("staticreturn", textwrap.dedent(f"""
                 def staticreturn() -> nopad[int8]:
                     return {x}
-            """)).code,
+            """), settings).code,
             "main:",
             "LOADI 111",
             "MOV A, U",
@@ -4174,7 +4176,7 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("downcast", textwrap.dedent("""
                 def func(param1: int16) -> nopad[int8]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -4218,7 +4220,7 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("downcast", textwrap.dedent("""
                 def func(param1: int32) -> nopad[int8]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -4264,7 +4266,7 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("downcast", textwrap.dedent("""
                 def func(param1: int32) -> nopad[int16]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -4330,7 +4332,7 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("upcast", textwrap.dedent("""
                 def func(param1: int8) -> nopad[int16]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -4376,7 +4378,7 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("upcast", textwrap.dedent("""
                 def func(param1: int8) -> nopad[int32]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -4425,7 +4427,7 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("upcast", textwrap.dedent("""
                 def func(param1: int16) -> nopad[int32]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -4492,7 +4494,7 @@ def verifyunsignedupcast(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("unsignedupcast", textwrap.dedent("""
                 def func(param1: uint8) -> nopad[uint16]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -4538,7 +4540,7 @@ def verifyunsignedupcast(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("unsignedupcast", textwrap.dedent("""
                 def func(param1: uint8) -> nopad[uint32]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -4587,7 +4589,7 @@ def verifyunsignedupcast(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("unsignedupcast", textwrap.dedent("""
                 def func(param1: uint16) -> nopad[uint32]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -4654,7 +4656,7 @@ def verifyechoparam(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("echoparam", textwrap.dedent("""
                 def echoparam(param1: int8) -> int8:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -4705,7 +4707,7 @@ def verifyechoparam(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("echoparam", textwrap.dedent("""
                 def echoparam(param1: int8) -> nopad[int8]:
                     return param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -4768,7 +4770,7 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int8) -> int8:
                     return param1 + 15
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -4812,7 +4814,7 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int16) -> int16:
                     return param1 + 12345
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -4859,7 +4861,7 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int32) -> int32:
                     return param1 + 123456
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -4918,7 +4920,7 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int8) -> int8:
                     return 15 + param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -4970,7 +4972,7 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("addandreturn", textwrap.dedent("""
                 def addandreturn(param1: int8) -> nopad[int8]:
                     return param1 + 15
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -5043,7 +5045,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int8) -> int8:
                     return param1 - 15
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -5088,7 +5090,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int16) -> int16:
                     return param1 - 12345
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -5136,7 +5138,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int32) -> int32:
                     return param1 - 123456
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -5196,7 +5198,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int8) -> int8:
                     return 15 - param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -5249,7 +5251,7 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("subtractandreturn", textwrap.dedent("""
                 def subtractandreturn(param1: int8) -> nopad[int8]:
                     return param1 - 15
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -5323,7 +5325,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: uint8) -> uint8:
                     return param1 * 3
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -5369,7 +5371,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: uint16) -> uint16:
                     return param1 * 31
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -5417,7 +5419,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: uint32) -> uint32:
                     return param1 * 491
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -5477,7 +5479,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: int8) -> int8:
                     return param1 * 3
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -5523,7 +5525,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: int16) -> int16:
                     return param1 * 31
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -5571,7 +5573,7 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("multiplyandreturn", textwrap.dedent("""
                 def multiplyandreturn(param1: int32) -> int32:
                     return param1 * 491
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -5650,7 +5652,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                 def divideandreturn(param1: uint8) -> uint8:
                     return param1 // 3
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -5698,7 +5700,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                 def divideandreturn(param1: uint16) -> uint16:
                     return param1 // 31
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -5748,7 +5750,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                 def divideandreturn(param1: uint32) -> uint32:
                     return param1 // 491
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -5813,7 +5815,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
                 *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                     def divideandreturn(param1: int8) -> int8:
                         return param1 // 3
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"LOADI {x}",
                 "PUSH A",
@@ -5861,7 +5863,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
                 *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                     def divideandreturn(param1: int16) -> int16:
                         return param1 // 31
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
@@ -5911,7 +5913,7 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
                 *parse_and_compile_module("divideandreturn", textwrap.dedent("""
                     def divideandreturn(param1: int32) -> int32:
                         return param1 // 491
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
@@ -5992,7 +5994,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                 def moduloandreturn(param1: uint8) -> uint8:
                     return param1 % 3
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -6040,7 +6042,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                 def moduloandreturn(param1: uint16) -> uint16:
                     return param1 % 31
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -6090,7 +6092,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                 def moduloandreturn(param1: uint32) -> uint32:
                     return param1 % 491
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -6155,7 +6157,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
                 *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                     def moduloandreturn(param1: int8) -> int8:
                         return param1 % 3
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"LOADI {x}",
                 "PUSH A",
@@ -6203,7 +6205,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
                 *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                     def moduloandreturn(param1: int16) -> int16:
                         return param1 % 31
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
@@ -6253,7 +6255,7 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
                 *parse_and_compile_module("moduloandreturn", textwrap.dedent("""
                     def moduloandreturn(param1: int32) -> int32:
                         return param1 % 491
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {x & 0xFF}",
                 f"PUSHI {(x >> 8) & 0xFF}",
@@ -6331,7 +6333,7 @@ def verifyshiftandreturn(only: Optional[Container[str]], full: bool) -> None:
                     *parse_and_compile_module("shiftandreturn", textwrap.dedent(f"""
                         def shiftandreturn(param1: uint8, param2: uint8) -> uint8:
                             return param1 {op} param2
-                    """)).code,
+                    """), settings).code,
                     "main:",
                     f"PUSHI {x}",
                     f"PUSHI {y}",
@@ -6378,7 +6380,7 @@ def verifyshiftandreturn(only: Optional[Container[str]], full: bool) -> None:
                     *parse_and_compile_module("shiftandreturn", textwrap.dedent(f"""
                         def shiftandreturn(param1: uint16, param2: uint8) -> uint16:
                             return param1 {op} param2
-                    """)).code,
+                    """), settings).code,
                     "main:",
                     f"PUSHI {x & 0xFF}",
                     f"PUSHI {(x >> 8) & 0xFF}",
@@ -6426,7 +6428,7 @@ def verifyshiftandreturn(only: Optional[Container[str]], full: bool) -> None:
                     *parse_and_compile_module("shiftandreturn", textwrap.dedent(f"""
                         def shiftandreturn(param1: uint32, param2: uint8) -> uint32:
                             return param1 {op} param2
-                    """)).code,
+                    """), settings).code,
                     "main:",
                     f"PUSHI {x & 0xFF}",
                     f"PUSHI {(x >> 8) & 0xFF}",
@@ -6496,7 +6498,7 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwiseand", textwrap.dedent("""
                 def bitwiseand(param1: int8) -> int8:
                     return param1 & 0x3C
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -6540,7 +6542,7 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwiseand", textwrap.dedent("""
                 def bitwiseand(param1: int16) -> int16:
                     return param1 & 0xA53C
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -6584,7 +6586,7 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwiseand", textwrap.dedent("""
                 def bitwiseand(param1: int32) -> int32:
                     return param1 & 0x3CA5963C
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -6653,7 +6655,7 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwiseor", textwrap.dedent("""
                 def bitwiseor(param1: int8) -> int8:
                     return param1 | 0x3C
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -6697,7 +6699,7 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwiseor", textwrap.dedent("""
                 def bitwiseor(param1: int16) -> int16:
                     return param1 | 0xA53C
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -6741,7 +6743,7 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwiseor", textwrap.dedent("""
                 def bitwiseor(param1: int32) -> int32:
                     return param1 | 0x3CA5963C
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -6810,7 +6812,7 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwisexor", textwrap.dedent("""
                 def bitwisexor(param1: int8) -> int8:
                     return param1 ^ 0x3C
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -6854,7 +6856,7 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwisexor", textwrap.dedent("""
                 def bitwisexor(param1: int16) -> int16:
                     return param1 ^ 0xA53C
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -6898,7 +6900,7 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwisexor", textwrap.dedent("""
                 def bitwisexor(param1: int32) -> int32:
                     return param1 ^ 0x3CA5963C
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -6967,7 +6969,7 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwisenot", textwrap.dedent("""
                 def bitwisenot(param1: int8) -> int8:
                     return ~param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -7011,7 +7013,7 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwisenot", textwrap.dedent("""
                 def bitwisenot(param1: int16) -> int16:
                     return ~param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -7055,7 +7057,7 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("bitwisenot", textwrap.dedent("""
                 def bitwisenot(param1: int32) -> int32:
                     return ~param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -7126,7 +7128,7 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("negation", textwrap.dedent("""
                 def negation(param1: int8) -> int8:
                     return -param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -7171,7 +7173,7 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("negation", textwrap.dedent("""
                 def negation(param1: int16) -> int16:
                     return -param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -7218,7 +7220,7 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("negation", textwrap.dedent("""
                 def negation(param1: int32) -> int32:
                     return -param1
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -7292,7 +7294,7 @@ def verifycomplexexpression(only: Optional[Container[str]], full: bool) -> None:
                     *parse_and_compile_module("complexexpression", textwrap.dedent("""
                         def complexexpression(param1: int8, param2: int8, param3: int8) -> int8:
                             return param1 + (param2 - param3) + 7
-                    """)).code,
+                    """), settings).code,
                     "main:",
                     f"LOADI {x}",
                     "PUSH A",
@@ -7373,7 +7375,7 @@ def verifyvoidfunctioncall(only: Optional[Container[str]], full: bool) -> None:
             def passthrough_global(val: uint8) -> uint8:
                 set_global(val)
                 return ~get_global()
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -7451,7 +7453,7 @@ def verifylocalvariables(only: Optional[Container[str]], full: bool) -> None:
 
                     # Return it.
                     return var + 3
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -7521,7 +7523,7 @@ def verifyfunctioncall(only: Optional[Container[str]], full: bool) -> None:
                 # Also verifying that types can be narrowed and expanded properly.
                 def func(param1: int16) -> int16:
                     return add_10_to_two_params(param1, 5)
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {x & 0xFF}",
             f"PUSHI {(x >> 8) & 0xFF}",
@@ -7596,7 +7598,7 @@ def verifycomplexfunctioncall(only: Optional[Container[str]], full: bool) -> Non
                 def func(param1: int8) -> int8:
                     local_var: int8 = be_in_the_way(param1, 7) - 2
                     return local_var - 5
-            """)).code,
+            """), settings).code,
             "main:",
             f"LOADI {x}",
             "PUSH A",
@@ -7659,7 +7661,7 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
             *parse_and_compile_module("simplebooleans", textwrap.dedent(f"""
                 def func() -> bool:
                     return {val}
-            """)).code,
+            """), settings).code,
             "main:",
             "LOADI 111",
             "MOV A, U",
@@ -7725,7 +7727,7 @@ def verifybooleanischeck(only: Optional[Container[str]], full: bool) -> None:
                 *parse_and_compile_module("booleanischeck", textwrap.dedent(f"""
                     def func(val: bool) -> bool:
                         return val is {res}
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {'0xFF' if val else '0x00'}",
                 "LOADI 111",
@@ -7791,7 +7793,7 @@ def verifybooleanexpressions(only: Optional[Container[str]], full: bool) -> None
                 *parse_and_compile_module("booleanexpressions", textwrap.dedent(f"""
                     def func(op1: bool, op2: bool) -> bool:
                         return op1 {op} op2
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {'0xFF' if a else '0x00'}",
                 f"PUSHI {'0xFF' if b else '0x00'}",
@@ -7839,7 +7841,7 @@ def verifybooleanexpressions(only: Optional[Container[str]], full: bool) -> None
             *parse_and_compile_module("booleanexpressions", textwrap.dedent("""
                 def func(op: bool) -> bool:
                     return not op
-            """)).code,
+            """), settings).code,
             "main:",
             f"PUSHI {'0xFF' if val else '0x00'}",
             "LOADI 111",
@@ -7911,7 +7913,7 @@ def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None
                     *parse_and_compile_module("ternaryexpressions", textwrap.dedent("""
                         def func(a: int8, b: int8, op: bool) -> int8:
                             return (a + 5) if op else (b - 7)
-                    """)).code,
+                    """), settings).code,
                     "main:",
                     f"PUSHI {a}",
                     f"PUSHI {b}",
@@ -7962,7 +7964,7 @@ def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None
 
                         def func(a: int8, b: int8) -> int8:
                             return funcimpl(a, b, {val!r})
-                    """)).code,
+                    """), settings).code,
                     "main:",
                     f"PUSHI {a}",
                     f"PUSHI {b}",
@@ -8030,7 +8032,7 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
                     *parse_and_compile_module("equalityexpression", textwrap.dedent(f"""
                         def func(val1: int8, val2: {secondtype}) -> bool:
                             return val1 == val2
-                    """)).code,
+                    """), settings).code,
                     "main:",
                     f"PUSHI {val1}",
                     f"PUSHI {val2 & 0xFF}",
@@ -8082,7 +8084,7 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
                     def func(val1: int16, val2: int16) -> bool:
                         return val1 == val2
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
@@ -8133,7 +8135,7 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
                     def func(val1: int32, val2: int32) -> bool:
                         return val1 == val2
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
@@ -8188,7 +8190,7 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
                 *parse_and_compile_module("equalityexpression", textwrap.dedent(f"""
                     def func(val1: int8) -> bool:
                         return val1 == {val2}
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1}",
                 "LOADI 111",
@@ -8236,7 +8238,7 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
                 *parse_and_compile_module("equalityexpression", textwrap.dedent(f"""
                     def func(val1: int16) -> bool:
                         return val1 == {val2}
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
@@ -8285,7 +8287,7 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
                 *parse_and_compile_module("equalityexpression", textwrap.dedent(f"""
                     def func(val1: int32) -> bool:
                         return val1 == {val2}
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
@@ -8336,7 +8338,7 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
                     def func(val1: char, val2: char) -> bool:
                         return val1 == val2
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {first!r}",
                 f"PUSHI {second!r}",
@@ -8387,7 +8389,7 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
                     def func(val1: str, val2: str) -> bool:
                         return val1 == val2
-                """)).code,
+                """), settings).code,
                 ".org 0x1000",
                 "first:",
                 *[f".char {c!r}" for c in first],
@@ -8467,7 +8469,7 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent("""
                     def func(val1: int8, val2: int8) -> bool:
                         return val1 != val2
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1}",
                 f"PUSHI {val2}",
@@ -8516,7 +8518,7 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent("""
                     def func(val1: int16, val2: int16) -> bool:
                         return val1 != val2
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
@@ -8567,7 +8569,7 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent("""
                     def func(val1: int32, val2: int32) -> bool:
                         return val1 != val2
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
@@ -8622,7 +8624,7 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent(f"""
                     def func(val1: int8) -> bool:
                         return val1 != {val2}
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1}",
                 "LOADI 111",
@@ -8670,7 +8672,7 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent(f"""
                     def func(val1: int16) -> bool:
                         return val1 != {val2}
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
@@ -8719,7 +8721,7 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
                 *parse_and_compile_module("inequalityexpression", textwrap.dedent(f"""
                     def func(val1: int32) -> bool:
                         return val1 != {val2}
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {val1 & 0xFF}",
                 f"PUSHI {(val1 >> 8) & 0xFF}",
@@ -8770,7 +8772,7 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
                     def func(val1: char, val2: char) -> bool:
                         return val1 != val2
-                """)).code,
+                """), settings).code,
                 "main:",
                 f"PUSHI {first!r}",
                 f"PUSHI {second!r}",
@@ -8821,7 +8823,7 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
                     def func(val1: str, val2: str) -> bool:
                         return val1 != val2
-                """)).code,
+                """), settings).code,
                 ".org 0x1000",
                 "first:",
                 *[f".char {c!r}" for c in first],
@@ -8903,7 +8905,7 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
                         *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
                             def func(val1: uint8, val2: {secondtype}) -> bool:
                                 return val1 {operator} val2
-                        """)).code,
+                        """), settings).code,
                         "main:",
                         f"PUSHI {val1}",
                         f"PUSHI {val2 & 0xFF}",
@@ -8958,7 +8960,7 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
                         *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
                             def func(val1: int8, val2: {secondtype}) -> bool:
                                 return val1 {operator} val2
-                        """)).code,
+                        """), settings).code,
                         "main:",
                         f"PUSHI {val1}",
                         f"PUSHI {val2 & 0xFF}",
@@ -9012,7 +9014,7 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
                     *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
                         def func(val1: char, val2: char) -> bool:
                             return val1 {operator} val2
-                    """)).code,
+                    """), settings).code,
                     "main:",
                     f"PUSHI {first!r}",
                     f"PUSHI {second!r}",
@@ -9063,7 +9065,7 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
                     *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
                         def func(val1: str, val2: str) -> bool:
                             return val1 {operator} val2
-                    """)).code,
+                    """), settings).code,
                     ".org 0x1000",
                     "first:",
                     *[f".char {c!r}" for c in first],
@@ -9149,7 +9151,7 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
             global_variable: int8 = {val}
             def get_global_variable() -> int8:
                 return global_variable
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -9201,7 +9203,7 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
             global_variable: uint8 = {val}
             def get_global_variable() -> nopad[uint8]:
                 return global_variable
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -9258,7 +9260,7 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
                     global_variable: {global_width} = {val}
                     def get_global_variable() -> nopad[{function_width}]:
                         return global_variable + {add_val}
-                """))
+                """), settings)
                 memory = getmemory(os.linesep.join([
                     *initlines,
                     *sections.init,
@@ -9331,7 +9333,7 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
                     global_variable: {global_width} = {val}
                     def get_global_variable() -> nopad[{function_width}]:
                         return global_variable + {add_val}
-                """))
+                """), settings)
                 memory = getmemory(os.linesep.join([
                     *initlines,
                     *sections.init,
@@ -9422,7 +9424,7 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
                 def set_global_variable() -> void:
                     global global_variable
                     global_variable = {val}
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -9488,7 +9490,7 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
                 def set_global_variable() -> void:
                     global global_variable
                     global_variable = {val}
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -9553,7 +9555,7 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
         def set_global_variable() -> void:
             global global_variable
             global_variable = 0xCAFEBABE
-    """))
+    """), settings)
     memory = getmemory(os.linesep.join([
         *initlines,
         *sections.init,
@@ -9651,7 +9653,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                 if condition:
                     return 15
                 return -25
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -9702,7 +9704,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                 if condition:
                     retval = 15
                 return retval
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -9755,7 +9757,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                     return 15
                 else:
                     return -25
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -9808,7 +9810,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                 else:
                     retval = -25
                 return retval
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -9864,7 +9866,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                 elif var < 15:
                     return 15
                 return 20
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -9920,7 +9922,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                 elif var < 15:
                     retval = 15
                 return retval
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -9978,7 +9980,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                     return 15
                 else:
                     return 20
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10036,7 +10038,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                 else:
                     retval = 20
                 return retval
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10095,7 +10097,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                             return 15
                         else:
                             return 20
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10155,7 +10157,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                         else:
                             retval = 20
                 return retval
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10208,7 +10210,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
                 if condition:
                     retval = 15
                 return retval
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10262,7 +10264,7 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
 
             def simpleif() -> int8:
                 return simpleifimpl({input_val!r})
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10343,7 +10345,7 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
                     y += x
                     x += 1
                 return y
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10401,7 +10403,7 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
                     if x > 5:
                         break
                 return y
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10461,7 +10463,7 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
                     y += x
                     x += 1
                 return y
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10526,7 +10528,7 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
                 else:
                     y += 30
                 return y
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10587,7 +10589,7 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
 
             def simple_while() -> uint8:
                 return software_strlen({val!r})
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10669,7 +10671,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
                     retval += x
 
                 return retval
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10728,7 +10730,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
                     retval += x
 
                 return retval
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10787,7 +10789,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
                     retval += x
 
                 return retval
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10843,7 +10845,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
                     pass
 
                 return x
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10897,7 +10899,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
                         break
 
                 return x
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -10950,7 +10952,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
                     continue
 
                 return x
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11015,7 +11017,7 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
                         retval += 45
 
                     return retval
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -11093,7 +11095,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
 
             def return_string() -> const[str]:
                 return STRING_CONST
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11146,7 +11148,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
 
             def return_string() -> str:
                 return string_global
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11197,7 +11199,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
             def return_string() -> const[str]:
                 return "This is a test."
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11248,7 +11250,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
             def return_string() -> str[32]:
                 return "This is a test."
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11303,7 +11305,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             def return_string() -> const[str]:
                 LOCAL_CONST: const[str] = STRING_CONST
                 return LOCAL_CONST
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11356,7 +11358,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             def return_string() -> const[str]:
                 local: str[32] = STRING_CONST
                 return local
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11408,7 +11410,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             def return_string() -> const[str]:
                 LOCAL_CONST: const[str] = "This is a test."
                 return LOCAL_CONST
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11459,7 +11461,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             def return_string() -> str:
                 local: str[32] = "This is a test."
                 return local
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11512,7 +11514,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
                 LOCAL_CONST: const[str] = "This is a test."
                 local: str[32] = LOCAL_CONST
                 return local
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11569,7 +11571,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
                 else:
                     local = "Test 2."
                 return local
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11627,7 +11629,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
                 else:
                     local = "Test 2."
                 return local
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11683,7 +11685,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
                     return "Test 1."
                 else:
                     return "Test 2."
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11738,7 +11740,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
                     return "Test 1."
                 else:
                     return "Test 2."
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11819,7 +11821,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
 
             def string_length() -> uint8:
                 return len(STRING_CONST)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11873,7 +11875,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
 
             def string_length() -> uint8:
                 return len(global_string)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11929,7 +11931,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
             def caller() -> uint8:
                 val: const[str] = "{val}"
                 return string_length(val)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -11985,7 +11987,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
 
             def caller() -> uint8:
                 return string_length("{val}")
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12072,7 +12074,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
 
             def caller() -> const[str]:
                 return say_hello("{val}")
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12132,7 +12134,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
                 global_string += {val!r}
                 global_string += "!"
                 return global_string
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12188,7 +12190,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
 
             def say_hello() -> str[64]:
                 return "Hello, " + who() + "!"
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12245,7 +12247,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
                 def say_hello() -> str[64]:
                     ending: char = {ending!r}
                     return "Hello, " + who() + ending
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -12307,7 +12309,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
 
             def say_hello() -> str[64]:
                 return "Hello, " + clone({val!r}) + "!"
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12387,7 +12389,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
             def subscript() -> char:
                 return "{val}"[2]
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12439,7 +12441,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
 
             def subscript() -> char:
                 return CONST_STR[2]
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12492,7 +12494,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
 
             def subscript() -> char:
                 return global_str[2]
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12545,7 +12547,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
                 some_str: str[16]
                 some_str = "{val}" + "!"
                 return some_str[2]
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12599,7 +12601,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
 
             def subscript() -> char:
                 return getstr()[2]
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12652,7 +12654,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
                 def subscript(loc: uint8) -> char:
                     return "{val}"[loc]
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -12706,7 +12708,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
 
                 def subscript(loc: uint8) -> char:
                     return subscript_impl("{val}", loc)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -12784,7 +12786,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
             def sliceme() -> str[32]:
                 return "{sliceable}"[{sliceval}]
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12840,7 +12842,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
 
             def sliceme() -> str[32]:
                 return getstr()[{sliceval}]
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12896,7 +12898,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
 
             def sliceme(loc: uint8) -> str[32]:
                 return getstr()[:loc]
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -12952,7 +12954,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
 
             def sliceme(loc: uint8) -> str[32]:
                 return getstr()[loc:]
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13010,7 +13012,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
 
                 def sliceme(loc1: uint8, loc2: uint8) -> str[32]:
                     return getstr()[loc1:loc2]
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -13095,7 +13097,7 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
                     sliceable: str[32] = {sliceable!r}
                     set_char(sliceable, {offset}, {updated!r})
                     return sliceable
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -13155,7 +13157,7 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
 
                 def updateme() -> str:
                     return set_char({offset}, {updated!r})
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -13220,7 +13222,7 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
 
                 return global_string
 
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13309,7 +13311,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             def castme(c: char) -> str:
                 lvar: str[16] = str(c)
                 return lvar
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13363,7 +13365,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             def castme(b: bool) -> str:
                 lvar: str[16] = str(b)
                 return lvar
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13421,7 +13423,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             def castme() -> str:
                 lvar: const[str] = {string!r}
                 return castme_impl(lvar)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13485,7 +13487,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             def castme(i: {itype}) -> str:
                 lvar: str[16] = str(i)
                 return lvar
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13554,7 +13556,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             def castme(i: {itype}) -> str:
                 lvar: str[16] = str(i)
                 return lvar
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13625,7 +13627,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             def castme(i: {itype}) -> str:
                 lvar: str[16] = str(i)
                 return lvar
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13725,7 +13727,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
 
             def call() -> str:
                 return formatme({string!r})
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13778,7 +13780,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("stringformat", textwrap.dedent("""
             def formatme(ch: char) -> str[100]:
                 return f"A character: {ch}"
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13832,7 +13834,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("stringformat", textwrap.dedent("""
             def formatme(b: bool) -> str[100]:
                 return f"A boolean: {b}"
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13886,7 +13888,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("stringformat", textwrap.dedent("""
             def formatme(i: int8) -> str[100]:
                 return f"An integer: {i}"
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -13946,7 +13948,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("stringformat", textwrap.dedent("""
                 def formatme(x: int8, y: int8) -> str[100]:
                     return f"The sum of {x} and {y} is {x + y}"
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -14036,7 +14038,7 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("peek", textwrap.dedent(f"""
                 def callable() -> {width}:
                     return peek(0x1337)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -14105,7 +14107,7 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("peek", textwrap.dedent(f"""
                 def callable() -> {width}:
                     return peek(0x1337)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -14173,7 +14175,7 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("peek", textwrap.dedent("""
             def callable() -> char:
                 return peek(0x1337)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -14225,7 +14227,7 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("peek", textwrap.dedent("""
             def callable() -> bool:
                 return peek(0x1337)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -14276,7 +14278,7 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("peek", textwrap.dedent("""
             def callable() -> str[40]:
                 return peek(0x1337)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -14361,7 +14363,7 @@ def verifypoke(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("poke", textwrap.dedent(f"""
                 def callable(input: {width}) -> void:
                     poke(0x9000, input)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -14429,7 +14431,7 @@ def verifypoke(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("poke", textwrap.dedent(f"""
                 def callable(input: {width}) -> void:
                     poke(0x9000, input)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -14496,7 +14498,7 @@ def verifypoke(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("poke", textwrap.dedent("""
             def callable(input: char) -> void:
                 poke(0x9000, input)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -14547,7 +14549,7 @@ def verifypoke(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("poke", textwrap.dedent("""
             def callable(input: bool) -> void:
                 poke(0x9000, input)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -14597,7 +14599,7 @@ def verifypoke(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("poke", textwrap.dedent(f"""
             def callable() -> void:
                 poke(0x9000, {val})
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -14648,7 +14650,7 @@ def verifypoke(only: Optional[Container[str]], full: bool) -> None:
             def callable() -> void:
                 string: str[40] = {val!r}
                 poke(0x9000, string)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -14731,7 +14733,7 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("abs", textwrap.dedent(f"""
                 def callable(input: {width}) -> {width}:
                     return abs(input)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -14800,7 +14802,7 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("abs", textwrap.dedent(f"""
                 def callable(input: {width}) -> {width}:
                     return abs(input)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -14901,7 +14903,7 @@ def verifybool(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("bool", textwrap.dedent(f"""
                 def callable(input: {width}) -> bool:
                     return bool(input)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -14953,7 +14955,7 @@ def verifybool(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("bool", textwrap.dedent("""
             def callable(input: char) -> bool:
                 return bool(input)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -15003,7 +15005,7 @@ def verifybool(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("bool", textwrap.dedent("""
             def callable(input: bool) -> bool:
                 return bool(input)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -15056,7 +15058,7 @@ def verifybool(only: Optional[Container[str]], full: bool) -> None:
 
             def callable() -> bool:
                 return inner({val!r})
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -15134,7 +15136,7 @@ def verifychr(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("chr", textwrap.dedent(f"""
                 def callable(input: {width}) -> char:
                     return chr(input)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -15192,7 +15194,7 @@ def verifychr(only: Optional[Container[str]], full: bool) -> None:
                     out += chr(ascval)
 
                 return out
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -15272,7 +15274,7 @@ def verifyord(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("ord", textwrap.dedent(f"""
                 def callable(input: char) -> nopad[{outsize}]:
                     return ord(input)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -15341,7 +15343,7 @@ def verifyord(only: Optional[Container[str]], full: bool) -> None:
                     chksum += ord(instr[pos])
 
                 return chksum
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -15444,7 +15446,7 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("int", textwrap.dedent(f"""
                 def callable(input: {width}) -> {width}:
                     return int(input)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -15508,7 +15510,7 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("int", textwrap.dedent("""
             def callable(input: bool) -> int8:
                 return int(input)
-        """))
+        """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
             *sections.init,
@@ -15562,7 +15564,7 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
 
                 def callable() -> {size}:
                     return inner({val!r})
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -15630,7 +15632,7 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
                     strval: str[16] = {val!r}
                     intval: {size} = int(strval)
                     return strval + ":" + str(intval)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -15691,7 +15693,7 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
                     strval: const[str] = {val!r}
                     intval: {size} = int(strval)
                     return strval + ":" + str(intval)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -15793,7 +15795,7 @@ def verifyhex(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("hex", textwrap.dedent(f"""
                 def callable(input: {width}) -> nopad[str[16]]:
                     return hex(input)
-            """))
+            """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
                 *sections.init,
@@ -15892,7 +15894,7 @@ def verifymin(only: Optional[Container[str]], full: bool) -> None:
                 sections = parse_and_compile_module("min", textwrap.dedent(f"""
                     def callable(val1: {width}, val2: {width}) -> nopad[{width}]:
                         return min(val1, val2)
-                """))
+                """), settings)
                 memory = getmemory(os.linesep.join([
                     *initlines,
                     *sections.init,
@@ -16019,7 +16021,7 @@ def verifymax(only: Optional[Container[str]], full: bool) -> None:
                 sections = parse_and_compile_module("max", textwrap.dedent(f"""
                     def callable(val1: {width}, val2: {width}) -> nopad[{width}]:
                         return max(val1, val2)
-                """))
+                """), settings)
                 memory = getmemory(os.linesep.join([
                     *initlines,
                     *sections.init,
@@ -16134,6 +16136,12 @@ if __name__ == "__main__":
         type=str,
         default=None,
     )
+    parser.add_argument(
+        "-d",
+        "--disable-optimizations",
+        help="Disable compiler optimizations",
+        action="store_true",
+    )
     args = parser.parse_args()
     only = {
         x.strip() for x in args.only.lower().split(',')
@@ -16143,6 +16151,7 @@ if __name__ == "__main__":
     verbose = args.verbose
     highlight_changes = args.highlight_changes
     print_code = args.print_code
+    settings = CompilerSettings(optimize=not args.disable_optimizations)
 
     # Verify assembler errors
     verifyassembler(only, args.full)

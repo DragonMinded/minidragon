@@ -29,7 +29,7 @@ CODES = $(patsubst %.py, build/%.code.S, ${SRCS})
 
 build/%.init.S build/%.data.S build/%.code.S: %.py
 	@mkdir -p $(dir $@)
-	python3 compiler.py -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
+	python3 compiler.py --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
 
 build/listing.S: $(LIBS) $(INITS) $(DATAS) $(CODES)
 	@mkdir -p $(dir $@)

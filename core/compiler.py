@@ -13,6 +13,11 @@ from .assembler import assemble
 MAX_STRING_LENGTH: Final[int] = 127
 
 
+class CompilerSettings:
+    def __init__(self, *, optimize: bool = False) -> None:
+        self.optimize = optimize
+
+
 def comment_source(extra: Optional[str] = None) -> str:
     if not os.environ.get("INSERT_CALLER_COMMENTS"):
         return ""
@@ -31,20 +36,21 @@ def comment_source(extra: Optional[str] = None) -> str:
 
 
 class Context:
-    def __init__(self, module: str, node: cst.CSTNode, meta: Mapping[cst.CSTNode, meta.CodeRange], extra: str = "") -> None:
+    def __init__(self, module: str, settings: CompilerSettings, node: cst.CSTNode, meta: Mapping[cst.CSTNode, meta.CodeRange], extra: str = "") -> None:
         self.module = module
+        self.settings = settings
         self.node = node
         self.meta = meta
         self.extra = extra
         self.mapping: Dict[cst.CSTNode, cst.CSTNode] = {}
 
     def wrap(self, node: cst.CSTNode, extra: str = "") -> "Context":
-        context = Context(self.module, node, self.meta, extra)
+        context = Context(self.module, self.settings, node, self.meta, extra)
         context.mapping = {x: y for x, y in self.mapping.items()}
         return context
 
     def virtual(self, node: cst.CSTNode, extra: str = "") -> "Context":
-        context = Context(self.module, node, self.meta, extra)
+        context = Context(self.module, self.settings, node, self.meta, extra)
         context.mapping = {x: y for x, y in self.mapping.items()}
         context.mapping[node] = self.node
         return context
@@ -673,11 +679,12 @@ class LoopInfo:
 
 
 class StackVar:
-    def __init__(self, name: str, vartype: CoreType, location: Optional[int] = None, initialized: bool = False) -> None:
+    def __init__(self, name: str, vartype: CoreType, location: Optional[int] = None, initialized: bool = False, relocated: bool = False) -> None:
         self.name = name
         self.type = vartype
         self.location = location
         self.initialized = initialized
+        self.relocated = relocated
 
     @property
     def size(self) -> int:
@@ -701,7 +708,7 @@ class StackVar:
         return label
 
     def __repr__(self) -> str:
-        return f"{self.type!r} {self.name}: {self.location} size {self.size}{' uninitialized' if not self.initialized else ''}"
+        return f"{self.type!r} {self.name}: {self.location} size {self.size}{' uninitialized' if not self.initialized else ''}{' relocated' if self.relocated else ''}"
 
 
 class Stack:
@@ -710,6 +717,7 @@ class Stack:
         self.stack: List[StackVar] = []
         self.size: int = 0
         self.location: int = 0
+        self.__tempnames: List[Tuple[str, int, int, bool, bool]] = []
 
     def __len__(self) -> int:
         return len(self.stack)
@@ -726,12 +734,22 @@ class Stack:
     def __iter__(self) -> Iterator[StackVar]:
         yield from self.stack
 
+    def nameloc(self, name: str, location: int, size: int, load: bool = False, store: bool = False) -> None:
+        if not load and not store:
+            raise Exception("Logic error, must call with either load or store set!")
+
+        self.__tempnames.append((name, location, size, load, store))
+
+    def unnameloc(self, name: str) -> None:
+        self.__tempnames = [x for x in self.__tempnames if x[0] != name]
+
     def clone(self) -> "Stack":
         stack = Stack(self.funcname)
         for entry in self.stack:
-            stack.stack.append(StackVar(entry.name, entry.type, location=entry.location, initialized=entry.initialized))
+            stack.stack.append(StackVar(entry.name, entry.type, location=entry.location, initialized=entry.initialized, relocated=entry.relocated))
         stack.size = self.size
         stack.location = self.location
+        stack.__tempnames = [*self.__tempnames]
         return stack
 
     def alloc(self, var: StackVar) -> int:
@@ -753,6 +771,7 @@ class Stack:
     def relocate(self, name: str, location: int) -> None:
         for entry in self.stack:
             if entry.name == name:
+                entry.relocated = True
                 entry.location = location
                 break
         else:
@@ -862,6 +881,50 @@ class Stack:
                 # Found it, return the variable we're at.
                 return entry
         return None
+
+    def comment(self, offset: int, load: bool = False, store: bool = False) -> str:
+        # First, try to apply temporary names.
+        names: List[Tuple[str, int, int, bool, bool]] = []
+        for name, location, size, isload, isstore in self.__tempnames:
+            if offset >= location and offset < (location + size):
+                names.append((name, location, size, isload, isstore))
+
+        if len(names) == 1:
+            return f" ; STACKOFF: {names[0][0]} + {offset - names[0][1]}"
+        if len(names) == 2:
+            for name, location, size, isload, istore in names:
+                if load and isstore:
+                    continue
+                if store and isload:
+                    continue
+                return f" ; STACKOFF: {name} + {offset - location}"
+
+        # Now, look in the stack and figure out what we're messing with.
+        potentials: List[StackVar] = []
+
+        if not load and not store:
+            raise Exception("Logic error, must call with either load or store set!")
+
+        for entry in self.stack:
+            entryloc = entry.location
+            if entryloc is None:
+                continue
+            size = entry.size or 0
+            if offset >= entryloc and offset < (entryloc + size):
+                potentials.append(entry)
+
+        if len(potentials) == 1:
+            return f" ; STACKOFF: {potentials[0].name} + {offset - (potentials[0].location or 0)}"
+        if len(potentials) == 2:
+            for potential in potentials:
+                if load and potential.relocated:
+                    continue
+                if store and not potential.relocated:
+                    continue
+                return f" ; STACKOFF: {potential.name} + {offset - (potential.location or 0)}"
+
+        # Finally, give up.
+        raise Exception(f"Logic error, could not name stack location at offset {offset}!")
 
     def __repr__(self) -> str:
         lines = [str(e) for e in self.stack]
@@ -1268,13 +1331,13 @@ def generate_memcpy_locations(
             for i in range(size):
                 clobbers.add(register)
 
-                compiled.append_code(f"  LOAD {register}")
+                compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
                 compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
 
                 stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
 
-                compiled.append_code(f"  STORE {register}")
+                compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
                 if i < size - 1:
                     compiled.append_code(f"  SUBPCI {shuffle_amount - 1}" + comment_source())
@@ -1292,13 +1355,13 @@ def generate_memcpy_locations(
             for i in range(size):
                 clobbers.add(register)
 
-                compiled.append_code(f"  LOAD {register}")
+                compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
                 compiled.append_code(f"  SUBPCI {-shuffle_amount}" + comment_source())
 
                 stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
 
-                compiled.append_code(f"  STORE {register}")
+                compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
                 if i < size - 1:
                     compiled.append_code(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
@@ -1309,13 +1372,13 @@ def generate_memcpy_locations(
             for i in range(size):
                 clobbers.add(register)
 
-                compiled.append_code(f"  LOAD {register}")
+                compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
                 compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
 
                 stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
 
-                compiled.append_code(f"  STORE {register}")
+                compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
                 if i < size - 1:
                     compiled.append_code(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
@@ -1363,9 +1426,9 @@ def generate_memcpy_stackvars(
     for offset in range(destination_size):
         clobbers.add(register)
         compiled += generate_move_to(source, stack, clobbers, context, offset=actual_expr_offset(offset))
-        compiled.append_code(f"  LOAD {register}")
+        compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
         compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
-        compiled.append_code(f"  STORE {register}")
+        compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
     return compiled
 
@@ -1435,13 +1498,13 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
             # Generate code to move from our position to the first byte of the retval.
             compiled += generate_move_by("seeking builtin(retptr)", first_move, stack, clobbers, context)
-            compiled.append_code("  LOAD U")
+            compiled.append_code("  LOAD U" + stack.comment(stack.location, load=True))
             compiled.append_code("  DECPC")
 
             stack.move(1)
             compiled.code += comment_stack(stack)
 
-            compiled.append_code("  LOAD V")
+            compiled.append_code("  LOAD V" + stack.comment(stack.location, load=True))
             compiled.append_code(f"  ; {cref}")
 
         # Second, make sure the top of the stack is our return.
@@ -1465,8 +1528,11 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
 
             # Generate code to move from our position to the first byte of the retptr.
             retptr_final_loc = number_of_moves
+            stack.nameloc("builtin(retval)", src_loc, number_of_moves, load=True)
+            stack.nameloc("builtin(retval)", 0, number_of_moves, store=True)
             compiled += generate_memcpy_locations(src_loc, 0, number_of_moves, stack, clobbers, context)
             compiled.append_code(f"  ; {cref}")
+            stack.unnameloc("builtin(retval)")
 
     # Now, move the return pointer if needed.
     if retptr_in_uv:
@@ -1476,14 +1542,16 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
         # Gotta grab it out of the saved U/V registers.
         restore_move_amt = retptr_final_loc - stack.location
         compiled += generate_move_by("seeking return pointer restoration point", restore_move_amt, stack, clobbers, context)
-        compiled.append_code("  STORE U")
+        stack.nameloc("builtin(retptr)", retptr_final_loc, 2, store=True)
+        compiled.append_code("  STORE U" + stack.comment(stack.location, store=True))
         compiled.append_code("  DECPC")
 
         stack.move(1)
         compiled.code += comment_stack(stack)
 
-        compiled.append_code("  STORE V")
+        compiled.append_code("  STORE V" + stack.comment(stack.location, store=True))
         compiled.append_code(f"  ; {cref}")
+        stack.unnameloc("builtin(retptr)")
     else:
         retptr_abs = stack.absfind("builtin(retptr)")
         if retptr_abs is None:
@@ -1506,9 +1574,15 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
             if src_loc is None or number_of_moves is None:
                 raise Exception("Logic error, failed to get move amounts for builtin(retptr)!")
 
+            # Name the location so we don't end up clobbering it in an optimization pass.
+            stack.nameloc("builtin(retptr)", retptr_final_loc, number_of_moves, store=True)
+            stack.nameloc("builtin(retptr)", src_loc, number_of_moves, load=True)
+
             # Generate code to move from our position to the first byte of the retptr.
             compiled += generate_memcpy_locations(src_loc, retptr_final_loc, number_of_moves, stack, clobbers, context)
             compiled.append_code(f"  ; {cref}")
+
+            stack.unnameloc("builtin(retptr)")
 
     # Now, pop all of our saved registers, and then return.
     tlcref: Optional[str] = None
@@ -1587,41 +1661,41 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
             compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
             if dest_size == 1:
                 compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
             elif dest_size == 2:
                 compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  DECPC")
 
                 stack.move(1)
                 compiled.code += comment_stack(stack)
 
                 compiled.append_code(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
             elif dest_size == 4:
                 compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  DECPC")
 
                 stack.move(1)
                 compiled.code += comment_stack(stack)
 
                 compiled.append_code(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  DECPC")
 
                 stack.move(1)
                 compiled.code += comment_stack(stack)
 
                 compiled.append_code(f"  LOADI {_hex((val >> 16) & 0xFF, 2)}")
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  DECPC")
 
                 stack.move(1)
                 compiled.code += comment_stack(stack)
 
                 compiled.append_code(f"  LOADI {_hex((val >> 24) & 0xFF, 2)}")
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
             else:
                 raise CompilerError(f"Unsupported destination {destination} for const load", context)
 
@@ -1643,7 +1717,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
             compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
             compiled.append_code(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
-            compiled.append_code("  STORE A")
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     elif dtype.is_char:
         if not isinstance(val, str):
@@ -1663,7 +1737,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
             compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
             compiled.append_code(f"  LOADI {val!r}")
-            compiled.append_code("  STORE A")
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
         raise CompilerError(f"Unsupported constant load of type {dtype.type}!", context)
@@ -1921,6 +1995,13 @@ def generate_function_call_internal(
                 for i in range(arglen):
                     param_in_question = params[i]
 
+                    stackloc: Optional[int] = stackvars[i].location
+                    stacksize: Optional[int] = stackvars[i].size
+                    if stackloc is None or stacksize is None:
+                        raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
+                    for z in range(stacksize):
+                        compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
+
                     if not stackvars[i].initialized:
                         raise CompilerError(f"Use of uninitialized variable {stackvars[i].name!r}", context)
                     if isinstance(param_in_question, (PaddingCoreType, OutCoreType)):
@@ -1966,6 +2047,13 @@ def generate_function_call_internal(
             stack_on_exit += stack.alloc(StackVar(out_dest, needed_arg, initialized=True))
             temporary_stack_entries.append(out_dest)
 
+            stackloc = stack.absfind(out_dest)
+            stacksize = stack.sizeof(out_dest)
+            if stackloc is None or stacksize is None:
+                raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
+            for z in range(stacksize):
+                compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
+
         elif isinstance(needed_arg, RegisterCoreType):
             # Because we can't just do the calculation here since a subsequent arg expression calculation
             # might clobber one of the registers, we delay this so that we do this after everything else.
@@ -1988,6 +2076,13 @@ def generate_function_call_internal(
             compiled += generate_expr_internal(arg_in_question, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(arg_in_question))
             which_arg += 1
 
+            stackloc = stack.absfind(expr_dest)
+            stacksize = stack.sizeof(expr_dest)
+            if stackloc is None or stacksize is None:
+                raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
+            for z in range(stacksize):
+                compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
+
         elif isinstance(needed_arg, PreservedCoreType):
             # This is just preserved, so we don't have to worry about copy it out, but we do need to allocate it.
             expr_dest = expr_temp_name()
@@ -1995,6 +2090,13 @@ def generate_function_call_internal(
             temporary_stack_entries.append(expr_dest)
             compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
+
+            stackloc = stack.absfind(expr_dest)
+            stacksize = stack.sizeof(expr_dest)
+            if stackloc is None or stacksize is None:
+                raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
+            for z in range(stacksize):
+                compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
 
         else:
             # This is just a normal core type, so we put it on the stack, and the function takes it back off again.
@@ -2004,6 +2106,13 @@ def generate_function_call_internal(
             temporary_stack_entries.append(expr_dest)
             compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
+
+            stackloc = stack.absfind(expr_dest)
+            stacksize = stack.sizeof(expr_dest)
+            if stackloc is None or stacksize is None:
+                raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
+            for z in range(stacksize):
+                compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
 
     # Now, load our registers up with any register parameters.
     stack_skip = 0
@@ -2026,16 +2135,14 @@ def generate_function_call_internal(
             stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.register])))
             compiled += generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(provided_arg.value))
             compiled += generate_move_to(reg_dest, stack, clobbers, context)
-            compiled.append_code(f"  POP {needed_arg.register}")
-            stack.location -= 1
+            compiled.append_code(f"  LOAD {needed_arg.register}" + stack.comment(stack.location, load=True))
             stack.free(reg_dest)
         else:
             if not isinstance(arg.value, UnvalidatedName):
                 raise Exception("Logic error, params that don't need generation should be on the stack!")
             reg_dest = arg.value.value
             compiled += generate_move_to(reg_dest, stack, clobbers, context)
-            compiled.append_code(f"  POP {needed_arg.register}")
-            stack.location -= 1
+            compiled.append_code(f"  LOAD {needed_arg.register}" + stack.comment(stack.location, load=True))
             stack_skip += 1
 
     # Now, we're ready to actually call the function. Move to the last byte of the last parameter on the stack.
@@ -2070,7 +2177,7 @@ def generate_function_call_internal(
             else:
                 compiled += generate_move_to(destination, stack, clobbers, context)
                 if function_prototype.return_type.register == "A":
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                     stack.init(destination)
                 else:
                     raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.register} for function")
@@ -2128,7 +2235,7 @@ def generate_function_call_internal(
 
                 move_amt = stack.diff(src_loc)
                 compiled += generate_move_by("seeking return location", move_amt, stack, clobbers, context)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + f" ; STACKOFF: func({function_prototype.name}) + 0")
             else:
                 src_loc = normal_return_loc
                 src_size = function_prototype.return_type.size
@@ -2139,7 +2246,9 @@ def generate_function_call_internal(
                 stack.init(destination)
 
                 if src_size == dest_size:
+                    stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, load=True)
                     compiled += generate_memcpy_locations(src_loc, dest_loc, dest_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                    stack.unnameloc(f"func({function_prototype.name})")
                 else:
                     raise CompilerError("Unsupported function return from different variable sizes", context)
 
@@ -2225,6 +2334,8 @@ def generate_function_call(
 
                 # Set up the SPC to point at the string.
                 compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
@@ -2318,6 +2429,8 @@ def generate_function_call(
             if destination is None:
                 # Assume that this is just a read of an address to clear a hardware register that's clear on read.
                 compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
@@ -2336,6 +2449,8 @@ def generate_function_call(
                 if destination_type.type in {"int8", "uint8", "char"}:
                     # This one's an easy one, just move to the right spot and load the value, copying it over.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
@@ -2347,13 +2462,15 @@ def generate_function_call(
 
                     if not is_register_destination(destination):
                         compiled += generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A")
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                         stack.init(destination)
 
                 elif destination_type.type == "bool":
                     # Can't just load like above, our compiler assumes that boolean true/false is always 0xff/0x00.
                     # So if we load a value and pretend it's boolean it could mess up any other boolean checks.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
@@ -2369,12 +2486,14 @@ def generate_function_call(
 
                     if not is_register_destination(destination):
                         compiled += generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A")
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                         stack.init(destination)
 
                 elif destination_type.type in {"int16", "uint16"}:
                     # This one's slightly harder, need to copy two things, but that's manageable.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
@@ -2385,7 +2504,7 @@ def generate_function_call(
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                     compiled.append_code("  SWAP PC, SPC")
                     compiled.append_code("  INCPC")
@@ -2393,12 +2512,14 @@ def generate_function_call(
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled.append_code("  INCPC")
-                    compiled.append_code("  STORE A")
                     stack.move(-1)
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                 elif destination_type.type in {"int32", "uint32"}:
                     # This one needs to copy 4 things, but I'm gonna unroll that since it's easier than writing a loop.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
@@ -2409,7 +2530,7 @@ def generate_function_call(
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled += generate_move_to(destination, stack, clobbers, context, offset=3)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                     # Second byte.
                     compiled.append_code("  SWAP PC, SPC")
@@ -2418,7 +2539,8 @@ def generate_function_call(
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled.append_code("  INCPC")
-                    compiled.append_code("  STORE A")
+                    stack.move(-1)
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                     # Third byte.
                     compiled.append_code("  SWAP PC, SPC")
@@ -2427,7 +2549,8 @@ def generate_function_call(
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled.append_code("  INCPC")
-                    compiled.append_code("  STORE A")
+                    stack.move(-1)
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                     # Fourth byte.
                     compiled.append_code("  SWAP PC, SPC")
@@ -2436,8 +2559,8 @@ def generate_function_call(
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled.append_code("  INCPC")
-                    compiled.append_code("  STORE A")
-                    stack.move(-3)
+                    stack.move(-1)
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                 elif destination_type.type == "str":
                     # Recast this as a string pointer, since that's what it is.
@@ -2498,9 +2621,11 @@ def generate_function_call(
                 # This one's an easy one, just move to the right spot and store the value, copying it over.
                 # There's no special case for bool here, since we control it's contents and are just storing it.
                 compiled += generate_move_to(data_dest, stack, clobbers, context)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
 
                 compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
@@ -2512,42 +2637,46 @@ def generate_function_call(
             elif types[data_expr].type in {"int16", "uint16"}:
                 # This one's slightly harder, need to copy two things, but that's manageable.
                 compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
 
                 compiled += generate_move_to(data_dest, stack, clobbers, context, offset=1)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  SWAP PC, SPC")
                 compiled.append_code("  STORE A")
 
                 compiled.append_code("  SWAP PC, SPC")
                 compiled.append_code("  INCPC")
-                compiled.append_code("  LOAD A")
-                compiled.append_code("  SWAP PC, SPC")
-
-                compiled.append_code("  INCPC")
-                compiled.append_code("  STORE A")
-                compiled.append_code("  SWAP PC, SPC")
-
                 stack.move(-1)
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                compiled.append_code("  SWAP PC, SPC")
+
+                compiled.append_code("  INCPC")
+                compiled.append_code("  STORE A")
+                compiled.append_code("  SWAP PC, SPC")
 
             elif types[data_expr].type in {"int32", "uint32"}:
                 # This one needs to copy 4 things, but I'm gonna unroll that since it's easier than writing a loop.
                 compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
 
                 compiled += generate_move_to(data_dest, stack, clobbers, context, offset=3)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  SWAP PC, SPC")
                 compiled.append_code("  STORE A")
 
                 # Second byte.
                 compiled.append_code("  SWAP PC, SPC")
                 compiled.append_code("  INCPC")
-                compiled.append_code("  LOAD A")
+                stack.move(-1)
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  SWAP PC, SPC")
 
                 compiled.append_code("  INCPC")
@@ -2556,7 +2685,8 @@ def generate_function_call(
                 # Third byte.
                 compiled.append_code("  SWAP PC, SPC")
                 compiled.append_code("  INCPC")
-                compiled.append_code("  LOAD A")
+                stack.move(-1)
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  SWAP PC, SPC")
 
                 compiled.append_code("  INCPC")
@@ -2565,14 +2695,13 @@ def generate_function_call(
                 # Fourth byte.
                 compiled.append_code("  SWAP PC, SPC")
                 compiled.append_code("  INCPC")
-                compiled.append_code("  LOAD A")
+                stack.move(-1)
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  SWAP PC, SPC")
 
                 compiled.append_code("  INCPC")
                 compiled.append_code("  STORE A")
                 compiled.append_code("  SWAP PC, SPC")
-
-                stack.move(-3)
 
             elif types[data_expr].type == "str":
                 # Recast this as a string pointer, since that's what it is.
@@ -2663,6 +2792,8 @@ def generate_function_call(
 
                 # Now, dereference the string and find out if it's an empty string or not.
                 compiled += generate_move_to(expr_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
@@ -2679,7 +2810,7 @@ def generate_function_call(
 
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                     stack.init(destination)
 
                 return compiled
@@ -2706,7 +2837,7 @@ def generate_function_call(
 
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                     stack.init(destination)
 
                 return compiled
@@ -2726,26 +2857,26 @@ def generate_function_call(
 
                 # First byte check with short circuiting for non-zero.
                 clobbers.add("A")
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  INCPC")
                 compiled.append_code("  ADDI 0")
                 compiled.append_code("  LOADI 0xFF")
                 compiled.append_code(f"  JRINZ {end_conversion}")
+                stack.move(-1)
 
                 # Second byte check.
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  ADDI 0")
                 compiled.append_code("  LOADI 0x00")
                 compiled.append_code("  SKIPIF ZF")
                 compiled.append_code("  INV")
                 compiled.append_code(f"{end_conversion}:")
 
-                stack.move(-1)
                 stack.free(expr_dest)
 
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                     stack.init(destination)
 
                 return compiled
@@ -2767,28 +2898,31 @@ def generate_function_call(
 
                 # First byte check with short circuiting for non-zero.
                 clobbers.add("A")
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  INCPC")
                 compiled.append_code("  ADDI 0")
                 compiled.append_code("  LOADI 0xFF")
                 compiled.append_code(f"  JRINZ {end_conversion_first_byte}")
+                stack.move(-1)
 
                 # Second byte check with short circuiting for non-zero.
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  INCPC")
                 compiled.append_code("  ADDI 0")
                 compiled.append_code("  LOADI 0xFF")
                 compiled.append_code(f"  JRINZ {end_conversion_second_byte}")
+                stack.move(-1)
 
                 # Third byte check with short circuiting for non-zero.
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  INCPC")
                 compiled.append_code("  ADDI 0")
                 compiled.append_code("  LOADI 0xFF")
                 compiled.append_code(f"  JRINZ {end_conversion}")
+                stack.move(-1)
 
                 # Fourth byte check.
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  ADDI 0")
                 compiled.append_code("  LOADI 0x00")
                 compiled.append_code("  SKIPIF ZF")
@@ -2801,12 +2935,11 @@ def generate_function_call(
                 compiled.append_code("  INCPC")
                 compiled.append_code(f"{end_conversion}:")
 
-                stack.move(-3)
                 stack.free(expr_dest)
 
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                     stack.init(destination)
 
                 return compiled
@@ -2839,7 +2972,7 @@ def generate_function_call(
 
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                     stack.init(destination)
 
                 return compiled
@@ -2854,13 +2987,13 @@ def generate_function_call(
 
                 # Now, load the bottom byte into the A register to return it.
                 compiled += generate_move_to(expr_dest, stack, clobbers, context)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 stack.free(expr_dest)
 
                 if not is_register_destination(destination):
                     clobbers.add("A")
                     compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                     stack.init(destination)
 
                 return compiled
@@ -2898,14 +3031,14 @@ def generate_function_call(
             if destination_type.size == 1:
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                     stack.init(destination)
 
                 return compiled
 
             elif destination_type.size == 2:
                 compiled += generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  INCPC")
                 compiled.append_code("  STOREI 0")
                 stack.move(-1)
@@ -2915,15 +3048,17 @@ def generate_function_call(
 
             elif destination_type.size == 4:
                 compiled += generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  INCPC")
+                stack.move(-1)
                 compiled.append_code("  LOADI 0")
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  INCPC")
-                compiled.append_code("  STORE A")
+                stack.move(-1)
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  INCPC")
-                compiled.append_code("  STORE A")
-                stack.move(-3)
+                stack.move(-1)
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 stack.init(destination)
 
                 return compiled
@@ -2964,7 +3099,7 @@ def generate_function_call(
 
                 if not is_register_destination(destination):
                     compiled += generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                     stack.init(destination)
 
                 return compiled
@@ -3254,7 +3389,7 @@ def generate_variable_lookup(
                 raise CompilerError("Unsupported destination for non-integer assignment", context)
 
             compiled += generate_move_to(source, stack, clobbers, context)
-            compiled.append_code("  LOAD A")
+            compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
 
     elif stack.absfind(source) is None and (global_var := global_by_name(refs, source)) is not None:
         # Global variable lookup.
@@ -3365,7 +3500,7 @@ def generate_variable_lookup(
                             compiled.append_code("  SWAP PC, SPC")
 
                         compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
-                        compiled.append_code("  STORE A")
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                 elif global_var.type.size > dest_type.size:
                     # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
@@ -3383,7 +3518,7 @@ def generate_variable_lookup(
                             compiled.append_code("  SWAP PC, SPC")
 
                         compiled += generate_move_to(destination, stack, clobbers, context, offset=i)
-                        compiled.append_code("  STORE A")
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                 else:
                     # Copy, but with either sign extension or zero extension for the missing upper bytes.
@@ -3412,7 +3547,7 @@ def generate_variable_lookup(
 
                         move_amt = stack.diff(actual_pos)
                         compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
-                        compiled.append_code("  STORE A")
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                     # Need to copy the whole source, but to the correct location in the destination.
                     for i in range(global_var.type.size):
@@ -3435,7 +3570,7 @@ def generate_variable_lookup(
 
                         move_amt = stack.diff(actual_pos)
                         compiled += generate_move_by("seeking copy byte", move_amt, stack, clobbers, context)
-                        compiled.append_code("  STORE A")
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
         if destination is None:
@@ -3469,10 +3604,12 @@ def generate_variable_lookup(
 
             # Grab the character value itself.
             compiled += generate_move_to(source, stack, clobbers, context)
-            compiled.append_code("  LOAD A")
+            compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
 
             # Set up the SPC to point at the string.
             compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
+            compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+            compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
             compiled.append_code("  POP SPC")
             stack.move(-2)
             compiled.code += comment_stack(stack)
@@ -3549,7 +3686,7 @@ def generate_variable_lookup(
                 # First, go to the high byte and figure out if it needs to be zero or one extended.
                 move_amt = stack.diff(source_loc + (source_type.size - 1))
                 compiled += generate_move_by("seeking {source}", move_amt, stack, clobbers, context)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  SHL")
                 compiled.append_code("  LOADI 0")
                 compiled.append_code("  SKIPIF !CF")
@@ -3560,7 +3697,7 @@ def generate_variable_lookup(
 
                 move_amt = stack.diff(actual_pos)
                 compiled += generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
             # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
             compiled += generate_memcpy_locations(source_loc, dest_loc, source_type.size, stack, clobbers, context)
@@ -3609,7 +3746,7 @@ def generate_unary_expr(
 
             # Move to the parameter and negate it.
             compiled += generate_move_to(internal_dest, stack, clobbers, context)
-            compiled.append_code("  LOAD A")
+            compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
 
             if isinstance(expression.operator, cst.Minus):
                 compiled.append_code("  NEG")
@@ -3623,7 +3760,7 @@ def generate_unary_expr(
                 stack.free(internal_dest)
             else:
                 compiled += generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 if internal_dest != destination:
                     stack.free(internal_dest)
         elif destination_size in {2, 4}:
@@ -3670,10 +3807,10 @@ def generate_unary_expr(
 
                 for offset in range(destination_size):
                     compiled += generate_move_to(internal_dest, stack, clobbers, context, offset=actual_neg_offset(offset))
-                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                     compiled.append_code("  INV")
                     compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_neg_offset(offset))
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
             else:
                 raise CompilerError("Unsupported unary operation {expression}", context)
@@ -3697,7 +3834,7 @@ def generate_unary_expr(
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A")
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
         # TODO: Handle Plus (no-op, just call with the expression value).
@@ -3791,6 +3928,8 @@ def generate_binary_expr(
             # Need to clobber the SPC to move to that location.
             clobbers.add("SPC")
             compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
+            compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+            compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
             compiled.append_code("  POP SPC")
             stack.move(-2)
             compiled.code += comment_stack(stack)
@@ -3849,12 +3988,12 @@ def generate_binary_expr(
 
                 # Move to the second parameter and negate it.
                 compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled.append_code("  NEG")
 
                 # Move to the right spot on the stack to add to the negated right hand side.
                 compiled += generate_move_to(lhs_dest, stack, clobbers, context)
-                compiled.append_code("  ADD")
+                compiled.append_code("  ADD" + stack.comment(stack.location, load=True))
 
             elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
                 if not destination_type.is_integer:
@@ -3866,17 +4005,17 @@ def generate_binary_expr(
 
                 # Move to the right spot on the stack and then add the two numbers.
                 compiled += generate_move_to(rhs_dest, stack, clobbers, context)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled += generate_move_to(lhs_dest, stack, clobbers, context)
 
                 if isinstance(expression.operator, cst.Add):
-                    compiled.append_code("  ADD")
+                    compiled.append_code("  ADD" + stack.comment(stack.location, load=True))
                 elif isinstance(expression.operator, cst.BitAnd):
-                    compiled.append_code("  AND")
+                    compiled.append_code("  AND" + stack.comment(stack.location, load=True))
                 elif isinstance(expression.operator, cst.BitOr):
-                    compiled.append_code("  OR")
+                    compiled.append_code("  OR" + stack.comment(stack.location, load=True))
                 elif isinstance(expression.operator, cst.BitXor):
-                    compiled.append_code("  XOR")
+                    compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
                 else:
                     raise Exception("Logic error, unexpected operator {expression.operator)}")
 
@@ -3937,7 +4076,7 @@ def generate_binary_expr(
                     clobbers,
                     context,
                 )
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
 
             else:
                 raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
@@ -3950,7 +4089,7 @@ def generate_binary_expr(
             else:
                 stack.free(rhs_dest)
                 compiled += generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 if lhs_dest != destination:
                     stack.free(lhs_dest)
 
@@ -4100,11 +4239,11 @@ def generate_binary_expr(
                 # Since bitwise operations are independent we can just do this in a loop.
                 for offset in range(destination_size):
                     compiled += generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                     compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                    compiled.append_code(function)
+                    compiled.append_code(function + stack.comment(stack.location, load=True))
                     compiled += generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                 stack.free(rhs_dest)
                 if lhs_dest != destination:
@@ -4182,7 +4321,7 @@ def generate_boolean_expr(
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A")
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     elif isinstance(expression.operator, cst.Or):
         # Perform short-circuiting OR, first by handling the left hand side, and if it
@@ -4227,7 +4366,7 @@ def generate_boolean_expr(
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A")
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
         raise CompilerError(f"Unsupported boolean operation {expression}!", context)
@@ -4287,7 +4426,7 @@ def generate_comparison_expr(
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A")
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     elif isinstance(expression.comparisons[0].operator, (cst.Equal, cst.NotEqual)):
         # Determine preload value based on the comparison type.
@@ -4378,11 +4517,11 @@ def generate_comparison_expr(
             comparison_size = max(left_type.size, right_type.size)
             if comparison_size == 1:
                 compiled += generate_move_to(second_dest, stack, clobbers, context)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled += generate_move_to(first_dest, stack, clobbers, context)
 
                 # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append_code("  XOR")
+                compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
 
                 # Preload condition result into A.
                 compiled.append_code(f"  LOADI {preload_value}")
@@ -4410,11 +4549,11 @@ def generate_comparison_expr(
                 finished_comparison = local_label_name("finished_comparison")
 
                 compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
                 # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append_code("  XOR")
+                compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
                 compiled.append_code(f"  JRIZ {second_byte_comparison}")
 
                 # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
@@ -4425,11 +4564,11 @@ def generate_comparison_expr(
                 # Now, do the second byte comparison.
                 compiled.append_code(f"{second_byte_comparison}:")
                 compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
                 # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append_code("  XOR")
+                compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
 
                 # Preload condition result into A.
                 compiled.append_code(f"  LOADI {preload_value}")
@@ -4462,11 +4601,11 @@ def generate_comparison_expr(
                 finished_comparison = local_label_name("finished_comparison")
 
                 compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
                 # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append_code("  XOR")
+                compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
                 compiled.append_code(f"  JRIZ {second_byte_comparison}")
 
                 # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
@@ -4477,11 +4616,11 @@ def generate_comparison_expr(
                 # Now, do the second byte comparison.
                 compiled.append_code(f"{second_byte_comparison}:")
                 compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
                 # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append_code("  XOR")
+                compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
                 compiled.append_code(f"  JRIZ {third_byte_comparison}")
 
                 # We failed the comparison on the second byte, move to where we would have moved to and set our result to False.
@@ -4492,11 +4631,11 @@ def generate_comparison_expr(
                 # Now, do the third byte comparison.
                 compiled.append_code(f"{third_byte_comparison}:")
                 compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(2))
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(2))
 
                 # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append_code("  XOR")
+                compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
                 compiled.append_code(f"  JRIZ {fourth_byte_comparison}")
 
                 # We failed the comparison on the third byte, move to where we would have moved to and set our result to False.
@@ -4507,11 +4646,11 @@ def generate_comparison_expr(
                 # Now, do the fourth byte comparison.
                 compiled.append_code(f"{fourth_byte_comparison}:")
                 compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(3))
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                 compiled += generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(3))
 
                 # XOR the two numbers, which will give us 0 if they equal.
-                compiled.append_code("  XOR")
+                compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
 
                 # Preload condition result into A.
                 compiled.append_code(f"  LOADI {preload_value}")
@@ -4530,7 +4669,7 @@ def generate_comparison_expr(
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A")
+            compiled.append_code("  STORE A" + stack.comment(stack.location))
 
     elif isinstance(expression.comparisons[0].operator, (cst.GreaterThan, cst.GreaterThanEqual, cst.LessThan, cst.LessThanEqual)):
         # Determine preload value based on the comparison type.
@@ -4701,7 +4840,7 @@ def generate_comparison_expr(
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A")
+            compiled.append_code("  STORE A" + stack.comment(stack.location))
 
     else:
         # TODO: Additional comparisons.
@@ -4838,6 +4977,8 @@ def generate_subscript_expr(
 
         # Move to the correct spot on the stack to pop the pointer onto the SPC.
         compiled += generate_move_to(base_dest, stack, clobbers, context, offset=1)
+        compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+        compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
         compiled.append_code("  POP SPC")
         stack.move(-2)
         compiled.code += comment_stack(stack)
@@ -4860,7 +5001,7 @@ def generate_subscript_expr(
 
             if not is_register_destination(destination):
                 compiled += generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A")
+                compiled.append_code("  STORE A" + stack.comment(stack.location))
 
         stack.free(base_dest)
 
@@ -4963,6 +5104,8 @@ def generate_subscript_expr(
 
             # Swap over so we can check the string one byte at a time.
             compiled.append_code("  MOV A, V")
+            compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+            compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
             compiled.append_code("  POP SPC")
             compiled.append_code("  SWAP PC, SPC")
 
@@ -5014,19 +5157,19 @@ def generate_subscript_expr(
                     stack.alloc(StackVar(ending_dest, CoreType("int8"), initialized=True))
                     compiled += generate_move_to(ending_dest, stack, clobbers, context)
                     compiled.append_code("  NEG")
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                     # This can be mapped onto a simple strncmp, so we should calculate the ending value and do that.
                     ending_temp = expr_temp_name()
                     stack.alloc(StackVar(ending_temp, CoreType("uint8")))
                     compiled += generate_expr_internal(ending, ending_temp, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
                     compiled += generate_move_to(ending_temp, stack, clobbers, context)
-                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
                     stack.free(ending_temp)
 
                     compiled += generate_move_to(ending_dest, stack, clobbers, context)
-                    compiled.append_code("  ADD")
-                    compiled.append_code("  STORE A")
+                    compiled.append_code("  ADD" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                 compiled += generate_function_call_internal(
                     create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
@@ -5243,6 +5386,8 @@ def generate_expr_internal(
                         clobbers.add("SPC")
 
                         compiled += generate_move_to(destination, stack, clobbers, context, offset=1)
+                        compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                         compiled.append_code("  POP SPC")
                         stack.move(-2)
                         compiled.code += comment_stack(stack)
@@ -5730,7 +5875,7 @@ def generate_expr(
 
         compiled += generate_expr_internal(expression, dest, types, stack, clobbers, allocations, refs, local_consts, context)
         compiled += generate_move_to(destination, stack, clobbers, context)
-        compiled.append_code("  STORE A")
+        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
     else:
         # Just do stack-based operations.
         compiled += generate_expr_internal(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
@@ -5789,7 +5934,7 @@ def global_variable_assign(
                 compiled.append_code("  SWAP PC, SPC")
 
             compiled += generate_move_to(expr_temp, stack, clobbers, context, offset=i)
-            compiled.append_code("  LOAD A")
+            compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
 
             # Now, we need to copy the loaded A from our current expression result to the global value.
             if i == 0:
@@ -5883,6 +6028,8 @@ def generate_assign_expr(
                 raise CompilerError(f"Use of uninitialized variable {assign_name!r}", context)
 
             compiled += generate_move_to(assign_name, stack, clobbers, context, offset=1)
+            compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+            compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
             compiled.append_code("  POP SPC")
             stack.move(-2)
             compiled.code += comment_stack(stack)
@@ -6815,7 +6962,6 @@ def compile_chunk(
             compiled += for_compiled
 
         else:
-            # TODO: Import statements for forward refs to other modules.
             raise CompilerError(f"Unsupported node to compile {statement}", context)
 
     if require_return and not last_statement_was_return:
@@ -7008,7 +7154,8 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     chunk, _, _ = compile_chunk(func.body, stack, set(), {}, function_type, refs, None, builtin_consts(), context, require_return=True, require_continue=False)
     compiled += chunk
 
-    # TODO: Function boundary is where we will end up optimizing redundant stack moves and load/store operations.
+    # Function boundary is where we optimize redundant stack moves and load/store operations.
+    compiled.code = optimization_pass(compiled.code, context.settings.optimize)
 
     # Finally, find any comments that comment on empty blocks after optimization, and remove them.
     compiled.code = remove_empty_comments(compiled.code)
@@ -7099,6 +7246,167 @@ def remove_empty_lines(code: List[str]) -> List[str]:
     return code
 
 
+def optimization_pass(code: List[str], enabled: bool) -> List[str]:
+    # Clone this so we aren't mutating the input because that's bad form.
+    code = code[:]
+
+    if enabled:
+        old_code = "\n".join(code)
+
+        while True:
+            code = optimization_pass_impl(code)
+            new_code = "\n".join(code)
+            if new_code == old_code:
+                break
+
+            old_code = new_code
+
+    def strip_opt_comment(line: str) -> str:
+        return line.split("; STACKOFF", 1)[0].rstrip()
+
+    code = [strip_opt_comment(c) for c in code]
+    code = [c for c in code if c.strip() != "NOP"]
+    return code
+
+
+def optimization_pass_impl(code: List[str]) -> List[str]:
+    codelen = len(code)
+
+    def sanitize(line: str) -> str:
+        if not line:
+            return ""
+        if ";" in line:
+            line, _ = line.split(";", 1)
+        line = line.strip()
+        return line
+
+    def nextline(pos: int) -> str:
+        if pos == codelen - 1:
+            return ""
+        else:
+            return sanitize(code[pos + 1])
+
+    def curline(pos: int) -> str:
+        return sanitize(code[pos])
+
+    def curpos(pos: int) -> Optional[str]:
+        return stackpos(code[pos])
+
+    def prevline(pos: int) -> str:
+        if pos == 0:
+            return ""
+        else:
+            return sanitize(code[pos - 1])
+
+    def remove(pos: int, length: int = 1) -> None:
+        nonlocal code
+        nonlocal codelen
+
+        code = code[:pos] + code[(pos + length):]
+        codelen -= length
+
+    def replace(pos: int, length: int, new: List[str]) -> None:
+        nonlocal code
+        nonlocal codelen
+
+        code = code[:pos] + new + code[(pos + length):]
+        codelen -= length
+        codelen += len(new)
+
+    def insn(line: str) -> str:
+        return line.split(" ", 1)[0]
+
+    def stackpos(line: str) -> Optional[str]:
+        if "; STACKOFF:" in line:
+            _, pos = line.split("; STACKOFF: ", 1)
+            return pos.strip()
+        return None
+
+    def moveamt(line: str) -> int:
+        if insn(line) == "INCPC":
+            return 1
+        if insn(line) == "DECPC":
+            return -1
+        if insn(line) == "ADDPCI":
+            return int(line.split(" ", 1)[1])
+        if insn(line) == "SUBPCI":
+            return -int(line.split(" ", 1)[1])
+        raise Exception("Logic error, unexpected instruction!")
+
+    stack_counts: Dict[str, int] = {
+        'builtin(retptr) + 0': 1,
+        'builtin(retptr) + 1': 1,
+        'builtin(retval) + 0': 1,
+        'builtin(retval) + 1': 1,
+        'builtin(retval) + 2': 1,
+        'builtin(retval) + 3': 1,
+    }
+    for line in code:
+        stpos = stackpos(line)
+        if stpos:
+            stack_counts[stpos] = stack_counts.get(stpos, 0) + 1
+
+    stackop = {"ADDPCI", "INCPC", "SUBPCI", "DECPC"}
+
+    pos = 0
+    while pos < codelen:
+        cur = curline(pos)
+
+        if not cur:
+            # Nothing here, no sense wasting time checking.
+            pos += 1
+            continue
+
+        nxt = nextline(pos)
+        prv = prevline(pos)
+
+        if cur == "SWAP PC, SPC" and nxt == "SWAP PC, SPC":
+            # Shouldn't ever happen, but is super easy to get rid of.
+            remove(pos, 2)
+        elif insn(cur) in stackop and insn(nxt) in stackop:
+            # Opportunity to combine as long as it doesn't overrun.
+            first_move = moveamt(cur)
+            second_move = moveamt(nxt)
+
+            total_move = first_move + second_move
+            if total_move == 0:
+                remove(pos, 2)
+            elif total_move == 1:
+                replace(pos, 2, ["  INCPC"])
+            elif total_move == -1:
+                replace(pos, 2, ["  DECPC"])
+            elif total_move > 1:
+                replace(pos, 2, [f"  ADDPCI {total_move}"])
+            elif total_move < -1:
+                replace(pos, 2, [f"  SUBPCI {-total_move}"])
+            else:
+                raise Exception("Logic error, unknown move amount!")
+        elif insn(cur) == "LOADI" and insn(prv) in stackop and insn(nxt) in stackop:
+            # In this case, we can reorder instructions since it doesn't matter what order they
+            # happen, but it also means that we can possibly fold redundant moves. This may only
+            # exist because we reduced redundant store/loads with a constant load.
+            replace(pos, 2, [code[pos + 1], code[pos]])
+        elif cur == "STORE A" and nxt == "LOAD A":
+            remove(pos + 1)
+        elif cur == "STORE U" and nxt == "LOAD U":
+            remove(pos + 1)
+        elif cur == "STORE V" and nxt == "LOAD V":
+            remove(pos + 1)
+        elif cur == "LOAD A" and nxt == "STORE A":
+            remove(pos + 1)
+        elif cur == "LOAD U" and nxt == "STORE U":
+            remove(pos + 1)
+        elif cur == "LOAD V" and nxt == "STORE V":
+            remove(pos + 1)
+        elif insn(cur) == "STORE" and (key := curpos(pos)) is not None and stack_counts[key] == 1:
+            remove(pos)
+        else:
+            # Didn't remove anything, onward.
+            pos += 1
+
+    return code
+
+
 def is_assign_type_definition(assign: cst.Assign) -> bool:
     if len(assign.targets) != 1:
         return False
@@ -7136,7 +7444,7 @@ def is_annassign_type_definition(assign: cst.AnnAssign) -> bool:
     return True
 
 
-def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototype, GlobalVariable]]) -> Sections:
+def compile_module(module: str, code: str, settings: CompilerSettings, refs: Sequence[Union[FunctionPrototype, GlobalVariable]]) -> Sections:
     parsed_module = cst.parse_module(code)
 
     # Make sure we have access to line/column numbers for errors.
@@ -7155,7 +7463,7 @@ def compile_module(module: str, code: str, refs: Sequence[Union[FunctionPrototyp
     refs = copy.deepcopy(refs)
 
     for statement in parsed_module.body:
-        context = Context(module, statement, metadata)
+        context = Context(module, settings, statement, metadata)
 
         if isinstance(statement, cst.SimpleStatementLine):
             bodylines = statement.body
@@ -7299,7 +7607,7 @@ def parse_forward_refs(module: str, code: str) -> List[Union[FunctionPrototype, 
     names: Set[str] = set()
 
     for statement in parsed_module.body:
-        context = Context(module, statement, metadata)
+        context = Context(module, CompilerSettings(optimize=False), statement, metadata)
 
         if isinstance(statement, cst.FunctionDef):
             prototype = function_prototype(statement, context)
@@ -7323,10 +7631,10 @@ def parse_forward_refs(module: str, code: str) -> List[Union[FunctionPrototype, 
     return prototypes
 
 
-def parse_and_compile_module(module: str, code: str) -> Sections:
+def parse_and_compile_module(module: str, code: str, settings: CompilerSettings) -> Sections:
     forward_refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
     forward_refs += parse_forward_refs(module, code)
-    return compile_module(module, code, forward_refs)
+    return compile_module(module, code, settings, forward_refs)
 
 
 def builtin_functions() -> List[FunctionPrototype]:

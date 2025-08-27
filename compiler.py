@@ -5,6 +5,7 @@ from typing import List, Union
 
 from core import (
     CompilerError,
+    CompilerSettings,
     FunctionPrototype,
     GlobalVariable,
     Sections,
@@ -41,6 +42,13 @@ if __name__ == "__main__":
         default="init.S",
     )
     parser.add_argument(
+        "-z",
+        "--optimize",
+        action="store_true",
+        help="Optimize compiled code",
+        default=False,
+    )
+    parser.add_argument(
         "file",
         metavar="FILE",
         nargs="+",
@@ -54,6 +62,7 @@ if __name__ == "__main__":
         help="Enable verbose error output",
     )
     args = parser.parse_args()
+    settings = CompilerSettings(optimize=args.optimize)
 
     try:
         refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
@@ -70,7 +79,7 @@ if __name__ == "__main__":
                 fname = os.path.abspath(fname)
                 set_working_directory(os.path.dirname(fname))
 
-                compiled += compile_module(fname, fp.read(), refs)
+                compiled += compile_module(fname, fp.read(), settings, refs)
 
         with open(args.output, "w") as fp:
             for line in compiled.code:

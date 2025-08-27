@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 from .compiler import (
     CompilerError,
+    CompilerSettings,
     FunctionPrototype,
     CoreType,
     PaddingCoreType,
@@ -96,7 +97,7 @@ class TestCompiler(unittest.TestCase):
         # Verify that we can infer a normal expression with just two variables.
         expr = self.__get_expr("15")
         stack = Stack("__test__")
-        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])
         self.assertTypesValid(types)
 
@@ -106,7 +107,7 @@ class TestCompiler(unittest.TestCase):
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int8")))
         stack.alloc(StackVar("y", CoreType("int8")))
-        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])
         self.assertTypesValid(types)
 
@@ -115,7 +116,7 @@ class TestCompiler(unittest.TestCase):
         expr = self.__get_expr("x + 12345")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
-        types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int16"), types[expr])
         self.assertTypesValid(types)
 
@@ -125,7 +126,7 @@ class TestCompiler(unittest.TestCase):
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
-        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int32"), types[expr])
         self.assertTypesValid(types)
 
@@ -135,7 +136,7 @@ class TestCompiler(unittest.TestCase):
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
-        types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("bool"), types[expr])
         self.assertTypesValid(types)
 
@@ -144,7 +145,7 @@ class TestCompiler(unittest.TestCase):
         expr = self.__get_expr("x == 12345")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
-        types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("bool"), types[expr])
         self.assertTypesValid(types)
 
@@ -155,7 +156,7 @@ class TestCompiler(unittest.TestCase):
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
         stack.alloc(StackVar("z", CoreType("bool")))
-        types = infer_expr_types(expr, CoreType("int32"), stack, [], [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("int32"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int32"), types[expr])
         self.assertTypesValid(types)
 
@@ -165,7 +166,7 @@ class TestCompiler(unittest.TestCase):
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("z", CoreType("bool")))
-        types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int16"), types[expr])
         self.assertTypesValid(types)
 
@@ -176,7 +177,7 @@ class TestCompiler(unittest.TestCase):
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
         refs = [FunctionPrototype("func", CoreType("int8"), [CoreType("int16"), CoreType("int32")])]
-        types = infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])
         self.assertTypesValid(types)
 
@@ -185,23 +186,23 @@ class TestCompiler(unittest.TestCase):
         expr = self.__get_expr("func(5, 15)")
         stack = Stack("__test__")
         refs = [FunctionPrototype("func", CoreType("int8"), [CoreType("int16"), CoreType("int32")])]
-        types = infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", expr, {}))
+        types = infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])
         self.assertTypesValid(types)
 
     def test_empty(self) -> None:
-        output = parse_and_compile_module("__test__", "")
+        output = parse_and_compile_module("__test__", "", CompilerSettings())
         self.assertTrue(len(output.code) == 0)
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
     def test_throw_on_top_level_statement(self) -> None:
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", 'print("Hello, world!")')
+            parse_and_compile_module("__test__", 'print("Hello, world!")', CompilerSettings())
         self.assertEqual("__test__ line 1: Arbitrary top-level statements are not supported", str(cm.exception))
 
     def test_allow_global_const_declaration_init(self) -> None:
-        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = 123')
+        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = 123', CompilerSettings())
         self.assertEqual([
             '  ; __test__ line 1: UINT8_CONST: const[int8] = 123',
             'UINT8_CONST:',
@@ -210,7 +211,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
-        output = parse_and_compile_module("__test__", 'UINT16_CONST: const[int16] = 0xCAFE')
+        output = parse_and_compile_module("__test__", 'UINT16_CONST: const[int16] = 0xCAFE', CompilerSettings())
         self.assertEqual([
             '  ; __test__ line 1: UINT16_CONST: const[int16] = 0xCAFE',
             'UINT16_CONST:',
@@ -220,7 +221,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
-        output = parse_and_compile_module("__test__", 'UINT32_CONST: const[int32] = 0xDEADBEEF')
+        output = parse_and_compile_module("__test__", 'UINT32_CONST: const[int32] = 0xDEADBEEF', CompilerSettings())
         self.assertEqual([
             '  ; __test__ line 1: UINT32_CONST: const[int32] = 0xDEADBEEF',
             'UINT32_CONST:',
@@ -232,7 +233,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
-        output = parse_and_compile_module("__test__", "UINT8_CONST: const[char] = 'c'")
+        output = parse_and_compile_module("__test__", "UINT8_CONST: const[char] = 'c'", CompilerSettings())
         self.assertEqual([
             "  ; __test__ line 1: UINT8_CONST: const[char] = 'c'",
             "UINT8_CONST:",
@@ -241,7 +242,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
-        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[str] = "test"')
+        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[str] = "test"', CompilerSettings())
         self.assertEqual([
             '  ; __test__ line 1: UINT8_CONST: const[str] = "test"',
             'UINT8_CONST:',
@@ -255,7 +256,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_allow_global_const_declaration_init_expr(self) -> None:
-        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = (7 * 2) + 1')
+        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = (7 * 2) + 1', CompilerSettings())
         self.assertEqual([
             '  ; __test__ line 1: UINT8_CONST: const[int8] = (7 * 2) + 1',
             'UINT8_CONST:',
@@ -266,12 +267,12 @@ class TestCompiler(unittest.TestCase):
 
     def test_throw_on_global_const_declaration(self) -> None:
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", 'UINT8_CONST: const[int8]')
+            parse_and_compile_module("__test__", 'UINT8_CONST: const[int8]', CompilerSettings())
         self.assertEqual("__test__ line 1: Expecting initialization value for global const definition", str(cm.exception))
 
     def test_throw_on_global_no_type(self) -> None:
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", 'SOME_CONST = 123')
+            parse_and_compile_module("__test__", 'SOME_CONST = 123', CompilerSettings())
         self.assertEqual("__test__ line 1: Global variable declarations must have a type", str(cm.exception))
 
     def test_define_simple_function(self) -> None:
@@ -283,7 +284,7 @@ class TestCompiler(unittest.TestCase):
         prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", VoidType)], prototypes)
 
-        output = parse_and_compile_module("__test__", func)
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual([
             "simple:",
             "  ; Stack layout just after call:",
@@ -309,7 +310,7 @@ class TestCompiler(unittest.TestCase):
         prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [PaddingCoreType(1)])], prototypes)
 
-        output = parse_and_compile_module("__test__", func)
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual([
             'simple:',
             '  ; Stack layout just after call:',
@@ -346,7 +347,7 @@ class TestCompiler(unittest.TestCase):
         prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"))], prototypes)
 
-        output = parse_and_compile_module("__test__", func)
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual([
             'simple:',
             '  ; Stack layout just after call:',
@@ -402,7 +403,7 @@ class TestCompiler(unittest.TestCase):
         prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [CoreType("int8")])], prototypes)
 
-        output = parse_and_compile_module("__test__", func)
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual([
             'simple:',
             '  ; Stack layout just after call:',
@@ -449,7 +450,7 @@ class TestCompiler(unittest.TestCase):
         prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("defineconst", CoreType("int8"), [CoreType("int8")])], prototypes)
 
-        output = parse_and_compile_module("__test__", func)
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual([
             'defineconst:',
             '  ; Stack layout just after call:',
@@ -498,7 +499,7 @@ class TestCompiler(unittest.TestCase):
         prototypes = parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("defineconst", CoreType("int8"), [CoreType("int8")])], prototypes)
 
-        output = parse_and_compile_module("__test__", func)
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual([
             'defineconst:',
             '  ; Stack layout just after call:',
@@ -554,7 +555,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 3: Unsupported type for local variable definition", str(cm.exception))
 
     def test_throw_on_local_const_no_assign(self) -> None:
@@ -564,7 +565,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 3: Expecting initialization value for local const definition", str(cm.exception))
 
     def test_throw_on_local_type_redefinition(self) -> None:
@@ -576,7 +577,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 4: Unsupported type redefinition for local variable assignment", str(cm.exception))
 
     def test_throw_on_undefined_local(self) -> None:
@@ -586,7 +587,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 3: Undefined variable reference to 'some_var'", str(cm.exception))
 
     def test_throw_on_local_const_reassign(self) -> None:
@@ -598,7 +599,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 4: Cannot assign to variable 'SOME_VAR' declared const", str(cm.exception))
 
     def test_throw_on_var_use_before_init(self) -> None:
@@ -609,7 +610,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 4: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -621,7 +622,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 6: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -635,7 +636,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 8: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -648,7 +649,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 7: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -658,7 +659,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 4: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -674,7 +675,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 10: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -692,7 +693,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 12: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -704,7 +705,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 6: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -718,7 +719,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func)
+            parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual("__test__ line 8: Use of uninitialized variable 'some_var'", str(cm.exception))
 
     def test_doesnt_throw_on_var_use(self) -> None:
@@ -731,7 +732,7 @@ class TestCompiler(unittest.TestCase):
                     some_var = 7
                 return some_var
         """)
-        parse_and_compile_module("__test__", func)
+        parse_and_compile_module("__test__", func, CompilerSettings())
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -744,7 +745,7 @@ class TestCompiler(unittest.TestCase):
                     some_var = 6
                 return some_var
         """)
-        parse_and_compile_module("__test__", func)
+        parse_and_compile_module("__test__", func, CompilerSettings())
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -761,7 +762,7 @@ class TestCompiler(unittest.TestCase):
                             some_var = 4
                 return some_var
         """)
-        parse_and_compile_module("__test__", func)
+        parse_and_compile_module("__test__", func, CompilerSettings())
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -770,7 +771,7 @@ class TestCompiler(unittest.TestCase):
                     some_var = 1
                 return some_var
         """)
-        parse_and_compile_module("__test__", func)
+        parse_and_compile_module("__test__", func, CompilerSettings())
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -780,7 +781,7 @@ class TestCompiler(unittest.TestCase):
                     some_var += 1
                 return 0
         """)
-        parse_and_compile_module("__test__", func)
+        parse_and_compile_module("__test__", func, CompilerSettings())
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -791,7 +792,7 @@ class TestCompiler(unittest.TestCase):
                     some_var += 1
                 return 0
         """)
-        parse_and_compile_module("__test__", func)
+        parse_and_compile_module("__test__", func, CompilerSettings())
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -800,7 +801,7 @@ class TestCompiler(unittest.TestCase):
                     pass
                 return x
         """)
-        parse_and_compile_module("__test__", func)
+        parse_and_compile_module("__test__", func, CompilerSettings())
 
     def __loader(self, filename: str) -> Optional[str]:
         filename = os.path.basename(filename)
@@ -845,7 +846,7 @@ class TestCompiler(unittest.TestCase):
         set_file_loader(self.__loader)
         set_working_directory("/")
 
-        parse_and_compile_module("good.py", self.__loader("good.py") or "")
+        parse_and_compile_module("good.py", self.__loader("good.py") or "", CompilerSettings())
 
         set_working_directory(None)
         set_file_loader(None)
@@ -855,7 +856,7 @@ class TestCompiler(unittest.TestCase):
         set_working_directory("/")
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("bad.py", self.__loader("bad.py") or "")
+            parse_and_compile_module("bad.py", self.__loader("bad.py") or "", CompilerSettings())
         self.assertEqual("bad.py line 2: File /unk.py not found when attempting import", str(cm.exception))
 
         set_working_directory(None)
@@ -866,7 +867,7 @@ class TestCompiler(unittest.TestCase):
         set_working_directory("/")
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("wrong.py", self.__loader("wrong.py") or "")
+            parse_and_compile_module("wrong.py", self.__loader("wrong.py") or "", CompilerSettings())
         self.assertEqual("wrong.py line 2: File /lib.py does not export importable some_func", str(cm.exception))
 
         set_working_directory(None)
@@ -877,7 +878,7 @@ class TestCompiler(unittest.TestCase):
         set_working_directory("/")
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("shadow.py", self.__loader("shadow.py") or "")
+            parse_and_compile_module("shadow.py", self.__loader("shadow.py") or "", CompilerSettings())
         self.assertEqual("shadow.py line 2: Import of math shadows local definitions", str(cm.exception))
 
         set_working_directory(None)
