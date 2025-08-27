@@ -4,7 +4,6 @@ Optimizations that would be nice to have:
  - find JRI/LNGJUMP that points at the next instruction and remove it.
  - duplicate instruction chain finder, replace with LNGJUMP to save on space.
  - replace LNGJUMP with JRI when appropriately small jumps exist.
- - look for booleans that get calculated out only to be "INV" for a JRI or LNGJUMP.
 
 Things that would be nice to have for convenience:
  - function default parameter support.

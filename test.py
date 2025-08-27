@@ -16101,6 +16101,488 @@ def verifymax(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for max: {int(instructions/count)}")
 
 
+def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "optimizations" not in only and "compiler" not in only:
+        return
+
+    print("Verifying optimizations...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/cmp.S", "r") as fp:
+        cmplines = fp.readlines()
+    with open("lib/string/strcmp.S", "r") as fp:
+        strcmplines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    left: Any
+    right: Any
+
+    # First, equality of various types.
+    for vtype, left, right in [
+        ("uint8", 5, 5),
+        ("uint8", 5, 10),
+        ("int8", 5, 5),
+        ("int8", 5, 10),
+        ("uint16", 5, 5),
+        ("uint16", 5, 10),
+        ("int16", 5, 5),
+        ("int16", 5, 10),
+        ("uint32", 5, 5),
+        ("uint32", 5, 10),
+        ("int32", 5, 5),
+        ("int32", 5, 10),
+    ]:
+        sections = parse_and_compile_module("optimizations", textwrap.dedent(f"""
+            def callable(val1: {vtype}, val2: {vtype}) -> nopad[bool]:
+                if val1 == val2:
+                    return True
+                else:
+                    return False
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *cmplines,
+            *strcmplines,
+            "main:",
+            f"PUSHI {(left >> 0) & 0xFF}",
+            *([f"PUSHI {(left >> 8) & 0xFF}"] if vtype in {"uint16", "int16", "uint32", "int32"} else []),
+            *([f"PUSHI {(left >> 16) & 0xFF}", f"PUSHI {(left >> 24 & 0xFF)}"] if vtype in {"uint32", "int32"} else []),
+            f"PUSHI {(right >> 0) & 0xFF}",
+            *([f"PUSHI {(right >> 8) & 0xFF}"] if vtype in {"uint16", "int16", "uint32", "int32"} else []),
+            *([f"PUSHI {(right >> 16) & 0xFF}", f"PUSHI {(right >> 24 & 0xFF)}"] if vtype in {"uint32", "int32"} else []),
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"optimizations changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"optimizations changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"optimizations changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = left == right
+        _assert(
+            result == expected,
+            "Failed to optimizations equality with {val1} and {val2}, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for left, right in [('a', 'a'), ('a', 'c')]:
+        sections = parse_and_compile_module("optimizations", textwrap.dedent("""
+            def callable(val1: char, val2: char) -> nopad[bool]:
+                if val1 == val2:
+                    return True
+                else:
+                    return False
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *cmplines,
+            *strcmplines,
+            "main:",
+            f"PUSHI {left!r}",
+            f"PUSHI {right!r}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"optimizations changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"optimizations changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"optimizations changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = left == right
+        _assert(
+            result == expected,
+            "Failed to optimizations equality with {val1} and {val2}, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for left, right in [("abc", "abc"), ("abc", "def")]:
+        sections = parse_and_compile_module("optimizations", textwrap.dedent(f"""
+            def inner(val1: str, val2: str) -> nopad[bool]:
+                if val1 == val2:
+                    return True
+                else:
+                    return False
+
+            def callable() -> nopad[bool]:
+                left: const[str] = {left!r}
+                right: const[str] = {right!r}
+                return inner(left, right)
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *cmplines,
+            *strcmplines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"optimizations changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"optimizations changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"optimizations changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = left == right
+        _assert(
+            result == expected,
+            "Failed to optimizations equality with {val1} and {val2}, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Second, inequality of various types.
+    for vtype, left, right in [
+        ("uint8", 5, 5),
+        ("uint8", 5, 10),
+        ("int8", 5, 5),
+        ("int8", 5, 10),
+        ("uint16", 5, 5),
+        ("uint16", 5, 10),
+        ("int16", 5, 5),
+        ("int16", 5, 10),
+        ("uint32", 5, 5),
+        ("uint32", 5, 10),
+        ("int32", 5, 5),
+        ("int32", 5, 10),
+    ]:
+        sections = parse_and_compile_module("optimizations", textwrap.dedent(f"""
+            def callable(val1: {vtype}, val2: {vtype}) -> nopad[bool]:
+                if val1 != val2:
+                    return True
+                else:
+                    return False
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *cmplines,
+            *strcmplines,
+            "main:",
+            f"PUSHI {(left >> 0) & 0xFF}",
+            *([f"PUSHI {(left >> 8) & 0xFF}"] if vtype in {"uint16", "int16", "uint32", "int32"} else []),
+            *([f"PUSHI {(left >> 16) & 0xFF}", f"PUSHI {(left >> 24 & 0xFF)}"] if vtype in {"uint32", "int32"} else []),
+            f"PUSHI {(right >> 0) & 0xFF}",
+            *([f"PUSHI {(right >> 8) & 0xFF}"] if vtype in {"uint16", "int16", "uint32", "int32"} else []),
+            *([f"PUSHI {(right >> 16) & 0xFF}", f"PUSHI {(right >> 24 & 0xFF)}"] if vtype in {"uint32", "int32"} else []),
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"optimizations changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"optimizations changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"optimizations changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = left != right
+        _assert(
+            result == expected,
+            "Failed to optimizations inequality with {val1} and {val2}, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for left, right in [('a', 'a'), ('a', 'c')]:
+        sections = parse_and_compile_module("optimizations", textwrap.dedent("""
+            def callable(val1: char, val2: char) -> nopad[bool]:
+                if val1 != val2:
+                    return True
+                else:
+                    return False
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *cmplines,
+            *strcmplines,
+            "main:",
+            f"PUSHI {left!r}",
+            f"PUSHI {right!r}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"optimizations changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"optimizations changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"optimizations changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = left != right
+        _assert(
+            result == expected,
+            "Failed to optimizations inequality with {val1} and {val2}, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for left, right in [("abc", "abc"), ("abc", "def")]:
+        sections = parse_and_compile_module("optimizations", textwrap.dedent(f"""
+            def inner(val1: str, val2: str) -> nopad[bool]:
+                if val1 != val2:
+                    return True
+                else:
+                    return False
+
+            def callable() -> nopad[bool]:
+                left: const[str] = {left!r}
+                right: const[str] = {right!r}
+                return inner(left, right)
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *cmplines,
+            *strcmplines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"optimizations changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"optimizations changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"optimizations changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        expected = left != right
+        _assert(
+            result == expected,
+            "Failed to optimizations inequality with {val1} and {val2}, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Third, alligator expressions of various types.
+    for check in ["<", "<=", ">", ">="]:
+        for vtype, left, right in [
+            ("uint8", 5, 0),
+            ("uint8", 5, 5),
+            ("uint8", 5, 10),
+            ("int8", 5, 0),
+            ("int8", 5, 5),
+            ("int8", 5, 10),
+            ("uint16", 5, 0),
+            ("uint16", 5, 5),
+            ("uint16", 5, 10),
+            ("int16", 5, 0),
+            ("int16", 5, 5),
+            ("int16", 5, 10),
+            ("uint32", 5, 0),
+            ("uint32", 5, 5),
+            ("uint32", 5, 10),
+            ("int32", 5, 0),
+            ("int32", 5, 5),
+            ("int32", 5, 10),
+        ]:
+            sections = parse_and_compile_module("optimizations", textwrap.dedent(f"""
+                def callable(val1: {vtype}, val2: {vtype}) -> nopad[bool]:
+                    if val1 {check} val2:
+                        return True
+                    else:
+                        return False
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *cmplines,
+                *strcmplines,
+                "main:",
+                f"PUSHI {(left >> 0) & 0xFF}",
+                *([f"PUSHI {(left >> 8) & 0xFF}"] if vtype in {"uint16", "int16", "uint32", "int32"} else []),
+                *([f"PUSHI {(left >> 16) & 0xFF}", f"PUSHI {(left >> 24 & 0xFF)}"] if vtype in {"uint32", "int32"} else []),
+                f"PUSHI {(right >> 0) & 0xFF}",
+                *([f"PUSHI {(right >> 8) & 0xFF}"] if vtype in {"uint16", "int16", "uint32", "int32"} else []),
+                *([f"PUSHI {(right >> 16) & 0xFF}", f"PUSHI {(right >> 24 & 0xFF)}"] if vtype in {"uint32", "int32"} else []),
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"optimizations changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"optimizations changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"optimizations changed V value from {222} to {cpu.v}!",
+            )
+            result = bool(cpu.ram[cpu.pc + 0])
+            expected = eval(f"{left} {check} {right}")
+            _assert(
+                result == expected,
+                "Failed to optimizations {check} with {val1} and {val2}, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for optimizations: {int(cycles/count)}")
+    print(f"Average instructions for optimizations: {int(instructions/count)}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A test harness for MiniDragon.",
@@ -16278,3 +16760,4 @@ if __name__ == "__main__":
     verifyhex(only, args.full)
     verifymin(only, args.full)
     verifymax(only, args.full)
+    verifyoptimizations(only, args.full)

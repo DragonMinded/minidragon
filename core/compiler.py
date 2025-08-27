@@ -7280,23 +7280,16 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
         line = line.strip()
         return line
 
-    def nextline(pos: int) -> str:
-        if pos == codelen - 1:
+    def getline(pos: int, offset: int = 0) -> str:
+        pos += offset
+        if pos < 0:
             return ""
-        else:
-            return sanitize(code[pos + 1])
-
-    def curline(pos: int) -> str:
+        if pos >= codelen:
+            return ""
         return sanitize(code[pos])
 
     def curpos(pos: int) -> Optional[str]:
         return stackpos(code[pos])
-
-    def prevline(pos: int) -> str:
-        if pos == 0:
-            return ""
-        else:
-            return sanitize(code[pos - 1])
 
     def remove(pos: int, length: int = 1) -> None:
         nonlocal code
@@ -7315,6 +7308,18 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
 
     def insn(line: str) -> str:
         return line.split(" ", 1)[0]
+
+    def params(line: str) -> str:
+        return line.split(" ", 1)[1]
+
+    def param_as_int(line: str) -> Optional[int]:
+        try:
+            return int(params(line))
+        except ValueError:
+            try:
+                return int(params(line), base=16)
+            except ValueError:
+                return None
 
     def stackpos(line: str) -> Optional[str]:
         if "; STACKOFF:" in line:
@@ -7351,19 +7356,20 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
 
     pos = 0
     while pos < codelen:
-        cur = curline(pos)
+        cur = getline(pos)
 
         if not cur:
             # Nothing here, no sense wasting time checking.
             pos += 1
             continue
 
-        nxt = nextline(pos)
-        prv = prevline(pos)
+        nxt = getline(pos, offset=1)
+        prv = getline(pos, offset=-1)
 
         if cur == "SWAP PC, SPC" and nxt == "SWAP PC, SPC":
             # Shouldn't ever happen, but is super easy to get rid of.
             remove(pos, 2)
+
         elif insn(cur) in stackop and insn(nxt) in stackop:
             # Opportunity to combine as long as it doesn't overrun.
             first_move = moveamt(cur)
@@ -7382,25 +7388,125 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 replace(pos, 2, [f"  SUBPCI {-total_move}"])
             else:
                 raise Exception("Logic error, unknown move amount!")
+
         elif insn(cur) in memoryop and insn(prv) in stackop and insn(nxt) in stackop:
             # In this case, we can reorder instructions since it doesn't matter what order they
             # happen, but it also means that we can possibly fold redundant moves. This may only
             # exist because we reduced redundant store/loads with a constant load.
             replace(pos, 2, [code[pos + 1], code[pos]])
+
+        elif insn(prv) == "INV" and insn(cur) in {"JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}:
+            # Strict equality/inequality checks for string/integer/characters.
+            if (
+                getline(pos, offset=-2) == "INV" and
+                getline(pos, offset=-3) == "SKIPIF ZF" and
+                insn(getline(pos, offset=-4)) == "LOADI" and param_as_int(getline(pos, offset=-4)) in {0x00, 0xFF} and
+                (insn(getline(pos, offset=-5)) == "XOR" or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
+            ):
+                param_val = param_as_int(getline(pos, offset=-4))
+
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRINZ {params(cur)}"] if param_val == 0x00 else [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRIZ {params(cur)}"] if param_val == 0x00 else [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"] if param_val == 0x00 else [f"  LNGJUMPZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"] if param_val == 0x00 else [f"  LNGJUMPNZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replace(pos - 4, 5, replacement)
+                pos -= 4
+
+            # Strict equality/inequality checks for string/integer/characters.
+            elif (
+                getline(pos, offset=-2) == "INV" and
+                getline(pos, offset=-3) == "SKIPIF !ZF" and
+                insn(getline(pos, offset=-4)) == "LOADI" and param_as_int(getline(pos, offset=-4)) in {0x00, 0xFF} and
+                (insn(getline(pos, offset=-5)) == "XOR" or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
+            ):
+                param_val = param_as_int(getline(pos, offset=-4))
+
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRINZ {params(cur)}"] if param_val == 0xFF else [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRIZ {params(cur)}"] if param_val == 0xFF else [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"] if param_val == 0xFF else [f"  LNGJUMPZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"] if param_val == 0xFF else [f"  LNGJUMPNZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replace(pos - 4, 5, replacement)
+                pos -= 4
+
+            # Alligator expression inequality checks for integers.
+            elif (
+                getline(pos, offset=-2) == "INV" and
+                getline(pos, offset=-3) == "SKIPIF !ZF" and
+                insn(getline(pos, offset=-4)) == "ZERO" and
+                insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) in {1, -1}
+            ):
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replace(pos - 4, 5, replacement)
+                pos -= 4
+
+            elif (
+                getline(pos, offset=-2) == "INV" and
+                getline(pos, offset=-3) == "SKIPIF ZF" and
+                insn(getline(pos, offset=-4)) == "ZERO" and
+                insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) in {1, -1}
+            ):
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replace(pos - 4, 5, replacement)
+                pos -= 4
+
+            else:
+                pos += 1
+
         elif cur == "STORE A" and nxt == "LOAD A":
             remove(pos + 1)
+
         elif cur == "STORE U" and nxt == "LOAD U":
             remove(pos + 1)
+
         elif cur == "STORE V" and nxt == "LOAD V":
             remove(pos + 1)
+
         elif cur == "LOAD A" and nxt == "STORE A":
             remove(pos + 1)
+
         elif cur == "LOAD U" and nxt == "STORE U":
             remove(pos + 1)
+
         elif cur == "LOAD V" and nxt == "STORE V":
             remove(pos + 1)
+
         elif insn(cur) == "STORE" and (key := curpos(pos)) is not None and stack_counts[key] == 1:
             remove(pos)
+
         else:
             # Didn't remove anything, onward.
             pos += 1
