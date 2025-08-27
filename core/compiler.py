@@ -7483,6 +7483,9 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 replace(pos - 4, 5, replacement)
                 pos -= 4
 
+            elif insn(cur) in {"JRI", "JRIZ", "JRINZ", "LNGJUMP", "LNGJUMPZ", "LNGJUMPNZ"} and (params(cur) + ":") == nxt:
+                remove(pos, 1)
+
             else:
                 pos += 1
 
