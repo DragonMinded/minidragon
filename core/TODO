@@ -1,7 +1,6 @@
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
  - ensure that loads which get overridden by another load or operation get removed.
- - replace LNGJUMP with JRI when appropriately small jumps exist.
 
 Things that would be nice to have for convenience:
  - function default parameter support.
@@ -21,4 +20,5 @@ Things that would be good for a complete compiler that I probably will not need:
  - support for allocating extern global arrays using int[inf] or similar syntax.
 
 Things that might become necessary if we run out of space in the boot ROM:
- - duplicate instruction chain finder, replace with LNGJUMP to save on space.
+ - link-time duplicate instruction chain finder, replace with LNGJUMP to save on space.
+ - link-time replace LNGJUMP with JRI when appropriately small jumps exist.

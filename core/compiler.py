@@ -7483,9 +7483,6 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 replace(pos - 4, 5, replacement)
                 pos -= 4
 
-            elif insn(cur) in {"JRI", "JRIZ", "JRINZ", "LNGJUMP", "LNGJUMPZ", "LNGJUMPNZ"} and (params(cur) + ":") == nxt:
-                remove(pos, 1)
-
             else:
                 pos += 1
 
@@ -7509,6 +7506,78 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
 
         elif insn(cur) == "STORE" and (key := curpos(pos)) is not None and stack_counts[key] == 1:
             remove(pos)
+
+        elif insn(cur) in {"JRI", "JRIZ", "JRINZ", "LNGJUMP", "LNGJUMPZ", "LNGJUMPNZ"} and (params(cur) + ":") == nxt:
+            remove(pos, 1)
+
+        elif insn(prv) == "LOADI" and insn(cur) == "INV" and insn(nxt) in {"JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}:
+            # This can be statically computed and is probably a "while True" check.
+            intparam = param_as_int(prv)
+            if intparam is None:
+                pos += 1
+                continue
+
+            intparam = (~intparam) & 0xFF
+            if intparam:
+                if insn(nxt) in {"JRIZ", "LNGJUMPZ"}:
+                    # Will never be taken.
+                    remove(pos - 1, 3)
+                    pos -= 1
+                elif insn(nxt) == "JRINZ":
+                    # Will always be taken.
+                    replace(pos - 1, 3, [f"  JRI {params(nxt)}"])
+                    pos -= 1
+                elif insn(nxt) == "LNGJUMPNZ":
+                    # Will always be taken.
+                    replace(pos - 1, 3, [f"  LNGJUMP {params(nxt)}"])
+                    pos -= 1
+                else:
+                    raise Exception("Logic error, unrecognized instruction to replace!")
+            else:
+                if insn(nxt) in {"JRINZ", "LNGJUMPNZ"}:
+                    # Will never be taken.
+                    remove(pos - 1, 3)
+                    pos -= 1
+                elif insn(nxt) == "JRIZ":
+                    # Will always be taken.
+                    replace(pos - 1, 3, [f"  JRI {params(nxt)}"])
+                    pos -= 1
+                elif insn(nxt) == "LNGJUMPZ":
+                    # Will always be taken.
+                    replace(pos - 1, 3, [f"  LNGJUMP {params(nxt)}"])
+                    pos -= 1
+                else:
+                    raise Exception("Logic error, unrecognized instruction to replace!")
+
+        elif insn(prv) == "LOADI" and insn(cur) in {"INV", "NEG"}:
+            intparam = param_as_int(prv)
+            if intparam is not None:
+                if insn(nxt) == "INV":
+                    intparam = (~intparam) & 0xFF
+                elif insn(nxt) == "NEG":
+                    intparam = ((~intparam) + 1) & 0xFF
+                else:
+                    intparam = None
+
+            if intparam is not None:
+                replace(pos - 1, 2, [f"  LOADI {hex(intparam)}"])
+                pos -= 1
+            else:
+                pos += 1
+
+        elif insn(cur) == "LOADI" and insn(nxt) == "ADD":
+            intparam = param_as_int(cur)
+            if intparam is not None:
+                intparam = intparam & 0xFF
+                if intparam & 0x80:
+                    intparam = -(((~intparam) + 1) & 0xFF)
+
+                curstackpos = curpos(pos + 1)
+                if intparam >= -32 and intparam <= 31 and curstackpos is not None:
+                    replace(pos, 2, [f"  LOAD A ; STACKOFF: {curstackpos}", f"  ADDI {intparam}"])
+                    continue
+
+            pos += 1
 
         else:
             # Didn't remove anything, onward.
