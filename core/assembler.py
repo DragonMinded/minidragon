@@ -3894,12 +3894,12 @@ class MOV(BaseMacro):
 
 class ControlSignals:
 
-    ALU_SRC_A = 1
-    ALU_SRC_PC = 2
-    ALU_SRC_IP = 3
+    ALU_SRC_IP = 0
+    ALU_SRC_PC = 1
+    ALU_SRC_A = 2
 
-    ADDRESS_SRC_PC = 0
-    ADDRESS_SRC_IP = 1
+    ADDRESS_SRC_IP = 0
+    ADDRESS_SRC_PC = 1
 
     def __init__(
         self,
@@ -4023,35 +4023,35 @@ class MemoryFilter:
 
 class ALU:
 
+    # No operation, output indeterminate.
+    OPERATION_NULL = 0
+    # Exclusive or an 8-bit value in "A" against an 8-bit value in "B".
+    # Carry never set. Zero set if result is zero.
+    OPERATION_XOR = 1
+    # Or an 8-bit value in "A" against an 8-bit value in "B". Carry never
+    # set. Zero set if result is zero.
+    OPERATION_OR = 2
+    # And an 8-bit value in "A" against an 8-bit value in "B". Carry never
+    # set. Zero set if result is zero.
+    OPERATION_AND = 3
+    # Invert an 8-bit value in "A" source. Carry never set. Zero set if
+    # result is zero.
+    OPERATION_INV = 4
+    # Shift an 8-bit value from "A" source. Carry set if bit 0 was 1
+    # and shifted out. Zero set if result is zero.
+    OPERATION_SHR = 5
+    # Shift an 8-bit value from "A" source. Carry set if bit 7 was 1
+    # and shifted out. Zero set if result is zero.
+    OPERATION_SHL = 6
     # Add 16-bit value from "A" source to 8-bit value from "B" source,
     # returning a 16-bit result. Zero set if result is zero, carry set
     # if result would not fit in 8 bits.
-    OPERATION_ADD = 0
-    # Shift an 8-bit value from "A" source. Carry set if bit 7 was 1
-    # and shifted out. Zero set if result is zero.
-    OPERATION_SHL = 1
-    # Shift an 8-bit value from "A" source. Carry set if bit 0 was 1
-    # and shifted out. Zero set if result is zero.
-    OPERATION_SHR = 2
-    # Invert an 8-bit value in "A" source. Carry never set. Zero set if
-    # result is zero.
-    OPERATION_INV = 3
-    # And an 8-bit value in "A" against an 8-bit value in "B". Carry never
-    # set. Zero set if result is zero.
-    OPERATION_AND = 4
-    # Or an 8-bit value in "A" against an 8-bit value in "B". Carry never
-    # set. Zero set if result is zero.
-    OPERATION_OR = 5
-    # Exclusive or an 8-bit value in "A" against an 8-bit value in "B".
-    # Carry never set. Zero set if result is zero.
-    OPERATION_XOR = 6
-    # No operation, output indeterminate.
-    OPERATION_NULL = 7
+    OPERATION_ADD = 7
 
     # Values dictating how the carry flag should be treated.
-    CARRY_SET = 1
-    CARRY_FROM_FLAGS = 2
-    CARRY_CLEAR = 3
+    CARRY_CLEAR = 0
+    CARRY_FROM_FLAGS = 1
+    CARRY_SET = 2
 
     def __init__(
         self,

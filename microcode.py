@@ -37,75 +37,76 @@ if __name__ == "__main__":
         # The hard part is mapping the individual control lines to the
         # microcode boards. We do this based on the instruction decoder
         # schematic. The instruction decoder logic works as an
-        # open-collector memory system, so we represent a "1" with a ".",
-        # or lack of jumper, and a "0" with a "X", or request for a
+        # open-collector memory system, but the bus termination circuit
+        # does an invert for us, so we represent a "0" with a ".",
+        # or lack of jumper, and a "1" with a "X", or request for a
         # jumper in that spot.
         microcode: str = ""
 
         # Calculate immediate register control signals.
-        immsrc: int = 3
-        if step.imm_4_output:
-            immsrc = 0
-        elif step.imm_6_output:
+        immsrc: int = 0
+        if step.z_output:
             immsrc = 1
-        elif step.z_output:
+        elif step.imm_6_output:
             immsrc = 2
+        elif step.imm_4_output:
+            immsrc = 3
 
         # Calculate the data bus high control signals.
-        dbus: int = 3
-        if step.a_high_output:
-            dbus = 0
-        elif step.d_high_output:
+        dbus: int = 0
+        if step.alu_output:
             dbus = 1
-        elif step.alu_output:
+        elif step.d_high_output:
             dbus = 2
+        elif step.a_high_output:
+            dbus = 3
 
         # Bit 0
-        microcode += "." if step.ip_input else "X"
-        microcode += "." if step.ir_input else "X"
-        microcode += "." if step.a_input else "X"
-        microcode += "." if step.b_input else "X"
+        microcode += "X" if step.ip_input else "."
+        microcode += "X" if step.ir_input else "."
+        microcode += "X" if step.a_input else "."
+        microcode += "X" if step.b_input else "."
 
         # Bit 4
-        microcode += "." if step.c_input else "X"
-        microcode += "." if step.d_input else "X"
-        microcode += "." if step.p_input else "X"
-        microcode += "." if step.sram_input else "X"
+        microcode += "X" if step.c_input else "."
+        microcode += "X" if step.d_input else "."
+        microcode += "X" if step.p_input else "."
+        microcode += "X" if step.sram_input else "."
 
         # Bit 8
-        microcode += "." if step.flags_input else "X"
-        microcode += "." if (dbus & 0x2) != 0 else "X"
-        microcode += "." if (dbus & 0x1) != 0 else "X"
-        microcode += "." if step.alu_low_output else "X"
+        microcode += "X" if step.flags_input else "."
+        microcode += "X" if (dbus & 0x2) != 0 else "."
+        microcode += "X" if (dbus & 0x1) != 0 else "."
+        microcode += "X" if step.alu_low_output else "."
 
         # Bit 12
-        microcode += "." if step.a_output else "X"
-        microcode += "." if step.d_output else "X"
-        microcode += "." if step.u_output else "X"
-        microcode += "." if step.sram_output else "X"
+        microcode += "X" if step.a_output else "."
+        microcode += "X" if step.d_output else "."
+        microcode += "X" if step.u_output else "."
+        microcode += "X" if step.sram_output else "."
 
         # Bit 16
-        microcode += "." if step.flags_output else "X"
-        microcode += "." if step.pc_swap else "X"
-        microcode += "." if (step.alu_src & 0x2) != 0 else "X"
-        microcode += "." if (step.alu_src & 0x1) != 0 else "X"
+        microcode += "X" if step.flags_output else "."
+        microcode += "X" if step.pc_swap else "."
+        microcode += "X" if (step.alu_src & 0x2) != 0 else "."
+        microcode += "X" if (step.alu_src & 0x1) != 0 else "."
 
         # Bit 20
-        microcode += "." if (step.carry & 0x2) != 0 else "X"
-        microcode += "." if (step.carry & 0x1) != 0 else "X"
-        microcode += "." if (step.alu_op & 0x4) != 0 else "X"
-        microcode += "." if (step.alu_op & 0x2) != 0 else "X"
+        microcode += "X" if (step.carry & 0x2) != 0 else "."
+        microcode += "X" if (step.carry & 0x1) != 0 else "."
+        microcode += "X" if (step.alu_op & 0x4) != 0 else "."
+        microcode += "X" if (step.alu_op & 0x2) != 0 else "."
 
         # Bit 24
-        microcode += "." if (step.alu_op & 0x1) != 0 else "X"
-        microcode += "." if (immsrc & 0x2) != 0 else "X"
-        microcode += "." if (immsrc & 0x1) != 0 else "X"
-        microcode += "." if (step.address_src & 0x1) != 0 else "X"
+        microcode += "X" if (step.alu_op & 0x1) != 0 else "."
+        microcode += "X" if (immsrc & 0x2) != 0 else "."
+        microcode += "X" if (immsrc & 0x1) != 0 else "."
+        microcode += "X" if (step.address_src & 0x1) != 0 else "."
 
         # Bit 28
-        microcode += "." if step.v_output else "X"
-        microcode += "." if step.u_input else "X"
-        microcode += "." if step.v_input else "X"
+        microcode += "X" if step.v_output else "."
+        microcode += "X" if step.u_input else "."
+        microcode += "X" if step.v_input else "."
         # This isn't the last instruction, so don't reset the
         # microcode counter.
         microcode += "."
@@ -134,7 +135,10 @@ if __name__ == "__main__":
             append_microcode(step)
 
         # One-indexed instead of zero-indexed, and add one for the early
-        # terminate.
+        # terminate. One-indexed because the first ROM board for every
+        # instruction is the instruction load control signals which is
+        # handled using special hardware when detecting the 0'th position
+        # in the microcode counter circuit.
         actual = num + 2
         if (actual % 4) == 1:
             # We can do a regular board followed by a mini-board.
