@@ -10848,9 +10848,9 @@
 				(justify left)
 			)
 		)
-		(pin "~{MCODE_RST}" input
-			(at 149.86 355.6 0)
-			(uuid "0201ddab-3c9c-4a9d-bde3-d2a0428a3c97")
+		(pin "~{ILOAD}" output
+			(at 149.86 340.36 0)
+			(uuid "c76d1942-786d-4c3b-ae9b-c5aea279b806")
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -10858,9 +10858,9 @@
 				(justify right)
 			)
 		)
-		(pin "~{ILOAD}" output
-			(at 149.86 340.36 0)
-			(uuid "c76d1942-786d-4c3b-ae9b-c5aea279b806")
+		(pin "MCODE_RST" input
+			(at 149.86 355.6 0)
+			(uuid "df3da278-a25c-4f52-8d85-1cd79f8a02a8")
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11966,16 +11966,6 @@
 				(justify right)
 			)
 		)
-		(pin "~{MCODE_RST}" output
-			(at 194.31 355.6 180)
-			(uuid "610369d3-a2af-491e-94f0-6baa5bd9c309")
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
 		(pin "INS4" input
 			(at 194.31 370.84 180)
 			(uuid "4b7d80d9-ba20-4d5a-a88c-ba7f42ebff0d")
@@ -12049,6 +12039,16 @@
 		(pin "INS3" input
 			(at 194.31 368.3 180)
 			(uuid "a6e15d8f-dafe-4d05-a79c-875c24a0430e")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(pin "MCODE_RST" output
+			(at 194.31 355.6 180)
+			(uuid "c0242ad3-1dfc-436c-a0d1-c89d2a71331f")
 			(effects
 				(font
 					(size 1.27 1.27)

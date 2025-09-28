@@ -1326,16 +1326,6 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 101.6) (xy 45.72 87.63)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "52fef820-9fff-4d0e-91d4-e73530bb300c")
-	)
-	(wire
-		(pts
 			(xy 121.92 209.55) (xy 124.46 209.55)
 		)
 		(stroke
@@ -1433,16 +1423,6 @@
 			(type default)
 		)
 		(uuid "65dbddb8-e14d-4ed9-a159-cb18fe030a48")
-	)
-	(wire
-		(pts
-			(xy 81.28 101.6) (xy 45.72 101.6)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6791af4e-a0d9-47a3-a31a-b59943fe396e")
 	)
 	(wire
 		(pts
@@ -1546,16 +1526,6 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 87.63) (xy 48.26 87.63)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "918fec75-43d9-4800-b7f9-7e3475efaec2")
-	)
-	(wire
-		(pts
 			(xy 195.58 118.11) (xy 195.58 137.16)
 		)
 		(stroke
@@ -1613,16 +1583,6 @@
 			(type default)
 		)
 		(uuid "9dff3593-34b2-44b9-b97b-61db36bdcf4f")
-	)
-	(wire
-		(pts
-			(xy 78.74 118.11) (xy 81.28 118.11)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9f9143e6-0a04-4ebe-aa22-1e07cf51a558")
 	)
 	(wire
 		(pts
@@ -1946,16 +1906,6 @@
 	)
 	(wire
 		(pts
-			(xy 81.28 118.11) (xy 81.28 101.6)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f596e63c-d4aa-4e34-9779-2c8c6edbf870")
-	)
-	(wire
-		(pts
 			(xy 121.92 180.34) (xy 121.92 198.12)
 		)
 		(stroke
@@ -2008,9 +1958,9 @@
 		)
 		(uuid "615c288e-b151-43b9-bf7a-0a6c3f73a043")
 	)
-	(hierarchical_label "~{MCODE_RST}"
+	(hierarchical_label "MCODE_RST"
 		(shape input)
-		(at 48.26 118.11 180)
+		(at 48.26 87.63 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -2404,72 +2354,6 @@
 			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/1eb748db-011c-49c0-acee-0d683dafc8d2"
 					(reference "B33")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:VCC")
-		(at 57.15 111.76 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "3e844eab-118e-455f-90f9-f9e4f75aac5a")
-		(property "Reference" "#PWR068"
-			(at 57.15 115.57 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "VCC"
-			(at 57.15 108.585 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" ""
-			(at 57.15 111.76 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 57.15 111.76 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 57.15 111.76 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "ca11466f-e71a-4f05-a3d8-d91dc89fc314")
-		)
-		(instances
-			(project "MiniDragon"
-				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/1eb748db-011c-49c0-acee-0d683dafc8d2"
-					(reference "#PWR068")
 					(unit 1)
 				)
 			)
@@ -3686,79 +3570,6 @@
 		)
 	)
 	(symbol
-		(lib_id "MiniDragon:Logic NOT")
-		(at 63.5 118.11 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "bf9ebfce-cbe3-4628-ad8a-d363f569adfc")
-		(property "Reference" "B30"
-			(at 76.2 113.03 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Value" "~"
-			(at 63.5 127 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 63.5 127 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 63.5 127 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 63.5 118.11 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin ""
-			(uuid "47d705f5-8213-4587-98d4-60a8c7d3e34f")
-		)
-		(pin ""
-			(uuid "5de60f42-e9bf-4795-883b-e109cc184114")
-		)
-		(pin ""
-			(uuid "c7d7706d-44ea-4020-87db-de12a34a15c1")
-		)
-		(pin ""
-			(uuid "b0ed532f-27c2-4816-b09a-00833475be7c")
-		)
-		(instances
-			(project "MiniDragon"
-				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/1eb748db-011c-49c0-acee-0d683dafc8d2"
-					(reference "B30")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:GND")
 		(at 177.8 180.34 0)
 		(unit 1)
@@ -3883,72 +3694,6 @@
 			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/1eb748db-011c-49c0-acee-0d683dafc8d2"
 					(reference "#PWR066")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 69.85 124.46 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "cec1d44d-c585-4d85-816a-a4fe2897abdb")
-		(property "Reference" "#PWR073"
-			(at 69.85 130.81 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 69.85 127.635 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 69.85 124.46 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 69.85 124.46 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 69.85 124.46 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "df3ffd93-7357-460e-823a-ccbc38288c23")
-		)
-		(instances
-			(project "MiniDragon"
-				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/1eb748db-011c-49c0-acee-0d683dafc8d2"
-					(reference "#PWR073")
 					(unit 1)
 				)
 			)

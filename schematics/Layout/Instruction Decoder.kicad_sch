@@ -6779,7 +6779,7 @@
 		)
 		(uuid "85e44eb2-d2b0-4d8e-b514-3a93cb4bf570")
 	)
-	(hierarchical_label "~{MCODE_RST}"
+	(hierarchical_label "MCODE_RST"
 		(shape output)
 		(at 328.93 153.67 0)
 		(effects
