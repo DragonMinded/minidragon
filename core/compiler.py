@@ -1,5 +1,4 @@
 import builtins
-import copy
 import os
 import traceback
 import libcst as cst
@@ -7637,9 +7636,6 @@ def compile_module(module: str, code: str, settings: CompilerSettings, refs: Seq
     compiled = Sections()
     global_consts: List[Constant] = builtin_consts()
     global_vars: List[GlobalVariable] = []
-
-    # Make sure we have a copy of the passed-in forward refs so we can add to them any import statements.
-    refs = copy.deepcopy(refs)
 
     for statement in parsed_module.body:
         context = Context(module, settings, statement, metadata)

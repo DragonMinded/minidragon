@@ -1,5 +1,4 @@
 #! /usr/bin/python3
-import struct
 from colorama import Fore, Style
 
 from ast import literal_eval
@@ -50,7 +49,7 @@ def binstr(num: int, digits: int) -> str:
 
 
 def bintoint(binary: int) -> int:
-    return int(struct.unpack("b", struct.pack("B", binary))[0])
+    return binary if binary < 0x80 else -(((~binary) & 0xFF) + 1)
 
 
 def _splitparams(blob: str) -> Tuple[str, ...]:
@@ -314,10 +313,6 @@ def getint(
             f"Out of range integer {val}"
             + f"{'' if hint is None else ' on instruction ' + hint}"
         )
-
-    if intval < 0:
-        # Get unsigned representation.
-        intval = struct.unpack("H", struct.pack("h", intval))[0]
 
     # Return it masked.
     return int(intval & ((2 ** bits) - 1))
