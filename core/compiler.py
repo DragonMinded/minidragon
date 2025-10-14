@@ -7048,7 +7048,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
     return prototype
 
 
-def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], context: Context) -> Sections:
+def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], global_consts: List[Constant], context: Context) -> Sections:
     compiled = Sections()
     function_name = func.name.value
     function_type = get_type(func.returns, [], allow_nopad=True, allow_array=True)
@@ -7124,7 +7124,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     clobbers: Set[str] = set()
 
     push_names()
-    compile_chunk(func.body, stack.clone(), clobbers, {}, function_type, refs, None, builtin_consts(), context, require_return=True, require_continue=False)
+    compile_chunk(func.body, stack.clone(), clobbers, {}, function_type, refs, None, global_consts[:], context, require_return=True, require_continue=False)
     pop_names()
 
     # Unwind our temporary return value location.
@@ -7187,7 +7187,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
-    chunk, _, _ = compile_chunk(func.body, stack, set(), {}, function_type, refs, None, builtin_consts(), context, require_return=True, require_continue=False)
+    chunk, _, _ = compile_chunk(func.body, stack, set(), {}, function_type, refs, None, global_consts[:], context, require_return=True, require_continue=False)
     compiled += chunk
 
     # Function boundary is where we optimize redundant stack moves and load/store operations.
@@ -7752,7 +7752,7 @@ def compile_module(module: str, code: str, settings: CompilerSettings, refs: Seq
             else:
                 raise CompilerError("Arbitrary top-level statements are not supported", context.wrap(body))
         elif isinstance(statement, cst.FunctionDef):
-            compiled += function(statement, refs, context.wrap(statement))
+            compiled += function(statement, refs, global_consts, context.wrap(statement))
         else:
             # TODO: What other statement types are we missing here?
             raise CompilerError("Unsupported statement {statement}", context.wrap(statement))
