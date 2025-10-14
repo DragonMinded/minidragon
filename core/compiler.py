@@ -43,6 +43,23 @@ class Context:
         self.extra = extra
         self.mapping: Dict[cst.CSTNode, cst.CSTNode] = {}
 
+    @property
+    def label(self) -> str:
+        shortmodule: str = self.module
+        if os.path.sep in shortmodule:
+            shortmodule = shortmodule.rsplit(os.path.sep, 1)[1]
+
+        modulename: str = ""
+        for c in shortmodule:
+            if c.isalnum():
+                modulename += c
+            else:
+                modulename += "_" if (not modulename) or modulename[-1] != "_" else ""
+
+        while modulename and modulename[-1] == "_":
+            modulename = modulename[:-1]
+        return modulename
+
     def wrap(self, node: cst.CSTNode, extra: str = "") -> "Context":
         context = Context(self.module, self.settings, node, self.meta, extra)
         context.mapping = {x: y for x, y in self.mapping.items()}
@@ -693,18 +710,27 @@ class StackVar:
     def const(self) -> bool:
         return self.type.const
 
-    @property
-    def label(self) -> str:
+    def label(self, context: Context, label: str = "") -> str:
         if self.type.type not in {"str"}:
             raise Exception("Logic error, trying to get a label name for a non-string type!")
 
-        label = ""
+        if label:
+            label = f"{label}_"
+
         for c in self.name:
-            if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_":
+            if c.isalnum():
                 label += c
             else:
-                label += "_"
-        return label
+                label += "_" if (not label) or (label[-1] != "_") else ""
+
+        while label and label[-1] == "_":
+            label = label[:-1]
+
+        modulename = context.label
+        if modulename[-1] != "_":
+            modulename = modulename + "_"
+
+        return modulename + label
 
     def __repr__(self) -> str:
         return f"{self.type!r} {self.name}: {self.location} size {self.size}{' uninitialized' if not self.initialized else ''}{' relocated' if self.relocated else ''}"
@@ -862,10 +888,10 @@ class Stack:
                 return entry.initialized
         return None
 
-    def labelof(self, name: str) -> Optional[str]:
+    def labelof(self, name: str, context: Context) -> Optional[str]:
         for entry in self.stack:
             if entry.name == name:
-                return f"{self.funcname}_{entry.label}"
+                return f"{entry.label(context, self.funcname)}"
         return None
 
     def diff(self, desired: int) -> int:
@@ -2852,7 +2878,7 @@ def generate_function_call(
                 # Now, figure out if the expression was nonzero (boolean True) or zero (boolean False)
                 compiled += generate_move_to(expr_dest, stack, clobbers, context, offset=1)
 
-                end_conversion = local_label_name("end_conversion")
+                end_conversion = local_label_name(context, "end_conversion")
 
                 # First byte check with short circuiting for non-zero.
                 clobbers.add("A")
@@ -2891,9 +2917,9 @@ def generate_function_call(
                 # Now, figure out if the expression was nonzero (boolean True) or zero (boolean False)
                 compiled += generate_move_to(expr_dest, stack, clobbers, context, offset=3)
 
-                end_conversion_first_byte = local_label_name("end_conversion_first_byte")
-                end_conversion_second_byte = local_label_name("end_conversion_second_byte")
-                end_conversion = local_label_name("end_conversion")
+                end_conversion_first_byte = local_label_name(context, "end_conversion_first_byte")
+                end_conversion_second_byte = local_label_name(context, "end_conversion_second_byte")
+                end_conversion = local_label_name(context, "end_conversion")
 
                 # First byte check with short circuiting for non-zero.
                 clobbers.add("A")
@@ -3261,7 +3287,7 @@ def expr_temp_name() -> str:
 __local_label_count: int = 0
 
 
-def local_label_name(label: str = "") -> str:
+def local_label_name(context: Context, label: str = "") -> str:
     global __local_label_count
     __local_label_count += 1
 
@@ -3270,7 +3296,11 @@ def local_label_name(label: str = "") -> str:
     else:
         label = "_"
 
-    return f"local{label}{__local_label_count}"
+    modulename = context.label
+    if modulename[-1] != "_":
+        modulename = modulename + "_"
+
+    return f"{modulename}local{label}{__local_label_count}"
 
 
 __saved_counts: List[Tuple[int, int]] = []
@@ -3321,7 +3351,7 @@ def generate_local_storage_alloc(
         else:
             raise CompilerError("Non-constant local strings require a length", context)
 
-    local_destination_storage = stack.labelof(destination)
+    local_destination_storage = stack.labelof(destination, context)
     if local_destination_storage is None:
         raise Exception("Logic error, couldn't get local storage for string!")
 
@@ -3933,8 +3963,8 @@ def generate_binary_expr(
             stack.move(-2)
             compiled.code += comment_stack(stack)
 
-            advance_top = local_label_name("advance_top")
-            advance_bottom = local_label_name("advance_bottom")
+            advance_top = local_label_name(context, "advance_top")
+            advance_bottom = local_label_name(context, "advance_bottom")
 
             # Swap over so we can check the string one byte at a time.
             compiled.append_code("  SWAP PC, SPC")
@@ -4297,7 +4327,7 @@ def generate_boolean_expr(
 
         # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
         right_length = get_assembled_length(right_compiled.code, refs)
-        short_circuit = local_label_name("short_circuit")
+        short_circuit = local_label_name(context, "short_circuit")
         if right_length > 32:
             insn = "LNGJUMPZ"
         else:
@@ -4342,7 +4372,7 @@ def generate_boolean_expr(
 
         # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
         right_length = get_assembled_length(right_compiled.code, refs)
-        short_circuit = local_label_name("short_circuit")
+        short_circuit = local_label_name(context, "short_circuit")
         if right_length > 32:
             insn = "LNGJUMPNZ"
         else:
@@ -4544,8 +4574,8 @@ def generate_comparison_expr(
                         return offset
 
                 # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
-                second_byte_comparison = local_label_name("second_byte_comparison")
-                finished_comparison = local_label_name("finished_comparison")
+                second_byte_comparison = local_label_name(context, "second_byte_comparison")
+                finished_comparison = local_label_name(context, "finished_comparison")
 
                 compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
                 compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
@@ -4594,10 +4624,10 @@ def generate_comparison_expr(
                         return offset
 
                 # Need somewhere to jump after failing the first half. Need to jump to second half if successful.
-                second_byte_comparison = local_label_name("second_byte_comparison")
-                third_byte_comparison = local_label_name("third_byte_comparison")
-                fourth_byte_comparison = local_label_name("fourth_byte_comparison")
-                finished_comparison = local_label_name("finished_comparison")
+                second_byte_comparison = local_label_name(context, "second_byte_comparison")
+                third_byte_comparison = local_label_name(context, "third_byte_comparison")
+                fourth_byte_comparison = local_label_name(context, "fourth_byte_comparison")
+                finished_comparison = local_label_name(context, "finished_comparison")
 
                 compiled += generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
                 compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
@@ -4885,8 +4915,8 @@ def generate_ternary_expr(
 
     # Now, we need a place to jump to if the expression above is false, as well as a
     # place to jump to at the end of the true expression.
-    false_expr = local_label_name("false_expr")
-    expr_end = local_label_name("expr_end")
+    false_expr = local_label_name(context, "false_expr")
+    expr_end = local_label_name(context, "expr_end")
 
     # Now, compile the two expressions themselves, so that we can calculate whether
     # we can JRI or LNGJUMP to the various locations.
@@ -5098,8 +5128,8 @@ def generate_subscript_expr(
             clobbers.add("U")
             clobbers.add("V")
 
-            advance_top = local_label_name("advance_top")
-            advance_bottom = local_label_name("advance_bottom")
+            advance_top = local_label_name(context, "advance_top")
+            advance_bottom = local_label_name(context, "advance_bottom")
 
             # Swap over so we can check the string one byte at a time.
             compiled.append_code("  MOV A, V")
@@ -5313,7 +5343,7 @@ def generate_expr_internal(
 
                 if destination_type.const:
                     # First, set up somewhere to put the initialized string data so we can point at it.
-                    label = local_label_name("function_string_data")
+                    label = local_label_name(context, "function_string_data")
                     compiled.append_preamble(f"{label}:")
                     for c in value:
                         compiled.append_preamble(f"  .char {c[0]!r}")
@@ -5334,7 +5364,7 @@ def generate_expr_internal(
                         stack.init(destination)
 
                     if value:
-                        static_source_storage = local_label_name("function_string_data")
+                        static_source_storage = local_label_name(context, "function_string_data")
                         compiled.append_preamble(f"{static_source_storage}:")
                         for c in value:
                             compiled.append_preamble(f"  .char {c[0]!r}")
@@ -6234,7 +6264,7 @@ def generate_if_statement(
 
         # Now, figure out how far we need to jump on false.
         child_length = get_assembled_length(child_compiled.code, refs, loop.labels if loop else [])
-        false_case = local_label_name("false_case")
+        false_case = local_label_name(context, "false_case")
         if child_length > 32:
             insn = "LNGJUMPNZ"
         else:
@@ -6266,11 +6296,11 @@ def generate_if_statement(
             statement.orelse.body, else_body_stack, clobbers, allocations, function_type, refs, loop, local_consts, context, require_return=False, require_continue=False,
         )
 
-        false_case = local_label_name("false_case")
+        false_case = local_label_name(context, "false_case")
 
         # Only need somewhere to jump to if we don't return as our last instruction in the if body.
         if not if_body_returned:
-            if_end = local_label_name("if_end")
+            if_end = local_label_name(context, "if_end")
             else_body_compiled.append_code(f"{if_end}:")
 
         # Unify initialization tracking across cloned stacks so we can identify all paths that don't lead to variable initialization.
@@ -6331,11 +6361,11 @@ def generate_if_statement(
             statement.orelse, stack, clobbers, allocations, function_type, refs, loop, local_consts, context
         )
 
-        false_case = local_label_name("false_case")
+        false_case = local_label_name(context, "false_case")
 
         # Only need somewhere to jump to if we don't return as our last instruction in the if body.
         if not if_body_returned:
-            if_end = local_label_name("if_end")
+            if_end = local_label_name(context, "if_end")
             else_body_compiled.append_code(f"{if_end}:")
 
         # Not asserting that both sides are the same size, because they could have defined local variables. We don't follow python's
@@ -6406,9 +6436,9 @@ def generate_while_statement(
 
     # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
     # and so that we can support else statements in while loops.
-    test_label = local_label_name("loop_test")
-    else_label = local_label_name("loop_else") if statement.orelse else None
-    exit_label = local_label_name("loop_exit")
+    test_label = local_label_name(context, "loop_test")
+    else_label = local_label_name(context, "loop_else") if statement.orelse else None
+    exit_label = local_label_name(context, "loop_exit")
     loop = LoopInfo(stack.location, iter_label=test_label, else_label=else_label, exit_label=exit_label)
 
     # We're at the point we want to loop back to, so label it now, and generate the test itself.
@@ -6574,10 +6604,10 @@ def generate_for_statement(
 
     # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
     # and so that we can support else statements in for loops.
-    test_label = local_label_name("loop_test")
-    increment_label = local_label_name("loop_increment")
-    else_label = local_label_name("loop_else") if statement.orelse else None
-    exit_label = local_label_name("loop_exit")
+    test_label = local_label_name(context, "loop_test")
+    increment_label = local_label_name(context, "loop_increment")
+    else_label = local_label_name(context, "loop_else") if statement.orelse else None
+    exit_label = local_label_name(context, "loop_exit")
     loop = LoopInfo(stack.location, iter_label=increment_label, else_label=else_label, exit_label=exit_label)
 
     # Since everything will be jumping back to the increment label, we need to make sure that it is generated from the
