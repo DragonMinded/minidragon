@@ -6783,9 +6783,9 @@ def compile_chunk(
     last_statement_was_return = False
     last_statement_was_continue = False
 
-    for statement in chunk.body:
+    for statement_no, statement in enumerate(chunk.body):
         if isinstance(statement, cst.SimpleStatementLine):
-            for simple_statement in statement.body:
+            for substatement_no, simple_statement in enumerate(statement.body):
                 if isinstance(simple_statement, cst.Return):
                     if simple_statement.value is None:
                         # Simple return by itself, doesn't update the retval.
@@ -6884,6 +6884,13 @@ def compile_chunk(
                     last_statement_was_continue = False
 
                 elif isinstance(simple_statement, cst.Expr):
+                    if statement_no == 0 and substatement_no == 0:
+                        # Possible special case where we ignore docstrings.
+                        possible_string = simple_statement.value
+                        if isinstance(possible_string, cst.SimpleString):
+                            if possible_string.value[:3] == '"""' or possible_string.value[:3] == "'''":
+                                continue
+
                     # Expression without an assignment. Most likely a function call.
                     compiled += generate_expr(
                         simple_statement.value,
