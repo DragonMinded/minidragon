@@ -7195,6 +7195,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
 
     # Finally, find any comments that comment on empty blocks after optimization, and remove them.
     compiled.code = remove_empty_comments(compiled.code)
+    compiled.code = remove_duplicate_source_comments(context, compiled.code)
     compiled_preamble = compiled.preamble
     if compiled_preamble:
         compiled_preamble.append("")
@@ -7210,6 +7211,47 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         data=compiled.data,
         init=compiled.init,
     )
+
+
+def remove_duplicate_source_comments(context: Context, code: List[str]) -> List[str]:
+    # Clone this so we aren't mutating the input because that's bad form.
+    code = code[:]
+
+    pos = 0
+    length = len(code)
+    seen: Set[str] = set()
+    lastseen: int = -100
+
+    while pos < length:
+        line = code[pos]
+
+        trimmed = line.strip()
+        if not trimmed or trimmed[0] != ";":
+            pos += 1
+            continue
+
+        if ":" not in trimmed:
+            pos += 1
+            continue
+
+        coderef, _ = trimmed.split(":", 1)
+
+        if context.module in coderef and " line " in coderef:
+            # This works because we always add more general comments before more
+            # specific comments for an expression generator. So, if we have redundant
+            # comments, the more general one will always end up on a line above a more
+            # specific one.
+            if coderef in seen and lastseen == pos - 1:
+                code.pop(pos)
+                length -= 1
+            else:
+                seen.add(coderef)
+                lastseen = pos
+                pos += 1
+        else:
+            pos += 1
+
+    return code
 
 
 def remove_empty_comments(code: List[str]) -> List[str]:
