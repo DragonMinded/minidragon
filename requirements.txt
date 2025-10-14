@@ -1,4 +1,5 @@
 LibCST
+pySerial
 colorama
 types-colorama
 mypy
