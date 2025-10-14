@@ -3,7 +3,9 @@ import argparse
 import select
 import serial  # type: ignore
 import sys
+import termios
 import time
+import tty
 from typing import Final, List, Optional
 from core import CPUCore, MemoryFilter
 
@@ -215,11 +217,19 @@ class R6551AP(Peripheral):
             return None
 
         if self.__port is None:
+            stdin = sys.stdin.fileno()
+            tattr = termios.tcgetattr(stdin)
+            tty.setcbreak(stdin, termios.TCSANOW)
+
             # Input from stdin.
             rfds, _, _ = select.select([sys.stdin], [], [], 0)
             if not rfds:
                 return None
-            return sys.stdin.buffer.read(1)[0]
+
+            x = sys.stdin.buffer.read(1)[0]
+
+            termios.tcsetattr(stdin, termios.TCSANOW, tattr)
+            return x
         else:
             # Might need to open serial port, might be able to use existing.
             return None
