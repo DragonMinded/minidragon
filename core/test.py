@@ -20,6 +20,7 @@ from .compiler import (
     parse_and_compile_module,
     set_file_loader,
     set_working_directory,
+    unescape_literal,
 )
 
 
@@ -881,6 +882,13 @@ class TestCompiler(unittest.TestCase):
 
         set_working_directory(None)
         set_file_loader(None)
+
+    def test_unescape_litearl(self) -> None:
+        self.assertEqual("testing\n", unescape_literal("testing\\n"))
+        self.assertEqual("testing\t", unescape_literal("testing\\t"))
+        self.assertEqual("testing\\", unescape_literal("testing\\\\"))
+        self.assertEqual("testing\x01", unescape_literal("testing\\x01"))
+        self.assertEqual("testing\001", unescape_literal("testing\\001"))
 
 
 if __name__ == '__main__':

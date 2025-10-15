@@ -1002,6 +1002,77 @@ def _hex(val: int, pad: int) -> str:
     return "0x" + hexval
 
 
+def unescape_literal(val: str) -> str:
+    escaping: str = ""
+    retval: str = ""
+
+    for v in val:
+        if escaping:
+            if escaping == "\\":
+                if v == "\'":
+                    retval += "\'"
+                    escaping = ""
+                elif v == "\\":
+                    retval += "\\"
+                    escaping = ""
+                elif v == "n":
+                    retval += "\n"
+                    escaping = ""
+                elif v == "r":
+                    retval += "\r"
+                    escaping = ""
+                elif v == "t":
+                    retval += "\t"
+                    escaping = ""
+                elif v == "b":
+                    retval += "\b"
+                    escaping = ""
+                elif v == "f":
+                    retval += "\f"
+                    escaping = ""
+                elif v in "01234567":
+                    escaping += v
+                elif v in "x":
+                    escaping += v
+                else:
+                    raise Exception("Logic error, couldn't unescape {val}!")
+
+                continue
+
+            elif escaping == "\\x":
+                if v in "0123456789abcdefABCDEF":
+                    escaping += v
+                    continue
+
+            elif escaping[:2] == "\\x" and escaping[2] in "0123456789abcdefABCDEF":
+                if v in "0123456789abcdefABCDEF":
+                    retval += chr(int(escaping[2] + v, 16))
+                    escaping = ""
+                    continue
+
+            else:
+                if escaping[:1] == "\\" and len(escaping) < 4:
+                    # Could be an octal escape.
+                    if all(x in "01234567" for x in escaping[1:]):
+                        if v in "01234567":
+                            escaping += v
+                            if len(escaping) == 4:
+                                retval += chr(int(escaping[1:], 8))
+                                escaping = ""
+
+                            continue
+
+            raise Exception(f"Logic error, couldn't unescape {val}!")
+
+        else:
+            if v == "\\":
+                escaping = "\\"
+            else:
+                retval += v
+
+    return retval
+
+
 def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable], consts: List[Constant], context: Context) -> Sections:
     compiled = Sections(code=[context.comment()])
 
@@ -1094,6 +1165,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                 raise CompilerError("Unsupported array length for global const definition", context)
             if not isinstance(value, str):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
+            value = unescape_literal(value)
             if len(value) != 1:
                 raise CompilerError("Unsupported initialization value for global const definition", context)
             compiled.append_code(f"  .char {value[0]!r}")
@@ -1102,6 +1174,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
             if not isinstance(value, str):
                 raise CompilerError("Unsupported initialization value for global const definition", context)
 
+            value = unescape_literal(value)
             length_needed = len(value) + 1
             if assign_type.is_array:
                 # They want to specify an exact length, okay.
@@ -5320,6 +5393,7 @@ def generate_expr_internal(
             return compiled
 
         if isinstance(value, str):
+            value = unescape_literal(value)
             if len(value) >= MAX_STRING_LENGTH:
                 raise CompilerError(f"Unsupported too-long string, strings are required to be {MAX_STRING_LENGTH} characters maximum", context)
 
