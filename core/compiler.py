@@ -7677,6 +7677,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
 
     stackop = {"ADDPCI", "INCPC", "SUBPCI", "DECPC"}
     memoryop = {"LOADI", "ADDI", "INV", "SHL", "SHR", "RCL", "RCR", "ROL", "ROR", "ZERO", "NOP", "NEG", "INC", "DEC"}
+    aluop = {"INV", "NEG", "ADD", "ADC", "AND", "OR", "XOR", "ADDU", "ADCU", "ANDU", "ORU", "XORU", "ADDV", "ADCV", "ANDV", "ORV", "XORV", "SHL", "SHR", "RCL", "RCR", "ROL", "ROR"}
 
     pos = 0
     while pos < codelen:
@@ -7809,6 +7810,12 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
 
             else:
                 pos += 1
+
+        elif insn(prv) in aluop and cur == "ADDI 0":
+            remove(pos)
+
+        elif cur == "ADDI 0" and nxt == "ADDI 0":
+            remove(pos + 1)
 
         elif cur == "STORE A" and nxt == "LOAD A":
             remove(pos + 1)
