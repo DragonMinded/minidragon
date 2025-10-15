@@ -3,7 +3,6 @@ Optimizations that would be nice to have:
  - ensure that loads which get overridden by another load or operation get removed.
 
 Things that would be nice to have for convenience:
- - function default parameter support.
  - function keyword argument support.
  - asm() block to allow inlining assembly.
  - auto-infer types for variables that can be inferred.

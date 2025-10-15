@@ -614,11 +614,13 @@ class FunctionPrototype:
         return_type: CoreType,
         params: Optional[List[CoreType]] = None,
         paramnames: Optional[List[str]] = None,
+        paramdefaults: Optional[List[Optional[cst.BaseExpression]]] = None,
     ) -> None:
         self.name = name
         self.return_type = return_type
         self.params: List[CoreType] = params or []
         self.paramnames: List[str] = paramnames or []
+        self.paramdefaults: List[Optional[cst.BaseExpression]] = paramdefaults or []
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, FunctionPrototype):
@@ -628,7 +630,8 @@ class FunctionPrototype:
             self.name == other.name and
             self.return_type == other.return_type and
             self.params == other.params and
-            self.paramnames == other.paramnames
+            self.paramnames == other.paramnames and
+            self.paramdefaults == other.paramdefaults
         )
 
     def __repr__(self) -> str:
@@ -1944,10 +1947,18 @@ def get_function_params_impl(
             # Not the responsibility of the caller, we will set this up.
             continue
 
+        if param_count >= len(args):
+            try:
+                paramdefault = function_prototype.paramdefaults[i]
+            except IndexError:
+                paramdefault = None
+
+            if paramdefault is not None:
+                args.append(cst.Arg(value=paramdefault))
+
         param_count += 1
 
     if param_count != len(args):
-        # TODO: This is where we would possibly substitute default arguments.
         raise CompilerError(f"Function {function_prototype.name} expects {param_count} args but {len(args)} were given", context)
 
     return args, needed_args
@@ -5931,6 +5942,8 @@ def infer_expr_types_impl(
         body_tree = infer_expr_types_impl(expression.body, stack, refs, local_consts, context.wrap(expression.body))
         orelse_tree = infer_expr_types_impl(expression.orelse, stack, refs, local_consts, context.wrap(expression.orelse))
         inferred.update(infer_expr_types_impl(expression.test, stack, refs, local_consts, context.wrap(expression.test)))
+        inferred.update(body_tree)
+        inferred.update(orelse_tree)
 
         body_inferred = body_tree[expression.body]
         orelse_inferred = orelse_tree[expression.orelse]
@@ -7260,10 +7273,6 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
     stack: Stack = Stack(prototype.name)
 
     for func_param in function_params:
-        if func_param.default is not None:
-            # TODO: This wouldn't be terrible to support at some point in the future, so maybe we could?
-            raise CompilerError(f"Function parameter {func_param.name.value} has unsupported default", context)
-
         # Function parameters are passed on the stack, so we must know their locations and types.
         param_type = get_type(func_param.annotation, [], allow_array=True)
         if param_type is None:
@@ -7274,6 +7283,7 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
 
         prototype.paramnames.append(param_name)
         prototype.params.append(param_type)
+        prototype.paramdefaults.append(func_param.default)
 
         stack.alloc(StackVar(func_param.name.value, param_type))
 
@@ -7298,9 +7308,6 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
         raise CompilerError("Unsupported parameter definition for function definition", context)
 
     for func_param in function_params:
-        if func_param.default is not None:
-            raise CompilerError(f"Function parameter {func_param.name.value} has unsupported default", context)
-
         # Function parameters are passed on the stack, so we must know their locations and types.
         param_type = get_type(func_param.annotation, [], allow_array=True)
         if param_type is None:
