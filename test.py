@@ -15628,7 +15628,7 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
     for val, expectedstr in [("", ":0"), ("0", ":0"), ("123", ":123"), ("123, 456", ", 456:123"), ("123 456", " 456:123")]:
         for size in ["uint8", "uint16", "uint32"]:
             sections = parse_and_compile_module("int", textwrap.dedent(f"""
-                def callable() -> str:
+                def callable() -> str[32]:
                     strval: str[16] = {val!r}
                     intval: {size} = int(strval)
                     return strval + ":" + str(intval)
@@ -15689,7 +15689,7 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
     for val, expectedstr in [("", ":0"), ("0", "0:0"), ("123", "123:123"), ("123, 456", "123, 456:123"), ("123 456", "123 456:123")]:
         for size in ["uint8", "uint16", "uint32"]:
             sections = parse_and_compile_module("int", textwrap.dedent(f"""
-                def callable() -> str:
+                def callable() -> str[32]:
                     strval: const[str] = {val!r}
                     intval: {size} = int(strval)
                     return strval + ":" + str(intval)

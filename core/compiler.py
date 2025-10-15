@@ -157,7 +157,7 @@ class CoreType:
         self.type = base_type
         self.pointed_type = pointed_type
         self.const = const
-        self.__length = length
+        self.__length = length or None
         self.extern = extern
         self.return_padding = return_padding
         if self.type == "pointer" and pointed_type is None:
@@ -218,7 +218,7 @@ class CoreType:
         return CoreType(
             self.type,
             self.pointed_type,
-            length=self.length or 255,
+            length=self.length or MAX_STRING_LENGTH,
             const=False,
             extern=self.extern,
             return_padding=self.return_padding,
