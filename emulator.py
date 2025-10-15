@@ -404,8 +404,13 @@ class R6551AP(Peripheral):
 
 
 class MiniDragonMemoryFilter(MemoryFilter):
-    def __init__(self, peripherals: List[Peripheral]) -> None:
+    def __init__(self, peripherals: List[Peripheral], verbose: bool) -> None:
         self.peripherals = {p.slot: p for p in peripherals}
+        self.verbose = verbose
+
+    def log(self, data: str) -> None:
+        if self.verbose:
+            print(data, file=sys.stderr)
 
     def read(self, address: int) -> Optional[int]:
         # Bottom part of memory is the ROM file. top 2KB of ROM space is
@@ -425,6 +430,7 @@ class MiniDragonMemoryFilter(MemoryFilter):
     def write(self, address: int, data: int) -> Optional[int]:
         if address < PERIPHERALS_LOCATION:
             # ROM is not writeable, refuse to update the contents.
+            self.log(f"Ignoring write of {hex(data)} to ROM address {address}!")
             return None
         if address >= RAM_LOCATION:
             # RAM is directly writeable, pass the data value on.
@@ -456,9 +462,12 @@ def main(boot_rom: str, serial_port: Optional[str], verbose: bool) -> int:
         memory[i] = byte
 
     # Hook up peripherals to the system.
-    ram_filter = MiniDragonMemoryFilter([
-        R6551AP(serial_port, verbose),
-    ])
+    ram_filter = MiniDragonMemoryFilter(
+        [
+            R6551AP(serial_port, verbose),
+        ],
+        verbose,
+    )
 
     # Now, instantiate the CPU core and run until a halt instruction is encountered.
     cpu = CPUCore(memory, ram_filter)
