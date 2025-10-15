@@ -34,7 +34,7 @@ def serial_init() -> void:
     R6551AP_control_reg = 0b00011110
 
 
-def serial_send_byte(byte: uint8) -> void:
+def serial_send_byte(byte: const[uint8]) -> void:
     """
     Send a single byte out the serial port, waiting until it is okay to send that
     byte. This means calling this will never overrun the transmit buffer.
@@ -81,7 +81,7 @@ def serial_clear() -> void:
     serial_send("\033[2J\033[H")
 
 
-def serial_send(data: str) -> void:
+def serial_send(data: const[str]) -> void:
     """
     Given a string, write that data to the serial port. Note that you are
     responsible for adding your own newline to the end, unlile python's
@@ -136,7 +136,12 @@ def serial_recv() -> str:
     return accum
 
 
-def serial_input(prompt: str) -> str:
+def serial_input(prompt: const[str]) -> str:
+    """
+    Given a prompt string, send that prompt over serial, then read input until
+    the enter key is pressed, echoing the received characters back to the
+    serial connection, and then add a newline to the screen before returning.
+    """
     serial_send(prompt)
 
     retval: const[str] = serial_recv()
