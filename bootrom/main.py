@@ -1,5 +1,6 @@
 from serial import serial_init, serial_clear, serial_send, serial_input
 
+
 def main() -> void:
     # Initialize hardware.
     serial_init()
@@ -10,12 +11,7 @@ def main() -> void:
 
     # Prompt for input.
     name: const[str] = serial_input("Enter your name: ")
-
-    # Work around compiler but where doing string expressions assigned to const
-    # destinations causes the compiler to emit code that tries to strcat into
-    # ROM. This can be cleaned up as soon as I fix that compiler bug.
-    greetings: const[str[64]] = f"Greetings, {name}!\n"
-    serial_send(greetings)
+    serial_send(f"Greetings, {name}!\n")
 
     # Core loop.
     while True:
