@@ -98,11 +98,11 @@ def serial_send(data: const[str]) -> void:
         offset += 1
 
 
-def serial_recv() -> str:
+def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
     """
     Receive a string that is terminated with a newline character. That means
     the remote side hit enter. The newline character itself will not be appended
-    to the returned buffer.
+    to the returned buffer. By default, echos the input back to the client.
     """
     accum: str[255] = ""
 
@@ -128,7 +128,8 @@ def serial_recv() -> str:
             continue
 
         # Echo it back to the serial terminal.
-        serial_send_byte(ord(recvd))
+        if echo_input:
+            serial_send_byte(ord('*') if mask_input else ord(recvd))
 
         # Add it to our accumulator.
         accum += recvd
@@ -136,7 +137,7 @@ def serial_recv() -> str:
     return accum
 
 
-def serial_input(prompt: const[str]) -> str:
+def serial_input(prompt: const[str], echo_input: bool = True, mask_input: bool = False) -> str:
     """
     Given a prompt string, send that prompt over serial, then read input until
     the enter key is pressed, echoing the received characters back to the
@@ -144,7 +145,7 @@ def serial_input(prompt: const[str]) -> str:
     """
     serial_send(prompt)
 
-    retval: const[str] = serial_recv()
+    retval: const[str] = serial_recv(echo_input, mask_input)
     serial_send("\n")
 
     return retval
