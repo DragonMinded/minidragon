@@ -10,6 +10,10 @@ R6551AP_command_reg: extern[uint8]
 # The control register.
 R6551AP_control_reg: extern[uint8]
 
+# Constants defined in the R6551AP datasheet.
+R6551AP_TDRE: const[uint8] = 0b00010000
+R6551AP_RDRF: const[uint8] = 0b00001000
+
 
 def serial_init() -> void:
     """
@@ -39,7 +43,8 @@ def serial_send_byte(byte: uint8) -> void:
     # Read the status reg, make sure we can transmit. If we can transmit,
     # the TDRE bit will be set to 1 to indicate transmit buffer empty.
     global R6551AP_status_reg
-    while not bool(R6551AP_status_reg & 0b00010000):
+
+    while not bool(R6551AP_status_reg & R6551AP_TDRE):
         pass
 
     # Actuall write a byte to the serial buffer.
@@ -55,7 +60,7 @@ def serial_has_byte() -> bool:
 
     # The RDRF bit will be set to 1 if the receive data register is full.
     global R6551AP_status_reg
-    return bool(R6551AP_status_reg & 0b00001000)
+    return bool(R6551AP_status_reg & R6551AP_RDRF)
 
 
 def serial_recv_byte() -> uint8:
@@ -67,6 +72,13 @@ def serial_recv_byte() -> uint8:
 
     global R6551AP_buffer_reg
     return R6551AP_buffer_reg
+
+
+def serial_clear() -> void:
+    """
+    Issues a VT-100 command to clear the screen and move cursor home.
+    """
+    serial_send("\033[2J\033[H")
 
 
 def serial_send(data: str) -> void:
@@ -86,9 +98,48 @@ def serial_send(data: str) -> void:
         offset += 1
 
 
-def serial_recv() -> str[255]:
+def serial_recv() -> str:
     """
     Receive a string that is terminated with a newline character. That means
-    the remote side hit enter.
+    the remote side hit enter. The newline character itself will not be appended
+    to the returned buffer.
     """
-    return ""
+    accum: str[255] = ""
+
+    global R6551AP_status_reg
+    global R6551AP_buffer_reg
+
+    while True:
+        # Wait for a byte to become available.
+        while not bool(R6551AP_status_reg & R6551AP_RDRF):
+            pass
+
+        # Read that byte, append it unless it's the enter key.
+        recvd: char = chr(R6551AP_buffer_reg)
+        if recvd == "\n":
+            # Pressed enter, exit the loop.
+            break
+        if recvd == "\r":
+            # Don't care about \r\n, so ignore, \r part.
+            continue
+        if recvd == "\x11" or recvd == "\x13":
+            # Actual VT-102 seems to send this to us, need to look at manual to
+            # figure out why. For now, ignore it.
+            continue
+
+        # Echo it back to the serial terminal.
+        serial_send_byte(ord(recvd))
+
+        # Add it to our accumulator.
+        accum += recvd
+
+    return accum
+
+
+def serial_input(prompt: str) -> str:
+    serial_send(prompt)
+
+    retval: const[str] = serial_recv()
+    serial_send("\n")
+
+    return retval

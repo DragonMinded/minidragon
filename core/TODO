@@ -1,3 +1,7 @@
+Bug fixes that need to happen:
+ - Assigning an expression to a constant string does not work (concatenates in ROM).
+ - Calling a function with a string expression does not work (concatenates in ROM).
+
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
  - ensure that loads which get overridden by another load or operation get removed.
