@@ -232,6 +232,15 @@ class R6551AP(Peripheral):
             return x
         else:
             # Might need to open serial port, might be able to use existing.
+            conn = self._conn()
+            if conn:
+                data = conn.read(1)
+                if data:
+                    if len(data) > 1:
+                        raise Exception("Logic error, got too many bytes back from serial!")
+
+                    return int(data[0])
+
             return None
 
     def _tick(self) -> None:
