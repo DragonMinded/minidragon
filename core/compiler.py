@@ -209,6 +209,21 @@ class CoreType:
             return_padding=self.return_padding,
         )
 
+    def nonconst_clone(self) -> "CoreType":
+        if not self.const:
+            return self
+        if self.type not in {"str", "pointer"}:
+            return self
+
+        return CoreType(
+            self.type,
+            self.pointed_type,
+            length=self.length or 255,
+            const=False,
+            extern=self.extern,
+            return_padding=self.return_padding,
+        )
+
     @property
     def length(self) -> int:
         return self.__length or 0
@@ -6217,13 +6232,55 @@ def generate_assign_expr(
                 except NonConstantExpressionException:
                     pass
 
+            reassigned = False
             if needs_alloc:
                 # Allocate space on the stack for this local variable.
                 if assign_type is None:
                     raise Exception("Logic error, we should always have a type in this condition!")
-                stack.alloc(StackVar(assign_name, assign_type))
 
-            compiled += generate_expr(assign_value, assign_name, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
+                # We might need to treat this as a non-constant if it's a string that has a
+                # non-constant expression on the right hand side but it's assigning to a constant.
+                # If we don't, we won't end up assigning local storage for this variable and then
+                # we will end up trying to concatenate against the constant in ROM.
+                if assign_type.is_string and assign_type.const:
+                    try:
+                        # If we can evaluate this directly, do so! In the case that the RhS is a
+                        # global constant, we want to not directly allocate storage in that case
+                        # as well.
+                        consts = [
+                            *local_consts,
+                            *[Constant(gv.name, gv.type, None) for gv in refs if isinstance(gv, GlobalVariable)],
+                        ]
+
+                        codegen_eval(assign_value, consts)
+                        is_constant = True
+                    except NonConstantExpressionException:
+                        is_constant = False
+
+                    if is_constant:
+                        stack.alloc(StackVar(assign_name, assign_type))
+                    else:
+                        stack.alloc(StackVar(assign_name, assign_type.nonconst_clone()))
+                        reassigned = True
+
+                else:
+                    stack.alloc(StackVar(assign_name, assign_type))
+
+            compiled += generate_expr(
+                assign_value,
+                assign_name,
+                stack,
+                clobbers,
+                allocations,
+                refs,
+                local_consts,
+                context.wrap(assign_value),
+            )
+
+            if assign_type is not None and reassigned:
+                # Might need to retype back to the assign type if we temporarily marked a string
+                # as non-const.
+                stack.retype(assign_name, assign_type)
 
         else:
             if needs_alloc:

@@ -14,7 +14,7 @@ def main() -> void:
     # Work around compiler but where doing string expressions assigned to const
     # destinations causes the compiler to emit code that tries to strcat into
     # ROM. This can be cleaned up as soon as I fix that compiler bug.
-    greetings: str[64] = f"Greetings, {name}!\n"
+    greetings: const[str[64]] = f"Greetings, {name}!\n"
     serial_send(greetings)
 
     # Core loop.
