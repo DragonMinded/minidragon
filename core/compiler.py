@@ -608,19 +608,36 @@ def create_call(name: str, params: Iterable[cst.BaseExpression]) -> cst.Call:
 
 
 class FunctionPrototype:
-    def __init__(self, name: str, return_type: CoreType, params: Optional[List[CoreType]] = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        return_type: CoreType,
+        params: Optional[List[CoreType]] = None,
+        paramnames: Optional[List[str]] = None,
+    ) -> None:
         self.name = name
         self.return_type = return_type
         self.params: List[CoreType] = params or []
+        self.paramnames: List[str] = paramnames or []
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, FunctionPrototype):
             return False
 
-        return self.name == other.name and self.return_type == other.return_type and self.params == other.params
+        return (
+            self.name == other.name and
+            self.return_type == other.return_type and
+            self.params == other.params and
+            self.paramnames == other.paramnames
+        )
 
     def __repr__(self) -> str:
-        params = ', '.join('\'' + str(s) + '\'' for s in self.params)
+        params: str
+        if self.paramnames and len(self.params) == len(self.paramnames):
+            params = ', '.join(f"{self.paramnames[i]}: '{self.params[i]}'" for i in range(len(self.params)))
+        else:
+            params = ', '.join('\'' + str(s) + '\'' for s in self.params)
+
         if not params:
             params = "none"
         return f"Function {self.name!r} params {params} return value {self.return_type!r}"
@@ -1880,11 +1897,17 @@ def get_function_prototype(
         raise CompilerError(f"Unsupported function call with expression node {call.func}", context)
 
 
+class FunctionParam:
+    def __init__(self, name: Optional[str], paramtype: CoreType) -> None:
+        self.name = name
+        self.type = paramtype
+
+
 def get_function_params_impl(
     call: cst.Call,
     function_prototype: FunctionPrototype,
     context: Context,
-) -> Tuple[List[cst.Arg], List[CoreType]]:
+) -> Tuple[List[cst.Arg], List[FunctionParam]]:
     # Gather up arguments, including any defaults and in the future respecting kwargs.
     args: List[cst.Arg] = []
     for arg in call.args:
@@ -1899,12 +1922,20 @@ def get_function_params_impl(
 
     # Make sure that the number of arguments supplied matches
     param_count: int = 0
-    needed_args: List[CoreType] = []
-    for needed_arg in function_prototype.params:
-        # All arguments that are passed by reference (strings, pointers, arrays) need to be marked as const
-        # here, simply to stop any sort of internal copy on assign operation. We don't want to force the
-        # programmer to declare all params of this type const because then they couldn't have mutatable params.
-        needed_args.append(needed_arg.const_clone())
+    needed_args: List[FunctionParam] = []
+    for i, needed_arg in enumerate(function_prototype.params):
+        try:
+            paramname = function_prototype.paramnames[i]
+        except IndexError:
+            paramname = None
+
+        if paramname is None:
+            # All arguments that are passed by reference (strings, pointers, arrays) need to be marked as const
+            # here, simply to stop any sort of internal copy on assign operation. We don't want to force the
+            # programmer to declare all params of this type const because then they couldn't have mutatable params.
+            needed_args.append(FunctionParam(None, needed_arg.const_clone()))
+        else:
+            needed_args.append(FunctionParam(paramname, needed_arg))
 
         if isinstance(needed_arg, PaddingCoreType):
             # Not the responsibility of the caller, we will set this up.
@@ -1926,9 +1957,9 @@ def get_function_params(
     call: cst.Call,
     function_prototype: FunctionPrototype,
     context: Context,
-) -> Tuple[List[cst.Arg], List[CoreType]]:
+) -> Tuple[List[cst.Arg], List[FunctionParam]]:
     args, needed_args = get_function_params_impl(call, function_prototype, context)
-    needed_args = [na for na in needed_args if not isinstance(na, (PaddingCoreType, OutCoreType))]
+    needed_args = [na for na in needed_args if not isinstance(na.type, (PaddingCoreType, OutCoreType))]
     return args, needed_args
 
 
@@ -2025,7 +2056,7 @@ def generate_function_call_internal(
             if argnames[i] != stackvars[i].name:
                 break
             # If the types don't match, then we can't do anything with this.
-            if stackvars[i].size != params[i].size:
+            if stackvars[i].size != params[i].type.size:
                 break
         else:
             # All of the stack variables line up, let's double check that calling semantics
@@ -2035,10 +2066,10 @@ def generate_function_call_internal(
                 # optimization if the first parameter is a normal core type and the return
                 # value is a normal return type, or if the first parameter is in/out or out
                 # and the return value comes from this parameter.
-                if isinstance(params[0], (PreservedCoreType, RegisterCoreType, PaddingCoreType)):
+                if isinstance(params[0].type, (PreservedCoreType, RegisterCoreType, PaddingCoreType)):
                     # Cannot make these match under any circumstances.
                     continue
-                elif isinstance(params[0], (InOutCoreType, OutCoreType)):
+                elif isinstance(params[0].type, (InOutCoreType, OutCoreType)):
                     # Can only match these if the return is this stack position.
                     if isinstance(function_prototype.return_type, ParamReturnCoreType):
                         if function_prototype.return_type.position != 0:
@@ -2051,7 +2082,7 @@ def generate_function_call_internal(
                         continue
 
                     # Also can only match if we're not a const InOutCoreType.
-                    if isinstance(params[0], InOutCoreType):
+                    if isinstance(params[0].type, InOutCoreType):
                         actual_arg = considered[0].value
                         if isinstance(actual_arg, cst.Name):
                             arg_type = stack.typeof(actual_arg.value)
@@ -2062,24 +2093,24 @@ def generate_function_call_internal(
 
             match = False
             for i in range(arglen):
-                if isinstance(params[i], RegisterCoreType):
+                if isinstance(params[i].type, RegisterCoreType):
                     # These can match if they're the final param, because we'll end up popping
                     # it off the stack to put the value in a register.
                     if not full_params or i != (arglen - 1):
                         break
-                elif isinstance(params[i], PaddingCoreType):
+                elif isinstance(params[i].type, PaddingCoreType):
                     # These can never match. We'd need to be even more clever with picking out
                     # register types from the middle of the argument list, and padding needs to
                     # be inserted in the stack at the right spot.
                     break
-                elif isinstance(params[i], OutCoreType):
+                elif isinstance(params[i].type, OutCoreType):
                     # This is added to the stack, and I genuinely don't know what to do in this
                     # optimization case if this shows up here.
                     break
-                elif isinstance(params[i], PreservedCoreType):
+                elif isinstance(params[i].type, PreservedCoreType):
                     # These are a match, since they either preserve the value, or replace it.
                     pass
-                elif isinstance(params[i], InOutCoreType):
+                elif isinstance(params[i].type, InOutCoreType):
                     # These are a match, since they either preserve the value, or replace it.
                     actual_arg = considered[i].value
                     if isinstance(actual_arg, cst.Name):
@@ -2106,7 +2137,7 @@ def generate_function_call_internal(
                 # Need to fix up where the stack is going to be on exit based on params that will
                 # be "consumed" by the function call.
                 for i in range(arglen):
-                    param_in_question = params[i]
+                    param_in_question = params[i].type
 
                     stackloc: Optional[int] = stackvars[i].location
                     stacksize: Optional[int] = stackvars[i].size
@@ -2146,18 +2177,18 @@ def generate_function_call_internal(
         # for in-out and preserved params but that's a lot of work to think through so we're not doing it for now.
         pos = rawpos + optimized_offset
 
-        if isinstance(needed_arg, PaddingCoreType):
+        if isinstance(needed_arg.type, PaddingCoreType):
             # Simple padding that the function will clean up on its own. Add that padding to the stack.
-            for _ in range(needed_arg.padbytes):
+            for _ in range(needed_arg.type.padbytes):
                 stack.alloc(StackVar("builtin(padding)", CoreType('int8')))
                 temporary_stack_entries.append("builtin(padding)")
 
-        elif isinstance(needed_arg, OutCoreType):
+        elif isinstance(needed_arg.type, OutCoreType):
             # This is an out parameter, so we need to be able to track its position and what temporary
             # variable we assign to it so we can copy the value to our destination after calling.
             out_dest = expr_temp_name()
             out_mapping[pos] = out_dest
-            stack_on_exit += stack.alloc(StackVar(out_dest, needed_arg, initialized=True))
+            stack_on_exit += stack.alloc(StackVar(out_dest, needed_arg.type, initialized=True))
             temporary_stack_entries.append(out_dest)
 
             stackloc = stack.absfind(out_dest)
@@ -2167,15 +2198,15 @@ def generate_function_call_internal(
             for z in range(stacksize):
                 compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
 
-        elif isinstance(needed_arg, RegisterCoreType):
+        elif isinstance(needed_arg.type, RegisterCoreType):
             # Because we can't just do the calculation here since a subsequent arg expression calculation
             # might clobber one of the registers, we delay this so that we do this after everything else.
-            delayed_params.append(needed_arg)
+            delayed_params.append(needed_arg.type)
             delayed_args.append(args[which_arg])
             delayed_generate.append(True)
             which_arg += 1
 
-        elif isinstance(needed_arg, InOutCoreType):
+        elif isinstance(needed_arg.type, InOutCoreType):
             # Not only do we need to compute the input for this, but we need to copy the value back if the
             # input was a variable name or global variable reference, so we preserve in-out behavior.
             expr_dest = expr_temp_name()
@@ -2184,7 +2215,41 @@ def generate_function_call_internal(
             arg_in_question = args[which_arg].value
             if isinstance(arg_in_question, cst.Name):
                 copy_mapping[arg_in_question.value] = expr_dest
-            stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg, initialized=True))
+
+            if needed_arg.type.is_string:
+                if needed_arg.type.const:
+                    if isinstance(arg_in_question, cst.Name):
+                        # We can use this directly, since there's no string copying that might occur.
+                        is_usable = True
+                    else:
+                        try:
+                            codegen_eval(arg_in_question, local_consts)
+                            is_usable = True
+                        except NonConstantExpressionException:
+                            is_usable = False
+
+                    if is_usable:
+                        stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type))
+                    else:
+                        stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type.nonconst_clone()))
+
+                else:
+                    if not needed_arg.name:
+                        raise Exception("Logic error, cannot determine local string storage for unnamed parameter!")
+
+                    # Initialize this variable with the local storage of the function parameter.
+                    local_destination_storage = f"{function_prototype.name}_{needed_arg.name}_param"
+                    stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type, initialized=True))
+
+                    # We only clobber the A register with the string init macro.
+                    clobbers.add("A")
+
+                    compiled += generate_move_to(expr_dest, stack, clobbers, context, offset=-1)
+                    compiled.append_code(f"  PUSHADDR {local_destination_storage}")
+                    stack.location += 2
+            else:
+                stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type))
+
             temporary_stack_entries.append(expr_dest)
             compiled += generate_expr_internal(arg_in_question, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(arg_in_question))
             which_arg += 1
@@ -2196,10 +2261,10 @@ def generate_function_call_internal(
             for z in range(stacksize):
                 compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
 
-        elif isinstance(needed_arg, PreservedCoreType):
+        elif isinstance(needed_arg.type, PreservedCoreType):
             # This is just preserved, so we don't have to worry about copy it out, but we do need to allocate it.
             expr_dest = expr_temp_name()
-            stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg))
+            stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type))
             temporary_stack_entries.append(expr_dest)
             compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
@@ -2214,10 +2279,45 @@ def generate_function_call_internal(
         else:
             # This is just a normal core type, so we put it on the stack, and the function takes it back off again.
             # So we don't need to fix up the stack any when we come back from the function call.
+            arg_in_question = args[which_arg].value
             expr_dest = expr_temp_name()
-            stack.alloc(StackVar(expr_dest, needed_arg))
+
+            if needed_arg.type.is_string:
+                if needed_arg.type.const:
+                    if isinstance(arg_in_question, cst.Name):
+                        # We can use this directly, since there's no string copying that might occur.
+                        is_usable = True
+                    else:
+                        try:
+                            codegen_eval(arg_in_question, local_consts)
+                            is_usable = True
+                        except NonConstantExpressionException:
+                            is_usable = False
+
+                    if is_usable:
+                        stack.alloc(StackVar(expr_dest, needed_arg.type))
+                    else:
+                        stack.alloc(StackVar(expr_dest, needed_arg.type.nonconst_clone()))
+
+                else:
+                    if not needed_arg.name:
+                        raise Exception("Logic error, cannot determine local string storage for unnamed parameter!")
+
+                    # Initialize this variable with the local storage of the function parameter.
+                    local_destination_storage = f"{function_prototype.name}_{needed_arg.name}_param"
+                    stack.alloc(StackVar(expr_dest, needed_arg.type, initialized=True))
+
+                    # We only clobber the A register with the string init macro.
+                    clobbers.add("A")
+
+                    compiled += generate_move_to(expr_dest, stack, clobbers, context, offset=-1)
+                    compiled.append_code(f"  PUSHADDR {local_destination_storage}")
+                    stack.location += 2
+            else:
+                stack.alloc(StackVar(expr_dest, needed_arg.type))
+
             temporary_stack_entries.append(expr_dest)
-            compiled += generate_expr_internal(args[which_arg].value, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[which_arg].value))
+            compiled += generate_expr_internal(arg_in_question, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[which_arg].value))
             which_arg += 1
 
             stackloc = stack.absfind(expr_dest)
@@ -2230,32 +2330,32 @@ def generate_function_call_internal(
     # Now, load our registers up with any register parameters.
     stack_skip = 0
     for i in range(len(delayed_params) - 1, -1, -1):
-        needed_arg = delayed_params[i]
+        delayed_needed_arg = delayed_params[i]
         provided_arg = delayed_args[i]
 
         # All functions that take a register core type assume signed integers.
         reg_to_type = {
             "A": "int8",
         }
-        if needed_arg.register not in reg_to_type:
-            raise Exception(f"Logic error, tried to assign a param to unsupported register {needed_arg.register} in function {function_prototype.name}")
+        if delayed_needed_arg.register not in reg_to_type:
+            raise Exception(f"Logic error, tried to assign a param to unsupported register {delayed_needed_arg.register} in function {function_prototype.name}")
 
         # Make sure we mark this as clobbered since we're going to mess it up.
-        clobbers.add(needed_arg.register)
+        clobbers.add(delayed_needed_arg.register)
 
         if delayed_generate[i]:
             reg_dest = expr_temp_name()
-            stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[needed_arg.register])))
+            stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[delayed_needed_arg.register])))
             compiled += generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(provided_arg.value))
             compiled += generate_move_to(reg_dest, stack, clobbers, context)
-            compiled.append_code(f"  LOAD {needed_arg.register}" + stack.comment(stack.location, load=True))
+            compiled.append_code(f"  LOAD {delayed_needed_arg.register}" + stack.comment(stack.location, load=True))
             stack.free(reg_dest)
         else:
             if not isinstance(arg.value, UnvalidatedName):
                 raise Exception("Logic error, params that don't need generation should be on the stack!")
             reg_dest = arg.value.value
             compiled += generate_move_to(reg_dest, stack, clobbers, context)
-            compiled.append_code(f"  LOAD {needed_arg.register}" + stack.comment(stack.location, load=True))
+            compiled.append_code(f"  LOAD {delayed_needed_arg.register}" + stack.comment(stack.location, load=True))
             stack_skip += 1
 
     # Now, we're ready to actually call the function. Move to the last byte of the last parameter on the stack.
@@ -5775,12 +5875,12 @@ def infer_expr_types_impl(
         for i, (arg, argtype) in enumerate(zip(args, arg_types)):
             arg_inferred = infer_expr_types_impl(arg.value, stack, refs, local_consts, context.wrap(arg.value))
 
-            if not type_comparison_compatible(arg_inferred[arg.value], argtype):
-                raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type} in function call parameter {i + 1}", context)
+            if not type_comparison_compatible(arg_inferred[arg.value], argtype.type):
+                raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter {i + 1}", context)
 
             # Special case for functions like abs(), min() and max() where the input and output are both inferred.
-            if argtype.type != "int":
-                infer_tree(arg_inferred, argtype, context)
+            if argtype.type.type != "int":
+                infer_tree(arg_inferred, argtype.type, context)
             inferred.update(arg_inferred)
 
         inferred[expression] = function_prototype.return_type
@@ -7165,11 +7265,16 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
             raise CompilerError(f"Function parameter {func_param.name.value} has unsupported default", context)
 
         # Function parameters are passed on the stack, so we must know their locations and types.
-        param_type = get_type(func_param.annotation, [])
+        param_type = get_type(func_param.annotation, [], allow_array=True)
         if param_type is None:
             raise CompilerError(f"Expecting type for function parameter {func_param.name.value}", context)
 
+        # For non-const strings, we need to know the local storage name, based on the parameter name.
+        param_name = func_param.name.value
+
+        prototype.paramnames.append(param_name)
         prototype.params.append(param_type)
+
         stack.alloc(StackVar(func_param.name.value, param_type))
 
     if function_type.return_padding and stack.size < function_type.size:
@@ -7197,9 +7302,19 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
             raise CompilerError(f"Function parameter {func_param.name.value} has unsupported default", context)
 
         # Function parameters are passed on the stack, so we must know their locations and types.
-        param_type = get_type(func_param.annotation, [])
+        param_type = get_type(func_param.annotation, [], allow_array=True)
         if param_type is None:
             raise CompilerError(f"Expecting type for function parameter {func_param.name.value}", context)
+
+        # If it is a non-const string, we need to allocate data for this that callers will copy
+        # into when calling this function.
+        if param_type.is_string and not param_type.const:
+            if not param_type.is_array:
+                raise CompilerError(f"Non-constant string parameter{func_param.name.value} requires a length", context)
+
+            local_destination_storage = f"{function_name}_{func_param.name.value}_param"
+            compiled.append_data(f"{local_destination_storage}:")
+            compiled.append_data(f"  .pad {param_type.length or MAX_STRING_LENGTH}")
 
         try:
             stack.alloc(StackVar(func_param.name.value, param_type, initialized=True))

@@ -8387,7 +8387,7 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
                 *cmplines,
                 *strcmplines,
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
-                    def func(val1: str, val2: str) -> bool:
+                    def func(val1: const[str], val2: const[str]) -> bool:
                         return val1 == val2
                 """), settings).code,
                 ".org 0x1000",
@@ -8821,7 +8821,7 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
                 *cmplines,
                 *strcmplines,
                 *parse_and_compile_module("equalityexpression", textwrap.dedent("""
-                    def func(val1: str, val2: str) -> bool:
+                    def func(val1: const[str], val2: const[str]) -> bool:
                         return val1 != val2
                 """), settings).code,
                 ".org 0x1000",
@@ -9063,7 +9063,7 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
                 memory = getmemory(os.linesep.join([
                     *initlines,
                     *parse_and_compile_module("alligatorexpression", textwrap.dedent(f"""
-                        def func(val1: str, val2: str) -> bool:
+                        def func(val1: const[str], val2: const[str]) -> bool:
                             return val1 {operator} val2
                     """), settings).code,
                     ".org 0x1000",
@@ -11925,7 +11925,64 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
     # Attempt to do string length on a function parameter with an intermediate variable.
     for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
-            def string_length(which: str) -> uint8:
+            def string_length(which: const[str]) -> uint8:
+                return len(which)
+
+            def caller() -> uint8:
+                val: const[str] = "{val}"
+                return string_length(val)
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL caller",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Attempt to do the same thing again, but this time with a mutable local string variable.
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            def string_length(which: str[64]) -> uint8:
                 return len(which)
 
             def caller() -> uint8:
@@ -11982,7 +12039,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
     # Attempt to do string length on a function parameter without an intermediate variable.
     for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
-            def string_length(which: str) -> uint8:
+            def string_length(which: const[str]) -> uint8:
                 return len(which)
 
             def caller() -> uint8:
@@ -12069,10 +12126,10 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
     # Concatenate string that is passed in via parameters.
     for val in ["jen", "dragon", "world"]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
-            def say_hello(thing: str) -> str[64]:
+            def say_hello(thing: const[str]) -> str[64]:
                 return "Hello, " + thing + "!"
 
-            def caller() -> const[str]:
+            def caller() -> str:
                 return say_hello("{val}")
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -12298,7 +12355,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
     # Write out own terrible string clone function, for shiggles.
     for val in ["jen", "dragon", "world"]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
-            def clone(string: str) -> str:
+            def clone(string: const[str]) -> str:
                 retval: str[16] = ""
 
                 i: uint8
@@ -12703,7 +12760,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
     for val in ["jen", "dragon", "world"]:
         for loc in [0, 1, 2]:
             sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-                def subscript_impl(str: str, loc: uint8) -> char:
+                def subscript_impl(str: const[str], loc: uint8) -> char:
                     return str[loc]
 
                 def subscript(loc: uint8) -> char:
@@ -13090,13 +13147,13 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
         for updated in ['~', '!', '*']:
             sliceable = "this is a test"
             sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
-                def set_char(string: str, offset: uint8, val: char) -> void:
+                def set_char(string: str[32], offset: uint8, val: char) -> str:
                     string[offset] = val
+                    return string
 
                 def updateme() -> str:
                     sliceable: str[32] = {sliceable!r}
-                    set_char(sliceable, {offset}, {updated!r})
-                    return sliceable
+                    return set_char(sliceable, {offset}, {updated!r})
             """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,
@@ -13416,7 +13473,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
     # Verify casting from strings.
     for string in ["testing", "derg derg derg"]:
         sections = parse_and_compile_module("stringcast", textwrap.dedent(f"""
-            def castme_impl(s: str) -> str:
+            def castme_impl(s: const[str]) -> str:
                 lvar: str[16] = str(s)
                 return lvar
 
@@ -13722,7 +13779,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
     # Verify f-strings with other strings.
     for string in ["dragon", "jen", "test"]:
         sections = parse_and_compile_module("stringformat", textwrap.dedent(f"""
-            def formatme(string: str) -> str[100]:
+            def formatme(string: const[str]) -> str[100]:
                 return f"A string: {{string}}"
 
             def call() -> str:
@@ -16257,7 +16314,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
 
     for left, right in [("abc", "abc"), ("abc", "def")]:
         sections = parse_and_compile_module("optimizations", textwrap.dedent(f"""
-            def inner(val1: str, val2: str) -> nopad[bool]:
+            def inner(val1: const[str], val2: const[str]) -> nopad[bool]:
                 if val1 == val2:
                     return True
                 else:
@@ -16443,7 +16500,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
 
     for left, right in [("abc", "abc"), ("abc", "def")]:
         sections = parse_and_compile_module("optimizations", textwrap.dedent(f"""
-            def inner(val1: str, val2: str) -> nopad[bool]:
+            def inner(val1: const[str], val2: const[str]) -> nopad[bool]:
                 if val1 != val2:
                     return True
                 else:
