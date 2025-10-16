@@ -13,6 +13,10 @@ def main() -> void:
     name: const[str] = serial_input("Enter your name: ")
     serial_send(f"Greetings, {name}!\n")
 
+    # Prompt for input.
+    secret: const[str] = serial_input("Enter a secret: ", mask_input=True)
+    serial_send(f"Your secret was {secret}.\n")
+
     # Core loop.
     while True:
         pass
