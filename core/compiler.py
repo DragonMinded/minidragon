@@ -764,6 +764,8 @@ class StackVar:
         modulename = context.label
         if modulename[-1] != "_":
             modulename = modulename + "_"
+        if modulename[0] != "_":
+            modulename = "_" + modulename
 
         return modulename + label
 
@@ -3516,6 +3518,8 @@ def local_label_name(context: Context, label: str = "") -> str:
     modulename = context.label
     if modulename[-1] != "_":
         modulename = modulename + "_"
+    if modulename[0] != "_":
+        modulename = "_" + modulename
 
     return f"{modulename}local{label}{__local_label_count}"
 
