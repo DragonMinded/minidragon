@@ -1913,11 +1913,17 @@ def get_function_params_impl(
 ) -> Tuple[List[cst.Arg], List[FunctionParam]]:
     # Gather up arguments, including any defaults and in the future respecting kwargs.
     args: List[cst.Arg] = []
+    kwargs: Dict[str, cst.Arg] = {}
+
     for arg in call.args:
-        # TODO: At some point, maybe we can support these, because it would just be extraction from a list
-        # in the star arg case, and choosing the correct argument order in the keyword argument case.
         if arg.keyword is not None:
-            raise CompilerError("Unsupported keyword argument in function call", context)
+            name = arg.keyword.value
+            if name in kwargs:
+                raise CompilerError(f"Keyword argument {name} specified multiple times", context)
+
+            kwargs[name] = arg
+            continue
+
         if arg.star != "":
             raise CompilerError("Unsupported star argument in function call", context)
 
@@ -1953,10 +1959,22 @@ def get_function_params_impl(
             except IndexError:
                 paramdefault = None
 
-            if paramdefault is not None:
+            if paramname in kwargs:
+                args.append(kwargs[paramname])
+                del kwargs[paramname]
+
+            elif paramdefault is not None:
                 args.append(cst.Arg(value=paramdefault))
 
+        else:
+            if paramname in kwargs:
+                raise CompilerError(f"Keyword argument {paramname} specified for argument that already has a positional value", context)
+
         param_count += 1
+
+    if kwargs:
+        for name in kwargs:
+            raise CompilerError(f"Function {function_prototype.name} does not have a parameter named {name}", context)
 
     if param_count != len(args):
         raise CompilerError(f"Function {function_prototype.name} expects {param_count} args but {len(args)} were given", context)
