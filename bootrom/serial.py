@@ -134,6 +134,7 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
     to the returned buffer. By default, echos the input back to the client.
     """
     accum: str[255] = ""
+    length: uint8 = 0
 
     global R6551AP_status_reg
     global R6551AP_buffer_reg
@@ -152,12 +153,24 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
             # Don't care about \r\n, so ignore, \r part.
             continue
 
+        if recvd == "\x08":
+            # Backspace has its own handling.
+            if length:
+                length -= 1
+                accum = accum[:length]
+
+                # Erase last letter.
+                serial_send("\x08 \x08")
+
+            continue
+
         # Echo it back to the serial terminal.
         if echo_input:
             serial_send_byte(ord('*') if mask_input else ord(recvd))
 
         # Add it to our accumulator.
         accum += recvd
+        length += 1
 
     return accum
 

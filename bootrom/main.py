@@ -21,6 +21,7 @@ def main() -> void:
     # Prompt for input.
     name: const[str] = serial_input("Enter your name: ")
     serial_send(f"Greetings, {name}!\n")
+    serial_send(f"Your name was {len(name)} character(s) long!\n")
 
     # Prompt for input.
     secret: const[str] = serial_input("Enter a secret: ", mask_input=True)
