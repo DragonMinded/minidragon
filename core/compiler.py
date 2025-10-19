@@ -7912,9 +7912,9 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
         elif insn(prv) == "LOADI" and insn(cur) in {"INV", "NEG"}:
             intparam = param_as_int(prv)
             if intparam is not None:
-                if insn(nxt) == "INV":
+                if insn(cur) == "INV":
                     intparam = (~intparam) & 0xFF
-                elif insn(nxt) == "NEG":
+                elif insn(cur) == "NEG":
                     intparam = ((~intparam) + 1) & 0xFF
                 else:
                     intparam = None
