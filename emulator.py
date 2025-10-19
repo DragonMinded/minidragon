@@ -211,6 +211,8 @@ class R6551AP(Peripheral):
                     self.irq = self.dsr or self.dcd or self.rdrf or self.tdre
                 self.__txw = time.time() + self._time()
                 conn.write(bytes([byte]))
+            else:
+                self.log("Impossible condition, ignoring Tx.")
 
     def _rxb(self) -> Optional[int]:
         if self.rcs == 0:
@@ -243,6 +245,8 @@ class R6551AP(Peripheral):
                         raise Exception("Logic error, got too many bytes back from serial!")
 
                     return int(data[0])
+            else:
+                self.log("Impossible condition, ignoring Rx.")
 
             return None
 
