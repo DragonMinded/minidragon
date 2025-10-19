@@ -7909,6 +7909,14 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 else:
                     raise Exception("Logic error, unrecognized instruction to replace!")
 
+        elif insn(prv) == "NEG" and insn(cur) == "NEG" and insn(nxt) == "NEG":
+            # Triple negation is equivalent to a single, including flags.
+            remove(pos, 2)
+
+        elif insn(prv) == "INV" and insn(cur) == "INV" and insn(nxt) == "INV":
+            # Triple negation is equivalent to a single, including flags.
+            remove(pos, 2)
+
         elif insn(prv) == "LOADI" and insn(cur) in {"INV", "NEG"}:
             intparam = param_as_int(prv)
             if intparam is not None:
