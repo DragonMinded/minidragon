@@ -34,6 +34,9 @@ class Peripheral:
     def write(self, address: int, value: int) -> None:
         pass
 
+    def tick(self) -> None:
+        pass
+
 
 class R6551AP(Peripheral):
     def __init__(self, port: Optional[str], verbose: bool) -> None:
@@ -243,7 +246,7 @@ class R6551AP(Peripheral):
 
             return None
 
-    def _tick(self) -> None:
+    def tick(self) -> None:
         # Attempt to read a byte from our interface.
         read = self._rxb()
         if read:
@@ -265,8 +268,6 @@ class R6551AP(Peripheral):
                 self.__txw = None
 
     def read(self, address: int) -> int:
-        self._tick()
-
         register = address & 0x3
 
         if register == 0:
@@ -343,8 +344,6 @@ class R6551AP(Peripheral):
             raise Exception("Logic error, invalid register!")
 
     def write(self, address: int, value: int) -> None:
-        self._tick()
-
         register = address & 0x3
 
         if register == 0:
@@ -421,6 +420,10 @@ class MiniDragonMemoryFilter(MemoryFilter):
         if self.verbose:
             print(data, file=sys.stderr)
 
+    def tick(self) -> None:
+        for peripheral in self.peripherals.values():
+            peripheral.tick()
+
     def read(self, address: int) -> Optional[int]:
         # Bottom part of memory is the ROM file. top 2KB of ROM space is
         # where the peripherals are mapped.
@@ -484,6 +487,7 @@ def main(boot_rom: str, serial_port: Optional[str], verbose: bool) -> int:
         if cpu.mnemonic == "HALT":
             break
         cpu.tick()
+        ram_filter.tick()
 
     return 0
 
