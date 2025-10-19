@@ -76,9 +76,38 @@ def serial_recv_byte() -> uint8:
 
 def serial_clear() -> void:
     """
-    Issues a VT-100 command to clear the screen and move cursor home.
+    Issues a VT-100 command to clear the screen and move cursor home. Also
+    makes sure that the text is in normal mode.
     """
-    serial_send("\033[2J\033[H")
+    serial_send("\033[2J\033[H\033[0m")
+
+
+def serial_normal() -> void:
+    """
+    Issues a VT-100 command to set the normal text mode.
+    """
+    serial_send("\033[0m")
+
+
+def serial_bold() -> void:
+    """
+    Issues a VT-100 command to set the bold text mode.
+    """
+    serial_send("\033[1m")
+
+
+def serial_underline() -> void:
+    """
+    Issues a VT-100 command to set the underline text mode.
+    """
+    serial_send("\033[4m")
+
+
+def serial_reverse() -> void:
+    """
+    Issues a VT-100 command to set the reverse text mode.
+    """
+    serial_send("\033[7m")
 
 
 def serial_send(data: const[str]) -> void:
@@ -121,10 +150,6 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
             break
         if recvd == "\r":
             # Don't care about \r\n, so ignore, \r part.
-            continue
-        if recvd == "\x11" or recvd == "\x13":
-            # Actual VT-102 seems to send this to us, need to look at manual to
-            # figure out why. For now, ignore it.
             continue
 
         # Echo it back to the serial terminal.
