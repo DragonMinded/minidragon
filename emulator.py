@@ -234,6 +234,11 @@ class R6551AP(Peripheral):
             x = sys.stdin.buffer.read(1)[0]
 
             termios.tcsetattr(stdin, termios.TCSANOW, tattr)
+
+            # Convert delete to backspace (^H) since this is what a VT-100 would send.
+            if x == 127:
+                x = 8
+
             return x
         else:
             # Might need to open serial port, might be able to use existing.
