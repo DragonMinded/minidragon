@@ -4133,7 +4133,7 @@ def generate_binary_expr(
 
             # Now, again with the right!
             rhs_dest = expr_temp_name()
-            stack.alloc(StackVar(rhs_dest, CoreType("str", const=True)))
+            stack.alloc(StackVar(rhs_dest, CoreType("str", const=True, length=destination_type.length)))
             compiled += generate_expr_internal(expression.right, rhs_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
 
             # Now, call strcat to concatenate the two together!
@@ -5213,9 +5213,16 @@ def generate_subscript_expr(
     slice_or_index = expression.slice[0].slice
 
     if isinstance(slice_or_index, cst.Index):
+        if destination is not None:
+            destination_type = stack.typeof(destination)
+            if destination_type is None:
+                raise Exception("Logic error, could not calculate type of destination!")
+        else:
+            destination_type = CoreType("str", const=True, length=MAX_STRING_LENGTH)
+
         # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
         base_dest = expr_temp_name()
-        stack.alloc(StackVar(base_dest, CoreType("str", const=True)))
+        stack.alloc(StackVar(base_dest, CoreType("str", const=True, length=destination_type.length)))
         compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
 
         # Calculate the offset into the string that we're gonna need, first.
@@ -5242,6 +5249,7 @@ def generate_subscript_expr(
             destination_size = stack.sizeof(destination)
             if destination_size is None:
                 raise Exception("Logic error, could not calculate size of destination!")
+
             destination_type = stack.typeof(destination)
             if destination_type is None:
                 raise Exception("Logic error, could not calculate type of destination!")
@@ -5286,7 +5294,7 @@ def generate_subscript_expr(
 
         # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
         base_dest = expr_temp_name()
-        stack.alloc(StackVar(base_dest, CoreType("str", const=True)))
+        stack.alloc(StackVar(base_dest, CoreType("str", const=True, length=destination_type.length)))
         compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
 
         if slice_or_index.step is not None:

@@ -14063,6 +14063,89 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for stringformat: {int(instructions/count)}")
 
 
+def verifystringcombination(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "stringcombination" not in only and "compiler" not in only:
+        return
+
+    print("Verifying stringcombination...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+    with open("lib/string/strcat.S", "r") as fp:
+        strcatlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Test a combination of concatenations and slices in a complex expression.
+    if True:
+        sections = parse_and_compile_module("stringcombination", textwrap.dedent("""
+            def inner(first: const[str], second: const[str], third: char) -> str[64]:
+                return (first[:5] + third)[1:] + " " + second[1:4]
+
+            def func() -> const[str]:
+                return inner("things", "thats", "e")
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *strcatlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL func",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringcombination", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringcombination changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringcombination changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringcombination changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = "hinge hat"
+        _assert(
+            result == expected,
+            "Failed to stringcombination, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for stringslice: {int(cycles/count)}")
+    print(f"Average instructions for stringslice: {int(instructions/count)}")
+
+
 def verifypeek(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "peek" not in only and "compiler" not in only:
         return
@@ -16807,6 +16890,7 @@ if __name__ == "__main__":
     verifystringassignment(only, args.full)
     verifystringcast(only, args.full)
     verifystringformat(only, args.full)
+    verifystringcombination(only, args.full)
     verifypeek(only, args.full)
     verifypoke(only, args.full)
     verifyabs(only, args.full)
