@@ -5532,6 +5532,12 @@ def generate_expr_internal(
         destination_size = stack.sizeof(destination)
         if destination_size is None:
             raise Exception("Logic error, could not calculate size of destination!")
+
+        # Early exit if we have something in the form of "a = a". This can most often happen
+        # during string evaluation when concatenating or slicing oneself.
+        if isinstance(expression, cst.Name):
+            if expression.value == destination:
+                return compiled
     else:
         destination_size = 0
 
