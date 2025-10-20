@@ -7702,13 +7702,13 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
         line = line.strip()
         return line
 
-    def getline(pos: int, offset: int = 0) -> str:
+    def getline(pos: int, offset: int = 0, **kwargs: bool) -> str:
         pos += offset
         if pos < 0:
             return ""
         if pos >= codelen:
             return ""
-        return sanitize(code[pos])
+        return sanitize(code[pos]) if kwargs.get("sanitize", True) else code[pos]
 
     def curpos(pos: int) -> Optional[str]:
         return stackpos(code[pos])
@@ -7819,7 +7819,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
             # In this case, we can reorder instructions since it doesn't matter what order they
             # happen, but it also means that we can possibly fold redundant moves. This may only
             # exist because we reduced redundant store/loads with a constant load.
-            replace(pos, 2, [code[pos + 1], code[pos]])
+            replace(pos, 2, [getline(pos, offset=1, sanitize=False), getline(pos, sanitize=False)])
 
         elif insn(prv) == "INV" and insn(cur) in {"JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}:
             # Strict equality/inequality checks for string/integer/characters.
