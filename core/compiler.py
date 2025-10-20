@@ -7679,7 +7679,26 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
         if not line:
             return ""
         if ";" in line:
-            line, _ = line.split(";", 1)
+            # Need to be mindful of quotes.
+            nocomment: str = ""
+            quote: str = ""
+
+            for ch in line:
+                if ch == quote:
+                    nocomment += ch
+                    quote = ""
+                elif ch in {"'", '"'}:
+                    if not quote:
+                        quote = ch
+                    nocomment += ch
+                elif ch == ";":
+                    if not quote:
+                        break
+                    nocomment += ch
+                else:
+                    nocomment += ch
+
+            line = nocomment
         line = line.strip()
         return line
 
@@ -7708,6 +7727,9 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
         code = code[:pos] + new + code[(pos + length):]
         codelen -= length
         codelen += len(new)
+
+    def offset(pos: int, amount: int) -> int:
+        return pos + amount
 
     def insn(line: str) -> str:
         return line.split(" ", 1)[0]
