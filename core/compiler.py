@@ -7843,7 +7843,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     raise Exception("Logic error, unknown replacement!")
 
                 replace(pos - 4, 5, replacement)
-                pos -= 4
+                pos = offset(pos, -4)
 
             # Strict equality/inequality checks for string/integer/characters.
             elif (
@@ -7866,7 +7866,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     raise Exception("Logic error, unknown replacement!")
 
                 replace(pos - 4, 5, replacement)
-                pos -= 4
+                pos = offset(pos, -4)
 
             # Alligator expression inequality checks for integers.
             elif (
@@ -7887,7 +7887,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     raise Exception("Logic error, unknown replacement!")
 
                 replace(pos - 4, 5, replacement)
-                pos -= 4
+                pos = offset(pos, -4)
 
             elif (
                 getline(pos, offset=-2) == "INV" and
@@ -7907,10 +7907,10 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     raise Exception("Logic error, unknown replacement!")
 
                 replace(pos - 4, 5, replacement)
-                pos -= 4
+                pos = offset(pos, -4)
 
             else:
-                pos += 1
+                pos = offset(pos, 1)
 
         elif insn(prv) in aluop and cur == "ADDI 0":
             remove(pos)
@@ -7964,7 +7964,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
             # This can be statically computed and is probably a "while True" check.
             intparam = param_as_int(prv)
             if intparam is None:
-                pos += 1
+                pos = offset(pos, 1)
                 continue
 
             intparam = (~intparam) & 0xFF
@@ -7972,30 +7972,30 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 if insn(nxt) in {"JRIZ", "LNGJUMPZ"}:
                     # Will never be taken.
                     remove(pos - 1, 3)
-                    pos -= 1
+                    pos = offset(pos, -1)
                 elif insn(nxt) == "JRINZ":
                     # Will always be taken.
                     replace(pos - 1, 3, [f"  JRI {params(nxt)}"])
-                    pos -= 1
+                    pos = offset(pos, -1)
                 elif insn(nxt) == "LNGJUMPNZ":
                     # Will always be taken.
                     replace(pos - 1, 3, [f"  LNGJUMP {params(nxt)}"])
-                    pos -= 1
+                    pos = offset(pos, -1)
                 else:
                     raise Exception("Logic error, unrecognized instruction to replace!")
             else:
                 if insn(nxt) in {"JRINZ", "LNGJUMPNZ"}:
                     # Will never be taken.
                     remove(pos - 1, 3)
-                    pos -= 1
+                    pos = offset(pos, -1)
                 elif insn(nxt) == "JRIZ":
                     # Will always be taken.
                     replace(pos - 1, 3, [f"  JRI {params(nxt)}"])
-                    pos -= 1
+                    pos = offset(pos, -1)
                 elif insn(nxt) == "LNGJUMPZ":
                     # Will always be taken.
                     replace(pos - 1, 3, [f"  LNGJUMP {params(nxt)}"])
-                    pos -= 1
+                    pos = offset(pos, -1)
                 else:
                     raise Exception("Logic error, unrecognized instruction to replace!")
 
@@ -8019,9 +8019,9 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
 
             if intparam is not None:
                 replace(pos - 1, 2, [f"  LOADI {hex(intparam)}"])
-                pos -= 1
+                pos = offset(pos, -1)
             else:
-                pos += 1
+                pos = offset(pos, 1)
 
         elif insn(cur) == "LOADI" and insn(nxt) == "ADD":
             intparam = param_as_int(cur)
@@ -8035,11 +8035,11 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     replace(pos, 2, [f"  LOAD A ; STACKOFF: {curstackpos}", f"  ADDI {intparam}"])
                     continue
 
-            pos += 1
+            pos = offset(pos, 1)
 
         else:
             # Didn't remove anything, onward.
-            pos += 1
+            pos = offset(pos, 1)
 
     return code
 
