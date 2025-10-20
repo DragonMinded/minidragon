@@ -7702,36 +7702,109 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
         line = line.strip()
         return line
 
+    def calcoffsets(pos: int, offset: int, amount: int) -> List[int]:
+        # First, find the base offset based on our current pos, skipping comments.
+        while offset:
+            if offset > 0:
+                # Search positively.
+                while True:
+                    pos += 1
+
+                    # Did we overrun?
+                    if pos >= codelen:
+                        return []
+                    # Did we find code.
+                    if sanitize(code[pos]):
+                        break
+
+                offset -= 1
+            else:
+                # Search negatively.
+                while True:
+                    pos -= 1
+
+                    # Did we overrun?
+                    if pos < 0:
+                        return []
+                    # Did we find code.
+                    if sanitize(code[pos]):
+                        break
+
+                offset += 1
+
+        # Now, gather a list of offsets based on the amount of entries we want.
+        retval: List[int] = []
+        while len(retval) < amount:
+            retval.append(pos)
+
+            while True:
+                pos += 1
+
+                # Did we overrun?
+                if pos >= codelen:
+                    return []
+                # Did we find code.
+                if sanitize(code[pos]):
+                    break
+
+        return retval
+
     def getline(pos: int, offset: int = 0, **kwargs: bool) -> str:
-        pos += offset
-        if pos < 0:
+        locs = calcoffsets(pos, offset, 1)
+        if len(locs) != 1:
+            if not kwargs.get("sanitize", True):
+                raise Exception("Logic error, trying to get un-sanitized line that doesn't exist!")
             return ""
-        if pos >= codelen:
-            return ""
-        return sanitize(code[pos]) if kwargs.get("sanitize", True) else code[pos]
+        loc = locs[0]
+
+        return sanitize(code[loc]) if kwargs.get("sanitize", True) else code[loc]
 
     def curpos(pos: int, offset: int = 0) -> Optional[str]:
-        return stackpos(code[pos + offset])
+        locs = calcoffsets(pos, offset, 1)
+        if len(locs) != 1:
+            return None
+        loc = locs[0]
+
+        return stackpos(code[loc])
 
     def remove(pos: int, length: int = 1, offset: int = 0) -> None:
         nonlocal code
         nonlocal codelen
 
-        pos += offset
-        code = code[:pos] + code[(pos + length):]
+        locs = calcoffsets(pos, offset, length)
+        if len(locs) != length:
+            raise Exception("Logic error, cannot remove locations that do not exist!")
+
+        for off in sorted(locs, reverse=True):
+            code = code[:off] + code[(off + 1):]
         codelen -= length
 
     def replace(pos: int, length: int, new: List[str], offset: int = 0) -> None:
         nonlocal code
         nonlocal codelen
 
-        pos += offset
-        code = code[:pos] + new + code[(pos + length):]
+        locs = calcoffsets(pos, offset, length)
+        if len(locs) != length:
+            raise Exception("Logic error, cannot replace locations that do not exist!")
+        insertloc = locs[0]
+
+        # First, remove the old vales.
+        for off in sorted(locs, reverse=True):
+            code = code[:off] + code[(off + 1):]
+
+        code = code[:insertloc] + new + code[insertloc:]
         codelen -= length
         codelen += len(new)
 
     def offset(pos: int, amount: int) -> int:
-        return pos + amount
+        locs = calcoffsets(pos, amount, 1)
+        if len(locs) != 1:
+            if amount < 0:
+                return 0
+            else:
+                return codelen
+
+        return locs[0]
 
     def insn(line: str) -> str:
         return line.split(" ", 1)[0]
