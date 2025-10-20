@@ -7899,7 +7899,16 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
         elif cur == "STORE A" and nxt == "LOAD A":
             remove(pos + 1)
 
+        elif cur == "STORE A" and nxt == "STORE A":
+            remove(pos + 1)
+
         elif cur == "STORE U" and nxt == "LOAD U":
+            remove(pos + 1)
+
+        elif cur == "STORE U" and nxt == "STORE U":
+            remove(pos + 1)
+
+        elif cur == "STORE V" and nxt == "STORE V":
             remove(pos + 1)
 
         elif cur == "STORE V" and nxt == "LOAD V":
@@ -7908,10 +7917,19 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
         elif cur == "LOAD A" and nxt == "STORE A":
             remove(pos + 1)
 
+        elif cur == "LOAD A" and nxt == "LOAD A":
+            remove(pos + 1)
+
         elif cur == "LOAD U" and nxt == "STORE U":
             remove(pos + 1)
 
+        elif cur == "LOAD U" and nxt == "LOAD U":
+            remove(pos + 1)
+
         elif cur == "LOAD V" and nxt == "STORE V":
+            remove(pos + 1)
+
+        elif cur == "LOAD V" and nxt == "LOAD V":
             remove(pos + 1)
 
         elif insn(cur) == "STORE" and (key := curpos(pos)) is not None and stack_counts[key] == 1:
