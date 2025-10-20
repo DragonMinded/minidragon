@@ -16259,6 +16259,8 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
         cmplines = fp.readlines()
     with open("lib/string/strcmp.S", "r") as fp:
         strcmplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -16718,6 +16720,60 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
             cycles += cpu.cycles
             instructions += cpu.ticks
             count += 1
+
+    # Verify truncation of self.
+    if True:
+        sections = parse_and_compile_module("stringtruncation", textwrap.dedent("""
+            def func() -> const[str]:
+                string: str[32] = "Hello!"
+                string = string[:5]
+                return string
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL func",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringtruncation", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringtruncation changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringtruncation changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringtruncation changed V value from {222} to {cpu.v}!",
+        )
+        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expectedstr = "Hello"
+        _assert(
+            resultstr == expectedstr,
+            "Failed to stringtruncation, "
+            + f"got {resultstr!r} instead of {expectedstr!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
 
     print(f"Average cycles for optimizations: {int(cycles/count)}")
     print(f"Average instructions for optimizations: {int(instructions/count)}")

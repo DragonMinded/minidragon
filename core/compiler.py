@@ -5271,6 +5271,19 @@ def generate_subscript_expr(
         if destination_type is None:
             raise Exception("Logic error, could not calculate type of destination!")
 
+        if slice_or_index.step is not None:
+            # We don't support copying with a step size other than the default.
+            raise CompilerError("Unsupported step for slice in subscript expression", context)
+
+        # In the case of truncation, it's possible to avoid a strncpy and instead just insert
+        # a null in the right spot. This is far faster, so it's worth detecting and doing so.
+        same_destination: bool = False
+        beginning = slice_or_index.lower
+        ending = slice_or_index.upper
+        if beginning is None and ending is not None:
+            if isinstance(expression.value, cst.Name):
+                same_destination = expression.value.value == destination
+
         # This is a subscript in the form of var[:] which in Python land is a copy,
         # so we can do that here.
         if not stack.initof(destination):
@@ -5281,7 +5294,7 @@ def generate_subscript_expr(
 
         # We copy this here, because if we don't, then the function call ends up needing to copy a ton more
         # on the stack later.
-        if stack[-1].name != destination:
+        if not same_destination and stack[-1].name != destination:
             # In order to ensure that it's possible to do stack math on this value, locate it in
             # a temporary location for the time being if the destination isn't the top of the stack.
             lhs_dest = expr_temp_name()
@@ -5294,17 +5307,13 @@ def generate_subscript_expr(
 
         # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
         base_dest = expr_temp_name()
-        stack.alloc(StackVar(base_dest, CoreType("str", const=True, length=destination_type.length)))
-        compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
-
-        if slice_or_index.step is not None:
-            # We don't support copying with a step size other than the default.
-            raise CompilerError("Unsupported step for slice in subscript expression", context)
+        allocated = False
+        if not same_destination:
+            allocated = True
+            stack.alloc(StackVar(base_dest, CoreType("str", const=True, length=destination_type.length)))
+            compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
 
         # Figure out if this is a copy operation, or a substring operation.
-        beginning = slice_or_index.lower
-        ending = slice_or_index.upper
-
         if beginning is None and ending is None:
             # Now, just strcpy it over.
             compiled += generate_function_call_internal(
@@ -5320,21 +5329,47 @@ def generate_subscript_expr(
             )
 
         elif beginning is None and ending is not None:
-            # This can be mapped onto a simple strncmp, so we should calculate the ending value and do that.
+            # This can be mapped onto a simple strncpy, so we should calculate the ending value and do that.
             ending_dest = expr_temp_name()
             stack.alloc(StackVar(ending_dest, CoreType("uint8")))
             compiled += generate_expr_internal(ending, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
-            compiled += generate_function_call_internal(
-                create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
-                None,
-                types,
-                stack,
-                clobbers,
-                allocations,
-                refs,
-                local_consts,
-                context.wrap(expression),
-            )
+
+            if same_destination:
+                if lhs_dest != destination:
+                    raise Exception("Logic error, expected these to equal for optimized case to work!")
+
+                clobbers.add("A")
+                clobbers.add("SPC")
+
+                # Get the offset value that we just calculated.
+                compiled += generate_move_to(ending_dest, stack, clobbers, context)
+                compiled.append_code("  LOAD A")
+
+                # Load the string pointer so we can offset into the string.
+                compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+                # Swap to it, add our destination offset and then null terminate at that location.
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  ADDPC")
+                compiled.append_code("  STOREI 0")
+                compiled.append_code("  SWAP PC, SPC")
+            else:
+                compiled += generate_function_call_internal(
+                    create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
+                    None,
+                    types,
+                    stack,
+                    clobbers,
+                    allocations,
+                    refs,
+                    local_consts,
+                    context.wrap(expression),
+                )
 
             stack.free(ending_dest)
 
@@ -5417,7 +5452,7 @@ def generate_subscript_expr(
                     compiled.append_code("  NEG")
                     compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
-                    # This can be mapped onto a simple strncmp, so we should calculate the ending value and do that.
+                    # This can be mapped onto a simple strncpy, so we should calculate the ending value and do that.
                     ending_temp = expr_temp_name()
                     stack.alloc(StackVar(ending_temp, CoreType("uint8")))
                     compiled += generate_expr_internal(ending, ending_temp, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
@@ -5443,7 +5478,8 @@ def generate_subscript_expr(
 
                 stack.free(ending_dest)
 
-        stack.free(base_dest)
+        if allocated:
+            stack.free(base_dest)
         if lhs_dest != destination:
             stack.free(lhs_dest)
 
