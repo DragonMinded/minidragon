@@ -463,9 +463,9 @@ def type_comparison_compatible(left: CoreType, right: CoreType) -> bool:
         return True
     if left.is_pointer and right.is_pointer:
         return True
-    if left.type == "string" and (right.is_string or right.is_char):
+    if left.type == "string" and (right.is_string or right.is_char or right.type == "string"):
         return True
-    if right.type == "string" and (left.is_string or left.is_char):
+    if right.type == "string" and (left.is_string or left.is_char or left.type == "string"):
         return True
     return False
 
@@ -4079,7 +4079,18 @@ def generate_unary_expr(
         # This one is simple, evaluate the operation and then invert it.
         clobbers.add("A")
 
-        compiled += generate_expr_internal(expression.expression, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context)
+        if not types[expression.expression].is_bool:
+            # Auto-coerce this to a bool by using the bool() builtin instead of forcing the coder to explicitly
+            # wrap the statement in a boolean.
+            test_coerced = create_call("bool", [expression.expression])
+            types[test_coerced] = CoreType("bool")
+
+            compiled += generate_expr_internal(
+                test_coerced, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.virtual(test_coerced).wrap(test_coerced)
+            )
+        else:
+            compiled += generate_expr_internal(expression.expression, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context)
+
         compiled.append_code("  INV")
 
         if not is_register_destination(destination):
@@ -5876,11 +5887,22 @@ def infer_expr_types_impl(
     elif isinstance(expression, cst.UnaryOperation):
         inferred.update(infer_expr_types_impl(expression.expression, stack, refs, local_consts, context.wrap(expression.expression)))
         inferred_type = inferred[expression.expression]
-        inferred[expression] = CoreType(inferred_type.type, inferred_type.pointed_type, const=inferred_type.const, extern=inferred_type.extern, return_padding=inferred_type.return_padding)
 
         if isinstance(expression.operator, (cst.Minus, cst.BitInvert)):
             if not inferred_type.is_integer:
                 raise CompilerError(f"Unsupported unary operation for type {inferred_type.type}", context)
+
+        if isinstance(expression.operator, cst.Not):
+            inferred[expression] = CoreType("bool")
+        else:
+            inferred[expression] = CoreType(
+                inferred_type.type,
+                inferred_type.pointed_type,
+                const=inferred_type.const,
+                extern=inferred_type.extern,
+                return_padding=inferred_type.return_padding
+            )
+
         return inferred
 
     elif isinstance(expression, cst.BinaryOperation):

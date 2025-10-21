@@ -44,7 +44,7 @@ def serial_send_byte(byte: const[uint8]) -> void:
     # the TDRE bit will be set to 1 to indicate transmit buffer empty.
     global R6551AP_status_reg
 
-    while not bool(R6551AP_status_reg & R6551AP_TDRE):
+    while not R6551AP_status_reg & R6551AP_TDRE:
         pass
 
     # Actuall write a byte to the serial buffer.
@@ -128,13 +128,13 @@ def serial_send(data: const[str]) -> void:
             if recvd == 0x13:
                 # We did! Wait until we get an XON.
                 while recvd != 0x11:
-                    while not bool(R6551AP_status_reg & R6551AP_RDRF):
+                    while not R6551AP_status_reg & R6551AP_RDRF:
                         pass
 
                     recvd = R6551AP_buffer_reg
 
         byte: char = data[offset]
-        if not bool(byte):
+        if not byte:
             return
 
         serial_send_byte(ord(byte))
@@ -155,7 +155,7 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
 
     while True:
         # Wait for a byte to become available.
-        while not bool(R6551AP_status_reg & R6551AP_RDRF):
+        while not R6551AP_status_reg & R6551AP_RDRF:
             pass
 
         # Read that byte, append it unless it's the enter key.
@@ -163,7 +163,7 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
         if recvd == "\033":
             # Don't care about escape sequences sent to us, read until we get to the end.
             while True:
-                while not bool(R6551AP_status_reg & R6551AP_RDRF):
+                while not R6551AP_status_reg & R6551AP_RDRF:
                     pass
 
                 # Escape codes always start with an escape character, and always end with a letter.
@@ -189,7 +189,7 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
         if recvd == "\x13":
             # Got an XOFF, wait until we get an XON to continue.
             while recvd != "\x11":
-                while not bool(R6551AP_status_reg & R6551AP_RDRF):
+                while not R6551AP_status_reg & R6551AP_RDRF:
                     pass
 
                 recvd = chr(R6551AP_buffer_reg)
