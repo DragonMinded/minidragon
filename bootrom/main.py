@@ -16,16 +16,17 @@ def main() -> void:
     serial_clear()
 
     # Write out a hello world string.
-    serial_send("Hello, world!\n")
+    serial_send("Hello, world!\n\n")
 
     # Prompt for input.
     name: const[str] = serial_input("Enter your name: ")
     serial_send(f"Greetings, {name}!\n")
-    serial_send(f"Your name was {len(name)} character(s) long!\n")
+    serial_send(f"Your name was {len(name)} character(s) long!\n\n")
 
     # Prompt for input.
     secret: const[str] = serial_input("Enter a secret: ", mask_input=True)
     serial_send(f"Your secret was {secret}.\n")
+    serial_send(f"Your secret was {len(secret)} character(s) long!\n\n")
 
     # Do some silly stuff.
     serial_bold()

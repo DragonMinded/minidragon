@@ -116,9 +116,23 @@ def serial_send(data: const[str]) -> void:
     responsible for adding your own newline to the end, unlile python's
     print().
     """
+    global R6551AP_status_reg
+    global R6551AP_buffer_reg
 
     offset: uint8 = 0
     while True:
+        # Flow control must be handled here, so we don't overwhelm the serial terminal.
+        if R6551AP_status_reg & R6551AP_RDRF:
+            # Check to ensure we didn't receive an XOFF.
+            recvd: uint8 = R6551AP_buffer_reg
+            if recvd == 0x13:
+                # We did! Wait until we get an XON.
+                while recvd != 0x11:
+                    while not bool(R6551AP_status_reg & R6551AP_RDRF):
+                        pass
+
+                    recvd = R6551AP_buffer_reg
+
         byte: char = data[offset]
         if not bool(byte):
             return
@@ -168,6 +182,15 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
 
         if recvd == "\r":
             # Don't care about \r\n, so ignore, \r part.
+            continue
+
+        if recvd == "\x13":
+            # Got an XOFF, wait until we get an XON to continue.
+            while recvd != "\x11":
+                while not bool(R6551AP_status_reg & R6551AP_RDRF):
+                    pass
+
+                recvd = chr(R6551AP_buffer_reg)
             continue
 
         if recvd == "\x08":
