@@ -244,7 +244,14 @@ class R6551AP(Peripheral):
             if byte is None:
                 return None
 
-            self.__rxw = time.time() + self._time()
+            # Experimentally, an actual VT-102 tends to send characters at about 625
+            # bits per second, not the full 9600 bits per second. So, hardcode that
+            # here.
+            waittime = self._time()
+            if waittime < 0.016:
+                waittime = 0.016
+
+            self.__rxw = time.time() + waittime
             data = byte[0]
 
             # Convert delete to backspace (^H) since this is what a VT-100 would send.
