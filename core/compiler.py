@@ -4544,10 +4544,30 @@ def generate_boolean_expr(
         # is False immediately skipping the second half.
         clobbers.add("A")
 
-        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
+        if not types[expression.left].is_bool:
+            # Auto-coerce this to a bool by using the bool() builtin instead of forcing the coder to explicitly
+            # wrap the statement in a boolean.
+            test_coerced = create_call("bool", [expression.left])
+            types[test_coerced] = CoreType("bool")
+
+            left_compiled = generate_expr_internal(
+                test_coerced, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.virtual(test_coerced).wrap(test_coerced)
+            )
+        else:
+            left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
 
         cloned_stack = stack.clone()
-        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
+        if not types[expression.right].is_bool:
+            # Auto-coerce this to a bool by using the bool() builtin instead of forcing the coder to explicitly
+            # wrap the statement in a boolean.
+            test_coerced = create_call("bool", [expression.right])
+            types[test_coerced] = CoreType("bool")
+
+            right_compiled = generate_expr_internal(
+                test_coerced, "register(A, bool)", types, cloned_stack, clobbers, allocations, refs, local_consts, context.virtual(test_coerced).wrap(test_coerced)
+            )
+        else:
+            right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
 
         # Not unifying the stack here because short circuiting could mean that a walrus assign doesn't get run.
         if stack.size != cloned_stack.size:
@@ -4589,10 +4609,30 @@ def generate_boolean_expr(
         # is True immediately skipping the second half.
         clobbers.add("A")
 
-        left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
+        if not types[expression.left].is_bool:
+            # Auto-coerce this to a bool by using the bool() builtin instead of forcing the coder to explicitly
+            # wrap the statement in a boolean.
+            test_coerced = create_call("bool", [expression.left])
+            types[test_coerced] = CoreType("bool")
+
+            left_compiled = generate_expr_internal(
+                test_coerced, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.virtual(test_coerced).wrap(test_coerced)
+            )
+        else:
+            left_compiled = generate_expr_internal(expression.left, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
 
         cloned_stack = stack.clone()
-        right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
+        if not types[expression.right].is_bool:
+            # Auto-coerce this to a bool by using the bool() builtin instead of forcing the coder to explicitly
+            # wrap the statement in a boolean.
+            test_coerced = create_call("bool", [expression.right])
+            types[test_coerced] = CoreType("bool")
+
+            right_compiled = generate_expr_internal(
+                test_coerced, "register(A, bool)", types, cloned_stack, clobbers, allocations, refs, local_consts, context.virtual(test_coerced).wrap(test_coerced)
+            )
+        else:
+            right_compiled = generate_expr_internal(expression.right, "register(A, bool)", types, cloned_stack, clobbers, allocations, refs, local_consts, context.wrap(expression.right))
 
         # Not unifying the stack here because short circuiting could mean that a walrus assign doesn't get run.
         if stack.size != cloned_stack.size:
@@ -6036,10 +6076,6 @@ def infer_expr_types_impl(
 
         left_inferred = inferred[expression.left]
         right_inferred = inferred[expression.right]
-        if not left_inferred.is_bool:
-            raise CompilerError(f"Unsupported non-boolean type {left_inferred.type} in boolean expression", context)
-        if not right_inferred.is_bool:
-            raise CompilerError(f"Unsupported non-boolean type {right_inferred.type} in boolean expression", context)
 
         inferred[expression] = CoreType("bool")
         return inferred
