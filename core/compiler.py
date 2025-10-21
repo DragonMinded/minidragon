@@ -5221,9 +5221,20 @@ def generate_subscript_expr(
             destination_type = CoreType("str", const=True, length=MAX_STRING_LENGTH)
 
         # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
+        # However, if the expression is already a local variable we can save a few instructions by just moving to it directly.
         base_dest = expr_temp_name()
-        stack.alloc(StackVar(base_dest, CoreType("str", const=True, length=destination_type.length)))
-        compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
+        allocated = True
+        if isinstance(expression.value, cst.Name):
+            varname = expression.value.value
+            vartype = stack.typeof(varname)
+            if vartype is not None and vartype.is_string:
+                # We can save here!
+                base_dest = varname
+                allocated = False
+
+        if allocated:
+            stack.alloc(StackVar(base_dest, CoreType("str", const=True, length=destination_type.length)))
+            compiled += generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
 
         # Calculate the offset into the string that we're gonna need, first.
         clobbers.add("A")
@@ -5261,7 +5272,8 @@ def generate_subscript_expr(
                 compiled += generate_move_to(destination, stack, clobbers, context)
                 compiled.append_code("  STORE A" + stack.comment(stack.location))
 
-        stack.free(base_dest)
+        if allocated:
+            stack.free(base_dest)
 
     elif isinstance(slice_or_index, cst.Slice):
         if destination is None:
