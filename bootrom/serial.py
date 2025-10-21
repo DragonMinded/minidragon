@@ -224,6 +224,6 @@ def serial_input(prompt: const[str], echo_input: bool = True, mask_input: bool =
     serial_send(prompt)
 
     retval: const[str] = serial_recv(echo_input, mask_input)
-    serial_send("\n")
+    serial_send_byte(ord("\n"))
 
     return retval

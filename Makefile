@@ -34,13 +34,14 @@ build/%.init.S build/%.data.S build/%.code.S: %.py
 	@mkdir -p $(dir $@)
 	python3 compiler.py --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
 
-build/listing.S: $(LIBS) $(INITS) $(DATAS) $(CODES) lib/init.S lib/start.S lib/hwregs.S lib/data.S lib/heap.S
+build/listing.S: $(LIBS) $(INITS) $(DATAS) $(CODES) lib/init.S lib/start.S lib/hwregs.S lib/const.S lib/data.S lib/heap.S
 	@mkdir -p $(dir $@)
 	cat lib/init.S > $@
 	cat $(INITS) >> $@
 	cat lib/start.S >> $@
 	cat $(LIBS) >> $@
 	cat $(CODES) >> $@
+	cat lib/const.S >> $@
 	cat lib/hwregs.S >> $@
 	cat lib/data.S >> $@
 	cat $(DATAS) >> $@
