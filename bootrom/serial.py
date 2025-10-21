@@ -167,10 +167,12 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
                     pass
 
                 # Escape codes always start with an escape character, and always end with a letter.
-                recvdascii: uint8 = R6551AP_buffer_reg
-                if recvdascii >= ord('A') and recvdascii <= ord('Z'):
-                    break
-                if recvdascii >= ord('a') and recvdascii <= ord('z'):
+                # We can check for upper and lowercase letters by always clearing the lowercase bit.
+                # We can save a comparison (which is extremely slow due to being SW implemented) by
+                # subtracting the low comparison value and relying on overflow wraparound to put values
+                # lower than the start above the high comparison.
+                recvdascii: uint8 = (R6551AP_buffer_reg & 0b11011111) - ord('A')
+                if recvdascii < 26:
                     break
 
             # Now that we dropped the escape code, try again.
