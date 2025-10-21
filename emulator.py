@@ -1,11 +1,12 @@
 #! /usr/bin/python3
 import argparse
-import select
+import os
 import serial  # type: ignore
 import sys
 import termios
 import time
 import tty
+from io import FileIO
 from typing import Final, List, Optional
 from core import CPUCore, MemoryFilter
 
@@ -70,6 +71,17 @@ class R6551AP(Peripheral):
         self.__conn: Optional[serial.Serial] = None
         self.__recvd: Optional[int] = None
         self.__txw: Optional[float] = None
+        self.__rxw: Optional[float] = None
+
+        self.__stdin: Optional[FileIO] = None
+        self.__stdout: Optional[FileIO] = None
+        if self.__port is None:
+            os.set_blocking(0, False)
+            self.__stdin = os.fdopen(0, 'rb', buffering=0)
+            self.__stdout = os.fdopen(1, 'wb', buffering=0)
+
+            # Ensure that the terminal emulator we're under doesn't buffer input before sending to us.
+            tty.setcbreak(self.__stdin.fileno(), termios.TCSANOW)
 
     def _baud(self) -> Optional[int]:
         if self.sbr == 1:
@@ -200,8 +212,11 @@ class R6551AP(Peripheral):
             if self.irq:
                 self.irq = self.dsr or self.dcd or self.rdrf or self.tdre
             self.__txw = time.time() + self._time()
-            sys.stdout.buffer.write(bytes([byte]))
-            sys.stdout.flush()
+
+            if self.__stdout is None:
+                raise Exception("Logic error, shouldn't have null stdout in non-serial port mode!")
+            self.__stdout.write(bytes([byte]))
+            self.__stdout.flush()
         else:
             # Might need to open serial port, might be able to use existing.
             conn = self._conn()
@@ -222,24 +237,21 @@ class R6551AP(Peripheral):
             return None
 
         if self.__port is None:
-            stdin = sys.stdin.fileno()
-            tattr = termios.tcgetattr(stdin)
-            tty.setcbreak(stdin, termios.TCSANOW)
+            if self.__stdin is None:
+                raise Exception("Logic error, shouldn't have null stdin in non-serial port mode!")
 
-            # Input from stdin.
-            rfds, _, _ = select.select([sys.stdin], [], [], 0)
-            if not rfds:
+            byte = self.__stdin.read(1)
+            if byte is None:
                 return None
 
-            x = sys.stdin.buffer.read(1)[0]
-
-            termios.tcsetattr(stdin, termios.TCSANOW, tattr)
+            self.__rxw = time.time() + self._time()
+            data = byte[0]
 
             # Convert delete to backspace (^H) since this is what a VT-100 would send.
-            if x == 127:
-                x = 8
+            if data == 127:
+                data = 8
 
-            return x
+            return data
         else:
             # Might need to open serial port, might be able to use existing.
             conn = self._conn()
@@ -249,6 +261,8 @@ class R6551AP(Peripheral):
                     if len(data) > 1:
                         raise Exception("Logic error, got too many bytes back from serial!")
 
+                    # No need to simulate Rx delays with real hardware, so not
+                    # setting the Rx wait flag.
                     return int(data[0])
             else:
                 self.log("Impossible condition, ignoring Rx.")
@@ -257,16 +271,22 @@ class R6551AP(Peripheral):
 
     def tick(self) -> None:
         # Attempt to read a byte from our interface.
-        read = self._rxb()
-        if read:
-            # See if we overran the buffer or not.
-            if self.__recvd is not None:
-                self.log("R6551AP overran Rx buffer, dropping incoming byte.")
-                self.ovrn = True
-            else:
-                self.__recvd = read
-                self.rdrf = True
-                self.irq = True
+        if self.__rxw is not None:
+            if self.__rxw <= time.time():
+                # Time elapsed for receive.
+                self.__rxw = None
+
+        if self.__rxw is None:
+            read = self._rxb()
+            if read:
+                # See if we overran the buffer or not.
+                if self.__recvd is not None:
+                    self.log("R6551AP overran Rx buffer, dropping incoming byte.")
+                    self.ovrn = True
+                else:
+                    self.__recvd = read
+                    self.rdrf = True
+                    self.irq = True
 
         # Attempt to clear the transmit blocked status.
         if self.__txw is not None:
