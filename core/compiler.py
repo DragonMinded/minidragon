@@ -8356,7 +8356,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("abs", CoreType("int"), [CoreType("int")]),
         FunctionPrototype("bool", CoreType("bool"), [CoreType("any")]),
         FunctionPrototype("chr", CoreType("char"), [CoreType("int")]),
-        FunctionPrototype("ord", CoreType("int8"), [CoreType("char")]),
+        FunctionPrototype("ord", CoreType("uint8"), [CoreType("char")]),
         FunctionPrototype("hex", CoreType("str"), [CoreType("int")]),
         FunctionPrototype("min", CoreType("int"), [CoreType("int"), CoreType("int")]),
         FunctionPrototype("max", CoreType("int"), [CoreType("int"), CoreType("int")]),
