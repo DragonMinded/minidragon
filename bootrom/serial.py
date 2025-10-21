@@ -146,9 +146,26 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False) -> str:
 
         # Read that byte, append it unless it's the enter key.
         recvd: char = chr(R6551AP_buffer_reg)
+        if recvd == "\033":
+            # Don't care about escape sequences sent to us, read until we get to the end.
+            while True:
+                while not bool(R6551AP_status_reg & R6551AP_RDRF):
+                    pass
+
+                # Escape codes always start with an escape character, and always end with a letter.
+                recvdascii: uint8 = R6551AP_buffer_reg
+                if recvdascii >= ord('A') and recvdascii <= ord('Z'):
+                    break
+                if recvdascii >= ord('a') and recvdascii <= ord('z'):
+                    break
+
+            # Now that we dropped the escape code, try again.
+            continue
+
         if recvd == "\n":
             # Pressed enter, exit the loop.
             break
+
         if recvd == "\r":
             # Don't care about \r\n, so ignore, \r part.
             continue
