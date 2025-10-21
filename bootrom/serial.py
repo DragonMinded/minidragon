@@ -147,7 +147,7 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False, allow_empty: 
     the remote side hit enter. The newline character itself will not be appended
     to the returned buffer. By default, echos the input back to the client.
     """
-    accum: str[255] = ""
+    accum: str[127] = ""
     length: uint8 = 0
 
     global R6551AP_status_reg
