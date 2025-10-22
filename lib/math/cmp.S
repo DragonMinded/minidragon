@@ -460,39 +460,28 @@ umin8:
     ;     CALL umin8
     ;
     ; Stack layout:
-    ; PC + 0 - temporary second number storage
-    ; PC + 1 - temporary first number storage
-    ; PC + 2 - return address
-    ; PC + 3 - return address
-    ; PC + 4 - second number
-    ; PC + 5 - first number
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - second number
+    ; PC + 3 - first number
 
-    ; First, copy the first and second number so we can call ucmp.
-    ADDPCI 3
-    LOAD A
-    SUBPCI 4
-    STORE A
-    ADDPCI 3
-    LOAD A
-    SUBPCI 4
-    STORE A
-
-    ; Now, figure out which is less
-    CALL ucmp8
-
-    ; Return the first number if 1st < 2nd, otherwise return second.
-    SHL
-    JRINC _umin8_ge
-
-    INCPC
+    ; First, figure out which number is actually bigger.
+    ADDPCI 2
     LOAD A
     INCPC
+    CMP
+
+    JRIC _umin8_ge
+
+    ; Second number is bigger or equal.
+    DECPC
+    LOAD A
+    SUBPCI 2
     RET
 
-_umin8_ge:
-    ; First number is >= second number, return second number.
+ _umin8_ge:
     LOAD A
-    ADDPCI 2
+    SUBPCI 3
     RET
 
 
@@ -925,39 +914,28 @@ umax8:
     ;     CALL umax8
     ;
     ; Stack layout:
-    ; PC + 0 - temporary second number storage
-    ; PC + 1 - temporary first number storage
-    ; PC + 2 - return address
-    ; PC + 3 - return address
-    ; PC + 4 - second number
-    ; PC + 5 - first number
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - second number
+    ; PC + 3 - first number
 
-    ; First, copy the first and second number so we can call ucmp.
-    ADDPCI 3
-    LOAD A
-    SUBPCI 4
-    STORE A
-    ADDPCI 3
-    LOAD A
-    SUBPCI 4
-    STORE A
-
-    ; Now, figure out which is less
-    CALL ucmp8
-
-    ; Return the first number if 1st > 2nd, otherwise return second.
-    SHL
-    JRIC _umax8_le
-
-    INCPC
+    ; First, figure out which number is actually bigger.
+    ADDPCI 2
     LOAD A
     INCPC
+    CMP
+
+    JRINC _umax8_ge
+
+    ; Second number is bigger or equal.
+    DECPC
+    LOAD A
+    SUBPCI 2
     RET
 
-_umax8_le:
-    ; First number is >= second number, return second number.
+ _umax8_ge:
     LOAD A
-    ADDPCI 2
+    SUBPCI 3
     RET
 
 
