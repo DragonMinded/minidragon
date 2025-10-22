@@ -433,6 +433,87 @@ def verifysubpci(only: Optional[Container[str]], full: bool) -> None:
             )
 
 
+def verifycmp(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "cmp" not in only and "instructions" not in only:
+        return
+
+    with open("lib/runtime/init.S", "r") as fp:
+        initlines = fp.readlines()
+
+    print("Verifying compares...")
+    print("0% complete...")
+    for i in range(0, 256, 1 if full else 3):
+        for j in range(0, 256, 1 if full else 5):
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                f"PUSHI {j}",
+                f"LOADI {i}",
+                "CMP",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == i,
+                f"CMP changed A register from {i} to {cpu.a}!",
+            )
+            _assert(
+                bool(cpu.flags & cpu.FLAGS_ZF) == (i == j),
+                f"CMP did not set zero flag properly for {i} == {j}!",
+            )
+            _assert(
+                bool(cpu.flags & cpu.FLAGS_CF) == (i > j),
+                f"CMP did not set zero flag properly for {i} > {j}!",
+            )
+
+            memory = getmemory(os.linesep.join([
+                f"LOADI {j}",
+                "MOV A, U",
+                f"LOADI {i}",
+                "CMPU",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == i,
+                f"CMPU changed A register from {i} to {cpu.a}!",
+            )
+            _assert(
+                bool(cpu.flags & cpu.FLAGS_ZF) == (i == j),
+                f"CMPU did not set zero flag properly for {i} == {j}!",
+            )
+            _assert(
+                bool(cpu.flags & cpu.FLAGS_CF) == (i > j),
+                f"CMPU did not set zero flag properly for {i} > {j}!",
+            )
+
+            memory = getmemory(os.linesep.join([
+                f"LOADI {j}",
+                "MOV A, V",
+                f"LOADI {i}",
+                "CMPV",
+                "HALT",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == i,
+                f"CMPV changed A register from {i} to {cpu.a}!",
+            )
+            _assert(
+                bool(cpu.flags & cpu.FLAGS_ZF) == (i == j),
+                f"CMPV did not set zero flag properly for {i} == {j}!",
+            )
+            _assert(
+                bool(cpu.flags & cpu.FLAGS_CF) == (i > j),
+                f"CMPV did not set zero flag properly for {i} > {j}!",
+            )
+
+        print(f"{CLEAR_LINE}{int((i * 100) / 256)}% complete...")
+    print(BACK_AND_CLEAR_LINE)
+
+
 def verifyshift(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "shift" not in only and "instructions" not in only:
         return
@@ -19798,6 +19879,7 @@ if __name__ == "__main__":
     verifyaddpci(only, args.full)
     verifysubpci(only, args.full)
     verifyshift(only, args.full)
+    verifycmp(only, args.full)
 
     # Math library verification
     verifylshift8(only, args.full)
