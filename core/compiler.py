@@ -588,6 +588,17 @@ def get_type(
             return None
 
 
+class Allocation:
+    def __init__(self, var: str, storage: str, size: int) -> None:
+        self.var: str = var
+        self.storage: str = storage
+        self.size: int = size
+        self.used: bool = True
+
+    def __repr__(self) -> str:
+        return f"Allocation(var={self.var!r}, storage={self.storage!r}, size={self.size!r}, used={self.used!r})"
+
+
 class UnvalidatedName(cst.Name):
     """
     Exists solely to be able to call create_call() with builtin references which are
@@ -2000,7 +2011,7 @@ def generate_function_call_internal(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -2505,7 +2516,7 @@ def generate_function_call(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -3557,7 +3568,7 @@ def generate_local_storage_alloc(
     destination: str,
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     context: Context,
 ) -> Sections:
     compiled = Sections()
@@ -3578,22 +3589,39 @@ def generate_local_storage_alloc(
 
     requested_length = dest_type.length or MAX_STRING_LENGTH
     if local_destination_storage in allocations:
-        if allocations[local_destination_storage] != requested_length:
+        if allocations[local_destination_storage].size < requested_length:
             raise Exception("Logic error, re-allocation of local storage with different size!")
     else:
-        compiled.append_data(f"{local_destination_storage}:")
-        compiled.append_data(f"  .pad {requested_length}")
+        # Attempt to re-use an earlier expression temporary if possible.
+        found: Optional[str] = None
+
+        if destination.startswith("builtin(expr_temp_"):
+            for label, alloc in allocations.items():
+                if alloc.var.startswith("builtin(expr_temp_") and not alloc.used:
+                    if alloc.size >= requested_length:
+                        found = label
+                        break
+
+        if found:
+            # Remember that we did this so we don't duplicate the allocation if we're conditionally allocating,
+            # such as when an unallocated variable gets assigned two values in an if/else conditional.
+            allocations[found].used = True
+            allocations[local_destination_storage] = allocations[found]
+
+        else:
+            compiled.append_data(f"{local_destination_storage}:")
+            compiled.append_data(f"  .pad {requested_length}")
+
+            # Remember that we did this so we don't duplicate the allocation if we're conditionally allocating,
+            # such as when an unallocated variable gets assigned two values in an if/else conditional.
+            allocations[local_destination_storage] = Allocation(destination, local_destination_storage, requested_length)
 
     # We only clobber the A register with the string init macro.
     clobbers.add("A")
 
     compiled += generate_move_to(destination, stack, clobbers, context, offset=-1)
-    compiled.append_code(f"  PUSHADDR {local_destination_storage}")
+    compiled.append_code(f"  PUSHADDR {allocations[local_destination_storage].storage}")
     stack.location += 2
-
-    # Remember that we did this so we don't duplicate the allocation if we're conditionally allocating,
-    # such as when an unallocated variable gets assigned two values in an if/else conditional.
-    allocations[local_destination_storage] = requested_length
 
     return compiled
 
@@ -3604,7 +3632,7 @@ def generate_variable_lookup(
     stack: Stack,
     types: Dict[cst.CSTNode, CoreType],
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -3961,7 +3989,7 @@ def generate_unary_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -4110,7 +4138,7 @@ def generate_binary_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -4522,7 +4550,7 @@ def generate_boolean_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -4681,7 +4709,7 @@ def generate_comparison_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -5156,7 +5184,7 @@ def generate_ternary_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -5252,7 +5280,7 @@ def generate_subscript_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -5558,7 +5586,7 @@ def generate_fstring_expr(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -5620,7 +5648,7 @@ def generate_expr_internal(
     types: Dict[cst.CSTNode, CoreType],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -6208,7 +6236,7 @@ def generate_expr(
     destination: Optional[str],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -6258,6 +6286,11 @@ def generate_expr(
         # so we can catch variables assigning from themselves when unassigned.
         stack.init(destination)
 
+    # Mark all builtin string temporaries as unused.
+    for alloc in allocations.values():
+        if alloc.var.startswith("builtin(expr_temp_"):
+            alloc.used = False
+
     return compiled
 
 
@@ -6266,7 +6299,7 @@ def global_variable_assign(
     assign_value: cst.BaseExpression,
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -6331,7 +6364,7 @@ def generate_assign_expr(
     assign_value: Optional[cst.BaseExpression],
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -6557,7 +6590,7 @@ def generate_augassign_expr(
     assign_value: cst.BaseExpression,
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -6609,7 +6642,7 @@ def generate_if_statement(
     statement: cst.If,
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     loop: Optional[LoopInfo],
@@ -6808,7 +6841,7 @@ def generate_while_statement(
     statement: cst.While,
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     parent_loop: Optional[LoopInfo],
@@ -6949,7 +6982,7 @@ def generate_for_statement(
     statement: cst.For,
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     parent_loop: Optional[LoopInfo],
@@ -7179,7 +7212,7 @@ def compile_chunk(
     chunk: cst.BaseSuite,
     stack: Stack,
     clobbers: Set[str],
-    allocations: Dict[str, int],
+    allocations: Dict[str, Allocation],
     function_type: CoreType,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     loop: Optional[LoopInfo],
