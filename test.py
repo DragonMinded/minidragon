@@ -480,9 +480,9 @@ def verifymult8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying mult8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
@@ -539,9 +539,9 @@ def verifymult16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying mult16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
@@ -617,9 +617,9 @@ def verifymult32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying mult32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
@@ -705,9 +705,9 @@ def verifyudiv8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying udiv8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
@@ -770,9 +770,9 @@ def verifyudiv16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying udiv16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
@@ -841,9 +841,9 @@ def verifyudiv32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying udiv32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
@@ -926,9 +926,9 @@ def verifylshift8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying lshift8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/shift.S", "r") as fp:
         shiftlines = fp.readlines()
@@ -972,9 +972,9 @@ def verifylshift16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying lshift16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/shift.S", "r") as fp:
         shiftlines = fp.readlines()
@@ -1019,9 +1019,9 @@ def verifylshift32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying lshift32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/shift.S", "r") as fp:
         shiftlines = fp.readlines()
@@ -1073,9 +1073,9 @@ def verifyrshift8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying rshift8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/shift.S", "r") as fp:
         shiftlines = fp.readlines()
@@ -1119,9 +1119,9 @@ def verifyrshift16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying rshift16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/shift.S", "r") as fp:
         shiftlines = fp.readlines()
@@ -1166,9 +1166,9 @@ def verifyrshift32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying rshift32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/shift.S", "r") as fp:
         shiftlines = fp.readlines()
@@ -1220,9 +1220,9 @@ def verifyadd8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying add8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -1266,9 +1266,9 @@ def verifyadd16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying add16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -1319,9 +1319,9 @@ def verifyadd32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying add32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -1380,9 +1380,9 @@ def verifyabs8(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying abs8...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
@@ -1423,9 +1423,9 @@ def verifyabs16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying abs16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
@@ -1479,9 +1479,9 @@ def verifyabs32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying abs32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
@@ -1546,9 +1546,9 @@ def verifyucmp8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying ucmp8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -1605,9 +1605,9 @@ def verifyucmp16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying ucmp16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -1667,9 +1667,9 @@ def verifyucmp32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying ucmp32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -1755,9 +1755,9 @@ def verifycmp8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying cmp8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -1814,9 +1814,9 @@ def verifycmp16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying cmp16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -1876,9 +1876,9 @@ def verifycmp32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying cmp32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -1956,9 +1956,9 @@ def verifyumin8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying umin8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2010,9 +2010,9 @@ def verifyumin16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying umin16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2063,9 +2063,9 @@ def verifyumin32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying umin32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2133,9 +2133,9 @@ def verifyumax8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying umax8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2187,9 +2187,9 @@ def verifyumax16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying umax16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2240,9 +2240,9 @@ def verifyumax32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying umax32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2310,9 +2310,9 @@ def verifymin8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying min8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2364,9 +2364,9 @@ def verifymin16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying min16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2417,9 +2417,9 @@ def verifymin32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying min32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2487,9 +2487,9 @@ def verifymax8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying max8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2541,9 +2541,9 @@ def verifymax16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying max16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2594,9 +2594,9 @@ def verifymax32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying max32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -2664,9 +2664,9 @@ def verifyneg8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying neg8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
@@ -2708,9 +2708,9 @@ def verifyneg16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying neg16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
@@ -2761,9 +2761,9 @@ def verifyneg32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying neg32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
@@ -2824,9 +2824,9 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying strlen...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/string/strlen.S", "r") as fp:
         liblines = fp.readlines()
@@ -2881,9 +2881,9 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying strcpy...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         liblines = fp.readlines()
@@ -2950,9 +2950,9 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying strncpy...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         liblines = fp.readlines()
@@ -3028,9 +3028,9 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying strcat...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/string/strcat.S", "r") as fp:
         liblines = fp.readlines()
@@ -3112,9 +3112,9 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying strcmp...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -3203,9 +3203,9 @@ def verifyutoa8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying utoa8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
@@ -3269,9 +3269,9 @@ def verifyutoa16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying utoa16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
@@ -3345,9 +3345,9 @@ def verifyutoa32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying utoa32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
@@ -3426,9 +3426,9 @@ def verifyitoa8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying itoa8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
@@ -3492,9 +3492,9 @@ def verifyitoa16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying itoa16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
@@ -3569,9 +3569,9 @@ def verifyitoa32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying itoa32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/divide.S", "r") as fp:
         dividelines = fp.readlines()
@@ -3651,9 +3651,9 @@ def verifyatoi8(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying atoi8...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
@@ -3728,9 +3728,9 @@ def verifyatoi16(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying atoi16...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
@@ -3814,9 +3814,9 @@ def verifyatoi32(only: Optional[Container[str]], full: bool) -> None:
     print("Verifying atoi32...")
     print("0% complete...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
@@ -3905,9 +3905,9 @@ def verifyimports(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying imports...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -4036,9 +4036,9 @@ def verifyextern(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying extern...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -4273,9 +4273,9 @@ def verifystaticreturn(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying staticreturn...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -4399,9 +4399,9 @@ def verifydowncast(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying downcast...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -4555,9 +4555,9 @@ def verifyupcast(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying upcast...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -4717,9 +4717,9 @@ def verifyunsignedupcast(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying unsignedupcast...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -4879,9 +4879,9 @@ def verifyechoparam(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying echoparam...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -4991,9 +4991,9 @@ def verifyaddandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying addandreturn...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -5264,9 +5264,9 @@ def verifysubtractandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying subtractandreturn...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -5544,9 +5544,9 @@ def verifymultiplyandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying multiplyandreturn unsigned...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -5867,9 +5867,9 @@ def verifydivideandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying divideandreturn unsigned...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -6209,9 +6209,9 @@ def verifymoduloandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying moduloandreturn unsigned...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -6551,9 +6551,9 @@ def verifyshiftandreturn(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying shiftandreturn...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/shift.S", "r") as fp:
         shiftlines = fp.readlines()
@@ -6721,9 +6721,9 @@ def verifybitwiseand(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying bitwiseand...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -6878,9 +6878,9 @@ def verifybitwiseor(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying bitwiseor...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -7035,9 +7035,9 @@ def verifybitwisexor(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying bitwisexor...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -7192,9 +7192,9 @@ def verifybitwisenot(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying bitwisenot...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -7349,9 +7349,9 @@ def verifynegation(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying negation...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/neg.S", "r") as fp:
         neglines = fp.readlines()
@@ -7513,9 +7513,9 @@ def verifycomplexexpression(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying complexexpression...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -7584,13 +7584,13 @@ def verifyvoidfunctioncall(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying voidfunctioncall...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
 
     cycles = 0
@@ -7667,9 +7667,9 @@ def verifylocalvariables(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying localvariables...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -7739,9 +7739,9 @@ def verifyfunctioncall(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying functioncall...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -7811,9 +7811,9 @@ def verifycomplexfunctioncall(only: Optional[Container[str]], full: bool) -> Non
 
     print("Verifying complexfunctioncall...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -7884,9 +7884,9 @@ def verifysimplebooleans(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying simplebooleans...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -7949,9 +7949,9 @@ def verifybooleanischeck(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying booleanischeck...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -8015,9 +8015,9 @@ def verifybooleanexpressions(only: Optional[Container[str]], full: bool) -> None
 
     print("Verifying booleanexpressions...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -8129,9 +8129,9 @@ def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None
 
     print("Verifying ternaryexpressions...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
 
     cycles = 0
@@ -8249,9 +8249,9 @@ def verifyequalityexpression(only: Optional[Container[str]], full: bool) -> None
 
     print("Verifying equalityexpression...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -8687,9 +8687,9 @@ def verifyinequalityexpression(only: Optional[Container[str]], full: bool) -> No
 
     print("Verifying inequalityexpression...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -9121,9 +9121,9 @@ def verifyalligatorexpression(only: Optional[Container[str]], full: bool) -> Non
 
     print("Verifying alligatorexpression...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         initlines += fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -9365,13 +9365,13 @@ def verifyglobalvariableread(only: Optional[Container[str]], full: bool) -> None
 
     print("Verifying globalvariableread...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -9639,13 +9639,13 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
 
     print("Verifying globalvariablewrite...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/add.S", "r") as fp:
         addlines = fp.readlines()
@@ -9864,13 +9864,13 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying ifstatements...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -10555,13 +10555,13 @@ def verifywhilestatements(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying whilestatements...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -10882,13 +10882,13 @@ def verifyforstatements(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying forstatements...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -11310,13 +11310,13 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying stringreturn...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -12034,13 +12034,13 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying stringlength...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -12339,13 +12339,13 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
 
     print("Verifying stringconcatenation...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -12663,13 +12663,13 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying stringsubscript...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -13059,13 +13059,13 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying stringslice...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -13364,13 +13364,13 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying stringassignment...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -13574,13 +13574,13 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying stringcast...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -13986,13 +13986,13 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying stringformat...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -14306,13 +14306,13 @@ def verifystringcombination(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying stringcombination...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -14389,13 +14389,13 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying peek...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -14714,13 +14714,13 @@ def verifypoke(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying poke...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
@@ -15082,13 +15082,13 @@ def verifyabs(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying abs...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/abs.S", "r") as fp:
         abslines = fp.readlines()
@@ -15252,13 +15252,13 @@ def verifybool(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying bool...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
 
     cycles = 0
@@ -15490,13 +15490,13 @@ def verifychr(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying chr...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -15628,13 +15628,13 @@ def verifyord(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying ord...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -15777,13 +15777,13 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying int...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/multiply.S", "r") as fp:
         multiplylines = fp.readlines()
@@ -16133,13 +16133,13 @@ def verifyhex(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying hex...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/conversion/hex.S", "r") as fp:
         hexlines = fp.readlines()
@@ -16230,13 +16230,13 @@ def verifymin(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying min...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -16357,13 +16357,13 @@ def verifymax(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying max...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
@@ -16484,13 +16484,13 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
 
     print("Verifying optimizations...")
 
-    with open("lib/init.S", "r") as fp:
+    with open("lib/runtime/init.S", "r") as fp:
         initlines = fp.readlines()
-    with open("lib/start.S", "r") as fp:
+    with open("lib/runtime/start.S", "r") as fp:
         startlines = fp.readlines()
-    with open("lib/data.S", "r") as fp:
+    with open("lib/runtime/data.S", "r") as fp:
         datalines = fp.readlines()
-    with open("lib/heap.S", "r") as fp:
+    with open("lib/runtime/heap.S", "r") as fp:
         heaplines = fp.readlines()
     with open("lib/math/cmp.S", "r") as fp:
         cmplines = fp.readlines()
