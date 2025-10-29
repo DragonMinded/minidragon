@@ -7,7 +7,7 @@ import termios
 import time
 import tty
 from io import FileIO
-from typing import Final, List, Optional
+from typing import Any, Final, List, Optional
 from core import CPUCore, MemoryFilter
 
 
@@ -75,13 +75,19 @@ class R6551AP(Peripheral):
 
         self.__stdin: Optional[FileIO] = None
         self.__stdout: Optional[FileIO] = None
+        self.__old: Optional[Any] = None
         if self.__port is None:
             os.set_blocking(0, False)
             self.__stdin = os.fdopen(0, 'rb', buffering=0)
             self.__stdout = os.fdopen(1, 'wb', buffering=0)
 
             # Ensure that the terminal emulator we're under doesn't buffer input before sending to us.
+            self.__old = termios.tcgetattr(self.__stdin.fileno())
             tty.setcbreak(self.__stdin.fileno(), termios.TCSANOW)
+
+    def __del__(self) -> None:
+        if self.__old and self.__stdin:
+            termios.tcsetattr(self.__stdin.fileno(), termios.TCSADRAIN, self.__old)
 
     def _baud(self) -> Optional[int]:
         if self.sbr == 1:
