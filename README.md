@@ -282,10 +282,16 @@ As a whole, the hardware side of MiniDragon is 70% complete.
 
 As a whole, the software side of MiniDragon is 75% complete.
 
- - assembler and disassembler: 100% completed.
- - simulator: 100% completed.
+ - assembler/disassembler: 100% completed.
+ - compiler: 100% completed.
+ - CPU simulator: 100% completed.
+ - system emulator: 100% completed.
  - stdlib: 100% completed.
- - BIOS: 0% completed.
-   - Because I have not yet solidified my decision on the serial chip for MiniDragon I have not bothered to start with a BIOS. Plans include basic startup and memory access tests followed by some sort of assembler or interpreter and possibly an executable format and loader.
-   - I am currently leaning towards supporting VT-100 over serial, giving me input and output that can be paired with a modern terminal emulator or a physical terminal device.
-   - I am working on a simple compiler that takes a subset of Python and outputs MiniDragon assembly for the purpose of building much of the BIOS using Python-like code instead of raw assembly code. The reason for this is stack management is very tedious and difficult to debug for more complex functions so this will enable me to code the BIOS faster and with fewer bugs.
+ - BIOS: ~5% completed.
+   - I've decided on the R6551AP for serial support and have started work on the BIOS/boot ROM. This mostly consists of serial driver code and some VT-100 routines for basic string input and output.
+
+### Eratta
+
+Various bugs have come up in board designs that weren't discovered until well after they were integrated. So, while I'm not going to fix those bugs, they're documented here including any workarounds.
+
+ - 4-bit register boards have an enable input weight of 4 instead of 1. This means that anything driving a register enable signal will see a single register board as the equivalent of four logic boards. Thus, anything needing to interface with a register's enable input needs to support a fan-out of 4 instead of 1. In practice this means that a single control signal driving a pair of registers has a smaller threshold than normal where all of the bits properly respond to the enable signal. A simple workaround is to use a double-inverting logic buffer to isolate individual registers and amplify control signals. This is done on various boards in the MiniDragon physical layout and provides an added bonus of visibility on the board itself when a control signal is active.
