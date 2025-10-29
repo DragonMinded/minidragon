@@ -4030,6 +4030,243 @@ def verifyimports(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for imports: {int(instructions/count)}")
 
 
+def verifyextern(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "extern" not in only and "compiler" not in only:
+        return
+
+    print("Verifying extern...")
+
+    with open("lib/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/start.S", "r") as fp:
+        initlines += fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    def loader(filename: str) -> Optional[str]:
+        filename = os.path.basename(filename)
+
+        if filename == "file1.py":
+            return textwrap.dedent("""
+                global_var: extern[int8]
+
+                def math(var: int8) -> extern[int8]: ...
+            """)
+        else:
+            return None
+
+    set_file_loader(loader)
+
+    # First, test extern variables.
+    if True:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *parse_and_compile_module("extern.py", textwrap.dedent("""
+                global_var: extern[int8]
+
+                def func() -> nopad[int8]:
+                    return global_var
+            """), settings).code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL func",
+            "HALT",
+            "global_var:",
+            ".byte 37",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"extern changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"extern changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"extern changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc + 0])
+        expected = 37
+        _assert(
+            result == expected,
+            "Failed to extern, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, test extern functions.
+    if True:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *parse_and_compile_module("extern.py", textwrap.dedent("""
+                def math(var: int8) -> extern[int8]: ...
+
+                def func() -> nopad[int8]:
+                    return math(5)
+            """), settings).code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL func",
+            "HALT",
+            "math:",
+            "ADDPCI 2",
+            "LOAD A",
+            "ADDI 17",
+            "STORE A",
+            "SUBPCI 2",
+            "RET"
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"extern changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"extern changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"extern changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc + 0])
+        expected = 22
+        _assert(
+            result == expected,
+            "Failed to extern, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, test imported extern globals.
+    if True:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *parse_and_compile_module("extern.py", textwrap.dedent("""
+                from file1 import global_var
+
+                def func() -> nopad[int8]:
+                    return global_var
+            """), settings).code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL func",
+            "HALT",
+            "global_var:",
+            ".byte 42",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"extern changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"extern changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"extern changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc + 0])
+        expected = 42
+        _assert(
+            result == expected,
+            "Failed to extern, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, test imported extern functions.
+    if True:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *parse_and_compile_module("extern.py", textwrap.dedent("""
+                from file1 import math
+
+                def func() -> nopad[int8]:
+                    return math(5)
+            """), settings).code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL func",
+            "HALT",
+            "math:",
+            "ADDPCI 2",
+            "LOAD A",
+            "ADDI 21",
+            "STORE A",
+            "SUBPCI 2",
+            "RET"
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"extern changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"extern changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"extern changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc + 0])
+        expected = 26
+        _assert(
+            result == expected,
+            "Failed to extern, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    set_file_loader(None)
+
+    print(f"Average cycles for extern: {int(cycles/count)}")
+    print(f"Average instructions for extern: {int(instructions/count)}")
+
+
 def verifystaticreturn(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "staticreturn" not in only and "compiler" not in only:
         return
@@ -16905,6 +17142,7 @@ if __name__ == "__main__":
 
     # Compiler verifications
     verifyimports(only, args.full)
+    verifyextern(only, args.full)
     verifystaticreturn(only, args.full)
     verifyupcast(only, args.full)
     verifyunsignedupcast(only, args.full)

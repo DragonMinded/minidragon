@@ -7435,7 +7435,7 @@ def compile_chunk(
 
 
 def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionPrototype:
-    function_type = get_type(func.returns, [], allow_nopad=True, allow_array=True)
+    function_type = get_type(func.returns, [], allow_nopad=True, allow_extern=True, allow_array=True)
     function_params = func.params.params
 
     if function_type is None:
@@ -7472,12 +7472,24 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
 def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], global_consts: List[Constant], context: Context) -> Sections:
     compiled = Sections()
     function_name = func.name.value
-    function_type = get_type(func.returns, [], allow_nopad=True, allow_array=True)
+    function_type = get_type(func.returns, [], allow_nopad=True, allow_extern=True, allow_array=True)
     function_params = func.params.params
     stack: Stack = Stack(function_name)
 
     if function_type is None:
         raise CompilerError("Unsupported return type for function definition", context)
+
+    # If this is an extern function, make sure it has no body.
+    if function_type.extern:
+        if len(func.body.body) != 1:
+            raise CompilerError("Unsupported body in extern function definition", context)
+        element = func.body.body[0]
+        if not isinstance(element, cst.Expr):
+            raise CompilerError("Unsupported body in extern function definition", context)
+        if not isinstance(element.value, cst.Ellipsis):
+            raise CompilerError("Unsupported body in extern function definition", context)
+
+        return compiled
 
     if func.params.kwonly_params or func.params.posonly_params:
         raise CompilerError("Unsupported parameter definition for function definition", context)
