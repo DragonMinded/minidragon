@@ -42,8 +42,6 @@ def serial_send_byte(byte: const[uint8]) -> void:
 
     # Read the status reg, make sure we can transmit. If we can transmit,
     # the TDRE bit will be set to 1 to indicate transmit buffer empty.
-    global R6551AP_status_reg
-
     while not R6551AP_status_reg & R6551AP_TDRE:
         pass
 
@@ -59,7 +57,6 @@ def serial_has_byte() -> bool:
     """
 
     # The RDRF bit will be set to 1 if the receive data register is full.
-    global R6551AP_status_reg
     return bool(R6551AP_status_reg & R6551AP_RDRF)
 
 
@@ -70,7 +67,6 @@ def serial_recv_byte() -> uint8:
     a byte with serial_has_byte() first.
     """
 
-    global R6551AP_buffer_reg
     return R6551AP_buffer_reg
 
 
@@ -116,8 +112,6 @@ def serial_send(data: const[str]) -> void:
     responsible for adding your own newline to the end, unlile python's
     print().
     """
-    global R6551AP_status_reg
-    global R6551AP_buffer_reg
 
     offset: uint8 = 0
     while True:
@@ -149,9 +143,6 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False, allow_empty: 
     """
     accum: str[127] = ""
     length: uint8 = 0
-
-    global R6551AP_status_reg
-    global R6551AP_buffer_reg
 
     while True:
         # Wait for a byte to become available.
