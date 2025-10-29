@@ -2,4 +2,7 @@
     SETPC stack
 
     ; Jump to our main routine.
-    LNGJUMP main
+    CALL main
+
+    ; Loop forever.
+    HALT

@@ -1,4 +1,12 @@
-all: bootrom.bin
+all: helloworld.bin bootrom.bin
+
+# Runtime library.
+RUNTIME += lib/runtime/init.S
+RUNTIME += lib/runtime/start.S
+RUNTIME += lib/runtime/const.S
+RUNTIME += lib/runtime/data.S
+RUNTIME += lib/runtime/heap.S
+RUNTIME += lib/hardware/hwregs.S
 
 # Math library.
 LIBS += lib/math/abs.S
@@ -20,44 +28,68 @@ LIBS += lib/conversion/itoa.S
 LIBS += lib/conversion/atoi.S
 LIBS += lib/conversion/hex.S
 
-# Main startup.
-SRCS += bootrom/main.py
+# Bootrom sources.
+BOOTROM_SRCS += bootrom/serial.py
+BOOTROM_SRCS += bootrom/main.py
 
-# Hardware drivers.
-SRCS += bootrom/serial.py
+# Hello world sources.
+HELLOWORLD_SRCS += bootrom/serial.py
+HELLOWORLD_SRCS += bootrom/helloworld.py
 
-INITS = $(patsubst %.py, build/%.init.S, ${SRCS})
-DATAS = $(patsubst %.py, build/%.data.S, ${SRCS})
-CODES = $(patsubst %.py, build/%.code.S, ${SRCS})
+# Magic rule maker for above sources to map to various files.
+BOOTROM_INITS := $(patsubst %.py, build/%.init.S, ${BOOTROM_SRCS})
+BOOTROM_DATAS := $(patsubst %.py, build/%.data.S, ${BOOTROM_SRCS})
+BOOTROM_CODES := $(patsubst %.py, build/%.code.S, ${BOOTROM_SRCS})
 
+HELLOWORLD_INITS := $(patsubst %.py, build/%.init.S, ${HELLOWORLD_SRCS})
+HELLOWORLD_DATAS := $(patsubst %.py, build/%.data.S, ${HELLOWORLD_SRCS})
+HELLOWORLD_CODES := $(patsubst %.py, build/%.code.S, ${HELLOWORLD_SRCS})
+
+# Rule to convert any python file to its output init/data/code sections.
 build/%.init.S build/%.data.S build/%.code.S: %.py
 	@mkdir -p $(dir $@)
 	python3 compiler.py --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
 
-build/listing.S: $(LIBS) $(INITS) $(DATAS) $(CODES) lib/init.S lib/start.S lib/hwregs.S lib/const.S lib/data.S lib/heap.S
+build/bootrom_listing.S: $(LIBS) $(RUNTIME) $(BOOTROM_INITS) $(BOOTROM_DATAS) $(BOOTROM_CODES)
 	@mkdir -p $(dir $@)
-	cat lib/init.S > $@
-	cat $(INITS) >> $@
-	cat lib/start.S >> $@
+	cat lib/runtime/init.S > $@
+	cat $(BOOTROM_INITS) >> $@
+	cat lib/runtime/start.S >> $@
 	cat $(LIBS) >> $@
-	cat $(CODES) >> $@
-	cat lib/const.S >> $@
-	cat lib/hwregs.S >> $@
-	cat lib/data.S >> $@
-	cat $(DATAS) >> $@
-	cat lib/heap.S >> $@
+	cat $(BOOTROM_CODES) >> $@
+	cat lib/runtime/const.S >> $@
+	cat lib/hardware/hwregs.S >> $@
+	cat lib/runtime/data.S >> $@
+	cat $(BOOTROM_DATAS) >> $@
+	cat lib/runtime/heap.S >> $@
 
-bootrom.bin: build/listing.S
+build/helloworld_listing.S: $(LIBS) $(RUNTIME) $(HELLOWORLD_INITS) $(HELLOWORLD_DATAS) $(HELLOWORLD_CODES)
+	@mkdir -p $(dir $@)
+	cat lib/runtime/init.S > $@
+	cat $(HELLOWORLD_INITS) >> $@
+	cat lib/runtime/start.S >> $@
+	cat $(LIBS) >> $@
+	cat $(HELLOWORLD_CODES) >> $@
+	cat lib/runtime/const.S >> $@
+	cat lib/hardware/hwregs.S >> $@
+	cat lib/runtime/data.S >> $@
+	cat $(HELLOWORLD_DATAS) >> $@
+	cat lib/runtime/heap.S >> $@
+
+# Rule to convert any prefixed listing file to its associated bin/sym files.
+%.bin %.sym: build/%_listing.S
 	python3 assembler.py \
 		--origin 0x0000 \
 		--size 0x7800 \
-		--destination bootrom.bin \
+		--destination $@ \
 		--generate-symbols \
-		--symbol-file bootrom.sym \
-		build/listing.S
+		--symbol-file $(@:bin=sym) \
+		$^
 
 .PHONY: clean
 clean:
 	rm -rf build
 	rm -rf bootrom.bin
 	rm -rf bootrom.sym
+	rm -rf helloworld.bin
+	rm -rf helloworld.sym
