@@ -4998,7 +4998,7 @@ def generate_comparison_expr(
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A" + stack.comment(stack.location))
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     elif isinstance(expression.comparisons[0].operator, (cst.GreaterThan, cst.GreaterThanEqual, cst.LessThan, cst.LessThanEqual)):
         # Determine preload value based on the comparison type.
@@ -5169,7 +5169,7 @@ def generate_comparison_expr(
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A" + stack.comment(stack.location))
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
         # TODO: Additional comparisons.
@@ -5349,7 +5349,7 @@ def generate_subscript_expr(
 
             if not is_register_destination(destination):
                 compiled += generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A" + stack.comment(stack.location))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
         if allocated:
             stack.free(base_dest)
