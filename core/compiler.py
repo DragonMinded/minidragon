@@ -5429,26 +5429,50 @@ def generate_subscript_expr(
                 if lhs_dest != destination:
                     raise Exception("Logic error, expected these to equal for optimized case to work!")
 
+                # Instead of just using ADDPC here to increment past the bytes we don't want, we increment one at
+                # a time. This is so we can check for an early null-terminator to make truncation memory safe.
                 clobbers.add("A")
+                clobbers.add("U")
+                clobbers.add("V")
                 clobbers.add("SPC")
 
                 # Get the offset value that we just calculated.
                 compiled += generate_move_to(ending_dest, stack, clobbers, context)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD V")
 
-                # Load the string pointer so we can offset into the string.
+                # Move to the correct spot on the stack to move the pointer to the right offset.
                 compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=1)
+
+                advance_top = local_label_name(context, "advance_top")
+                advance_bottom = local_label_name(context, "advance_bottom")
+
+                # Swap over so we can check the string one byte at a time.
                 compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
                 compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
 
-                # Swap to it, add our destination offset and then null terminate at that location.
+                # Loop through, checking for termination conditions. First check for end of loop by advancing enough.
+                # Then, check if we've hit a null byte.
                 compiled.append_code("  SWAP PC, SPC")
-                compiled.append_code("  ADDPC")
+                compiled.append_code(f"{advance_top}:")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code(f"  JRIZ {advance_bottom}")
+                compiled.append_code("  DEC")
+                compiled.append_code("  MOV A, U")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code(f"  JRIZ {advance_bottom}")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  MOV U, A")
+                compiled.append_code(f"  JRI {advance_top}")
+                compiled.append_code(f"{advance_bottom}:")
+
+                # Swap to it, add our destination offset and then null terminate at that location.
                 compiled.append_code("  STOREI 0")
                 compiled.append_code("  SWAP PC, SPC")
+
             else:
                 compiled += generate_function_call_internal(
                     create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),

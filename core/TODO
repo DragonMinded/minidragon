@@ -1,6 +1,4 @@
 Compiler bugs:
- - Memory safety on string = string[:x] optimization.
- - Check memory safety on other string slice operations.
  - Possible compiler bug with slices, need a repro for [x:y].
 
 Optimizations that would be nice to have:
