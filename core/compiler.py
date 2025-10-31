@@ -7953,6 +7953,17 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
             return -int(line.split(" ", 1)[1])
         raise Exception("Logic error, unexpected instruction!")
 
+    def toggle_check(param: str) -> str:
+        if param.endswith(" ZF"):
+            return param[:-3] + " !ZF"
+        if param.endswith(" !ZF"):
+            return param[:-4] + " ZF"
+        if param.endswith(" CF"):
+            return param[:-3] + " !CF"
+        if param.endswith(" !CF"):
+            return param[:-4] + " !CF"
+        raise Exception("Logic error, shouldn't be inverting instruction that isn't SKIPIF!")
+
     stack_counts: Dict[str, int] = {
         'builtin(retptr) + 0': 1,
         'builtin(retptr) + 1': 1,
@@ -8098,6 +8109,125 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
 
                 replace(pos, 5, replacement, offset=-4)
                 pos = offset(pos, -4)
+
+            else:
+                pos = offset(pos, 1)
+
+        elif insn(cur) in {"JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"} and getline(pos, offset=-3) == "INV" and insn(getline(pos, offset=-2)) == "SKIPIF":
+            # Strict equality/inequality checks for string/integer/characters.
+            if (
+                getline(pos, offset=-4) == "INV" and
+                getline(pos, offset=-5) == "SKIPIF ZF" and
+                insn((pos_6 := getline(pos, offset=-6))) == "LOADI" and param_as_int(pos_6) in {0x00, 0xFF} and
+                (insn((pos_7 := getline(pos, offset=-7))) == "XOR" or (insn(pos_7) == "ADDI" and param_as_int(pos_7) == 0))
+            ):
+                param_val = param_as_int(pos_6)
+                if param_val == 0x00:
+                    skip_insn = toggle_check(getline(pos, offset=-2, sanitize=False))
+                else:
+                    skip_insn = getline(pos, offset=-2, sanitize=False)
+
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRINZ {params(cur)}"] if param_val == 0x00 else [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRIZ {params(cur)}"] if param_val == 0x00 else [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"] if param_val == 0x00 else [f"  LNGJUMPZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"] if param_val == 0x00 else [f"  LNGJUMPNZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replacement = [
+                    skip_insn,
+                    getline(pos, offset=-1, sanitize=False),
+                    *replacement,
+                ]
+                replace(pos, 7, replacement, offset=-6)
+                pos = offset(pos, -6)
+
+            # Strict equality/inequality checks for string/integer/characters.
+            elif (
+                getline(pos, offset=-4) == "INV" and
+                getline(pos, offset=-5) == "SKIPIF !ZF" and
+                insn((pos_6 := getline(pos, offset=-6))) == "LOADI" and param_as_int(pos_6) in {0x00, 0xFF} and
+                (insn((pos_7 := getline(pos, offset=-7))) == "XOR" or (insn(pos_7) == "ADDI" and param_as_int(pos_7) == 0))
+            ):
+                param_val = param_as_int(pos_6)
+                if param_val == 0xFF:
+                    skip_insn = toggle_check(getline(pos, offset=-2, sanitize=False))
+                else:
+                    skip_insn = getline(pos, offset=-2, sanitize=False)
+
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRINZ {params(cur)}"] if param_val == 0xFF else [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRIZ {params(cur)}"] if param_val == 0xFF else [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"] if param_val == 0xFF else [f"  LNGJUMPZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"] if param_val == 0xFF else [f"  LNGJUMPNZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replacement = [
+                    skip_insn,
+                    getline(pos, offset=-1, sanitize=False),
+                    *replacement,
+                ]
+                replace(pos, 7, replacement, offset=-6)
+                pos = offset(pos, -6)
+
+            # Alligator expression inequality checks for integers.
+            elif (
+                getline(pos, offset=-4) == "INV" and
+                getline(pos, offset=-5) == "SKIPIF !ZF" and
+                insn(getline(pos, offset=-6)) == "ZERO" and
+                insn((pos_7 := getline(pos, offset=-7))) == "ADDI" and param_as_int(pos_7) in {1, -1}
+            ):
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replacement = [
+                    getline(pos, offset=-2, sanitize=False),
+                    getline(pos, offset=-1, sanitize=False),
+                    *replacement,
+                ]
+                replace(pos, 7, replacement, offset=-6)
+                pos = offset(pos, -6)
+
+            elif (
+                getline(pos, offset=-4) == "INV" and
+                getline(pos, offset=-5) == "SKIPIF ZF" and
+                insn(getline(pos, offset=-6)) == "ZERO" and
+                insn((pos_7 := getline(pos, offset=-7))) == "ADDI" and param_as_int(pos_7) in {1, -1}
+            ):
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replacement = [
+                    toggle_check(getline(pos, offset=-2, sanitize=False)),
+                    getline(pos, offset=-1, sanitize=False),
+                    *replacement,
+                ]
+                replace(pos, 7, replacement, offset=-6)
+                pos = offset(pos, -6)
 
             else:
                 pos = offset(pos, 1)
