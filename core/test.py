@@ -13,7 +13,6 @@ from .compiler import (
     Stack,
     StackVar,
     Context,
-    VoidType,
     get_type,
     infer_expr_types,
     parse_forward_refs,
@@ -42,7 +41,9 @@ class TestCompiler(unittest.TestCase):
     def test_get_type(self) -> None:
         # First check for None handling.
         self.assertEqual(CoreType("void", const=True), get_type(self.__get_expr("void"), []))
-        self.assertTrue(get_type(self.__get_expr("void"), []) is VoidType)
+        void_type = get_type(self.__get_expr("void"), [])
+        assert void_type is not None
+        self.assertTrue(void_type.is_void)
 
         # Now, simple parsing.
         self.assertEqual(CoreType("str"), get_type(self.__get_expr("str"), []))
@@ -283,7 +284,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         prototypes = parse_forward_refs("__test__", func)
-        self.assertEqual([FunctionPrototype("simple", VoidType)], prototypes)
+        self.assertEqual([FunctionPrototype("simple", CoreType("void", const=True))], prototypes)
 
         output = parse_and_compile_module("__test__", func, CompilerSettings())
         self.assertEqual([
