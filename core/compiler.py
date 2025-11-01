@@ -8344,14 +8344,45 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     raise Exception("Logic error, unrecognized instruction to replace!")
 
         elif insn(prv) == "NEG" and insn(cur) == "NEG" and insn(nxt) == "NEG":
-            # Triple negation is equivalent to a single, including flags.
-            remove(pos, 2)
+            if insn(getline(pos, offset=-2)) != "SKIPIF":
+                # Triple negation is equivalent to a single, including flags. However,
+                # if the instruction before the first NEG is a SKIPIF, we can't skip
+                # since sometimes we wouldn't perform an ALU operation to set flags.
+                remove(pos, 2)
+
+            else:
+                # Didn't remove anything, onward.
+                pos = offset(pos, 1)
 
         elif insn(prv) == "INV" and insn(cur) == "INV" and insn(nxt) == "INV":
-            # Triple negation is equivalent to a single, including flags.
-            remove(pos, 2)
+            if insn(getline(pos, offset=-2)) != "SKIPIF":
+                # Triple negation is equivalent to a single, including flags.
+                remove(pos, 2)
 
-        elif insn(prv) == "LOADI" and insn(cur) in {"INV", "NEG"}:
+            elif (
+                insn(getline(pos, offset=-2)) == "SKIPIF" and
+                insn((pos_3 := getline(pos, offset=-3))) == "LOADI" and param_as_int(pos_3) in {0x00, 0xFF}
+            ):
+                param_val = param_as_int(pos_3)
+                actual = getline(pos, offset=-3, sanitize=False)
+                if ";" in actual:
+                    raise Exception("Logic error, unexpected comment in load immediate!")
+                if param_val is None:
+                    raise Exception("Logic error, param value cannot be null!")
+
+                replacement = [
+                    f"  LOADI {hex((~param_val) & 0xFF)}",
+                    getline(pos, offset=-2, sanitize=False)
+                ]
+
+                replace(pos, 3, replacement, offset=-3)
+                pos = offset(pos, -3)
+
+            else:
+                # Didn't remove anything, onward.
+                pos = offset(pos, 1)
+
+        elif insn(prv) == "LOADI" and insn(cur) in {"INV", "NEG"} and insn(nxt) not in {"SKIPIF", "JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}:
             intparam = param_as_int(prv)
             if intparam is not None:
                 if insn(cur) == "INV":
@@ -8362,6 +8393,10 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     intparam = None
 
             if intparam is not None:
+                actual = getline(pos, offset=-1, sanitize=False)
+                if ";" in actual:
+                    raise Exception("Logic error, unexpected comment in load immediate!")
+
                 replace(pos, 2, [f"  LOADI {hex(intparam)}"], offset=-1)
                 pos = offset(pos, -1)
             else:
