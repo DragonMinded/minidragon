@@ -8052,7 +8052,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 getline(pos, offset=-2) == "INV" and
                 getline(pos, offset=-3) == "SKIPIF ZF" and
                 insn(getline(pos, offset=-4)) == "LOADI" and param_as_int(getline(pos, offset=-4)) in {0x00, 0xFF} and
-                (insn(getline(pos, offset=-5)) == "XOR" or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
+                (insn(getline(pos, offset=-5)) in {"XOR", "AND", "OR"} or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
             ):
                 param_val = param_as_int(getline(pos, offset=-4))
 
@@ -8075,7 +8075,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 getline(pos, offset=-2) == "INV" and
                 getline(pos, offset=-3) == "SKIPIF !ZF" and
                 insn(getline(pos, offset=-4)) == "LOADI" and param_as_int(getline(pos, offset=-4)) in {0x00, 0xFF} and
-                (insn(getline(pos, offset=-5)) == "XOR" or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
+                (insn(getline(pos, offset=-5)) in {"XOR", "AND", "OR"} or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
             ):
                 param_val = param_as_int(getline(pos, offset=-4))
 
@@ -8143,7 +8143,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 getline(pos, offset=-4) == "INV" and
                 getline(pos, offset=-5) == "SKIPIF ZF" and
                 insn((pos_6 := getline(pos, offset=-6))) == "LOADI" and param_as_int(pos_6) in {0x00, 0xFF} and
-                (insn((pos_7 := getline(pos, offset=-7))) == "XOR" or (insn(pos_7) == "ADDI" and param_as_int(pos_7) == 0))
+                (insn((pos_7 := getline(pos, offset=-7))) in {"XOR", "AND", "OR"} or (insn(pos_7) == "ADDI" and param_as_int(pos_7) == 0))
             ):
                 param_val = param_as_int(pos_6)
                 if param_val == 0x00:
@@ -8175,7 +8175,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 getline(pos, offset=-4) == "INV" and
                 getline(pos, offset=-5) == "SKIPIF !ZF" and
                 insn((pos_6 := getline(pos, offset=-6))) == "LOADI" and param_as_int(pos_6) in {0x00, 0xFF} and
-                (insn((pos_7 := getline(pos, offset=-7))) == "XOR" or (insn(pos_7) == "ADDI" and param_as_int(pos_7) == 0))
+                (insn((pos_7 := getline(pos, offset=-7))) in {"XOR", "AND", "OR"} or (insn(pos_7) == "ADDI" and param_as_int(pos_7) == 0))
             ):
                 param_val = param_as_int(pos_6)
                 if param_val == 0xFF:
