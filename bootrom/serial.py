@@ -34,20 +34,10 @@ def serial_init() -> void:
     R6551AP_control_reg = 0b00011110
 
 
-def serial_send_byte(byte: const[uint8]) -> void:
-    """
-    Send a single byte out the serial port, waiting until it is okay to send that
-    byte. This means calling this will never overrun the transmit buffer.
-    """
 
-    # Read the status reg, make sure we can transmit. If we can transmit,
-    # the TDRE bit will be set to 1 to indicate transmit buffer empty.
-    while not R6551AP_status_reg & R6551AP_TDRE:
-        pass
-
-    # Actuall write a byte to the serial buffer.
-    global R6551AP_buffer_reg
-    R6551AP_buffer_reg = byte
+def serial_send_byte(byte: const[uint8]) -> extern[void]: ...
+    # Send a single byte out the serial port, waiting until it is okay to send that
+    # byte. This means calling this will never overrun the transmit buffer.
 
 
 def serial_has_byte() -> bool:
@@ -117,14 +107,32 @@ def serial_send(data: const[str]) -> void:
     while True:
         # Flow control must be handled here, so we don't overwhelm the serial terminal.
         if R6551AP_status_reg & R6551AP_RDRF:
+            recvd: const[uint8] = R6551AP_buffer_reg
+
             # Check to ensure we didn't receive an XOFF.
-            if R6551AP_buffer_reg == 0x13:
+            if recvd == 0x13:
                 # We did! Wait until we get an XON.
                 while True:
                     while not R6551AP_status_reg & R6551AP_RDRF:
                         pass
 
                     if R6551AP_buffer_reg == 0x11:
+                        break
+
+            # Check if we received an escape code, which means we'll have to consume
+            # the entire sequence if we don't want to corrupt a future read.
+            elif recvd == 0o33:
+                # Don't care about escape sequences sent to us, read until we get to the end.
+                while True:
+                    while not R6551AP_status_reg & R6551AP_RDRF:
+                        pass
+
+                    # Escape codes always start with an escape character, and always end with a letter.
+                    # We can check for upper and lowercase letters by always clearing the lowercase bit.
+                    # We can save a comparison (which is extremely slow due to being SW implemented) by
+                    # subtracting the low comparison value and relying on overflow wraparound to put values
+                    # lower than the start above the high comparison.
+                    if (R6551AP_buffer_reg & 0b11011111) - ord('A') < 26:
                         break
 
         byte: char = data[offset]
@@ -197,7 +205,9 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False, allow_empty: 
                 accum = accum[:length]
 
                 # Erase last letter.
-                serial_send("\x08 \x08")
+                serial_send_byte(ord("\x08"))
+                serial_send_byte(ord(" "))
+                serial_send_byte(ord("\x08"))
 
             continue
 

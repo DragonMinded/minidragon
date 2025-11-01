@@ -29,21 +29,25 @@ LIBS += lib/conversion/atoi.S
 LIBS += lib/conversion/hex.S
 
 # Bootrom sources.
+BOOTROM_SRCS += bootrom/serial.S
 BOOTROM_SRCS += bootrom/serial.py
 BOOTROM_SRCS += bootrom/main.py
 
 # Hello world sources.
+HELLOWORLD_SRCS += bootrom/serial.S
 HELLOWORLD_SRCS += bootrom/serial.py
 HELLOWORLD_SRCS += bootrom/helloworld.py
 
 # Magic rule maker for above sources to map to various files.
-BOOTROM_INITS := $(patsubst %.py, build/%.init.S, ${BOOTROM_SRCS})
-BOOTROM_DATAS := $(patsubst %.py, build/%.data.S, ${BOOTROM_SRCS})
-BOOTROM_CODES := $(patsubst %.py, build/%.code.S, ${BOOTROM_SRCS})
+BOOTROM_INITS := $(patsubst %.py, build/%.init.S, $(filter %.py, ${BOOTROM_SRCS}))
+BOOTROM_DATAS := $(patsubst %.py, build/%.data.S, $(filter %.py, ${BOOTROM_SRCS}))
+BOOTROM_CODES := $(patsubst %.py, build/%.code.S, $(filter %.py, ${BOOTROM_SRCS}))
+BOOTROM_CODES += $(filter %.S, ${BOOTROM_SRCS})
 
-HELLOWORLD_INITS := $(patsubst %.py, build/%.init.S, ${HELLOWORLD_SRCS})
-HELLOWORLD_DATAS := $(patsubst %.py, build/%.data.S, ${HELLOWORLD_SRCS})
-HELLOWORLD_CODES := $(patsubst %.py, build/%.code.S, ${HELLOWORLD_SRCS})
+HELLOWORLD_INITS := $(patsubst %.py, build/%.init.S, $(filter %.py, ${HELLOWORLD_SRCS}))
+HELLOWORLD_DATAS := $(patsubst %.py, build/%.data.S, $(filter %.py, ${HELLOWORLD_SRCS}))
+HELLOWORLD_CODES := $(patsubst %.py, build/%.code.S, $(filter %.py, ${HELLOWORLD_SRCS}))
+HELLOWORLD_CODES += $(filter %.S, ${HELLOWORLD_SRCS})
 
 # Rule to convert any python file to its output init/data/code sections.
 build/%.init.S build/%.data.S build/%.code.S: %.py
