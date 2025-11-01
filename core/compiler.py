@@ -292,8 +292,9 @@ class CoreType:
     def is_pointer(self) -> bool:
         return self.type == "pointer"
 
-
-VoidType = CoreType("void", None, const=True, extern=False, return_padding=False)
+    @property
+    def is_void(self) -> bool:
+        return self.type == "void"
 
 
 class PreservedCoreType(CoreType):
@@ -312,6 +313,9 @@ class PreservedCoreType(CoreType):
             raise Exception("Logic error, PreservedCoreType is somehow not const?")
 
         return self
+
+    def nonconst_clone(self) -> "CoreType":
+        raise Exception("Logic error, cannot have non-const PreservedCoreType!")
 
 
 class InOutCoreType(CoreType):
@@ -332,6 +336,16 @@ class InOutCoreType(CoreType):
             self.type,
         )
         new_type.const = True
+        return new_type
+
+    def nonconst_clone(self) -> "CoreType":
+        if self.type not in {"str", "pointer"}:
+            return self
+
+        new_type = InOutCoreType(
+            self.type,
+        )
+        new_type.const = False
         return new_type
 
 
@@ -356,6 +370,16 @@ class OutCoreType(CoreType):
         new_type.const = True
         return new_type
 
+    def nonconst_clone(self) -> "OutCoreType":
+        if self.type not in {"str", "pointer"}:
+            return self
+
+        new_type = OutCoreType(
+            self.type,
+        )
+        new_type.const = False
+        return new_type
+
 
 class RegisterCoreType(CoreType):
     """
@@ -377,6 +401,16 @@ class RegisterCoreType(CoreType):
         new_type.const = True
         return new_type
 
+    def nonconst_clone(self) -> "RegisterCoreType":
+        if self.type not in {"str", "pointer"}:
+            return self
+
+        new_type = RegisterCoreType(
+            self.type, self.register
+        )
+        new_type.const = False
+        return new_type
+
 
 class ParamReturnCoreType(CoreType):
     """
@@ -388,6 +422,10 @@ class ParamReturnCoreType(CoreType):
         super().__init__("position: " + str(position), None, const=False)
 
     def const_clone(self) -> "ParamReturnCoreType":
+        # This is just a pointer to a parameter value.
+        return self
+
+    def nonconst_clone(self) -> "ParamReturnCoreType":
         # This is just a pointer to a parameter value.
         return self
 
@@ -406,6 +444,10 @@ class PaddingCoreType(CoreType):
         super().__init__("padding: " + str(padbytes), None, const=False)
 
     def const_clone(self) -> "PaddingCoreType":
+        # This is just a padding value.
+        return self
+
+    def nonconst_clone(self) -> "PaddingCoreType":
         # This is just a padding value.
         return self
 
@@ -575,7 +617,7 @@ def get_type(
                 if length:
                     return None
                 else:
-                    return VoidType
+                    return CoreType("void", None, const=True, extern=extern, return_padding=False)
             else:
                 if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "bool", "char", "str"}:
                     return None
@@ -1580,7 +1622,7 @@ def generate_memcpy_stackvars(
 
 
 def can_relocate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], context: Context) -> bool:
-    if function_type is VoidType:
+    if function_type.is_void:
         raise Exception("Logic error, cannot calculate overlap with void function!")
 
     # If we are a string type and we overlap with actual values on the stack, we can't relocate since
@@ -1622,7 +1664,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
     # Make sure to move the return value, the return pointer, and then pop all of our saved builtins.
     retptr_in_uv = False
     retptr_final_loc = 0
-    if function_type is not VoidType:
+    if not function_type.is_void:
         # First, we need to figure out if where we're copying the return value will clobber the return pointer.
         # If so, we need to store that in the U/V registers. We could put it on the stack but that's way more
         # shuffling so much slower. Much better to just mark U/V as clobbered and use them.
@@ -2020,7 +2062,7 @@ def generate_function_call_internal(
     function_prototype = get_function_prototype(call, stack, refs, local_consts, context)
 
     # Ensure that we're not trying to assign a void function call to an expression.
-    if destination is not None and function_prototype.return_type is VoidType:
+    if destination is not None and function_prototype.return_type.is_void:
         raise CompilerError(f"Cannot assign result of function {function_prototype.name} returning void", context)
 
     # Make sure that the prototype's params actually make sense.
@@ -2479,7 +2521,7 @@ def generate_function_call_internal(
         stack.free(entry)
 
     # Now, if needed, copy the return value from the stack to its location.
-    if (not return_handled) and (not (function_prototype.return_type is VoidType)):
+    if (not return_handled) and (not (function_prototype.return_type.is_void)):
         if destination is not None:
             if is_register_destination(destination):
                 # Pop the value from the stack, instead of copying.
@@ -6276,7 +6318,7 @@ def generate_expr(
             raise Exception("Logic error, couldn't determine type of expression destination!")
     else:
         dsize = 0
-        dtype = VoidType
+        dtype = CoreType("void")
 
     types: Dict[cst.CSTNode, CoreType] = infer_expr_types(expression, dtype, stack, refs, local_consts, context)
 
@@ -7262,12 +7304,12 @@ def compile_chunk(
                 if isinstance(simple_statement, cst.Return):
                     if simple_statement.value is None:
                         # Simple return by itself, doesn't update the retval.
-                        if function_type is not VoidType:
+                        if not function_type.is_void:
                             raise CompilerError("Returning nothing from a function marked with a return value", context)
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
                     else:
                         # Return of some sort of expression.
-                        if function_type is VoidType:
+                        if function_type.is_void:
                             raise CompilerError("Returning something from a function marked with no return value", context)
 
                         # Since we're performing one last expression before returning, we know that any
@@ -7445,7 +7487,7 @@ def compile_chunk(
 
     if require_return and not last_statement_was_return:
         # Simple return by itself, doesn't update the retval.
-        if function_type is not VoidType:
+        if not function_type.is_void:
             raise CompilerError("Function is missing a return statement", context)
         compiled += generate_return(function_type, stack, clobbers, context)
         last_statement_was_return = True
@@ -7564,7 +7606,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
 
     preamble.append("  ; Stack layout just before return:")
     fake_stack: Stack = Stack(function_name)
-    if function_type is not VoidType:
+    if not function_type.is_void:
         fake_stack.alloc(StackVar("builtin(retval)", function_type))
     fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void")), initialized=True))
     prevals = []
@@ -7580,7 +7622,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     # Temporary room for the return value, which will be placed after clobbers, but we need
     # somewhere so clobber calculation can work.
     temp_size = 0
-    if function_type is not VoidType:
+    if not function_type.is_void:
         temp_size = stack.alloc(StackVar("builtin(retval)", function_type))
         stack.move(temp_size)
 
@@ -7647,7 +7689,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
 
     # Make sure that we have room on the stack for the return value. Don't move at this point
     # because we might not want to generate instructions to move.
-    if function_type is not VoidType:
+    if not function_type.is_void:
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
@@ -8648,6 +8690,9 @@ def parse_and_compile_module(module: str, code: str, settings: CompilerSettings)
     forward_refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
     forward_refs += parse_forward_refs(module, code)
     return compile_module(module, code, settings, forward_refs)
+
+
+VoidType = CoreType("void", None, const=True, extern=False, return_padding=False)
 
 
 def builtin_functions() -> List[FunctionPrototype]:
