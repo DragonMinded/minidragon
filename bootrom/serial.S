@@ -2,7 +2,7 @@ serial_send_byte:
   ; Stack layout just after call:
   ; PC + 0 - builtin(retptr)
   ; PC + 1 - builtin(retptr)
-  ; PC + 2 - byte
+  ; PC + 2 - byte to send to serial
   ;
   ; Stack layout just before return:
   ; PC + 0 - builtin(retptr)
@@ -10,6 +10,7 @@ serial_send_byte:
   ;
   ; Save clobbered registers
   PUSH A
+  PUSH V
   PUSH SPC
 
   ; Prime loop below to read the status register into a temporary byte.
@@ -29,7 +30,7 @@ _serial_send_byte_wait_tx:
   JRIZ _serial_send_byte_wait_tx
 
   ; Actually send the byte out.
-  ADDPCI 6
+  ADDPCI 7
   LOAD V
   SWAP PC, SPC
   DECPC
@@ -47,8 +48,9 @@ _serial_send_byte_wait_tx:
   STORE A
 
   ; Restoring all clobbered registers.
-  SUBPCI 4
+  SUBPCI 5
   POP SPC
+  POP V
   POP A
   ADDPCI 1
   RET
