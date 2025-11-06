@@ -20,6 +20,7 @@ from .compiler import (
     set_file_loader,
     set_working_directory,
     unescape_literal,
+    sanitize_line,
 )
 
 
@@ -884,12 +885,33 @@ class TestCompiler(unittest.TestCase):
         set_working_directory(None)
         set_file_loader(None)
 
-    def test_unescape_litearl(self) -> None:
+    def test_unescape_literal(self) -> None:
         self.assertEqual("testing\n", unescape_literal("testing\\n"))
         self.assertEqual("testing\t", unescape_literal("testing\\t"))
         self.assertEqual("testing\\", unescape_literal("testing\\\\"))
         self.assertEqual("testing\x01", unescape_literal("testing\\x01"))
         self.assertEqual("testing\001", unescape_literal("testing\\001"))
+
+    def test_sanitize_line(self) -> None:
+        self.assertEqual("", sanitize_line(""))
+        self.assertEqual("", sanitize_line("   "))
+        self.assertEqual("NOP", sanitize_line("NOP"))
+        self.assertEqual("NOP", sanitize_line("  NOP"))
+        self.assertEqual("NOP", sanitize_line("NOP ; comment here"))
+        self.assertEqual("NOP", sanitize_line("  NOP ; comment here"))
+        self.assertEqual("LOADI 55", sanitize_line("  LOADI 55 ; some comment"))
+        self.assertEqual(r"LOADI '\n'", sanitize_line(r"LOADI '\n'"))
+        self.assertEqual(r"LOADI '\n'", sanitize_line(r"  LOADI '\n'"))
+        self.assertEqual(r"LOADI '\n'", sanitize_line(r"LOADI '\n' ; comment here"))
+        self.assertEqual(r"LOADI '\n'", sanitize_line(r"  LOADI '\n' ; comment here"))
+        self.assertEqual(r"LOADI ';'", sanitize_line(r"LOADI ';'"))
+        self.assertEqual(r"LOADI ';'", sanitize_line(r"  LOADI ';'"))
+        self.assertEqual(r"LOADI ';'", sanitize_line(r"LOADI ';' ; comment here"))
+        self.assertEqual(r"LOADI ';'", sanitize_line(r"  LOADI ';' ; comment here"))
+        self.assertEqual(r'LOADI ";"', sanitize_line(r'LOADI ";"'))
+        self.assertEqual(r'LOADI ";"', sanitize_line(r'  LOADI ";"'))
+        self.assertEqual(r'LOADI ";"', sanitize_line(r'LOADI ";" ; comment here'))
+        self.assertEqual(r'LOADI ";"', sanitize_line(r'  LOADI ";" ; comment here'))
 
 
 if __name__ == '__main__':
