@@ -52,6 +52,34 @@ def bintoint(binary: int) -> int:
     return binary if binary < 0x80 else -(((~binary) & 0xFF) + 1)
 
 
+def sanitize(line: str) -> str:
+    if not line:
+        return ""
+    if ";" in line:
+        # Need to be mindful of quotes.
+        nocomment: str = ""
+        quote: str = ""
+
+        for ch in line:
+            if ch == quote:
+                nocomment += ch
+                quote = ""
+            elif ch in {"'", '"'}:
+                if not quote:
+                    quote = ch
+                nocomment += ch
+            elif ch == ";":
+                if not quote:
+                    break
+                nocomment += ch
+            else:
+                nocomment += ch
+
+        line = nocomment
+    line = line.strip()
+    return line
+
+
 def _splitparams(blob: str) -> Tuple[str, ...]:
     params: List[str] = []
     curparam: str = ""

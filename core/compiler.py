@@ -6,7 +6,7 @@ import libcst.metadata as meta
 
 from typing import Callable, Dict, Final, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
 
-from .assembler import assemble
+from .assembler import assemble, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127
@@ -720,7 +720,7 @@ def global_by_name(globs: Sequence[Union[FunctionPrototype, GlobalVariable]], na
 
 
 def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionPrototype, GlobalVariable]], labels: List[str] = []) -> int:
-    compiled = [c.split(";", 1)[0].strip() for c in compiled]
+    compiled = [sanitize(c) for c in compiled]
     compiled = [c for c in compiled if c]
 
     # Doesn't matter where these labels point, they're just going to be used with SETPC and CALL instrutions.
@@ -7793,7 +7793,7 @@ def remove_empty_comments(code: List[str]) -> List[str]:
                     should_nuke = False
                     break
 
-                meat, _ = checkline.split(";", 1)
+                meat = sanitize(checkline)
                 if meat.strip():
                     # There's an instruction here.
                     should_nuke = False
@@ -7853,34 +7853,6 @@ def optimization_pass(code: List[str], enabled: bool) -> List[str]:
     return code
 
 
-def sanitize_line(line: str) -> str:
-    if not line:
-        return ""
-    if ";" in line:
-        # Need to be mindful of quotes.
-        nocomment: str = ""
-        quote: str = ""
-
-        for ch in line:
-            if ch == quote:
-                nocomment += ch
-                quote = ""
-            elif ch in {"'", '"'}:
-                if not quote:
-                    quote = ch
-                nocomment += ch
-            elif ch == ";":
-                if not quote:
-                    break
-                nocomment += ch
-            else:
-                nocomment += ch
-
-        line = nocomment
-    line = line.strip()
-    return line
-
-
 def optimization_pass_impl(code: List[str]) -> List[str]:
     codelen = len(code)
 
@@ -7896,7 +7868,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     if pos >= codelen:
                         return []
                     # Did we find code.
-                    if sanitize_line(code[pos]):
+                    if sanitize(code[pos]):
                         break
 
                 offset -= 1
@@ -7909,7 +7881,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     if pos < 0:
                         return []
                     # Did we find code.
-                    if sanitize_line(code[pos]):
+                    if sanitize(code[pos]):
                         break
 
                 offset += 1
@@ -7926,7 +7898,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 if pos >= codelen:
                     return []
                 # Did we find code.
-                if sanitize_line(code[pos]):
+                if sanitize(code[pos]):
                     break
 
         return retval
@@ -7939,7 +7911,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
             return ""
         loc = locs[0]
 
-        return sanitize_line(code[loc]) if kwargs.get("sanitize", True) else code[loc]
+        return sanitize(code[loc]) if kwargs.get("sanitize", True) else code[loc]
 
     def curpos(pos: int, offset: int = 0) -> Optional[str]:
         locs = calcoffsets(pos, offset, 1)

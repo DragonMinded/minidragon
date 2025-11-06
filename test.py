@@ -15,6 +15,7 @@ from core import (
     disassemble,
     bintoint,
     hexstr,
+    sanitize,
     parse_and_compile_module,
     set_file_loader,
 )
@@ -38,8 +39,7 @@ def getlines(instr: str) -> List[str]:
     lines: List[str] = []
 
     for line in instr.split(os.linesep):
-        line, *_ = line.split(';')
-        line = line.strip()
+        line = sanitize(line)
         if line:
             lines.append(line)
     return lines

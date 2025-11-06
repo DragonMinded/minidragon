@@ -12,6 +12,7 @@ from .assembler import (
     bintoint,
     getint,
     hexstr,
+    sanitize,
 )
 
 from .compiler import (
@@ -47,6 +48,7 @@ __all__ = [
     "bintoint",
     "getint",
     "hexstr",
+    "sanitize",
     "builtin_forward_refs",
     "parse_forward_refs",
     "parse_and_compile_module",

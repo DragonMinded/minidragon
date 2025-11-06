@@ -4,6 +4,14 @@ import textwrap
 import unittest
 from typing import Any, Dict, Optional
 
+from .assembler import (
+    sign_extend,
+    hexstr,
+    binstr,
+    bintoint,
+    sanitize,
+    _splitparams,
+)
 from .compiler import (
     CompilerError,
     CompilerSettings,
@@ -20,8 +28,67 @@ from .compiler import (
     set_file_loader,
     set_working_directory,
     unescape_literal,
-    sanitize_line,
 )
+
+
+class TestAssembler(unittest.TestCase):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.maxDiff = None
+
+    def test_sign_extend(self) -> None:
+        self.assertEqual(0, sign_extend(0, 7))
+        self.assertEqual(0x007F, sign_extend(0x7F, 7))
+        self.assertEqual(0xFFFF, sign_extend(0xFF, 7))
+        self.assertEqual(0xFFFF, sign_extend(0x1F, 4))
+        self.assertEqual(0x000F, sign_extend(0x0F, 4))
+
+    def test_hexstr(self) -> None:
+        self.assertEqual("00", hexstr(0, 2))
+        self.assertEqual("01", hexstr(1, 2))
+        self.assertEqual("1234", hexstr(0x1234, 4))
+        self.assertEqual("0037", hexstr(0x37, 4))
+
+    def test_binstr(self) -> None:
+        self.assertEqual("00000000", binstr(0, 8))
+        self.assertEqual("10100101", binstr(0xA5, 8))
+        self.assertEqual("00001111", binstr(0xF, 8))
+
+    def test_bintoint(self) -> None:
+        self.assertEqual(0, bintoint(0))
+        self.assertEqual(1, bintoint(1))
+        self.assertEqual(0x7F, bintoint(0x7F))
+        self.assertEqual(-1, bintoint(0xFF))
+        self.assertEqual(-128, bintoint(0x80))
+
+    def test_sanitize(self) -> None:
+        self.assertEqual("", sanitize(""))
+        self.assertEqual("", sanitize("   "))
+        self.assertEqual("NOP", sanitize("NOP"))
+        self.assertEqual("NOP", sanitize("  NOP"))
+        self.assertEqual("NOP", sanitize("NOP ; comment here"))
+        self.assertEqual("NOP", sanitize("  NOP ; comment here"))
+        self.assertEqual("LOADI 55", sanitize("  LOADI 55 ; some comment"))
+        self.assertEqual(r"LOADI '\n'", sanitize(r"LOADI '\n'"))
+        self.assertEqual(r"LOADI '\n'", sanitize(r"  LOADI '\n'"))
+        self.assertEqual(r"LOADI '\n'", sanitize(r"LOADI '\n' ; comment here"))
+        self.assertEqual(r"LOADI '\n'", sanitize(r"  LOADI '\n' ; comment here"))
+        self.assertEqual(r"LOADI ';'", sanitize(r"LOADI ';'"))
+        self.assertEqual(r"LOADI ';'", sanitize(r"  LOADI ';'"))
+        self.assertEqual(r"LOADI ';'", sanitize(r"LOADI ';' ; comment here"))
+        self.assertEqual(r"LOADI ';'", sanitize(r"  LOADI ';' ; comment here"))
+        self.assertEqual(r'LOADI ";"', sanitize(r'LOADI ";"'))
+        self.assertEqual(r'LOADI ";"', sanitize(r'  LOADI ";"'))
+        self.assertEqual(r'LOADI ";"', sanitize(r'LOADI ";" ; comment here'))
+        self.assertEqual(r'LOADI ";"', sanitize(r'  LOADI ";" ; comment here'))
+
+    def test_splitparams(self) -> None:
+        self.assertEqual((), _splitparams(""))
+        self.assertEqual(("5", ), _splitparams("5"))
+        self.assertEqual(("5", "5"), _splitparams("5, 5"))
+        self.assertEqual(("'5'", "'5'"), _splitparams("'5', '5'"))
+        self.assertEqual(("','", '","'), _splitparams("',', \",\""))
+        self.assertEqual(("';'", ), _splitparams("';'"))
 
 
 class TestCompiler(unittest.TestCase):
@@ -891,28 +958,3 @@ class TestCompiler(unittest.TestCase):
         self.assertEqual("testing\\", unescape_literal("testing\\\\"))
         self.assertEqual("testing\x01", unescape_literal("testing\\x01"))
         self.assertEqual("testing\001", unescape_literal("testing\\001"))
-
-    def test_sanitize_line(self) -> None:
-        self.assertEqual("", sanitize_line(""))
-        self.assertEqual("", sanitize_line("   "))
-        self.assertEqual("NOP", sanitize_line("NOP"))
-        self.assertEqual("NOP", sanitize_line("  NOP"))
-        self.assertEqual("NOP", sanitize_line("NOP ; comment here"))
-        self.assertEqual("NOP", sanitize_line("  NOP ; comment here"))
-        self.assertEqual("LOADI 55", sanitize_line("  LOADI 55 ; some comment"))
-        self.assertEqual(r"LOADI '\n'", sanitize_line(r"LOADI '\n'"))
-        self.assertEqual(r"LOADI '\n'", sanitize_line(r"  LOADI '\n'"))
-        self.assertEqual(r"LOADI '\n'", sanitize_line(r"LOADI '\n' ; comment here"))
-        self.assertEqual(r"LOADI '\n'", sanitize_line(r"  LOADI '\n' ; comment here"))
-        self.assertEqual(r"LOADI ';'", sanitize_line(r"LOADI ';'"))
-        self.assertEqual(r"LOADI ';'", sanitize_line(r"  LOADI ';'"))
-        self.assertEqual(r"LOADI ';'", sanitize_line(r"LOADI ';' ; comment here"))
-        self.assertEqual(r"LOADI ';'", sanitize_line(r"  LOADI ';' ; comment here"))
-        self.assertEqual(r'LOADI ";"', sanitize_line(r'LOADI ";"'))
-        self.assertEqual(r'LOADI ";"', sanitize_line(r'  LOADI ";"'))
-        self.assertEqual(r'LOADI ";"', sanitize_line(r'LOADI ";" ; comment here'))
-        self.assertEqual(r'LOADI ";"', sanitize_line(r'  LOADI ";" ; comment here'))
-
-
-if __name__ == '__main__':
-    unittest.main()
