@@ -1,4 +1,4 @@
-all: helloworld.bin bootrom.bin
+all: helloworld.bin fixedpoint.bin bootrom.bin
 
 # Runtime library.
 RUNTIME += lib/runtime/init.S
@@ -38,6 +38,12 @@ HELLOWORLD_SRCS += bootrom/serial.S
 HELLOWORLD_SRCS += bootrom/serial.py
 HELLOWORLD_SRCS += bootrom/helloworld.py
 
+# Fixed point test sources.
+FIXEDPOINT_SRCS += bootrom/serial.S
+FIXEDPOINT_SRCS += bootrom/serial.py
+FIXEDPOINT_SRCS += bootrom/fixed.py
+FIXEDPOINT_SRCS += bootrom/fixedtest.py
+
 # Magic rule maker for above sources to map to various files.
 BOOTROM_INITS := $(patsubst %.py, build/%.init.S, $(filter %.py, ${BOOTROM_SRCS}))
 BOOTROM_DATAS := $(patsubst %.py, build/%.data.S, $(filter %.py, ${BOOTROM_SRCS}))
@@ -48,6 +54,11 @@ HELLOWORLD_INITS := $(patsubst %.py, build/%.init.S, $(filter %.py, ${HELLOWORLD
 HELLOWORLD_DATAS := $(patsubst %.py, build/%.data.S, $(filter %.py, ${HELLOWORLD_SRCS}))
 HELLOWORLD_CODES := $(patsubst %.py, build/%.code.S, $(filter %.py, ${HELLOWORLD_SRCS}))
 HELLOWORLD_CODES += $(filter %.S, ${HELLOWORLD_SRCS})
+
+FIXEDPOINT_INITS := $(patsubst %.py, build/%.init.S, $(filter %.py, ${FIXEDPOINT_SRCS}))
+FIXEDPOINT_DATAS := $(patsubst %.py, build/%.data.S, $(filter %.py, ${FIXEDPOINT_SRCS}))
+FIXEDPOINT_CODES := $(patsubst %.py, build/%.code.S, $(filter %.py, ${FIXEDPOINT_SRCS}))
+FIXEDPOINT_CODES += $(filter %.S, ${FIXEDPOINT_SRCS})
 
 # Rule to convert any python file to its output init/data/code sections.
 build/%.init.S build/%.data.S build/%.code.S: %.py
@@ -80,6 +91,19 @@ build/helloworld_listing.S: $(LIBS) $(RUNTIME) $(HELLOWORLD_INITS) $(HELLOWORLD_
 	cat $(HELLOWORLD_DATAS) >> $@
 	cat lib/runtime/heap.S >> $@
 
+build/fixedpoint_listing.S: $(LIBS) $(RUNTIME) $(FIXEDPOINT_INITS) $(FIXEDPOINT_DATAS) $(FIXEDPOINT_CODES)
+	@mkdir -p $(dir $@)
+	cat lib/runtime/init.S > $@
+	cat $(FIXEDPOINT_INITS) >> $@
+	cat lib/runtime/start.S >> $@
+	cat $(LIBS) >> $@
+	cat $(FIXEDPOINT_CODES) >> $@
+	cat lib/runtime/const.S >> $@
+	cat lib/hardware/hwregs.S >> $@
+	cat lib/runtime/data.S >> $@
+	cat $(FIXEDPOINT_DATAS) >> $@
+	cat lib/runtime/heap.S >> $@
+
 # Rule to convert any prefixed listing file to its associated bin/sym files.
 %.bin %.sym: build/%_listing.S
 	python3 assembler.py \
@@ -97,3 +121,5 @@ clean:
 	rm -rf bootrom.sym
 	rm -rf helloworld.bin
 	rm -rf helloworld.sym
+	rm -rf fixedpoint.bin
+	rm -rf fixedpoint.sym
