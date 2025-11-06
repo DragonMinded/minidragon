@@ -1,6 +1,3 @@
-from serial import serial_send
-
-
 def _calcPrecision(precision: uint8) -> uint32:
     """
     We can calculate this by just multiplying a starting value of 1 by 10 exactly
@@ -27,14 +24,13 @@ def _calcPrecision(precision: uint8) -> uint32:
     return 1000000000
 
 
-def strtofixed(val: const[str], precision: uint8, fracbits: uint8 = 8) -> int32:
+def strtofixed(val: const[str], fracbits: uint8 = 8) -> int32:
     """
-    Given a string value such as 1.2345 or -3.567, a precision which is the number
-    of digits after the decimal place to respect, and an optinal fracbits which is
+    Given a string value such as 1.2345 or -3.56 and an optinal fracbits which is
     the number of fractional bits in the returned fixed point integer, perform the
     conversion from the string to the fixed point integer.
 
-    Note that this only supports precision from 1 to 9 digits.
+    Note that this only supports up to 9 digits after the decimal place.
     """
 
     # First, remember if it's negative.
@@ -56,20 +52,24 @@ def strtofixed(val: const[str], precision: uint8, fracbits: uint8 = 8) -> int32:
             noDecVal += val[pos]
             if hasDecimal:
                 actualPrecision += 1
-                if actualPrecision == precision:
+                if actualPrecision == 9:
                     break
 
-    while actualPrecision != precision:
-        noDecVal += "0"
-        actualPrecision += 1
+    if hasDecimal:
+        # Convert to a number, and then perform the arithmetic to make it a fixed point version.
+        converted: uint32 = int(noDecVal)
+        converted <<= fracbits
+        converted /= _calcPrecision(actualPrecision)
 
-    # Convert to a number, and then perform the arithmetic to make it a fixed point version.
-    converted: uint32 = int(noDecVal)
-    converted <<= fracbits
-    converted /= _calcPrecision(precision)
+        # Now, add the negative.
+        return -converted if negative else converted
+    else:
+        # Fast path, convert and shift.
+        converted: uint32 = int(noDecVal)
+        converted <<= fracbits
 
-    # Now, add the negative.
-    return -converted if negative else converted
+        # Now, add the negative.
+        return -converted if negative else converted
 
 
 def fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str[16]:
@@ -77,6 +77,8 @@ def fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str[16]:
     Given an integer that represents a fixed point integer, convert that integer to a
     string using the precision requested. Optionally, provide a different fracbits
     if your integer doesn't use the default fractional bits.
+
+    Note that this only supports a precision value of 0 through 9.
     """
 
     negative: const[bool] = val < 0
@@ -84,15 +86,20 @@ def fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str[16]:
 
     # We also round by 0.5 here to get better display. That round by 0.5 is done
     # by adding a number that is the same as the fracbits shifted over right 1.
-    absVal *= _calcPrecision(precision)
+    if precision:
+        absVal *= _calcPrecision(precision)
     absVal += (1 << (fracbits - 1))
     absVal >>= fracbits
 
     valStr: str[12] = str(absVal)
-    valLen: uint8 = len(valStr)
-    decLoc: uint8 = valLen - precision
 
-    if negative:
-        return "-" + valStr[:decLoc] + "." + valStr[decLoc:]
+    if precision:
+        valLen: uint8 = len(valStr)
+        decLoc: uint8 = valLen - precision
+
+        if negative:
+            return "-" + valStr[:decLoc] + "." + valStr[decLoc:]
+        else:
+            return valStr[:decLoc] + "." + valStr[decLoc:]
     else:
-        return valStr[:decLoc] + "." + valStr[decLoc:]
+        return ("-" + valStr) if negative else valStr
