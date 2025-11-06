@@ -1,6 +1,3 @@
-Compiler bugs:
- - Possible compiler bug with slices, need a repro for [x:y].
-
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
  - ensure that loads which get overridden by another load or operation get removed.
