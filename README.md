@@ -256,18 +256,18 @@ The boot ROM is mapped to the bottom 30KB of addressable memory. Because 30KB EE
 
 ## Build Progress
 
-As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 72% finished with the whole project.
+As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 77% finished with the whole project.
 
 ### Hardware
 
-As a whole, the hardware side of MiniDragon is 70% complete.
+As a whole, the hardware side of MiniDragon is 72% complete.
 
  - instruction decoder: 5% complete
     - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 56 instructions (55 real instructions and a microcode board for the shared load instruction step) 3 instructions are fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
  - special registers: 100% complete
    - All design work and diagramming for necessry circuits is completed. Registers that can be read in order to perform conditional logic as well as source immediate values are completed and fully integrated onto the physical build.
- - general purpose registers: 63% complete
-   - All design work and diagramming for the eight general purpose registers is completed. Five registers (A, B, D, PC and SPC) are built and fully integrated into the physical build.
+ - general purpose registers: 75% complete
+   - All design work and diagramming for the eight general purpose registers is completed. Six registers (A, B, D, IP, PC and SPC) are built and fully integrated into the physical build.
  - ALU: 25% complete
    - The ALU core is completely designed, laid out and documented. Tested and fabricated designs for ADD, INV, OR, AND, and XOR exist, but only ADD has been integrated into the physical layout. The ALU is decomposed into seven core functions that each generate their own output and carry flag, along with a shared zero flag generator and a carry flag selector circuit.
  - memory interface: 100% complete
@@ -280,7 +280,7 @@ As a whole, the hardware side of MiniDragon is 70% complete.
 
 ### Software
 
-As a whole, the software side of MiniDragon is 75% complete.
+As a whole, the software side of MiniDragon is 84% complete.
 
  - assembler/disassembler: 100% completed.
  - compiler: 100% completed.
