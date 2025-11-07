@@ -23,4 +23,9 @@ def main() -> void:
     serial_send(f"Approximate addition is: {approx}\n")
 
     approx2: const[str] = fixedtostr(fixed1 + fixed2, precision=0, fracbits=12)
-    serial_send(f"Integer addition is: {approx2}\n")
+    serial_send(f"Integer rounded version is: {approx2}\n")
+
+    # Test intrinsics.
+    serial_send(f"PI with 8 fraction bits is {fixedtostr(fixed(3.141592654, fracbits=8), precision=2, fracbits=8)}\n")
+    serial_send(f"PI with 12 fraction bits is {fixedtostr(fixed(3.141592654, fracbits=12), precision=3, fracbits=12)}\n")
+    serial_send(f"PI with 16 fraction bits is {fixedtostr(fixed(3.141592654, fracbits=16), precision=4, fracbits=16)}\n")
