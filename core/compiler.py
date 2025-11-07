@@ -544,7 +544,7 @@ def get_type(
                 if isinstance(sliceval.slice, cst.Index):
                     # Attempt to evaluate and see if it comes back as an int.
                     try:
-                        value = codegen_eval(sliceval.slice.value, constants)
+                        value = codegen_eval(sliceval.slice.value, constants, None)
                     except NonConstantExpressionException:
                         value = None
 
@@ -1060,7 +1060,71 @@ class NonConstantExpressionException(Exception):
     pass
 
 
-def codegen_eval(expr: cst.BaseExpression, constants: List[Constant]) -> object:
+def intrinsic_eval(expr: cst.BaseExpression, constants: List[Constant], context: Context) -> object:
+    if not isinstance(expr, cst.Call):
+        return None
+
+    if not isinstance(expr.func, cst.Name):
+        return None
+
+    try:
+        function_prototype = get_function_prototype(expr, builtin_functions(), constants, context)
+    except CompilerError:
+        # This isn't a built-in function so it can't be an intrinsic.
+        return None
+
+    intrinsic_args, _ = get_function_params(expr, function_prototype, context)
+
+    if function_prototype.name == "fixed":
+        # Fixed width conversion intrinsic.
+        if len(intrinsic_args) != 2:
+            raise CompilerError("Intrinsic function fixed takes two arguments.", context)
+
+        number = codegen_eval(intrinsic_args[0].value, constants, context)
+        if len(intrinsic_args) == 2:
+            fracbits = codegen_eval(intrinsic_args[1].value, constants, context)
+        else:
+            fracbits = 8
+
+        if number is None or fracbits is None:
+            raise CompilerError("Intrinsic function fixed takes a number or string as its first parameter and a number of fractional bits as its second.", context)
+        try:
+            numberString = str(float(number))  # type: ignore
+        except ValueError:
+            raise CompilerError("Intrinsic function fixed takes a number or string as its first parameter.", context)
+
+        if not isinstance(fracbits, int):
+            raise CompilerError("Intrinsic function fixed takes a number of fractional bits as its second parameter.", context)
+
+        if numberString[0] == "-":
+            negative = True
+            numberString = numberString[1:]
+        else:
+            negative = False
+
+        if "." in numberString:
+            before, after = numberString.split(".", 1)
+            precision = len(after)
+
+            numberInt = int(before + after)
+            numberInt <<= fracbits
+            numberInt //= (10 ** precision)
+        else:
+            numberInt = int(numberString)
+            numberInt <<= fracbits
+
+        return -numberInt if negative else numberInt
+
+    # Unrecognized.
+    return None
+
+
+def codegen_eval(expr: cst.BaseExpression, constants: List[Constant], context: Optional[Context]) -> object:
+    if context is not None:
+        # Handle compiler intrinsics first.
+        if (intrinsic := intrinsic_eval(expr, constants, context)) is not None:
+            return intrinsic
+
     fresh_module = cst.parse_module("")
     code = fresh_module.code_for_node(
         cst.SimpleStatementLine(
@@ -1195,7 +1259,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
         # Attempt to codegen and evaluate the python code.
         try:
-            value = codegen_eval(assign_value, consts)
+            value = codegen_eval(assign_value, consts, context)
         except NonConstantExpressionException:
             raise CompilerError("Non-constant initialization value for global const definition", context)
 
@@ -1310,7 +1374,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
         if assign_value is not None:
             # Attempt to codegen and evaluate the python code.
             try:
-                value = codegen_eval(assign_value, consts)
+                value = codegen_eval(assign_value, consts, context)
             except NonConstantExpressionException:
                 raise CompilerError("Non-constant initialization value for global const definition", context)
         else:
@@ -1935,7 +1999,6 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
 def get_function_prototype(
     call: cst.Call,
-    stack: Stack,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -2059,7 +2122,7 @@ def generate_function_call_internal(
     context: Context,
 ) -> Sections:
     compiled = Sections(code=[context.comment()])
-    function_prototype = get_function_prototype(call, stack, refs, local_consts, context)
+    function_prototype = get_function_prototype(call, refs, local_consts, context)
 
     # Ensure that we're not trying to assign a void function call to an expression.
     if destination is not None and function_prototype.return_type.is_void:
@@ -2307,7 +2370,7 @@ def generate_function_call_internal(
                         is_usable = True
                     else:
                         try:
-                            codegen_eval(arg_in_question, local_consts)
+                            codegen_eval(arg_in_question, local_consts, context)
                             is_usable = True
                         except NonConstantExpressionException:
                             is_usable = False
@@ -2373,7 +2436,7 @@ def generate_function_call_internal(
                         is_usable = True
                     else:
                         try:
-                            codegen_eval(arg_in_question, local_consts)
+                            codegen_eval(arg_in_question, local_consts, context)
                             is_usable = True
                         except NonConstantExpressionException:
                             is_usable = False
@@ -2565,7 +2628,7 @@ def generate_function_call(
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
     if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex", "min", "max"}:
-        function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
+        function_prototype = get_function_prototype(call, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
         if function_prototype.name == "len":
@@ -4776,7 +4839,7 @@ def generate_comparison_expr(
         rhs_expr = expression.comparisons[0].comparator
 
         try:
-            value = codegen_eval(rhs_expr, local_consts)
+            value = codegen_eval(rhs_expr, local_consts, context)
         except NonConstantExpressionException:
             value = None
 
@@ -5595,7 +5658,7 @@ def generate_subscript_expr(
                 try:
                     # Attempt to do a constant unroll to avoild a bunch of nasty codegen.
                     expr = cst.BinaryOperation(left=ending, operator=cst.Subtract(), right=beginning)
-                    codegen_eval(expr, local_consts)
+                    codegen_eval(expr, local_consts, context)
 
                     ending_dest = expr_temp_name()
                     stack.alloc(StackVar(ending_dest, CoreType("int8")))
@@ -5736,7 +5799,7 @@ def generate_expr_internal(
 
     try:
         # If we can evaluate this directly, do so!
-        value = codegen_eval(expression, local_consts)
+        value = codegen_eval(expression, local_consts, context)
         if isinstance(value, (bool, int)):
             if destination is not None:
                 compiled += generate_const_load(value, destination, stack, clobbers, context)
@@ -6004,7 +6067,7 @@ def infer_expr_types_impl(
 
     elif isinstance(expression, cst.SimpleString):
         try:
-            value = codegen_eval(expression, [])
+            value = codegen_eval(expression, [], context)
         except NonConstantExpressionException:
             raise Exception("Logic error, couldn't get string from SimpleString!")
         if not isinstance(value, str):
@@ -6120,7 +6183,16 @@ def infer_expr_types_impl(
         return inferred
 
     elif isinstance(expression, cst.Call):
-        function_prototype = get_function_prototype(expression, stack, [*refs, *builtin_functions()], local_consts, context)
+        function_prototype = get_function_prototype(expression, [*refs, *builtin_functions()], local_consts, context)
+
+        # Intrinsics can end up complicated since they're built-in functions that the compiler substitutes
+        # a constant value for. So, check for those first and if we get a value back, don't evaluate types on the args.
+        if intrinsic_eval(expression, local_consts, context):
+            # Ignore the arg expression evaluation below. This would cause an exception when we tried to
+            # ask for their types, but we know we're going to substitute a constant value at compile time.
+            inferred[expression] = function_prototype.return_type
+            return inferred
+
         args, arg_types = get_function_params(expression, function_prototype, context)
 
         for i, (arg, argtype) in enumerate(zip(args, arg_types)):
@@ -6294,7 +6366,7 @@ def infer_expr_types_impl(
         return inferred
 
     else:
-        raise CompilerError(f"Unsupported expression type {expression} in type inferencer!", context)
+        raise CompilerError(f"Unsupported expression type {type(expression).__name__} in type inferencer!", context)
 
 
 def generate_expr(
@@ -6580,7 +6652,7 @@ def generate_assign_expr(
                     if const_by_name(local_consts, assign_name) is not None:
                         raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
 
-                    value = codegen_eval(assign_value, local_consts)
+                    value = codegen_eval(assign_value, local_consts, context)
                     local_consts.append(Constant(assign_name, assign_type, value))
                     return compiled
                 except NonConstantExpressionException:
@@ -6606,7 +6678,7 @@ def generate_assign_expr(
                             *[Constant(gv.name, gv.type, None) for gv in refs if isinstance(gv, GlobalVariable)],
                         ]
 
-                        codegen_eval(assign_value, consts)
+                        codegen_eval(assign_value, consts, context)
                         is_constant = True
                     except NonConstantExpressionException:
                         is_constant = False
@@ -8682,6 +8754,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("hex", CoreType("str"), [CoreType("int")]),
         FunctionPrototype("min", CoreType("int"), [CoreType("int"), CoreType("int")]),
         FunctionPrototype("max", CoreType("int"), [CoreType("int"), CoreType("int")]),
+        FunctionPrototype("fixed", CoreType("int32"), [CoreType("any"), CoreType("int")], ["value", "fracbits"], [None, cst.Integer("8")]),
     ]
 
 

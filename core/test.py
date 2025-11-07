@@ -958,3 +958,150 @@ class TestCompiler(unittest.TestCase):
         self.assertEqual("testing\\", unescape_literal("testing\\\\"))
         self.assertEqual("testing\x01", unescape_literal("testing\\x01"))
         self.assertEqual("testing\001", unescape_literal("testing\\001"))
+
+    def test_intrinsic_simple(self) -> None:
+        func = textwrap.dedent("""
+            def simple() -> int32:
+                return fixed(3.14159)
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            "simple:",
+            "  ; Stack layout just after call:",
+            "  ; PC + 0 - builtin(retptr)",
+            "  ; PC + 1 - builtin(retptr)",
+            "  ; PC + 2 - builtin(padding)",
+            "  ; PC + 3 - builtin(padding)",
+            "  ; PC + 4 - builtin(padding)",
+            "  ; PC + 5 - builtin(padding)",
+            "  ;",
+            "  ; Stack layout just before return:",
+            "  ; PC + 0 - builtin(retptr)",
+            "  ; PC + 1 - builtin(retptr)",
+            "  ; PC + 2 - builtin(retval)",
+            "  ; PC + 3 - builtin(retval)",
+            "  ; PC + 4 - builtin(retval)",
+            "  ; PC + 5 - builtin(retval)",
+            "  ;",
+            "  ; Save clobbered registers",
+            "  PUSH A",
+            "  ; __test__ line 3: fixed(3.14159)",
+            "  ADDPCI 6",
+            "  LOADI 0x24",
+            "  STORE A",
+            "  DECPC",
+            "  LOADI 0x03",
+            "  STORE A",
+            "  DECPC",
+            "  LOADI 0x00",
+            "  STORE A",
+            "  DECPC",
+            "  LOADI 0x00",
+            "  STORE A",
+            "  ; __test__ line 3: return fixed(3.14159)",
+            "  ; Restoring all clobbered registers.",
+            "  SUBPCI 3",
+            "  POP A",
+            "  RET",
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+    def test_intrinsic_positional(self) -> None:
+        func = textwrap.dedent("""
+            def simple() -> int32:
+                return fixed(3.14159, 8)
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            "simple:",
+            "  ; Stack layout just after call:",
+            "  ; PC + 0 - builtin(retptr)",
+            "  ; PC + 1 - builtin(retptr)",
+            "  ; PC + 2 - builtin(padding)",
+            "  ; PC + 3 - builtin(padding)",
+            "  ; PC + 4 - builtin(padding)",
+            "  ; PC + 5 - builtin(padding)",
+            "  ;",
+            "  ; Stack layout just before return:",
+            "  ; PC + 0 - builtin(retptr)",
+            "  ; PC + 1 - builtin(retptr)",
+            "  ; PC + 2 - builtin(retval)",
+            "  ; PC + 3 - builtin(retval)",
+            "  ; PC + 4 - builtin(retval)",
+            "  ; PC + 5 - builtin(retval)",
+            "  ;",
+            "  ; Save clobbered registers",
+            "  PUSH A",
+            "  ; __test__ line 3: fixed(3.14159, 8)",
+            "  ADDPCI 6",
+            "  LOADI 0x24",
+            "  STORE A",
+            "  DECPC",
+            "  LOADI 0x03",
+            "  STORE A",
+            "  DECPC",
+            "  LOADI 0x00",
+            "  STORE A",
+            "  DECPC",
+            "  LOADI 0x00",
+            "  STORE A",
+            "  ; __test__ line 3: return fixed(3.14159, 8)",
+            "  ; Restoring all clobbered registers.",
+            "  SUBPCI 3",
+            "  POP A",
+            "  RET",
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+    def test_intrinsic_keyword(self) -> None:
+        func = textwrap.dedent("""
+            def simple() -> int32:
+                return fixed(3.14159, fracbits=8)
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            "simple:",
+            "  ; Stack layout just after call:",
+            "  ; PC + 0 - builtin(retptr)",
+            "  ; PC + 1 - builtin(retptr)",
+            "  ; PC + 2 - builtin(padding)",
+            "  ; PC + 3 - builtin(padding)",
+            "  ; PC + 4 - builtin(padding)",
+            "  ; PC + 5 - builtin(padding)",
+            "  ;",
+            "  ; Stack layout just before return:",
+            "  ; PC + 0 - builtin(retptr)",
+            "  ; PC + 1 - builtin(retptr)",
+            "  ; PC + 2 - builtin(retval)",
+            "  ; PC + 3 - builtin(retval)",
+            "  ; PC + 4 - builtin(retval)",
+            "  ; PC + 5 - builtin(retval)",
+            "  ;",
+            "  ; Save clobbered registers",
+            "  PUSH A",
+            "  ; __test__ line 3: fixed(3.14159, fracbits=8)",
+            "  ADDPCI 6",
+            "  LOADI 0x24",
+            "  STORE A",
+            "  DECPC",
+            "  LOADI 0x03",
+            "  STORE A",
+            "  DECPC",
+            "  LOADI 0x00",
+            "  STORE A",
+            "  DECPC",
+            "  LOADI 0x00",
+            "  STORE A",
+            "  ; __test__ line 3: return fixed(3.14159, fracbits=8)",
+            "  ; Restoring all clobbered registers.",
+            "  SUBPCI 3",
+            "  POP A",
+            "  RET",
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
