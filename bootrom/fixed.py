@@ -5,6 +5,11 @@ def _calcPrecision(precision: uint8) -> uint32:
     in assembly by using an offset if we wanted to.
     """
 
+    # We only bother to support up to 5 digits of precision because any more and we
+    # either can't represent the number when converting to decimal due to running
+    # out of space to multiply out, or if we have enough space to multiply, that
+    # means the fractional part is too small to represent a number accurately to
+    # that precision.
     if precision == 1:
         return 10
     if precision == 2:
@@ -13,15 +18,7 @@ def _calcPrecision(precision: uint8) -> uint32:
         return 1000
     if precision == 4:
         return 10000
-    if precision == 5:
-        return 100000
-    if precision == 6:
-        return 1000000
-    if precision == 7:
-        return 10000000
-    if precision == 8:
-        return 100000000
-    return 1000000000
+    return 100000
 
 
 def strtofixed(val: const[str], fracbits: uint8 = 8) -> int32:
@@ -30,7 +27,7 @@ def strtofixed(val: const[str], fracbits: uint8 = 8) -> int32:
     the number of fractional bits in the returned fixed point integer, perform the
     conversion from the string to the fixed point integer.
 
-    Note that this only supports up to 9 digits after the decimal place.
+    Note that this only supports up to 5 digits after the decimal place.
     """
 
     # First, remember if it's negative.
@@ -40,6 +37,7 @@ def strtofixed(val: const[str], fracbits: uint8 = 8) -> int32:
     hasDecimal: bool = False
     actualPrecision: uint8 = 0
     noDecVal: str[32] = ""
+    decVal: str[32] = ""
 
     pos: uint8
     for pos in range(1 if negative else 0, len(val)):
@@ -49,27 +47,27 @@ def strtofixed(val: const[str], fracbits: uint8 = 8) -> int32:
                 break
             hasDecimal = True
         else:
-            noDecVal += val[pos]
             if hasDecimal:
+                decVal += val[pos]
                 actualPrecision += 1
-                if actualPrecision == 9:
+                if actualPrecision == 5:
                     break
+            else:
+                noDecVal += val[pos]
+
+    # Fast path, convert and shift.
+    converted: uint32 = int(noDecVal)
+    converted <<= fracbits
 
     if hasDecimal:
         # Convert to a number, and then perform the arithmetic to make it a fixed point version.
-        converted: uint32 = int(noDecVal)
-        converted <<= fracbits
-        converted /= _calcPrecision(actualPrecision)
+        fraction: uint32 = int(decVal)
+        fraction <<= fracbits
+        fraction /= _calcPrecision(actualPrecision)
+        converted |= fraction
 
-        # Now, add the negative.
-        return -converted if negative else converted
-    else:
-        # Fast path, convert and shift.
-        converted: uint32 = int(noDecVal)
-        converted <<= fracbits
-
-        # Now, add the negative.
-        return -converted if negative else converted
+    # Now, add the negative.
+    return -converted if negative else converted
 
 
 def fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str[16]:
@@ -78,28 +76,58 @@ def fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str[16]:
     string using the precision requested. Optionally, provide a different fracbits
     if your integer doesn't use the default fractional bits.
 
-    Note that this only supports a precision value of 0 through 9.
+    Note that this only supports a precision value of 0 through 5.
     """
 
+    fracmask: uint32 = ~(0xFFFFFFFF << fracbits)
     negative: const[bool] = val < 0
     absVal: int32 = -val if negative else val
-
-    # We also round by 0.5 here to get better display. That round by 0.5 is done
-    # by adding a number that is the same as the fracbits shifted over right 1.
+    
+    # First, take care of any fractional bits, and then track whether we need to round.
+    fracStr: str[9] = ""
+    roundUp: bool = False
     if precision:
-        absVal *= _calcPrecision(precision)
-    absVal += (1 << (fracbits - 1))
-    absVal >>= fracbits
+        fracVal: uint32 = absVal & fracmask
+        fracVal *= _calcPrecision(precision)
 
-    valStr: str[12] = str(absVal)
+        # We also round by 0.5 here to get better display. That round by 0.5 is done
+        # by adding a number that is the same as the fracbits shifted over right 1.
+        fracVal += (1 << (fracbits - 1))
+        fracVal >>= fracbits
 
-    if precision:
-        valLen: uint8 = len(valStr)
-        decLoc: uint8 = valLen - precision
+        tempFracStr: str[9] = str(fracVal)
+        tempFracStrLen: uint8 = len(tempFracStr)
 
-        if negative:
-            return "-" + valStr[:decLoc] + "." + valStr[decLoc:]
+        if tempFracStrLen < precision:
+            # We need to add zeros in front since this needs to be zero-padded.
+            padAmount: uint8 = precision - tempFracStrLen
+            while padAmount:
+                fracStr += "0"
+                padAmount -= 1
+            fracStr += tempFracStr
+        elif tempFracStrLen > precision:
+            # We carried over into the 1's digit, need to round up.
+            roundUp = True
+            fracStr += tempFracStr[(tempFracStrLen - precision):]
         else:
-            return valStr[:decLoc] + "." + valStr[decLoc:]
+            fracStr += tempFracStr
     else:
-        return ("-" + valStr) if negative else valStr
+        # Need to round here for no-precision display.
+        absVal += (1 << (fracbits - 1))
+
+    # Now, take care of the decimal bits.
+    decStr: str[16] = ""
+    if negative:
+        decStr += "-"
+
+    absVal >>= fracbits
+    if roundUp:
+        absVal += 1
+
+    decStr += str(absVal)
+
+    if precision:
+        decStr += "."
+        decStr += fracStr
+
+    return decStr
