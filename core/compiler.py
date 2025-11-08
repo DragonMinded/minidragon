@@ -1119,12 +1119,7 @@ def intrinsic_eval(expr: cst.BaseExpression, constants: List[Constant], context:
     return None
 
 
-def codegen_eval(expr: cst.BaseExpression, constants: List[Constant], context: Optional[Context]) -> object:
-    if context is not None:
-        # Handle compiler intrinsics first.
-        if (intrinsic := intrinsic_eval(expr, constants, context)) is not None:
-            return intrinsic
-
+def expr_to_str(expr: cst.BaseExpression) -> str:
     fresh_module = cst.parse_module("")
     code = fresh_module.code_for_node(
         cst.SimpleStatementLine(
@@ -1133,6 +1128,17 @@ def codegen_eval(expr: cst.BaseExpression, constants: List[Constant], context: O
             ],
         )
     )
+    return code
+
+
+def codegen_eval(expr: cst.BaseExpression, constants: List[Constant], context: Optional[Context]) -> object:
+    if context is not None:
+        # Handle compiler intrinsics first.
+        if (intrinsic := intrinsic_eval(expr, constants, context)) is not None:
+            return intrinsic
+
+    # Render out the tree so we can pass to eval().
+    code = expr_to_str(expr)
 
     # If we don't control our builtins, python will eval a bunch of stuff we don't support due to
     # its own builtins, and it will appear to work but only for constant expressions.
@@ -1189,7 +1195,7 @@ def unescape_literal(val: str) -> str:
                 elif v in "x":
                     escaping += v
                 else:
-                    raise Exception("Logic error, couldn't unescape {val}!")
+                    raise Exception(f"Logic error, couldn't unescape {val!r}!")
 
                 continue
 
@@ -1216,7 +1222,7 @@ def unescape_literal(val: str) -> str:
 
                             continue
 
-            raise Exception(f"Logic error, couldn't unescape {val}!")
+            raise Exception(f"Logic error, couldn't unescape {val!r}!")
 
         else:
             if v == "\\":
@@ -1915,10 +1921,10 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
     if dtype.is_integer:
         if not isinstance(val, int):
-            raise CompilerError("Unsupported non-integer constant load!", context)
+            raise CompilerError("Unsupported non-integer constant load", context)
 
         if dtype.is_unsigned and val < 0:
-            raise CompilerError("Cannot use a negative value in an unsigned expression!", context)
+            raise CompilerError("Cannot use a negative value in an unsigned expression", context)
 
         if is_register_destination(destination):
             compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
@@ -1973,7 +1979,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
     elif dtype.is_bool:
         if not isinstance(val, bool):
-            raise CompilerError("Unsupported non-boolean constant load!", context)
+            raise CompilerError("Unsupported non-boolean constant load", context)
 
         intval = 0xFF if val else 0x00
 
@@ -1993,7 +1999,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
     elif dtype.is_char:
         if not isinstance(val, str):
-            raise CompilerError("Unsupported non-character constant load!", context)
+            raise CompilerError("Unsupported non-character constant load", context)
         if len(val) != 1:
             raise CompilerError(f"Invalid character constant {val!r}", context)
 
@@ -2012,7 +2018,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
             compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
-        raise CompilerError(f"Unsupported constant load of type {dtype.type}!", context)
+        raise CompilerError(f"Unsupported constant load of type {dtype.type}", context)
 
     return compiled
 
@@ -2656,7 +2662,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # String or array length calculation.
             return generate_function_call_internal(
@@ -2676,7 +2682,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Cast from whatever data type to string, so we must handle this on a case by case basis.
             expr = args[0].value
@@ -3112,7 +3118,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Absolute value calculation.
             destination_type = types[call]
@@ -3126,7 +3132,7 @@ def generate_function_call(
                 raise Exception("Logic error, unknown destination size!")
 
             if not destination_type.is_integer:
-                raise CompilerError("The builtin function abs() only works on integers!", context)
+                raise CompilerError("The builtin function abs() only works on integers", context)
 
             # If it's already unsigned, don't do anything to it.
             if destination_type.is_unsigned:
@@ -3149,7 +3155,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Cast from whatever data type to string, so we must handle this on a case by case basis.
             expr = args[0].value
@@ -3332,13 +3338,13 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Cast from integer to char, but the 8-bit case is simple.
             expr = args[0].value
 
             if not types[expr].is_integer:
-                raise CompilerError("Unsupported conversion from {types[expr].type} to character!", context)
+                raise CompilerError("Unsupported conversion from {types[expr].type} to character", context)
 
             if types[expr].size == 1:
                 # Simply evaluate the expression into the destination directly, but pretend that the destination
@@ -3386,13 +3392,13 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Cast from integer to char, but the 8-bit case is simple.
             expr = args[0].value
 
             if not types[expr].is_char:
-                raise CompilerError("Unsupported conversion from {types[expr].type} to integer!", context)
+                raise CompilerError("Unsupported conversion from {types[expr].type} to integer", context)
 
             # Figure out what to do based on the destination type.
             destination_type = stack.typeof(destination)
@@ -3451,7 +3457,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # This could be a passthrough, in the case of an integer input, undefined in case of char, a simple
             # cast in case of bool, and an atoi call in case of a string.
@@ -3463,7 +3469,7 @@ def generate_function_call(
                 return compiled
 
             elif types[expr].is_char:
-                raise CompilerError("Unsupported conversion from {types[expr].type} to integer!", context)
+                raise CompilerError("Unsupported conversion from {types[expr].type} to integer", context)
 
             elif types[expr].is_bool:
                 clobbers.add("A")
@@ -3490,7 +3496,7 @@ def generate_function_call(
                     raise Exception("Logic error, couldn't determine destination type for ord!")
 
                 if not destination_type.is_integer:
-                    raise Exception("Logic error, type checker phase should have guaranteed this!")
+                    raise CompilerError("Cannot assign the result of ord to non-integer type {destination_type.type}", context)
 
                 if destination_type.size == 1:
                     func = "atoi8"
@@ -3521,7 +3527,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             destination_type = stack.typeof(destination)
             if destination_type is None:
@@ -3529,7 +3535,7 @@ def generate_function_call(
 
             expr = args[0].value
             if not destination_type.is_string or not types[expr].is_integer:
-                raise CompilerError("The builtin function hex() only converts integers to strings!", context)
+                raise CompilerError("The builtin function hex() only converts integers to strings", context)
 
             compiled = Sections()
 
@@ -3573,7 +3579,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             destination_type = stack.typeof(destination)
             if destination_type is None:
@@ -3582,7 +3588,7 @@ def generate_function_call(
             left = args[0].value
             right = args[1].value
             if not destination_type.is_integer or not types[left].is_integer or not types[right].is_integer:
-                raise CompilerError(f"The builtin function {function_prototype.name}() only compares integers!", context)
+                raise CompilerError(f"The builtin function {function_prototype.name}() only compares integers", context)
 
             if destination_type.size == 1:
                 if destination_type.is_unsigned:
@@ -3977,7 +3983,7 @@ def generate_variable_lookup(
 
     else:
         if destination is None:
-            raise CompilerError("Unsupported expression without assignment!", context)
+            raise CompilerError("Unsupported expression without assignment", context)
         if not stack.initof(source):
             raise CompilerError(f"Use of uninitialized variable {source!r}", context)
 
@@ -4130,7 +4136,7 @@ def generate_unary_expr(
 
     if isinstance(expression.operator, (cst.Minus, cst.BitInvert)):
         if not destination_type.is_integer:
-            raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+            raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
         if destination_size == 1:
             if is_register_destination(destination) or stack[-1].name != destination:
@@ -4156,7 +4162,7 @@ def generate_unary_expr(
             elif isinstance(expression.operator, cst.BitInvert):
                 compiled.append_code("  INV")
             else:
-                raise CompilerError("Unsupported unary operation {expression}", context)
+                raise CompilerError("Unsupported unary operation {expr_to_str(expression)}", context)
 
             # This call puts the result in a, so check if that's what we want.
             if is_register_destination(destination):
@@ -4216,7 +4222,7 @@ def generate_unary_expr(
                     compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
             else:
-                raise CompilerError("Unsupported unary operation {expression}", context)
+                raise CompilerError("Unsupported unary operation {expr_to_str(expression)}", context)
 
             if internal_dest != destination:
                 stack.free(internal_dest)
@@ -4252,7 +4258,7 @@ def generate_unary_expr(
 
     else:
         # TODO: Handle Plus (no-op, just call with the expression value).
-        raise CompilerError(f"Unsupported unary operation {expression}", context)
+        raise CompilerError("Unsupported unary operation {expr_to_str(expression)}", context)
 
     return compiled
 
@@ -4394,7 +4400,7 @@ def generate_binary_expr(
         if destination_size == 1:
             if isinstance(expression.operator, cst.Subtract):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 if not is_register_destination(destination):
                     # Subtracting clobbers the A register, since it is the accumulator.
@@ -4411,7 +4417,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 if not is_register_destination(destination):
                     # Adding clobbers the A register, since it is the accumulator.
@@ -4431,11 +4437,11 @@ def generate_binary_expr(
                 elif isinstance(expression.operator, cst.BitXor):
                     compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
                 else:
-                    raise Exception("Logic error, unexpected operator {expression.operator)}")
+                    raise CompilerError(f"Unsupported operator {expression.operator} in integer expression", context)
 
             elif isinstance(expression.operator, (cst.Multiply, cst.LeftShift, cst.RightShift)):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 if isinstance(expression.operator, cst.Multiply):
                     func = "mult8"
@@ -4444,7 +4450,7 @@ def generate_binary_expr(
                 elif isinstance(expression.operator, cst.RightShift):
                     func = "rshift8"
                 else:
-                    raise Exception("Logic error, unexpected operator!")
+                    raise CompilerError(f"Unsupported operator {expression.operator} in integer expression", context)
 
                 compiled.append_code("  ; just before function call")
                 compiled += generate_function_call_internal(
@@ -4464,7 +4470,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
                 if not (destination_type.is_integer and destination_type.is_unsigned):
-                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression", context)
 
                 # Division is weird, since the built-in stdlib function handles both modulo and division.
                 # The stdlib function is setup to return both in the input stack locations, so we need to
@@ -4493,7 +4499,7 @@ def generate_binary_expr(
                 compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
 
             else:
-                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+                raise CompilerError(f"Unsupported run-time computation for {expression.operator}", context)
 
             # This call puts the result in a, so check if that's what we want.
             if is_register_destination(destination):
@@ -4510,7 +4516,7 @@ def generate_binary_expr(
         else:
             if isinstance(expression.operator, cst.Subtract):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 # Using the neg16 or neg32 fnction that's part of our stdlib.
                 negfunc = "neg16" if destination_size == 2 else "neg32"
@@ -4553,7 +4559,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.Add, cst.Multiply, cst.LeftShift, cst.RightShift)):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 if isinstance(expression.operator, cst.Add):
                     # Using the add16 or add32 function that's part of our stdlib.
@@ -4568,7 +4574,7 @@ def generate_binary_expr(
                     # Using the rshift16 or rshift32 function that's part of our stdlib.
                     function = "rshift16" if destination_size == 2 else "rshift32"
                 else:
-                    raise Exception("Logic error, unexpected operator {expression.operator)}")
+                    raise CompilerError(f"Unsupported operator {expression.operator} in integer expression", context)
 
                 compiled += generate_function_call_internal(
                     create_call(
@@ -4591,7 +4597,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
                 if not (destination_type.is_integer and destination_type.is_unsigned):
-                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression", context)
 
                 # Division is weird, since the built-in stdlib function handles both modulo and division.
                 # The stdlib function is setup to return both in the input stack locations, so we need to
@@ -4623,7 +4629,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 # Adding clobbers the A register, since it is the accumulator.
                 clobbers.add("A")
@@ -4636,7 +4642,7 @@ def generate_binary_expr(
                 elif isinstance(expression.operator, cst.BitXor):
                     function = "  XOR"
                 else:
-                    raise Exception("Logic error, unexpected operator {expression.operator)}")
+                    raise CompilerError(f"Unsupported operator {expression.operator} in integer expression", context)
 
                 if stack_is_at(rhs_dest, stack, offset=destination_size - 1):
                     # We're already at the top of the stack, generate the load/func/store loop downwards
@@ -4664,7 +4670,7 @@ def generate_binary_expr(
                     stack.free(lhs_dest)
 
             else:
-                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+                raise CompilerError(f"Unsupported run-time computation for {expression.operator}", context)
 
     return compiled
 
@@ -4823,7 +4829,7 @@ def generate_boolean_expr(
             compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
-        raise CompilerError(f"Unsupported boolean operation {expression}!", context)
+        raise CompilerError(f"Unsupported boolean operation {expr_to_str(expression)}", context)
 
     return compiled
 
@@ -4852,7 +4858,7 @@ def generate_comparison_expr(
         raise CompilerError("Cannot assign comparison expression to non-bool", context)
 
     if len(expression.comparisons) != 1:
-        raise CompilerError(f"Unsupported multi-comparison expression {expression}", context)
+        raise CompilerError(f"Unsupported multi-comparison expression {expr_to_str(expression)}", context)
 
     # Special case for is checks.
     if isinstance(expression.comparisons[0].operator, cst.Is):
@@ -5144,7 +5150,7 @@ def generate_comparison_expr(
         elif isinstance(expression.comparisons[0].operator, cst.LessThanEqual):
             op = "<="
         else:
-            raise Exception("Logic error, unexpected comparison type!")
+            raise CompilerError("Unsupported comparison operator {expression.comparisons[0].operator}", context)
 
         if left_type.is_string or right_type.is_string:
             if not (left_type.is_string and right_type.is_string):
@@ -5290,15 +5296,14 @@ def generate_comparison_expr(
             compiled.append_code("  SKIPIF ZF")
             compiled.append_code("  INV")
         else:
-            raise Exception("Logic error, unexpected comparison type!")
+            raise CompilerError("Unsupported comparison operator {op}", context)
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
             compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
-        # TODO: Additional comparisons.
-        raise CompilerError(f"Unsupported comparison expression {expression}!", context)
+        raise CompilerError(f"Unsupported comparison expression {expr_to_str(expression)}", context)
 
     return compiled
 
@@ -5470,7 +5475,7 @@ def generate_subscript_expr(
                 raise Exception("Logic error, could not calculate type of destination!")
 
             if destination_size != 1 or not destination_type.is_char:
-                raise Exception("Logic error, invalid character assignment expression!")
+                raise CompilerError(f"Unsupported conversion from character to {destination_type.type}", context)
 
             if not is_register_destination(destination):
                 compiled += generate_move_to(destination, stack, clobbers, context)
@@ -5481,7 +5486,7 @@ def generate_subscript_expr(
 
     elif isinstance(slice_or_index, cst.Slice):
         if destination is None:
-            raise CompilerError("Unsupported expression without assignment!", context)
+            raise CompilerError("Unsupported expression without assignment", context)
 
         destination_type = stack.typeof(destination)
         if destination_type is None:
@@ -5851,7 +5856,7 @@ def generate_expr_internal(
                     return compiled
 
                 if not destination_type.is_string:
-                    raise Exception("Logic error, tried to assign string pointer to wrong type!")
+                    raise CompilerError("Unsupported string assignment to type {destination_type.type)", context)
 
                 if destination_type.const:
                     # First, set up somewhere to put the initialized string data so we can point at it.
@@ -5995,8 +6000,7 @@ def generate_expr_internal(
             compiled += generate_fstring_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     else:
-        # TODO: What other expression types are we missing? Probably array and memory operations.
-        raise CompilerError(f"Unsupported expression type {expression} in expression compiler!", context)
+        raise CompilerError(f"Unsupported expression {expr_to_str(expression)} in expression compiler", context)
 
     if destination is not None:
         # We're gonna assign to this, so it should be considered initialized. Do this here instead of at the top
@@ -6151,9 +6155,9 @@ def infer_expr_types_impl(
                     return inferred
 
             if not left_inferred.is_integer:
-                raise CompilerError(f"Unsupported binary operation for type {left_inferred.type}", context)
+                raise CompilerError(f"Unsupported binary operation for types {left_inferred.type} and {right_inferred.type}", context)
             if not right_inferred.is_integer:
-                raise CompilerError(f"Unsupported binary operation for type {right_inferred.type}", context)
+                raise CompilerError(f"Unsupported binary operation for types {left_inferred.type} and {right_inferred.type}", context)
 
             # Any math against two integers will result in an integer. Pick the wider of two types.
             if right_inferred.type == "int":
@@ -6386,7 +6390,7 @@ def infer_expr_types_impl(
         return inferred
 
     else:
-        raise CompilerError(f"Unsupported expression type {type(expression).__name__} in type inferencer!", context)
+        raise CompilerError(f"Unsupported expression {expr_to_str(expression)}", context)
 
 
 def generate_expr(
