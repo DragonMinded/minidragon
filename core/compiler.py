@@ -1508,15 +1508,35 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
     return compiled
 
 
+def generate_addpci(move_amt: int, reason: Optional[str] = None) -> Sections:
+    compiled = Sections()
+    while move_amt > 31:
+        compiled.append_code("  ADDPCI 31" + comment_source(reason))
+        move_amt -= 31
+    if move_amt:
+        compiled.append_code(f"  ADDPCI {move_amt}" + comment_source(reason))
+    return compiled
+
+
+def generate_subpci(move_amt: int, reason: Optional[str] = None) -> Sections:
+    compiled = Sections()
+    while move_amt > 32:
+        compiled.append_code("  SUBPCI 32" + comment_source(reason))
+        move_amt -= 32
+    if move_amt:
+        compiled.append_code(f"  SUBPCI {move_amt}" + comment_source(reason))
+    return compiled
+
+
 def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str], context: Context) -> Sections:
     compiled = Sections()
     if move_amt == 0:
         return compiled
 
     if move_amt > 0:
-        compiled.append_code(f"  SUBPCI {move_amt}" + comment_source(reason))
+        compiled += generate_subpci(move_amt, reason)
     elif move_amt < 0:
-        compiled.append_code(f"  ADDPCI {-move_amt}" + comment_source(reason))
+        compiled += generate_addpci(-move_amt, reason)
 
     stack.move(move_amt)
     compiled.code += comment_stack(stack)
@@ -1534,9 +1554,9 @@ def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context
         return compiled
 
     if move_amt > 0:
-        compiled.append_code(f"  SUBPCI {move_amt}" + comment_source(f"seeking {destination}"))
+        compiled += generate_subpci(move_amt, f"seeking {destination}")
     elif move_amt < 0:
-        compiled.append_code(f"  ADDPCI {-move_amt}" + comment_source(f"seeking {destination}"))
+        compiled += generate_addpci(-move_amt, f"seeking {destination}")
 
     stack.move(move_amt)
     compiled.code += comment_stack(stack)
@@ -1584,7 +1604,7 @@ def generate_memcpy_locations(
                 clobbers.add(register)
 
                 compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
-                compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
+                compiled += generate_addpci(shuffle_amount)
 
                 stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
@@ -1592,7 +1612,7 @@ def generate_memcpy_locations(
                 compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
                 if i < size - 1:
-                    compiled.append_code(f"  SUBPCI {shuffle_amount - 1}" + comment_source())
+                    compiled += generate_subpci(shuffle_amount - 1)
                     stack.move(shuffle_amount - 1)
                     compiled.code += comment_stack(stack)
 
@@ -1608,7 +1628,7 @@ def generate_memcpy_locations(
                 clobbers.add(register)
 
                 compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
-                compiled.append_code(f"  SUBPCI {-shuffle_amount}" + comment_source())
+                compiled += generate_subpci(-shuffle_amount)
 
                 stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
@@ -1616,7 +1636,7 @@ def generate_memcpy_locations(
                 compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
                 if i < size - 1:
-                    compiled.append_code(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
+                    compiled += generate_addpci((-shuffle_amount) - 1)
                     stack.move(-((-shuffle_amount) - 1))
                     compiled.code += comment_stack(stack)
 
@@ -1625,7 +1645,7 @@ def generate_memcpy_locations(
                 clobbers.add(register)
 
                 compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
-                compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
+                compiled += generate_addpci(shuffle_amount)
 
                 stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
@@ -1633,7 +1653,7 @@ def generate_memcpy_locations(
                 compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
                 if i < size - 1:
-                    compiled.append_code(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
+                    compiled += generate_subpci(shuffle_amount + 1)
                     stack.move(shuffle_amount + 1)
                     compiled.code += comment_stack(stack)
 
@@ -7723,7 +7743,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     compiled.code += comment_stack(stack)
 
     if padding_move_amt > 0:
-        compiled.append_code(f"  SUBPCI {padding_move_amt}" + comment_source("allocating padding"))
+        compiled += generate_subpci(padding_move_amt, "allocating padding")
         stack.move(padding_move_amt)
         compiled.code += comment_stack(stack)
 
@@ -8120,12 +8140,13 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 replace(pos, 2, ["  INCPC"])
             elif total_move == -1:
                 replace(pos, 2, ["  DECPC"])
-            elif total_move > 1:
+            elif total_move > 1 and total_move <= 31:
                 replace(pos, 2, [f"  ADDPCI {total_move}"])
-            elif total_move < -1:
+            elif total_move < -1 and total_move >= -32:
                 replace(pos, 2, [f"  SUBPCI {-total_move}"])
             else:
-                raise Exception("Logic error, unknown move amount!")
+                # Can't combine, move too great.
+                pos = offset(pos, 1)
 
         elif insn(cur) in memoryop and insn(prv) in stackop and insn(nxt) in stackop:
             # In this case, we can reorder instructions since it doesn't matter what order they
