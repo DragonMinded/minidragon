@@ -12366,7 +12366,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
             def say_hello(thing: const[str]) -> str[64]:
                 return "Hello, " + thing + "!"
 
-            def caller() -> str:
+            def caller() -> const[str]:
                 return say_hello("{val}")
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -13384,11 +13384,11 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
         for updated in ['~', '!', '*']:
             sliceable = "this is a test"
             sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
-                def set_char(string: str[32], offset: uint8, val: char) -> str:
+                def set_char(string: str[32], offset: uint8, val: char) -> const[str]:
                     string[offset] = val
                     return string
 
-                def updateme() -> str:
+                def updateme() -> const[str]:
                     sliceable: str[32] = {sliceable!r}
                     return set_char(sliceable, {offset}, {updated!r})
             """), settings)
@@ -13445,11 +13445,11 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
             sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
                 global_var: str[32] = {sliceable!r}
 
-                def set_char(offset: uint8, val: char) -> str:
+                def set_char(offset: uint8, val: char) -> const[str]:
                     global_var[offset] = val
                     return global_var
 
-                def updateme() -> str:
+                def updateme() -> const[str]:
                     return set_char({offset}, {updated!r})
             """), settings)
             memory = getmemory(os.linesep.join([
@@ -13710,11 +13710,11 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
     # Verify casting from strings.
     for string in ["testing", "derg derg derg"]:
         sections = parse_and_compile_module("stringcast", textwrap.dedent(f"""
-            def castme_impl(s: const[str]) -> str:
+            def castme_impl(s: const[str]) -> const[str]:
                 lvar: str[16] = str(s)
                 return lvar
 
-            def castme() -> str:
+            def castme() -> const[str]:
                 lvar: const[str] = {string!r}
                 return castme_impl(lvar)
         """), settings)
@@ -14019,7 +14019,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
             def formatme(string: const[str]) -> str[100]:
                 return f"A string: {{string}}"
 
-            def call() -> str:
+            def call() -> const[str]:
                 return formatme({string!r})
         """), settings)
         memory = getmemory(os.linesep.join([

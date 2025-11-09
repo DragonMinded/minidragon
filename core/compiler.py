@@ -2592,18 +2592,65 @@ def generate_function_call_internal(
             dst = destination
 
             source_size = stack.sizeof(src)
+            source_type = stack.typeof(src)
             dest_size = stack.sizeof(dst)
-            if source_size is None:
+            dest_type = stack.typeof(dst)
+            if source_size is None or source_type is None:
                 raise Exception(f"Logic error, undefined variable reference to {src!r}", context)
-            if dest_size is None:
+            if dest_size is None or dest_type is None:
                 raise Exception("Logic error, cannot find destination to copy variable value to!")
 
-            stack.init(dst)
+            if source_type.is_string and dest_type.is_string and (not dest_type.const):
+                # We need to allocate locally and strcpy over.
+                if not stack.initof(dst):
+                    compiled += generate_local_storage_alloc(dst, stack, clobbers, allocations, context)
 
-            if source_size == dest_size:
-                compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                    # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                    stack.init(dst)
+
+                # Now, set up the stack for a strcpy operation, to initialize the local data with
+                # a copy of the function return we're copying in.
+                if stack[-1].name != dst:
+                    # In order to ensure that it's possible to do stack math on this value, locate it in
+                    # a temporary location for the time being if the destination isn't the top of the stack.
+                    lhs_dest = expr_temp_name()
+                    stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
+
+                    compiled += generate_memcpy_stackvars(lhs_dest, dst, stack, clobbers, context)
+                else:
+                    # Safe to put first parameter in the top of the stack where it already is useful for math.
+                    lhs_dest = dst
+
+                # Now, point at it.
+                rhs_dest = expr_temp_name()
+                stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
+                compiled += generate_memcpy_stackvars(rhs_dest, src, stack, clobbers, context)
+
+                # Now call strcpy.
+                compiled += generate_function_call_internal(
+                    create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
+                    None,
+                    types,
+                    stack,
+                    clobbers,
+                    allocations,
+                    refs,
+                    local_consts,
+                    context,
+                )
+
+                # Finally, free the stack.
+                stack.free(rhs_dest)
+                if lhs_dest != dst:
+                    stack.free(lhs_dest)
+
             else:
-                raise CompilerError("Unsupported function return from different variable sizes", context)
+                stack.init(dst)
+
+                if source_size == dest_size:
+                    compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                else:
+                    raise CompilerError("Unsupported function return from different variable sizes", context)
 
     # Now, fix up our view of the stack.
     for entry in reversed(temporary_stack_entries):
@@ -2624,19 +2671,73 @@ def generate_function_call_internal(
                 compiled.append_code("  LOAD A" + f" ; STACKOFF: func({function_prototype.name}) + 0")
             else:
                 src_loc = normal_return_loc
+                src_type = function_prototype.return_type
                 src_size = function_prototype.return_type.size
                 dest_loc = stack.absfind(destination)
+                dest_type = stack.typeof(destination)
                 dest_size = stack.sizeof(destination)
-                if dest_loc is None or dest_size is None:
+                if dest_loc is None or dest_size is None or dest_type is None:
                     raise Exception(f"Logic error, cannot find destination {destination} to copy variable value to!")
-                stack.init(destination)
 
-                if src_size == dest_size:
+                if src_type.is_string and dest_type.is_string and (not dest_type.const):
+                    # We need to allocate locally and strcpy over.
+                    if not stack.initof(destination):
+                        compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+
+                        # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                        stack.init(destination)
+
+                    # Now, set up the stack for a strcpy operation, to initialize the local data with
+                    # a copy of the function return we're copying in.
+                    if stack[-1].name != destination:
+                        # In order to ensure that it's possible to do stack math on this value, locate it in
+                        # a temporary location for the time being if the destination isn't the top of the stack.
+                        lhs_dest = expr_temp_name()
+                        stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
+
+                        compiled += generate_memcpy_stackvars(lhs_dest, destination, stack, clobbers, context)
+                    else:
+                        # Safe to put first parameter in the top of the stack where it already is useful for math.
+                        lhs_dest = destination
+
+                    # Now, point at it.
+                    rhs_dest = expr_temp_name()
+                    stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
+                    rhs_loc = stack.absfind(rhs_dest)
+                    if rhs_loc is None:
+                        raise Exception("Logic error, cannot find stack variable we just created!")
+
                     stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, load=True)
-                    compiled += generate_memcpy_locations(src_loc, dest_loc, dest_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                    compiled += generate_memcpy_locations(src_loc, rhs_loc, src_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
                     stack.unnameloc(f"func({function_prototype.name})")
+
+                    # Now call strcpy.
+                    compiled += generate_function_call_internal(
+                        create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
+                        None,
+                        types,
+                        stack,
+                        clobbers,
+                        allocations,
+                        refs,
+                        local_consts,
+                        context,
+                    )
+
+                    # Finally, free the stack.
+                    stack.free(rhs_dest)
+                    if lhs_dest != destination:
+                        stack.free(lhs_dest)
+
                 else:
-                    raise CompilerError("Unsupported function return from different variable sizes", context)
+                    stack.init(destination)
+
+                    if src_size == dest_size:
+                        stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, load=True)
+                        compiled += generate_memcpy_locations(src_loc, dest_loc, dest_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                        stack.unnameloc(f"func({function_prototype.name})")
+                    else:
+                        raise CompilerError("Unsupported function return from different variable sizes", context)
 
     return compiled
 
