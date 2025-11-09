@@ -14383,6 +14383,213 @@ def verifystringcombination(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for stringslice: {int(instructions/count)}")
 
 
+def verifystringloop(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "stringloop" not in only and "compiler" not in only:
+        return
+
+    print("Verifying stringloop...")
+
+    with open("lib/runtime/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/runtime/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/runtime/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/runtime/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+    with open("lib/string/strcat.S", "r") as fp:
+        strcatlines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # First, run the simplest for loop with a static string.
+    if True:
+        sections = parse_and_compile_module("stringloop", textwrap.dedent("""
+            def simple_for() -> int8:
+                retval: int8 = 0
+
+                c: char
+                for c in "Hello, world!":
+                    if c == ",":
+                        break
+                    retval += 1
+
+                return retval
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *strcpylines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_for",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"stringloop changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringloop changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringloop changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = 5
+        _assert(
+            result == expected,
+            "Failed to stringloop simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, run the simplest for loop with a string variable.
+    if True:
+        sections = parse_and_compile_module("stringloop", textwrap.dedent("""
+            def simple_for() -> int8:
+                someStr: str[16] = "Hello, world!"
+                retval: int8 = 0
+
+                c: char
+                for c in someStr:
+                    if c == ",":
+                        break
+                    retval += 1
+
+                return retval
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *strcpylines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_for",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"stringloop changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringloop changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringloop changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = 5
+        _assert(
+            result == expected,
+            "Failed to stringloop simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now, run the for loop with a string expression
+    if True:
+        sections = parse_and_compile_module("stringloop", textwrap.dedent("""
+            def simple_for() -> int8:
+                someStr: str[16] = "Hello, world!"
+                retval: int8 = 0
+
+                c: char
+                for c in "GGGG" + someStr[2:]:
+                    if c == ",":
+                        break
+                    retval += 1
+
+                return retval
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *strcpylines,
+            *strcatlines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL simple_for",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"stringloop changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringloop changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringloop changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        expected = 7
+        _assert(
+            result == expected,
+            "Failed to stringloop simple, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for stringloop: {int(cycles/count)}")
+    print(f"Average instructions for stringloop: {int(instructions/count)}")
+
+
 def verifypeek(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "peek" not in only and "compiler" not in only:
         return
@@ -17482,6 +17689,7 @@ if __name__ == "__main__":
     verifystringcast(only, args.full)
     verifystringformat(only, args.full)
     verifystringcombination(only, args.full)
+    verifystringloop(only, args.full)
     verifypeek(only, args.full)
     verifypoke(only, args.full)
     verifyabs(only, args.full)

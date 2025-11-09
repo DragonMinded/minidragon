@@ -2754,9 +2754,17 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex", "min", "max"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex", "min", "max", "fixed", "range"}:
         function_prototype = get_function_prototype(call, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
+
+        if function_prototype.name == "range":
+            # Should only be uesd inside of for statements.
+            raise CompilerError("Unsupported use of range function.", context)
+
+        if function_prototype.name == "fixed":
+            # Should only be uesd inside of for statements.
+            raise CompilerError("Unsupported use of fixed function.", context)
 
         if function_prototype.name == "len":
             if len(args) != 1 or len(arg_types) != 1:
@@ -7253,82 +7261,165 @@ def generate_for_statement(
     context: Context,
 ) -> Tuple[Sections, bool, bool]:
     compiled = Sections()
+    free_list: List[str] = []
 
-    # First, we need to figure out if this is a for x in range() statement, which is the only type of iterator we support.
-    range_params = get_range_params(statement.iter)
-    if range_params is None:
-        raise CompilerError("Unsupported if statement iterator", context)
-
-    # Make sure that any fabricated nodes we created in the range params helper are recognized.
-    context = context.virtual(range_params[0]).virtual(range_params[1]).virtual(range_params[2])
-
-    # Now, we need to be sure we know the type of the iterator variable.
+    # Before anything, we need to be sure we know the type of the iterator variable.
     if not isinstance(statement.target, cst.Name):
-        raise CompilerError("Unsupported if statement iteration variable", context)
+        raise CompilerError("Unsupported for statement iteration variable", context)
 
     iterator_dest = statement.target.value
     iterator_type = stack.typeof(iterator_dest)
     if iterator_type is None:
         raise CompilerError(f"Undefined variable reference to {iterator_dest!r}", context)
 
-    # First we want to generate the iterator initialization.
-    compiled += generate_assign_expr(
-        statement.target,
-        None,
-        range_params[0],
-        stack,
-        clobbers,
-        allocations,
-        refs,
-        local_consts,
-        context,
-    )
+    # First, figure out if the iter is actually a string. If so, we'll iterate over that.
+    itertypes = infer_expr_types_impl(statement.iter, stack, refs, local_consts, context)
+    if itertypes[statement.iter].type in {"str", "string"}:
+        if not iterator_type.is_char:
+            raise CompilerError(f"Unsupported destination type {iterator_type} in for statement iteration variable", context)
 
-    # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
-    # and so that we can support else statements in for loops.
-    test_label = local_label_name(context, "loop_test")
-    increment_label = local_label_name(context, "loop_increment")
-    else_label = local_label_name(context, "loop_else") if statement.orelse else None
-    exit_label = local_label_name(context, "loop_exit")
-    loop = LoopInfo(stack.location, iter_label=increment_label, else_label=else_label, exit_label=exit_label)
+        # Figure out if the string we have is already ready.
+        allocated = False
+        if isinstance(statement.iter, cst.Name):
+            iter_name = statement.iter.value
+            iter_type = stack.typeof(iter_name)
+            if iter_type is not None and iter_type.is_string:
+                str_dest = expr_temp_name()
+                free_list.append(str_dest)
+                stack.alloc(StackVar(str_dest, CoreType("str"), initialized=True))
+                compiled += generate_memcpy_stackvars(str_dest, iter_name, stack, clobbers, context)
+                allocated = True
 
-    # Since everything will be jumping back to the increment label, we need to make sure that it is generated from the
-    # perspective of the stack at this point.
-    increment = cst.BinaryOperation(left=statement.target, operator=cst.Add(), right=range_params[2])
-    types = infer_expr_types(increment, iterator_type, stack, refs, local_consts, context)
+        if not allocated:
+            # We need to generate a temporary string that can be used for the expression evaluation.
+            str_dest = expr_temp_name()
+            free_list.append(str_dest)
+            stack.alloc(StackVar(str_dest, CoreType("str", length=MAX_STRING_LENGTH), initialized=True))
 
-    increment_stack = stack.clone()
-    increment_compiled = generate_expr_internal(
-        increment,
-        iterator_dest,
-        types,
-        increment_stack,
-        clobbers,
-        allocations,
-        refs,
-        local_consts,
-        context.virtual(increment),
-    )
+            compiled += generate_local_storage_alloc(str_dest, stack, clobbers, allocations, context)
+            compiled += generate_expr_internal(
+                statement.iter,
+                str_dest,
+                itertypes,
+                stack,
+                clobbers,
+                allocations,
+                refs,
+                local_consts,
+                context.wrap(statement.iter),
+            )
 
-    if loop.stack_location != increment_stack.location:
-        move_amount = loop.stack_location - increment_stack.location
-        increment_compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, increment_stack, clobbers, context)
+        # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
+        # and so that we can support else statements in for loops.
+        test_label = local_label_name(context, "loop_test")
+        increment_label = local_label_name(context, "loop_increment")
+        else_label = local_label_name(context, "loop_else") if statement.orelse else None
+        exit_label = local_label_name(context, "loop_exit")
+        loop = LoopInfo(stack.location, iter_label=increment_label, else_label=else_label, exit_label=exit_label)
 
-    # We're at the point we want to loop back to, so generate the test itself.
-    comparison = cst.Comparison(left=statement.target, comparisons=[cst.ComparisonTarget(cst.LessThan(), range_params[1])])
-    types = infer_expr_types(comparison, CoreType("bool"), stack, refs, local_consts, context)
+        # Need somewhere to put our test which is also our increment, and need empty space for the unused increment spot.
+        increment_compiled = Sections()
+        test_compiled = Sections()
 
-    test_compiled = generate_expr_internal(
-        comparison,
-        "register(A, bool)",
-        types,
-        stack,
-        clobbers,
-        allocations,
-        refs,
-        local_consts,
-        context.virtual(comparison),
-    )
+        # We're gonna use the SPC for looping, as well as the A register for grabbing the value.
+        clobbers.add("SPC")
+        clobbers.add("A")
+
+        # First, move to the string variable.
+        test_compiled += generate_move_to(str_dest, stack, clobbers, context, offset=1)
+        test_compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+        test_compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+        test_compiled.append_code("  POP SPC")
+
+        # Now, grab the value at that location, and increment the pointer.
+        test_compiled.append_code("  SWAP PC, SPC")
+        test_compiled.append_code("  LOAD A")
+        test_compiled.append_code("  INCPC")
+        test_compiled.append_code("  SWAP PC, SPC")
+
+        # Now, save the new SPC into our temporary string since we advanced past that character.
+        test_compiled.append_code("  NOP" + stack.comment(stack.location, store=True))
+        test_compiled.append_code("  NOP" + stack.comment(stack.location - 1, store=True))
+        test_compiled.append_code("  PUSH SPC")
+
+        # Now, move to the location of our loop variable and store the value we looked up.
+        test_compiled += generate_move_to(iterator_dest, stack, clobbers, context)
+        stack.init(iterator_dest)
+        test_compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+
+        # Finally, prime the boolean test with whether the character was a null.
+        test_compiled.append_code("  ADDI 0")
+        test_compiled.append_code("  LOADI 0xFF")
+        test_compiled.append_code("  SKIPIF !ZF")
+        test_compiled.append_code("  INV")
+
+    else:
+        # We need to figure out if this is a for x in range() statement, which is the only other type of iterator we support.
+        range_params = get_range_params(statement.iter)
+        if range_params is None:
+            raise CompilerError("Unsupported for statement iterator", context)
+
+        # Make sure that any fabricated nodes we created in the range params helper are recognized.
+        context = context.virtual(range_params[0]).virtual(range_params[1]).virtual(range_params[2])
+
+        # First we want to generate the iterator initialization.
+        compiled += generate_assign_expr(
+            statement.target,
+            None,
+            range_params[0],
+            stack,
+            clobbers,
+            allocations,
+            refs,
+            local_consts,
+            context,
+        )
+
+        # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
+        # and so that we can support else statements in for loops.
+        test_label = local_label_name(context, "loop_test")
+        increment_label = local_label_name(context, "loop_increment")
+        else_label = local_label_name(context, "loop_else") if statement.orelse else None
+        exit_label = local_label_name(context, "loop_exit")
+        loop = LoopInfo(stack.location, iter_label=increment_label, else_label=else_label, exit_label=exit_label)
+
+        # Since everything will be jumping back to the increment label, we need to make sure that it is generated from the
+        # perspective of the stack at this point.
+        increment = cst.BinaryOperation(left=statement.target, operator=cst.Add(), right=range_params[2])
+        types = infer_expr_types(increment, iterator_type, stack, refs, local_consts, context)
+
+        increment_stack = stack.clone()
+        increment_compiled = generate_expr_internal(
+            increment,
+            iterator_dest,
+            types,
+            increment_stack,
+            clobbers,
+            allocations,
+            refs,
+            local_consts,
+            context.virtual(increment),
+        )
+
+        if loop.stack_location != increment_stack.location:
+            move_amount = loop.stack_location - increment_stack.location
+            increment_compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, increment_stack, clobbers, context)
+
+        # We're at the point we want to loop back to, so generate the test itself.
+        comparison = cst.Comparison(left=statement.target, comparisons=[cst.ComparisonTarget(cst.LessThan(), range_params[1])])
+        types = infer_expr_types(comparison, CoreType("bool"), stack, refs, local_consts, context)
+
+        test_compiled = generate_expr_internal(
+            comparison,
+            "register(A, bool)",
+            types,
+            stack,
+            clobbers,
+            allocations,
+            refs,
+            local_consts,
+            context.virtual(comparison),
+        )
 
     # Now, generate the code necessary to perform the loop, as well as optionally the else.
     if statement.orelse is None:
@@ -7374,10 +7465,6 @@ def generate_for_statement(
 
         if stack.location != loop.stack_location:
             raise Exception("Logic error, didn't move stack back properly!")
-
-        # The last statement isn't always a return, because even if the loop returned,
-        # we could still skip that for the false loop control case.
-        return compiled, False, False
 
     else:
         # Generate both the loop stack and the else stack from the same stack location, because we jump to the else stack from the
@@ -7430,10 +7517,11 @@ def generate_for_statement(
         # instruction, and if somebody uses a "break" inside the loop it will move back to the stack location before jumping to the exit_label.
         stack.location = loop.stack_location
 
-        # The last statement isn't always a return, because even if the loop returned,
-        # we could still skip that for the false loop control case.
-        return compiled, False, False
+    for free in reversed(free_list):
+        stack.free(free)
 
+    # The last statement isn't always a return, because even if the loop returned,
+    # we could still skip that for the false loop control case.
     return compiled, False, False
 
 
@@ -8881,6 +8969,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("min", CoreType("int"), [CoreType("int"), CoreType("int")]),
         FunctionPrototype("max", CoreType("int"), [CoreType("int"), CoreType("int")]),
         FunctionPrototype("fixed", CoreType("int32"), [CoreType("any"), CoreType("int")], ["value", "fracbits"], [None, cst.Integer("8")]),
+        FunctionPrototype("range", CoreType("int"), [CoreType("int"), CoreType("int"), CoreType("int")], ["start", "stop", "step"], [None, cst.Integer("0"), cst.Integer("0")]),
     ]
 
 
