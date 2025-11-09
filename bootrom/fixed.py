@@ -39,21 +39,23 @@ def strtofixed(val: const[str], fracbits: uint8 = 8) -> int32:
     noDecVal: str[32] = ""
     decVal: str[32] = ""
 
-    pos: uint8
-    for pos in range(1 if negative else 0, len(val)):
-        if val[pos] == ".":
+    ch: char
+    for ch in val:
+        if ch == "-":
+            continue
+        if ch == ".":
             if hasDecimal:
                 # This has two decimals, cut it off.
                 break
             hasDecimal = True
         else:
             if hasDecimal:
-                decVal += val[pos]
+                decVal += ch
                 actualPrecision += 1
                 if actualPrecision == 5:
                     break
             else:
-                noDecVal += val[pos]
+                noDecVal += ch
 
     # Fast path, convert and shift.
     converted: uint32 = int(noDecVal)
@@ -70,7 +72,7 @@ def strtofixed(val: const[str], fracbits: uint8 = 8) -> int32:
     return -converted if negative else converted
 
 
-def fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str[16]:
+def fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str:
     """
     Given an integer that represents a fixed point integer, convert that integer to a
     string using the precision requested. Optionally, provide a different fracbits
