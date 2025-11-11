@@ -653,6 +653,13 @@ class UnvalidatedName(cst.Name):
         pass
 
 
+class SentinelInteger(cst.Integer):
+    """
+    Exists solely to be able to create default arguments to compiler intrinsics so that
+    we can detect if a user-provided value was given or omitted.
+    """
+
+
 def create_call(name: str, params: Iterable[cst.BaseExpression]) -> cst.Call:
     return cst.Call(
         func=cst.Name(value=name),
@@ -2909,8 +2916,11 @@ def generate_function_call(
         elif function_prototype.name == "peek":
             compiled = Sections()
 
-            if len(args) != 1 or len(arg_types) != 1:
+            if len(args) != 2 or len(arg_types) != 2:
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            # Figure out if we have a sentinel second parameter or if it's real.
+            sentinel = isinstance(args[1].value, SentinelInteger)
 
             # Generate the actual memory address that we're going to peek from.
             addr_expr = args[0].value
@@ -2922,6 +2932,10 @@ def generate_function_call(
             clobbers.add("SPC")
 
             if destination is None:
+                if not sentinel:
+                    # We could support this, but there isn't anything that needs it, so let's keep it simple.
+                    raise CompilerError("Cannot provide a length parameter to peek when performing a dummy read", context)
+
                 # Assume that this is just a read of an address to clear a hardware register that's clear on read.
                 compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
                 compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
@@ -2942,6 +2956,12 @@ def generate_function_call(
                     raise Exception("Logic error, couldn't determine destination type for peek!")
 
                 if destination_type.type in {"int8", "uint8", "char"}:
+                    if not sentinel:
+                        if destination_type.type == "char":
+                            raise CompilerError("Cannot provide a length parameter to peek when reading characters", context)
+                        else:
+                            raise CompilerError("Cannot provide a length parameter to peek when reading integers", context)
+
                     # This one's an easy one, just move to the right spot and load the value, copying it over.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
                     compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
@@ -2961,6 +2981,9 @@ def generate_function_call(
                         stack.init(destination)
 
                 elif destination_type.type == "bool":
+                    if not sentinel:
+                        raise CompilerError("Cannot provide a length parameter to peek when reading booleans", context)
+
                     # Can't just load like above, our compiler assumes that boolean true/false is always 0xff/0x00.
                     # So if we load a value and pretend it's boolean it could mess up any other boolean checks.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
@@ -2985,6 +3008,9 @@ def generate_function_call(
                         stack.init(destination)
 
                 elif destination_type.type in {"int16", "uint16"}:
+                    if not sentinel:
+                        raise CompilerError("Cannot provide a length parameter to peek when reading integers", context)
+
                     # This one's slightly harder, need to copy two things, but that's manageable.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
                     compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
@@ -3011,6 +3037,9 @@ def generate_function_call(
                     compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                 elif destination_type.type in {"int32", "uint32"}:
+                    if not sentinel:
+                        raise CompilerError("Cannot provide a length parameter to peek when reading integers", context)
+
                     # This one needs to copy 4 things, but I'm gonna unroll that since it's easier than writing a loop.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
                     compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
@@ -3068,17 +3097,37 @@ def generate_function_call(
                         # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
                         stack.init(destination)
 
-                    compiled += generate_function_call_internal(
-                        create_call("strcpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest)]),
-                        None,
-                        types,
-                        stack,
-                        clobbers,
-                        allocations,
-                        refs,
-                        local_consts,
-                        context,
-                    )
+                    if not sentinel:
+                        length_dest = expr_temp_name()
+                        stack.alloc(StackVar(length_dest, CoreType("uint8")))
+                        compiled += generate_expr_internal(args[1].value, length_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[1].value))
+
+                        compiled += generate_function_call_internal(
+                            create_call("strncpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest), UnvalidatedName(length_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context,
+                        )
+
+                        stack.free(length_dest)
+
+                    else:
+                        compiled += generate_function_call_internal(
+                            create_call("strcpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context,
+                        )
 
                 else:
                     raise Exception(f"Logic error, unexpected type {destination_type.type} in peek() evaluation!")
@@ -8956,20 +9005,34 @@ VoidType = CoreType("void", None, const=True, extern=False, return_padding=False
 
 def builtin_functions() -> List[FunctionPrototype]:
     return [
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("str")]),
-        FunctionPrototype("str", CoreType("str"), [CoreType("any")]),
+        # Allows for an optional named parameter.
+        FunctionPrototype("str", CoreType("str"), [CoreType("any")], ["object"]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("int", CoreType("int"), [CoreType("any")]),
-        FunctionPrototype("peek", CoreType("any"), [CoreType("uint16")]),
-        FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")]),
+        # Allows for a named parameter if needed. We don't normally support None, but we use this as a sentinel to ignore the param in cases that shouldn't need it.
+        FunctionPrototype("peek", CoreType("any"), [CoreType("uint16"), CoreType("uint8")], ["addr", "length"], [None, SentinelInteger("0")]),
+        # Allows for a named parameter if desired.
+        FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")], ["addr", "object"]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("abs", CoreType("int"), [CoreType("int")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("bool", CoreType("bool"), [CoreType("any")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("chr", CoreType("char"), [CoreType("int")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("ord", CoreType("uint8"), [CoreType("char")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("hex", CoreType("str"), [CoreType("int")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("min", CoreType("int"), [CoreType("int"), CoreType("int")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("max", CoreType("int"), [CoreType("int"), CoreType("int")]),
-        FunctionPrototype("fixed", CoreType("int32"), [CoreType("any"), CoreType("int")], ["value", "fracbits"], [None, cst.Integer("8")]),
-        FunctionPrototype("range", CoreType("int"), [CoreType("int"), CoreType("int"), CoreType("int")], ["start", "stop", "step"], [None, cst.Integer("0"), cst.Integer("0")]),
+        # Allows for named parameters if so desired, with the second parameter being optional and defaulting to 8 frac bits.
+        FunctionPrototype("fixed", CoreType("int32"), [CoreType("int"), CoreType("int")], ["value", "fracbits"], [None, cst.Integer("8")]),
+        # Defined by python to have positional-only parameters, so no named params. Defined defaults, however, to bypass type checking.
+        FunctionPrototype("range", CoreType("int"), [CoreType("int"), CoreType("int"), CoreType("int")], None, [None, cst.Integer("0"), cst.Integer("0")]),
     ]
 
 
