@@ -6,6 +6,9 @@ Bugfixes:
  - Update "is_const" check in function return, it needs to check the function is a const also.
  - Ensure function calls to const str get their own local copy if it isn't a const or simple string.
 
+General TODO:
+ - Need to write up a langauge specification.
+
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
  - ensure that loads which get overridden by another load or operation get removed.
