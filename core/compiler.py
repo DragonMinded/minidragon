@@ -1521,35 +1521,43 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
     return compiled
 
 
-def generate_addpci(move_amt: int, reason: Optional[str] = None) -> Sections:
+def generate_addpci(move_amt: int, reason: Optional[str] = None, prefix: Optional[str] = None) -> Sections:
     compiled = Sections()
     while move_amt > 31:
+        if prefix is not None:
+            compiled.append_code(prefix)
         compiled.append_code("  ADDPCI 31" + comment_source(reason))
         move_amt -= 31
     if move_amt:
+        if prefix is not None:
+            compiled.append_code(prefix)
         compiled.append_code(f"  ADDPCI {move_amt}" + comment_source(reason))
     return compiled
 
 
-def generate_subpci(move_amt: int, reason: Optional[str] = None) -> Sections:
+def generate_subpci(move_amt: int, reason: Optional[str] = None, prefix: Optional[str] = None) -> Sections:
     compiled = Sections()
     while move_amt > 32:
+        if prefix is not None:
+            compiled.append_code(prefix)
         compiled.append_code("  SUBPCI 32" + comment_source(reason))
         move_amt -= 32
     if move_amt:
+        if prefix is not None:
+            compiled.append_code(prefix)
         compiled.append_code(f"  SUBPCI {move_amt}" + comment_source(reason))
     return compiled
 
 
-def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str], context: Context) -> Sections:
+def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str], context: Context, prefix: Optional[str] = None) -> Sections:
     compiled = Sections()
     if move_amt == 0:
         return compiled
 
     if move_amt > 0:
-        compiled += generate_subpci(move_amt, reason)
+        compiled += generate_subpci(move_amt, reason, prefix=prefix)
     elif move_amt < 0:
-        compiled += generate_addpci(-move_amt, reason)
+        compiled += generate_addpci(-move_amt, reason, prefix=prefix)
 
     stack.move(move_amt)
     compiled.code += comment_stack(stack)
@@ -1557,7 +1565,7 @@ def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str
     return compiled
 
 
-def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context, *, offset: int = 0) -> Sections:
+def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context, *, offset: int = 0, prefix: Optional[str] = None) -> Sections:
     compiled = Sections()
     move_amt = stack.find(destination)
     if move_amt is None:
@@ -1567,9 +1575,9 @@ def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context
         return compiled
 
     if move_amt > 0:
-        compiled += generate_subpci(move_amt, f"seeking {destination}")
+        compiled += generate_subpci(move_amt, f"seeking {destination}", prefix=prefix)
     elif move_amt < 0:
-        compiled += generate_addpci(-move_amt, f"seeking {destination}")
+        compiled += generate_addpci(-move_amt, f"seeking {destination}", prefix=prefix)
 
     stack.move(move_amt)
     compiled.code += comment_stack(stack)
@@ -7213,10 +7221,8 @@ def generate_while_statement(
         if loop.stack_location != stack.location:
             # If we're exiting, we have to put ourselves back to the right spot on the stack because
             # that's the spot we promised to be in when we exit the loop through a break.
-            compiled.append_code("  SKIPIF ZF")
-
             move_amount = loop.stack_location - stack.location
-            compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context)
+            compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context, prefix="  SKIPIF ZF")
 
         compiled.append_code(f"  {insn} {exit_label}")
         compiled += loop_compiled
@@ -7490,10 +7496,8 @@ def generate_for_statement(
         if loop.stack_location != stack.location:
             # If we're exiting, we have to put ourselves back to the right spot on the stack because
             # that's the spot we promised to be in when we exit the loop through a break.
-            test_compiled.append_code("  SKIPIF ZF")
-
             move_amount = loop.stack_location - stack.location
-            test_compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context)
+            test_compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context, prefix="  SKIPIF ZF")
 
         test_compiled.append_code(f"  {conditionalinsn} {exit_label}")
 

@@ -1,5 +1,4 @@
 Bugfixes:
- - We have a few SKIPIF instructions meant to skip an ADDPCI/SUBPCI that could not be applied if we generate multiple of those.
  - Ensure "const = const" style assignments don't strcpy.
  - Ensure "return simplestr" style assignments don't strcpy.
  - Only allow const[str] return type when truly returning a constant string (global const or string const or a const variable assigned from either).
