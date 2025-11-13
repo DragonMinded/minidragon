@@ -1,9 +1,6 @@
 Bugfixes:
- - Ensure "const = const" style assignments don't strcpy.
  - Ensure "return simplestr" style assignments don't strcpy.
- - Only allow const[str] return type when truly returning a constant string (global const or string const or a const variable assigned from either).
- - Update "is_const" check in function return, it needs to check the function is a const also.
- - Ensure function calls to const str get their own local copy if it isn't a const or simple string.
+ - Ensure function calls to const str get their own local copy if it isn't a const or simple string/function call.
 
 General TODO:
  - Need to write up a langauge specification.

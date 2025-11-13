@@ -11592,7 +11592,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
             STRING_CONST: const[str] = "This is a test."
 
-            def return_string() -> const[str]:
+            def return_string() -> str:
                 local: str[32] = STRING_CONST
                 return local
         """), settings)
@@ -12366,7 +12366,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
             def say_hello(thing: const[str]) -> str[64]:
                 return "Hello, " + thing + "!"
 
-            def caller() -> const[str]:
+            def caller() -> str:
                 return say_hello("{val}")
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -13384,11 +13384,11 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
         for updated in ['~', '!', '*']:
             sliceable = "this is a test"
             sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
-                def set_char(string: str[32], offset: uint8, val: char) -> const[str]:
+                def set_char(string: str[32], offset: uint8, val: char) -> str:
                     string[offset] = val
                     return string
 
-                def updateme() -> const[str]:
+                def updateme() -> str:
                     sliceable: str[32] = {sliceable!r}
                     return set_char(sliceable, {offset}, {updated!r})
             """), settings)
@@ -13710,11 +13710,11 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
     # Verify casting from strings.
     for string in ["testing", "derg derg derg"]:
         sections = parse_and_compile_module("stringcast", textwrap.dedent(f"""
-            def castme_impl(s: const[str]) -> const[str]:
+            def castme_impl(s: const[str]) -> str:
                 lvar: str[16] = str(s)
                 return lvar
 
-            def castme() -> const[str]:
+            def castme() -> str:
                 lvar: const[str] = {string!r}
                 return castme_impl(lvar)
         """), settings)
@@ -14019,7 +14019,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
             def formatme(string: const[str]) -> str[100]:
                 return f"A string: {{string}}"
 
-            def call() -> const[str]:
+            def call() -> str:
                 return formatme({string!r})
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -14329,7 +14329,7 @@ def verifystringcombination(only: Optional[Container[str]], full: bool) -> None:
             def inner(first: const[str], second: const[str], third: char) -> str[64]:
                 return (first[:5] + third)[1:] + " " + second[1:4]
 
-            def func() -> const[str]:
+            def func() -> str:
                 return inner("things", "thats", "e")
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -17304,7 +17304,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
     # Verify truncation of self.
     if True:
         sections = parse_and_compile_module("stringtruncation", textwrap.dedent("""
-            def func() -> const[str]:
+            def func() -> str:
                 string: str[32] = "Hello!"
                 string = string[:5]
                 return string
@@ -17358,7 +17358,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
     # Verify while loop optimization.
     if True:
         sections = parse_and_compile_module("whileoptimization", textwrap.dedent("""
-            def func() -> const[str]:
+            def func() -> str:
                 string: str[32] = "Hello!"
                 idx: uint8 = 0
 
@@ -17417,7 +17417,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
     # Verify while loop optimization.
     if True:
         sections = parse_and_compile_module("whileoptimization", textwrap.dedent("""
-            def func() -> const[str]:
+            def func() -> str:
                 string: str[32] = "+++!!"
                 idx: uint8 = 0
 
@@ -17476,7 +17476,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
     # Verify while loop optimization.
     if True:
         sections = parse_and_compile_module("whileoptimization", textwrap.dedent("""
-            def func() -> const[str]:
+            def func() -> str:
                 string: str[32] = "Hello!"
                 idx: uint8 = 0
 
@@ -17535,7 +17535,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
     # Verify while loop optimization.
     if True:
         sections = parse_and_compile_module("whileoptimization", textwrap.dedent("""
-            def func() -> const[str]:
+            def func() -> str:
                 string: str[32] = "Hello!"
                 idx: uint8 = 0
 
@@ -17595,7 +17595,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
     # Verify while loop optimization.
     if True:
         sections = parse_and_compile_module("whileoptimization", textwrap.dedent("""
-            def func() -> const[str]:
+            def func() -> str:
                 string: str[32] = "Hello!"
                 idx: uint8 = 0
 

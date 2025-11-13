@@ -1105,3 +1105,492 @@ class TestCompiler(unittest.TestCase):
         ], output.code)
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
+
+    def test_incorrect_str_const_function(self) -> None:
+        func = textwrap.dedent("""
+            def func() -> const[str]:
+                some_str: str[12] = "hello"
+                return some_str
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual("__test__ line 4: Cannot return a locally-computed constant value from a function marked as const.", str(cm.exception))
+
+        func = textwrap.dedent("""
+            GLOBAL: const[str] = "abcde"
+
+            def func() -> const[str]:
+                return GLOBAL[:3]
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual("__test__ line 5: Cannot return a locally-computed constant value from a function marked as const.", str(cm.exception))
+
+        func = textwrap.dedent("""
+            def func() -> const[str]:
+                some_nonconst_str: str[12] = "abcde"
+                some_str: const[str] = some_nonconst_str
+                return some_str
+        """)
+
+        with self.assertRaises(CompilerError) as cm:
+            parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual("__test__ line 5: Cannot return a locally-computed constant value from a function marked as const.", str(cm.exception))
+
+    def test_correct_str_const_function(self) -> None:
+        func = textwrap.dedent("""
+            def func() -> const[str]:
+                return "abcde"
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            '_test_local_function_string_data_1:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(padding)',
+            '  ; PC + 3 - builtin(padding)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ; PC + 3 - builtin(retval)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: "abcde"',
+            '  ADDPCI 5',
+            '  PUSHADDR _test_local_function_string_data_1',
+            '  ; __test__ line 3: return "abcde"',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 3',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+        func = textwrap.dedent("""
+            def func() -> const[str]:
+                some_const: const[str] = "abcde"
+                return some_const
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            '_test_local_function_string_data_2:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(padding)',
+            '  ; PC + 3 - builtin(padding)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ; PC + 3 - builtin(retval)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: some_const: const[str] = "abcde"',
+            '  SUBPCI 2',
+            '  PUSHADDR _test_local_function_string_data_2',
+            '  ; __test__ line 4: some_const',
+            '  LOAD A',
+            '  ADDPCI 7',
+            '  STORE A',
+            '  SUBPCI 6',
+            '  LOAD A',
+            '  ADDPCI 7',
+            '  STORE A',
+            '  ; __test__ line 4: return some_const',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 4',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+        func = textwrap.dedent("""
+            def func() -> const[str]:
+                some_const: const[str] = "abcde"
+                other_const: const[str] = some_const
+                return other_const
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            '_test_local_function_string_data_3:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(padding)',
+            '  ; PC + 3 - builtin(padding)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ; PC + 3 - builtin(retval)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: some_const: const[str] = "abcde"',
+            '  SUBPCI 2',
+            '  PUSHADDR _test_local_function_string_data_3',
+            '  ; __test__ line 4: other_const: const[str] = some_const',
+            '  LOAD A',
+            '  SUBPCI 2',
+            '  STORE A',
+            '  ADDPCI 3',
+            '  LOAD A',
+            '  SUBPCI 2',
+            '  STORE A',
+            '  ; __test__ line 5: other_const',
+            '  LOAD A',
+            '  ADDPCI 9',
+            '  STORE A',
+            '  SUBPCI 10',
+            '  LOAD A',
+            '  ADDPCI 9',
+            '  STORE A',
+            '  ; __test__ line 5: return other_const',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 3',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+        func = textwrap.dedent("""
+            GLOBAL_CONST: const[str] = "abcde"
+            def func() -> const[str]:
+                return GLOBAL_CONST
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            '  ; __test__ line 2: GLOBAL_CONST: const[str] = "abcde"',
+            'GLOBAL_CONST:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(padding)',
+            '  ; PC + 3 - builtin(padding)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ; PC + 3 - builtin(retval)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 4: GLOBAL_CONST',
+            '  ADDPCI 5',
+            '  PUSHADDR GLOBAL_CONST',
+            '  ; __test__ line 4: return GLOBAL_CONST',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 3',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+        func = textwrap.dedent("""
+            def other() -> extern[const[str]]: ...
+
+            def func() -> const[str]:
+                return other()
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(padding)',
+            '  ; PC + 3 - builtin(padding)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ; PC + 3 - builtin(retval)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 5: other()',
+            '  SUBPCI 4',
+            '  CALL other',
+            '  LOAD A',
+            '  ADDPCI 7',
+            '  STORE A',
+            '  SUBPCI 6',
+            '  LOAD A',
+            '  ADDPCI 7',
+            '  STORE A',
+            '  ; __test__ line 5: return other()',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 4',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+    def test_correct_strcpy_generation(self) -> None:
+        func = textwrap.dedent("""
+            def func() -> void:
+                some_str: str[12] = "abcde"
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            '_test_local_function_string_data_4:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: some_str: str[12] = "abcde"',
+            '  PUSHADDR _test_func_some_str',
+            '  PUSHADDR _test_local_function_string_data_4',
+            '  ; __test__ line 3: "abcde"',
+            '  CALL strcpy',
+            '  ; __test__ line 2: def func() -> void:',
+            '  ; Restoring all clobbered registers.',
+            '  ADDPCI 4',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertEqual([
+            '_test_func_some_str:',
+            '  .pad 12'
+        ], output.data)
+        self.assertTrue(len(output.init) == 0)
+
+        func = textwrap.dedent("""
+            def func() -> void:
+                other_str: str[12] = "abcde"
+                some_str: str[12] = other_str
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            '_test_local_function_string_data_5:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: other_str: str[12] = "abcde"',
+            '  PUSHADDR _test_func_other_str',
+            '  PUSHADDR _test_local_function_string_data_5',
+            '  ; __test__ line 3: "abcde"',
+            '  CALL strcpy',
+            '  ; __test__ line 4: some_str: str[12] = other_str',
+            '  ADDPCI 2',
+            '  PUSHADDR _test_func_some_str',
+            '  ADDPCI 3',
+            '  LOAD A',
+            '  SUBPCI 4',
+            '  STORE A',
+            '  ADDPCI 3',
+            '  LOAD A',
+            '  SUBPCI 4',
+            '  STORE A',
+            '  ; __test__ line 4: other_str',
+            '  CALL strcpy',
+            '  ; __test__ line 2: def func() -> void:',
+            '  ; Restoring all clobbered registers.',
+            '  ADDPCI 6',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertEqual([
+            '_test_func_other_str:',
+            '  .pad 12',
+            '_test_func_some_str:',
+            '  .pad 12'
+        ], output.data)
+        self.assertTrue(len(output.init) == 0)
+
+        func = textwrap.dedent("""
+            def func() -> void:
+                other_str: const[str] = "abcde"
+                some_str: str[12] = other_str
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            '_test_local_function_string_data_6:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: other_str: const[str] = "abcde"',
+            '  PUSHADDR _test_local_function_string_data_6',
+            '  ; __test__ line 4: some_str: str[12] = other_str',
+            '  PUSHADDR _test_func_some_str',
+            '  ADDPCI 3',
+            '  LOAD A',
+            '  SUBPCI 4',
+            '  STORE A',
+            '  ADDPCI 3',
+            '  LOAD A',
+            '  SUBPCI 4',
+            '  STORE A',
+            '  ; __test__ line 4: other_str',
+            '  CALL strcpy',
+            '  ; __test__ line 2: def func() -> void:',
+            '  ; Restoring all clobbered registers.',
+            '  ADDPCI 6',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertEqual([
+            '_test_func_some_str:',
+            '  .pad 12'
+        ], output.data)
+        self.assertTrue(len(output.init) == 0)
+
+        func = textwrap.dedent("""
+            def func() -> void:
+                other_str: str[12] = "abcde"
+                some_str: const[str] = other_str
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            '_test_local_function_string_data_7:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: other_str: str[12] = "abcde"',
+            '  PUSHADDR _test_func_other_str',
+            '  PUSHADDR _test_local_function_string_data_7',
+            '  ; __test__ line 3: "abcde"',
+            '  CALL strcpy',
+            '  ; __test__ line 4: some_str: const[str] = other_str',
+            '  ADDPCI 2',
+            '  PUSHADDR _test_func_some_str',
+            '  ADDPCI 3',
+            '  LOAD A',
+            '  SUBPCI 4',
+            '  STORE A',
+            '  ADDPCI 3',
+            '  LOAD A',
+            '  SUBPCI 4',
+            '  STORE A',
+            '  ; __test__ line 4: other_str',
+            '  CALL strcpy',
+            '  ; __test__ line 2: def func() -> void:',
+            '  ; Restoring all clobbered registers.',
+            '  ADDPCI 6',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertEqual([
+            '_test_func_other_str:',
+            '  .pad 12',
+            '_test_func_some_str:',
+            '  .pad 127'
+        ], output.data)
+        self.assertTrue(len(output.init) == 0)

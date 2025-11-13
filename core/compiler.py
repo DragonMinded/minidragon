@@ -151,12 +151,14 @@ class CoreType:
         *,
         length: Optional[int] = None,
         const: bool = False,
+        safe_ref: bool = False,
         extern: bool = False,
         return_padding: bool = True,
     ) -> None:
         self.type = base_type
         self.pointed_type = pointed_type
         self.const = const
+        self.safe_ref = safe_ref
         self.__length = length or None
         self.extern = extern
         self.return_padding = return_padding
@@ -167,7 +169,12 @@ class CoreType:
         if isinstance(other, str):
             return self.type == other
         if isinstance(other, CoreType):
-            return self.type == other.type and self.pointed_type == other.pointed_type and self.const == other.const and self.length == other.length
+            return (
+                self.type == other.type and
+                self.pointed_type == other.pointed_type and
+                self.const == other.const and
+                self.length == other.length
+            )
         return False
 
     def __repr__(self) -> str:
@@ -205,6 +212,7 @@ class CoreType:
             self.pointed_type,
             length=self.length,
             const=True,
+            safe_ref=False,
             extern=self.extern,
             return_padding=self.return_padding,
         )
@@ -220,6 +228,7 @@ class CoreType:
             self.pointed_type,
             length=self.length or MAX_STRING_LENGTH,
             const=False,
+            safe_ref=False,
             extern=self.extern,
             return_padding=self.return_padding,
         )
@@ -1159,6 +1168,51 @@ def codegen_eval(expr: cst.BaseExpression, constants: List[Constant], context: O
         pass
 
     raise NonConstantExpressionException(f"{expr} is not constant, cannot eval!")
+
+
+def is_safe_ref(
+    assign_value: cst.BaseExpression,
+    stack: Stack,
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> bool:
+    """
+    Given an expression, determine if that expression is a reference to a constant that's safe
+    to treat as a string without a strcpy.
+    """
+
+    if isinstance(assign_value, cst.Name):
+        possible_type = stack.typeof(assign_value.value)
+        if possible_type and possible_type.safe_ref:
+            # This is being assigned from another constant variable that was a safe reference.
+            return True
+
+    if isinstance(assign_value, cst.Call):
+        # Functions returning string constants are only allowed to do so if they are returning a
+        # safe ref themselves, so we only need to look at the return value for this function.
+        try:
+            function_prototype = get_function_prototype(assign_value, refs, local_consts, context)
+            return_type = function_prototype.return_type
+            return return_type.is_string and return_type.const
+        except CompilerError:
+            # Ignore this, it's probably somebody trying to return a builtin such as cast() or str().
+            pass
+
+    try:
+        # If we can evaluate the assign value directly that means it's a safe ref. This only
+        # happens for global variables and string literals. We don't want to treat local constants
+        # that weren't safe refs as such here by substituting their value, so we leave those out.
+        consts = [
+            *[Constant(gv.name, gv.type, None) for gv in refs if isinstance(gv, GlobalVariable)],
+        ]
+
+        codegen_eval(assign_value, consts, context)
+        return True
+    except NonConstantExpressionException:
+        pass
+
+    return False
 
 
 def _hex(val: int, pad: int) -> str:
@@ -2151,6 +2205,16 @@ def get_function_params(
     return args, needed_args
 
 
+def safe_assign(
+    destination: str,
+) -> bool:
+    """
+    Checks whether the current assignment is a safe assignment to perform without a strcpy. Basically
+    that only happens when the destination we're assigning to is the return value builtin.
+    """
+    return destination == "builtin(retval)"
+
+
 def generate_function_call_internal(
     call: cst.Call,
     destination: Optional[str],
@@ -2615,7 +2679,7 @@ def generate_function_call_internal(
             if dest_size is None or dest_type is None:
                 raise Exception("Logic error, cannot find destination to copy variable value to!")
 
-            if source_type.is_string and dest_type.is_string and (not dest_type.const):
+            if source_type.is_string and dest_type.is_string and not ((source_type.const and dest_type.const) or safe_assign(dst)):
                 # We need to allocate locally and strcpy over.
                 if not stack.initof(dst):
                     compiled += generate_local_storage_alloc(dst, stack, clobbers, allocations, context)
@@ -2694,7 +2758,7 @@ def generate_function_call_internal(
                 if dest_loc is None or dest_size is None or dest_type is None:
                     raise Exception(f"Logic error, cannot find destination {destination} to copy variable value to!")
 
-                if src_type.is_string and dest_type.is_string and (not dest_type.const):
+                if src_type.is_string and dest_type.is_string and not ((src_type.const and dest_type.const) or safe_assign(destination)):
                     # We need to allocate locally and strcpy over.
                     if not stack.initof(destination):
                         compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
@@ -6927,21 +6991,10 @@ def generate_assign_expr(
                 # If we don't, we won't end up assigning local storage for this variable and then
                 # we will end up trying to concatenate against the constant in ROM.
                 if assign_type.is_string and assign_type.const:
-                    try:
-                        # If we can evaluate this directly, do so! In the case that the RhS is a
-                        # global constant, we want to not directly allocate storage in that case
-                        # as well.
-                        consts = [
-                            *local_consts,
-                            *[Constant(gv.name, gv.type, None) for gv in refs if isinstance(gv, GlobalVariable)],
-                        ]
-
-                        codegen_eval(assign_value, consts, context)
-                        is_constant = True
-                    except NonConstantExpressionException:
-                        is_constant = False
-
-                    if is_constant:
+                    if is_safe_ref(assign_value, stack, refs, local_consts, context):
+                        # This constant was initialized from a true constant (const string, global variable, another constant)
+                        # so we can safely do a copy and mark it as also a safe ref.
+                        assign_type.safe_ref = True
                         stack.alloc(StackVar(assign_name, assign_type))
                     else:
                         stack.alloc(StackVar(assign_name, assign_type.nonconst_clone()))
@@ -7723,6 +7776,16 @@ def compile_chunk(
                         # we can relocate the retval.
                         if can_relocate_return(function_type, stack, clobbers, context):
                             stack.relocate("builtin(retval)", 0)
+
+                        # Functions that return const[str] are only allowed to do so if they return a safe ref. That
+                        # means a string literal, a global constant string, a local constant string that is also a
+                        # safe ref, or another function that returns a const[str]. Since functions are only allowed to
+                        # return a const[str] if the value being returned is a safe ref, we can assume another function
+                        # marked as returning const[str] is safe in itself.
+                        if function_type.is_string and function_type.const:
+                            # Ensure that the value we're returning is actually a safe ref const.
+                            if not is_safe_ref(simple_statement.value, stack, refs_copy, local_consts, context.wrap(simple_statement.value)):
+                                raise CompilerError("Cannot return a locally-computed constant value from a function marked as const.", context.wrap(simple_statement))
 
                         compiled += generate_expr(
                             simple_statement.value,
