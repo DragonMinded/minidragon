@@ -1594,3 +1594,62 @@ class TestCompiler(unittest.TestCase):
             '  .pad 127'
         ], output.data)
         self.assertTrue(len(output.init) == 0)
+
+        # This one should not perform a second strcpy on return.
+        func = textwrap.dedent("""
+            def func() -> str:
+                some_str: str[12] = "abcde"
+                return some_str
+        """)
+
+        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        self.assertEqual([
+            '_test_local_function_string_data_8:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(padding)',
+            '  ; PC + 3 - builtin(padding)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ; PC + 3 - builtin(retval)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  ; __test__ line 3: some_str: str[12] = "abcde"',
+            '  SUBPCI 2',
+            '  PUSHADDR _test_func_some_str',
+            '  PUSHADDR _test_local_function_string_data_8',
+            '  ; __test__ line 3: "abcde"',
+            '  CALL strcpy',
+            '  ; __test__ line 4: some_str',
+            '  ADDPCI 3',
+            '  LOAD A',
+            '  ADDPCI 7',
+            '  STORE A',
+            '  SUBPCI 8',
+            '  LOAD A',
+            '  ADDPCI 7',
+            '  STORE A',
+            '  ; __test__ line 4: return some_str',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 3',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertEqual([
+            '_test_func_some_str:',
+            '  .pad 12'
+        ], output.data)
+        self.assertTrue(len(output.init) == 0)

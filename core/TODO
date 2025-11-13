@@ -1,5 +1,4 @@
 Bugfixes:
- - Ensure "return simplestr" style assignments don't strcpy.
  - Ensure function calls to const str get their own local copy if it isn't a const or simple string/function call.
 
 General TODO:
