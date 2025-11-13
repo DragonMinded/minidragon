@@ -1,6 +1,3 @@
-Bugfixes:
- - Ensure function calls to const str get their own local copy if it isn't a const or simple string/function call.
-
 General TODO:
  - Need to write up a langauge specification.
 
