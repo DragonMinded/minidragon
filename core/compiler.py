@@ -2769,7 +2769,7 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex", "min", "max", "fixed", "range"}:
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex", "min", "max", "fixed", "range", "cast"}:
         function_prototype = get_function_prototype(call, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
 
@@ -3659,7 +3659,7 @@ def generate_function_call(
             elif types[expr].is_string:
                 destination_type = stack.typeof(destination)
                 if destination_type is None:
-                    raise Exception("Logic error, couldn't determine destination type for ord!")
+                    raise Exception("Logic error, couldn't determine destination type for int!")
 
                 if not destination_type.is_integer:
                     raise CompilerError("Cannot assign the result of ord to non-integer type {destination_type.type}", context)
@@ -3785,6 +3785,48 @@ def generate_function_call(
                 local_consts,
                 context,
             )
+
+        elif function_prototype.name == "cast":
+            if len(args) != 2 or len(arg_types) != 2:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment", context)
+
+            # Cast from given type to specified type.
+            requested = get_type(args[0].value, local_consts, allow_nopad=False, allow_extern=False, allow_array=False)
+            expr = args[1].value
+
+            if not requested:
+                raise CompilerError("Unrecognized type in cast", context)
+
+            if requested.type in {"uint16", "int16"}:
+                if not types[expr].is_string:
+                    raise CompilerError("Unsupported cast from {types[expr]} to {requested}", context)
+            elif requested.type in {"str"}:
+                if types[expr].type not in {"uint16", "int16"}:
+                    raise CompilerError("Unsupported cast from {types[expr]} to {requested}", context)
+
+            # Figure out what to do based on the destination type.
+            destination_type = stack.typeof(destination)
+            if destination_type is None:
+                raise Exception("Logic error, couldn't determine destination type for cast!")
+
+            if destination_type.size != 2:
+                raise CompilerError("Cannot assign result of a cast to {destination_type}", context)
+
+            # Simply evaluate the expression into the destination directly, but pretend that the destination
+            # is the type we're casting to.
+            compiled = Sections()
+
+            # Evaluate the expression itself, but pretend the expr_dest is the source type.
+            expr_dest = expr_temp_name()
+            stack.alloc(StackVar(expr_dest, types[expr], initialized=True))
+            compiled += generate_expr_internal(expr, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+            compiled += generate_memcpy_stackvars(destination, expr_dest, stack, clobbers, context)
+
+            stack.free(expr_dest)
+            return compiled
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -6385,19 +6427,45 @@ def infer_expr_types_impl(
 
         args, arg_types = get_function_params(expression, function_prototype, context)
 
-        for i, (arg, argtype) in enumerate(zip(args, arg_types)):
+        # Special case for cast, since the return type is the first parameter.
+        if function_prototype.name == "cast":
+            requested = get_type(args[0].value, local_consts, allow_nopad=False, allow_extern=False, allow_array=False)
+
+            if len(args) != 2 or len(arg_types) != 2:
+                raise Exception("Logic error, unexpected argument count for cast that should have been caught in get_function_params")
+
+            arg = args[1]
+            argtype = arg_types[1]
             arg_inferred = infer_expr_types_impl(arg.value, stack, refs, local_consts, context.wrap(arg.value))
 
             if not type_comparison_compatible(arg_inferred[arg.value], argtype.type):
-                raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter {i + 1}", context)
+                raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter 2", context)
 
             # Special case for functions like abs(), min() and max() where the input and output are both inferred.
             if argtype.type.type != "int":
                 infer_tree(arg_inferred, argtype.type, context)
             inferred.update(arg_inferred)
 
-        inferred[expression] = function_prototype.return_type
-        return inferred
+            if requested:
+                inferred[expression] = requested
+            else:
+                inferred[expression] = function_prototype.return_type
+
+            return inferred
+        else:
+            for i, (arg, argtype) in enumerate(zip(args, arg_types)):
+                arg_inferred = infer_expr_types_impl(arg.value, stack, refs, local_consts, context.wrap(arg.value))
+
+                if not type_comparison_compatible(arg_inferred[arg.value], argtype.type):
+                    raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter {i + 1}", context)
+
+                # Special case for functions like abs(), min() and max() where the input and output are both inferred.
+                if argtype.type.type != "int":
+                    infer_tree(arg_inferred, argtype.type, context)
+                inferred.update(arg_inferred)
+
+            inferred[expression] = function_prototype.return_type
+            return inferred
 
     elif isinstance(expression, cst.Comparison):
         left_tree = infer_expr_types_impl(expression.left, stack, refs, local_consts, context.wrap(expression.left))
@@ -9019,6 +9087,8 @@ def builtin_functions() -> List[FunctionPrototype]:
         FunctionPrototype("peek", CoreType("any"), [CoreType("uint16"), CoreType("uint8")], ["addr", "length"], [None, SentinelInteger("0")]),
         # Allows for a named parameter if desired.
         FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")], ["addr", "object"]),
+        # Allows for a named parameter if desired.
+        FunctionPrototype("cast", CoreType("any"), [CoreType("any"), CoreType("any")], ["typ", "val"]),
         # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("abs", CoreType("int"), [CoreType("int")]),
         # Defined by python to have positional-only parameters, so no named params.

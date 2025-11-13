@@ -14969,6 +14969,88 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for peek: {int(instructions/count)}")
 
 
+def verifycast(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "cast" not in only and "compiler" not in only:
+        return
+
+    print("Verifying cast...")
+
+    with open("lib/runtime/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/runtime/start.S", "r") as fp:
+        startlines = fp.readlines()
+    with open("lib/runtime/data.S", "r") as fp:
+        datalines = fp.readlines()
+    with open("lib/runtime/heap.S", "r") as fp:
+        heaplines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Test strings cast to integeres and back.
+    for val in ["This is a test.", "The quick brown fox jumps over the lazy dog."]:
+        sections = parse_and_compile_module("cast", textwrap.dedent(f"""
+            def callable() -> str:
+                someString: const[str] = {val!r}
+                someInt: uint16 = cast(uint16, someString)
+                someInt += 5
+                return cast(str, someInt)
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *addlines,
+            *strcpylines,
+            *sections.code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL callable",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"cast changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"cast changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"cast changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0x8000)
+        expected = val[5:]
+        _assert(
+            result == expected,
+            "Failed to cast at str, "
+            + f"got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for cast: {int(cycles/count)}")
+    print(f"Average instructions for cast: {int(instructions/count)}")
+
+
 def verifypoke(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "poke" not in only and "compiler" not in only:
         return
@@ -17746,6 +17828,7 @@ if __name__ == "__main__":
     verifystringloop(only, args.full)
     verifypeek(only, args.full)
     verifypoke(only, args.full)
+    verifycast(only, args.full)
     verifyabs(only, args.full)
     verifybool(only, args.full)
     verifychr(only, args.full)
