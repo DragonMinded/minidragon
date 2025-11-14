@@ -49,7 +49,7 @@ MiniPy will perform all expression evaluation at the width of the destination in
 Standard Python has support for a plethora of built-in functions. MiniPy replicates support for only a limited subset of these functions. Additionally, it adds a few intrinsics of its own. All supported intrinsics are documented here. The standard Python built-ins which MiniPy supports are listed below. In general, these should behave the same as their standard Python counterparts unless documented otherwise. For standard Python documentation of these intrinsicts, please see the [Built-In Functions](https://docs.python.org/3/library/functions.html)
 documentation.
 
- - `len(str)` - Given a string literal or variable as its only argument, returns the length of the string in characters (not including the null terminatlr) as a `uint8`. Note that this only works with strings up to 127 characters long as that is the supported length limit of strings in MiniPy
+ - `len(str)` - Given a string literal or variable as its only argument, returns the length of the string in characters (not including the null terminator) as a `uint8`. Note that this only works with strings up to 127 characters long as that is the supported length limit of strings in MiniPy
  - `str(obj)` - Given any supported data type, returns a string conversion of that data type. Supports integers, booleans, characters and other strings. For strings and characters, the literal value as a string will be returned. For integers, the conversion of that integer to a decmial number including a negative sign will be returned. For booleans, the string "True" or "False" will be returned depending on the value of the boolean.
  - `int(obj)` - Given a string, integer or boolean, returns an integer conversion of that data type. For Strings, the conversion to an integer including a potential negative sign will be returned. For integers, the number passed in will be returned. For booleans, the number 1 or 0 will be returned for `True` and `False` which is identical to standard Python.
  - `abs(int)` - Given a signed integer, returns the absolute value of that signed integer at the same integer width.
@@ -59,7 +59,7 @@ documentation.
  - `hex(int)` - Given an integer, returns a string representing the hexidecimal value of the integer, including the `0x` prefix, mirroring standard Python.
  - `min(int, int)` - Given two integers, returns whichever one is smallest in magnitude.
  - `max(int, int)` - Given two integers, returns whichever one is the largest in magnitude.
- - `range(int, int=None, int=None)` - Given one, two or three integers, returns an interator useful in `for` statements. Note that this is only supported in `for` statements since MiniPy has no support for the iterable object type otherwise. For more details on the parameters, please see Python's [range](https://docs.python.org/3/library/functions.html#func-range) documentation.
+ - `range(int, int=None, int=None)` - Given one, two or three integers, returns an interator useful in `for` statements. Note that this is only supported in `for` statements since MiniPy has no support for iterables otherwise. For more details on the parameters, please see Python's [range](https://docs.python.org/3/library/functions.html#func-range) documentation.
 
 MiniPy specific intrinsics are documented below. 
 
