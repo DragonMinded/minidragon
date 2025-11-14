@@ -18,7 +18,7 @@ MiniPy supports integer arithmetic on 8 bit, 16 bit and 32 bit integers. It has 
 
 Integer arithmetic that causes overflow does not automatically resize the integer to a larger version so care must be taken to choose the integer data type that will adequately fit the calculations you wish to perform. Do note that larger integers are slower to operate on due to the MiniDragon being an 8 bit CPU at its core. Therefore, there is a direct trade-off between range of integers available and the speed at which calculations against those integers can be done.
 
-## String Support
+### String Support
 
 MiniPy supports a string data type and basic operations on strings. Strings work similarly to their counterpart in Python and unlike `char *` style arrays in C-like languages. That is, strings are passed by value, not by reference. Assigning a string to a variable makes a copy of that string such that modifying the variable later will not affect what it was assigned from. Strings support indexing by both an integer to access the character at a specific index as well as indexing by slice in order to return a substring consisting of the characters at the beginning to the end index.
 
@@ -26,11 +26,11 @@ Unlike Python, MiniPy lets you assign a character to an index in a string. This 
 
 Note that, for speed reasons, when the compiler can prove that there is no way to accidentally cause aliasing issues, strings will be represented under the hood as a reference to another string instead of a full copy. This only happens with constant strings that are assigned to from a string literal, a global constant string, a function marked as returning a constant string, or another local constant string that was assigned to from one of these categories. Functions are only allowed to be marked as returning a constant string if the value they are returning fits within one of these categories as well. This support for references under the hood extends to string function parameters that are marked as constant.
 
-## Boolean Support
+### Boolean Support
 
 MiniPy supports a boolean data type to represent comparison expressions. It has limited support for automatic conversion from truthy values to boolean values, specifically when non-booleans are used in `if` statements, `while` loops and conditional expressions. In the case of explicit or implicit conversion to boolean, Python's truthy rules apply to MiniPy. Integers are seen as truthy if they are non-zero, and falsey when they are zero. Strings are considered truthy if they contain one or more characters, and falsey if they are empty or zero-length. Characters are considered truthy when they represent anything other than the null byte, and falsey when they represent the null byte. Internally, `False` is represented as a byte with all bits cleared (`0`) and `True` is represented by a byte with all bits set (`255`). This only matters in the case of `peek()` and `poke()` which are documented below.
 
-## Function Support
+### Function Support
 
 MiniPy supports defining functions as well as calling functions in a similar fashion to standard Python. Parameters, including strings, are passed to functions by value except in very specific cases regarding string constants. Full support for default arguments is included, so if you specify a default for a given argument you do not need to provide a value when calling the function. Similarly, support for calling functions with keyword arguments is also available. This can come in handy when you want to specifically override only some defaults for a particular function. Note that MiniPy does not support dictionaries or lists, so support for `*args` and `**kwargs` is not available.
 
@@ -44,7 +44,7 @@ Types are provided in the same manner as type hints in standard Python. This mea
 
 MiniPy will perform all expression evaluation at the width of the destination in an assignment, function call or return statement. Said in another way, if you assign the result of an expression to an 8 bit integer, the intermediate calculations will all be done with 8 bit data types as well. Integers that are larger than the data type will be truncated at the point of reference in the expression. Integers that are smaller than the data type will be zero-extended or sign-extended, depending on whether they are unsigned or signed integers, at the point of reference in the expression. This goes for expressions in a function call parameter as well as expressions in a return statement. In the former, the width of the parameter itself according to the function definition will be used. In the latter, the function return type width will be used.
 
-## Intrinsics Support
+## Compiler Intrinsics
 
 Standard Python has support for a plethora of built-in functions. MiniPy replicates support for only a limited subset of these functions. Additionally, it adds a few intrinsics of its own. All supported intrinsics are documented here. The standard Python built-ins which MiniPy supports are listed below. In general, these should behave the same as their standard Python counterparts unless documented otherwise. For standard Python documentation of these intrinsicts, please see the [Built-In Functions](https://docs.python.org/3/library/functions.html)
 documentation.
