@@ -18,43 +18,43 @@ The valid types available to MiniPy programs are as follows.
 
 `uint8`
 
-   An 8 bit unsigned integer, capable of representing values from 0 through 255. Takes up one byte of memory on the stack.
+ > An 8 bit unsigned integer, capable of representing values from 0 through 255. Takes up one byte of memory on the stack.
 
 `int8`
 
-   An 8 bit two's compliment signed integer, capable of representing values from -128 through 127. Takes up one byte of memory on the stack.
+ > An 8 bit two's compliment signed integer, capable of representing values from -128 through 127. Takes up one byte of memory on the stack.
 
 `uint16`
 
-   A 16 bit unsigned integer, capable of representing values from 0 through 65535. Takes up two bytes of memory on the stack, stored as big-endian.
+ > A 16 bit unsigned integer, capable of representing values from 0 through 65535. Takes up two bytes of memory on the stack, stored as big-endian.
 
 `int16`
 
-   A 16 bit two's compliment signed integer, capable of representing values from -32768 through 32767. Takes up two bytes of memory on the stack, stored as big-endian.
+ > A 16 bit two's compliment signed integer, capable of representing values from -32768 through 32767. Takes up two bytes of memory on the stack, stored as big-endian.
 
 `uint32`
 
-   A 32 bit unsigned integer, capable of representing values from 0 through 4294967295. Takes up four bytes of memory on the stack, stored as big-endian.
+ > A 32 bit unsigned integer, capable of representing values from 0 through 4294967295. Takes up four bytes of memory on the stack, stored as big-endian.
 
 `int32`
 
-   A 32 bit two's compliment integer, capable of representing values from -2147483648 through 2147483647. Takes up four bytes of memory on the stack, stored as big-endian.
+ > A 32 bit two's compliment integer, capable of representing values from -2147483648 through 2147483647. Takes up four bytes of memory on the stack, stored as big-endian.
 
 `char`
 
-   An 8 bit ASCII character, capable of holding any of the 8 bit ASCII values including the null byte. Takes up one byte of memory on the stack or one byte of memory in a string.
+ > An 8 bit ASCII character, capable of holding any of the 8 bit ASCII values including the null byte. Takes up one byte of memory on the stack or one byte of memory in a string.
 
 `str`
 
-   A null-terminated ASCII string, capable of holding up to 127 characters including the null terminator byte. Implemented as a 16 bit pointer to a memory address in RAM. Takes up two bytes of memory on the stack, stored as a big-endian pointer. Note that non-constant strings are required to specify the desired maximum storage length. This is done using bracket notation as demonstrated in examples below. The exception to this is in functions returning strings which explicitly return a variable or constant. In this case, you are free to declare that your function returns a `str` without using bracket notation to define a maximum storage length.
+ > A null-terminated ASCII string, capable of holding up to 127 characters including the null terminator byte. Implemented as a 16 bit pointer to a memory address in RAM. Takes up two bytes of memory on the stack, stored as a big-endian pointer. Note that non-constant strings are required to specify the desired maximum storage length. This is done using bracket notation as demonstrated in examples below. The exception to this is in functions returning strings which explicitly return a variable or constant. In this case, you are free to declare that your function returns a `str` without using bracket notation to define a maximum storage length.
 
 `bool`
 
-   A boolean, holding the value of `True` or `False`. Under the hood this is mapped to a signe byte holding either the value `0x00` for `False` or `0xFF` for `True`.
+ > A boolean, holding the value of `True` or `False`. Under the hood this is mapped to a signe byte holding either the value `0x00` for `False` or `0xFF` for `True`.
 
 `void`
 
-   The lack of a value. This is only ever used to specify functions that do not return a value and cannot be used for function parameters, local or global variables.
+ > The lack of a value. This is only ever used to specify functions that do not return a value and cannot be used for function parameters, local or global variables.
 
 Additionally, any parameter, function return or local variable can be declared constant by using the `const[]` modifier. When a variable is made constant it cannot be assigned to or modified after its declaration. Attempting to do so will generate a compile error on the offending line. Declaring a global varible as `const` will cause the compiler to place it into the code section of the compiled output.
 
@@ -62,23 +62,23 @@ Examples of various types are as follows.
 
 `a: int16`
 
-   Declare a local variable `a` as a signed 16 bit integer. The compiler will allocate space on the stack for this variable at time of allocation.
+ > Declare a local variable `a` as a signed 16 bit integer. The compiler will allocate space on the stack for this variable at time of allocation.
 
 `a: const[uint32] = b + 37`
 
-   Declare a local variable `a` as a constant unsigned 32 bit integer and assign it the value of `b + 37`. Note that it is a compile error to declare a constant variable without assigning it a value since it would be impossible to mutate the value at a later time.
+ > Declare a local variable `a` as a constant unsigned 32 bit integer and assign it the value of `b + 37`. Note that it is a compile error to declare a constant variable without assigning it a value since it would be impossible to mutate the value at a later time.
 
 `a: str[32] = ""`
 
-   Declare a local variable `a` as a string with a maximum storage of 32 bytes including the null terminator and initialize it to the empty string.
+ > Declare a local variable `a` as a string with a maximum storage of 32 bytes including the null terminator and initialize it to the empty string.
 
 `def func(param1: int8, param2: const[int8]) -> bool: ...`
 
-   Declare a function which takes two parameters and returns a boolean. `param1` is an 8 bit signed integer and `param2` is a constant 8 bit signed integer. This means that within the function code is free to assign to `param1` but attempting to modify `param2` will result in a compiler error. The compiler will use the types of the parameters and return to allocate space on the stack for the parameters and the return itself. Note that the example provides an ellipses (`...`) instead of a function body. This would normally result in a compiler error unless you were declaring an `extern` function but has been shown here to demonstrate how a function prototype might look without needing to specify a function body.
+ > Declare a function which takes two parameters and returns a boolean. `param1` is an 8 bit signed integer and `param2` is a constant 8 bit signed integer. This means that within the function code is free to assign to `param1` but attempting to modify `param2` will result in a compiler error. The compiler will use the types of the parameters and return to allocate space on the stack for the parameters and the return itself. Note that the example provides an ellipses (`...`) instead of a function body. This would normally result in a compiler error unless you were declaring an `extern` function but has been shown here to demonstrate how a function prototype might look without needing to specify a function body.
 
 `def func(param: const[str]) -> void: ...`
 
-   Declare a function which takes a single string parameter and does not return a value. `param` is a constant string, meaning the function cannot modify or mutate the string in any way.
+ > Declare a function which takes a single string parameter and does not return a value. `param` is a constant string, meaning the function cannot modify or mutate the string in any way.
 
 ## Supported Python Features
 
@@ -96,19 +96,19 @@ Examples of various operations are as follows.
 
 `a: uint8 = b + c`
 
-   Adds the integers `b` and `c` together and places the result into a newly-defined variable `a`. The operation will be performed with 8 bits of precision due to the destination of the expression being an 8 bit integer. If `b` or `c` are larger integers they will be truncated to 8 bits before the addition is performed.
+ > Adds the integers `b` and `c` together and places the result into a newly-defined variable `a`. The operation will be performed with 8 bits of precision due to the destination of the expression being an 8 bit integer. If `b` or `c` are larger integers they will be truncated to 8 bits before the addition is performed.
 
 `a += 5`
 
-   Adds 5 to the already-defined integer `a`. Note that this requires `a` to already exist since it is adding 5 to it, so `a` will have been defined with a type on a previous line.
+ > Adds 5 to the already-defined integer `a`. Note that this requires `a` to already exist since it is adding 5 to it, so `a` will have been defined with a type on a previous line.
 
 `a: int16 = b - c`
 
-   Subtracts the value in `c` from `b` and places the result into a newly-defined variable `a`. The operation will be performed with 16 bits of precision. If `b` or `c` are larger than 16 bits, they will be truncated to 16 bits before the operation is performed. If `b` or `c` are smaller than 16 bits, they will be sign-extended to 16 bits before the operation is performed due to the fact that the result of the operation is a signed integer. If `a` was instead defined as a `uint16` then smaller integers would be zero-extended instead.
+ > Subtracts the value in `c` from `b` and places the result into a newly-defined variable `a`. The operation will be performed with 16 bits of precision. If `b` or `c` are larger than 16 bits, they will be truncated to 16 bits before the operation is performed. If `b` or `c` are smaller than 16 bits, they will be sign-extended to 16 bits before the operation is performed due to the fact that the result of the operation is a signed integer. If `a` was instead defined as a `uint16` then smaller integers would be zero-extended instead.
 
 `a = (a + 1) & 0x3F`
 
-   Caculates the value of `a + 1` and then boolean ands the result against `0x3F` before assigning the result back to `a`. This effectively creates a counter that will increment `a` by `1` whenever it is called until it hits `63` where it will wrap back around to `0` on the next execution.
+ > Caculates the value of `a + 1` and then boolean ands the result against `0x3F` before assigning the result back to `a`. This effectively creates a counter that will increment `a` by `1` whenever it is called until it hits `63` where it will wrap back around to `0` on the next execution.
 
 ### String Support
 
@@ -135,65 +135,65 @@ documentation.
 
 `len(str)`
 
-   Given a string literal or variable as its only argument, returns the length of the string in characters (not including the null terminator) as a `uint8`. Note that this only works with strings up to 127 characters long as that is the supported length limit of strings in MiniPy
+ > Given a string literal or variable as its only argument, returns the length of the string in characters (not including the null terminator) as a `uint8`. Note that this only works with strings up to 127 characters long as that is the supported length limit of strings in MiniPy
 
 `str(obj)`
 
-   Given any supported data type, returns a string conversion of that data type. Supports integers, booleans, characters and other strings. For strings and characters, the literal value as a string will be returned. For integers, the conversion of that integer to a decmial number including a negative sign will be returned. For booleans, the string "True" or "False" will be returned depending on the value of the boolean.
+ > Given any supported data type, returns a string conversion of that data type. Supports integers, booleans, characters and other strings. For strings and characters, the literal value as a string will be returned. For integers, the conversion of that integer to a decmial number including a negative sign will be returned. For booleans, the string "True" or "False" will be returned depending on the value of the boolean.
 
 `int(obj)`
 
-   Given a string, integer or boolean, returns an integer conversion of that data type. For Strings, the conversion to an integer including a potential negative sign will be returned. For integers, the number passed in will be returned. For booleans, the number 1 or 0 will be returned for `True` and `False` which is identical to standard Python.
+ > Given a string, integer or boolean, returns an integer conversion of that data type. For Strings, the conversion to an integer including a potential negative sign will be returned. For integers, the number passed in will be returned. For booleans, the number 1 or 0 will be returned for `True` and `False` which is identical to standard Python.
 
 `abs(int)`
 
-   Given a signed integer, returns the absolute value of that signed integer at the same integer width.
+ > Given a signed integer, returns the absolute value of that signed integer at the same integer width.
 
 `bool(obj)`
 
-   Given any supported data type, returns a boolean representing the truthiness of the data type passed in. For strings, returns `True` for any string that is not zero-length, and `False` for empty or zero-length strings. For integers, returns `True` for all nonzero numbers and `False` for zero. For booleans, returns the value passed in. For characters, returns `True` for all characters that are not the null byte, and `False` for the null byte.
+ > Given any supported data type, returns a boolean representing the truthiness of the data type passed in. For strings, returns `True` for any string that is not zero-length, and `False` for empty or zero-length strings. For integers, returns `True` for all nonzero numbers and `False` for zero. For booleans, returns the value passed in. For characters, returns `True` for all characters that are not the null byte, and `False` for the null byte.
 
 `chr(int)`
 
-   Given an integer, returns the character equivalent of that integer.
+ > Given an integer, returns the character equivalent of that integer.
 
 `ord(char)`
 
-   Given a character, returns the integer equivalent of that character.
+ > Given a character, returns the integer equivalent of that character.
 
 `hex(int)`
 
-   Given an integer, returns a string representing the hexidecimal value of the integer, including the `0x` prefix, mirroring standard Python.
+ > Given an integer, returns a string representing the hexidecimal value of the integer, including the `0x` prefix, mirroring standard Python.
 
 `min(int, int)`
 
-   Given two integers, returns whichever one is smallest in magnitude.
+ > Given two integers, returns whichever one is smallest in magnitude.
 
 `max(int, int)`
 
-   Given two integers, returns whichever one is the largest in magnitude.
+ > Given two integers, returns whichever one is the largest in magnitude.
 
 `range(int, int=None, int=None)`
 
-   Given one, two or three integers, returns an interator useful in `for` statements. Note that this is only supported in `for` statements since MiniPy has no support for iterables otherwise. For more details on the parameters, please see Python's [range](https://docs.python.org/3/library/functions.html#func-range) documentation.
+ > Given one, two or three integers, returns an interator useful in `for` statements. Note that this is only supported in `for` statements since MiniPy has no support for iterables otherwise. For more details on the parameters, please see Python's [range](https://docs.python.org/3/library/functions.html#func-range) documentation.
 
 Additionally, MiniPy specifies a few intrinsics of its own. The MiniPy specific intrinsics are documented below.
 
 `peek(addr, length=None)`
 
-   Given a 16 bit integer interpreted as a raw memory address, peek at that memory address and return the value contained therein. The return type of peek is dependent on the variable being assigned to in the expression that it is used in. When assigning to an 8 bit integer, peek will read the byte at the memory location and return that as an 8 bit integer. When assigning to a 16 bit integer, peek will read the two bytes at the memory address and subsequent memory address and interpret and return the value as a big-endian 16 bit integer. When assigning to a 32 bit integer, peek will read the four bytes at the memory address and subsequent three memory addresses and interpret and return the value as a big-endian 32 bit integer. When assigning to a character, peek will read the byte at the memory address and return it as a character. When assigning to a boolean, peek will read the byte at the memory address and return `True` for a non-zero byte and `False` for a zero byte. When assigning to a string, peek will perform a string copy starting at the given memory address until it encounters a null terminator byte. Optionally, for strings, you can specify a second parameter as an integer which will be treated as the length to copy. Strings longer than that will be truncated when the length limit is hit, and strings equal to or less than that length will be copied in their entirity.
+ > Given a 16 bit integer interpreted as a raw memory address, peek at that memory address and return the value contained therein. The return type of peek is dependent on the variable being assigned to in the expression that it is used in. When assigning to an 8 bit integer, peek will read the byte at the memory location and return that as an 8 bit integer. When assigning to a 16 bit integer, peek will read the two bytes at the memory address and subsequent memory address and interpret and return the value as a big-endian 16 bit integer. When assigning to a 32 bit integer, peek will read the four bytes at the memory address and subsequent three memory addresses and interpret and return the value as a big-endian 32 bit integer. When assigning to a character, peek will read the byte at the memory address and return it as a character. When assigning to a boolean, peek will read the byte at the memory address and return `True` for a non-zero byte and `False` for a zero byte. When assigning to a string, peek will perform a string copy starting at the given memory address until it encounters a null terminator byte. Optionally, for strings, you can specify a second parameter as an integer which will be treated as the length to copy. Strings longer than that will be truncated when the length limit is hit, and strings equal to or less than that length will be copied in their entirity.
 
 `poke(addr, obj)`
 
-   Given a 16 bit integer interpreted as a raw memory address and a value to store, stores that value at that address. For integers, stores the value starting at that address in big-endian. For 8 bit integers, this only modifies the byte at the specified address. For 16 bit integers, this modifies the specified and subsequent byte. For 32 bit integers, this modifies the specified and subsequent three bytes. For characters, stores the character as a byte at the address specified. For booleans, stores either 0 or 255 depending on whether the value is `False` or `True`. For strings, copies the specified string starting at the memory address until the end of the string is reached. Note that the null byte is copied in this instance.
+ > Given a 16 bit integer interpreted as a raw memory address and a value to store, stores that value at that address. For integers, stores the value starting at that address in big-endian. For 8 bit integers, this only modifies the byte at the specified address. For 16 bit integers, this modifies the specified and subsequent byte. For 32 bit integers, this modifies the specified and subsequent three bytes. For characters, stores the character as a byte at the address specified. For booleans, stores either 0 or 255 depending on whether the value is `False` or `True`. For strings, copies the specified string starting at the memory address until the end of the string is reached. Note that the null byte is copied in this instance.
 
 `cast(type, obj)`
 
-   Given a valid MiniPy type and an object, cast that object to that type. Currently only supports casting `uint16` to `str` and `str` to `uint16`. When performing a cast from a string to an integer, the resulting value that is returned is the memory address that the string resides at. When performing a cast from an integer to a string, the resulting value is a string that points at the given memory address.
+ > Given a valid MiniPy type and an object, cast that object to that type. Currently only supports casting `uint16` to `str` and `str` to `uint16`. When performing a cast from a string to an integer, the resulting value that is returned is the memory address that the string resides at. When performing a cast from an integer to a string, the resulting value is a string that points at the given memory address.
 
 `fixed(value, fracbits=8)`
 
-   Given a floating point value and an optional fractional bits, converts that value to a fixed point integer that represents the decimal approximation of the floating point value. Note that in MiniPy, fixed point integers are always 32 bits wide.
+ > Given a floating point value and an optional fractional bits, converts that value to a fixed point integer that represents the decimal approximation of the floating point value. Note that in MiniPy, fixed point integers are always 32 bits wide.
 
 ## Import System
 
@@ -217,11 +217,11 @@ Examples of using the import system are as follows.
 
 `from hardware.serial import serial_init, serial_clear, serial_send`
 
-   Looks for the identifiers `serial_init`, `serial_clear` and `serial_send` in the module which implements `hardware.serial` and makes them available in the current module.
+ > Looks for the identifiers `serial_init`, `serial_clear` and `serial_send` in the module which implements `hardware.serial` and makes them available in the current module.
 
 `def func(param1: int16, param2: int32) -> extern[bool]: ...`
 
-   Defines a function prototype for `func` which takes two parameters and returns a boolean. Note the `extern[]` modifier as well as the ellipses (`...`). The compiler will emit code that refers to the global label `func` which should be implemented in an assembly file and linked into the final build. Note also that it is possible to declare functions as extern instead of importing them from other modules but it is heavily recommended to not do this because prototypes could get out of sync with the actual function implementation. If this happens, the compiler will generate incorrect code to call the function and you will most likely end up with a crash. So, it's best to leave `extern[]` functions and variables for when you need to implement something in pure assembly and reference it from within MiniPy code.
+ > Defines a function prototype for `func` which takes two parameters and returns a boolean. Note the `extern[]` modifier as well as the ellipses (`...`). The compiler will emit code that refers to the global label `func` which should be implemented in an assembly file and linked into the final build. Note also that it is possible to declare functions as extern instead of importing them from other modules but it is heavily recommended to not do this because prototypes could get out of sync with the actual function implementation. If this happens, the compiler will generate incorrect code to call the function and you will most likely end up with a crash. So, it's best to leave `extern[]` functions and variables for when you need to implement something in pure assembly and reference it from within MiniPy code.
 
 ## Included Libraries
 
