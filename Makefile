@@ -41,7 +41,7 @@ HELLOWORLD_SRCS += bootrom/helloworld.py
 # Fixed point test sources.
 FIXEDPOINT_SRCS += lib/hardware/serial.S
 FIXEDPOINT_SRCS += lib/hardware/serial.py
-FIXEDPOINT_SRCS += lib/math/fixed.py
+FIXEDPOINT_SRCS += lib/conversion/fixed.py
 FIXEDPOINT_SRCS += bootrom/fixedtest.py
 
 # Magic rule maker for above sources to map to various files.

@@ -4,7 +4,7 @@ from hardware.serial import (
     serial_send,
     serial_input,
 )
-from math.fixed import strtofixed, fixedtostr
+from conversion.fixed import strtofixed, fixedtostr
 
 
 def main() -> void:
