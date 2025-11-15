@@ -1,3 +1,5 @@
 [flake8]
 extend-ignore = E501
-exclude = bootrom/
+exclude =
+    lib/
+    bootrom/

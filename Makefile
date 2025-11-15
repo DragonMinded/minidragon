@@ -9,39 +9,39 @@ RUNTIME += lib/runtime/heap.S
 RUNTIME += lib/hardware/hwregs.S
 
 # Math library.
-LIBS += lib/math/abs.S
-LIBS += lib/math/add.S
-LIBS += lib/math/cmp.S
-LIBS += lib/math/divide.S
-LIBS += lib/math/multiply.S
-LIBS += lib/math/neg.S
-LIBS += lib/math/shift.S
+STDLIB += lib/math/abs.S
+STDLIB += lib/math/add.S
+STDLIB += lib/math/cmp.S
+STDLIB += lib/math/divide.S
+STDLIB += lib/math/multiply.S
+STDLIB += lib/math/neg.S
+STDLIB += lib/math/shift.S
 
 # String library.
-LIBS += lib/string/strcat.S
-LIBS += lib/string/strcpy.S
-LIBS += lib/string/strlen.S
-LIBS += lib/string/strcmp.S
+STDLIB += lib/string/strcat.S
+STDLIB += lib/string/strcpy.S
+STDLIB += lib/string/strlen.S
+STDLIB += lib/string/strcmp.S
 
 # Conversion library.
-LIBS += lib/conversion/itoa.S
-LIBS += lib/conversion/atoi.S
-LIBS += lib/conversion/hex.S
+STDLIB += lib/conversion/itoa.S
+STDLIB += lib/conversion/atoi.S
+STDLIB += lib/conversion/hex.S
 
 # Bootrom sources.
-BOOTROM_SRCS += bootrom/serial.S
-BOOTROM_SRCS += bootrom/serial.py
+BOOTROM_SRCS += lib/hardware/serial.S
+BOOTROM_SRCS += lib/hardware/serial.py
 BOOTROM_SRCS += bootrom/main.py
 
 # Hello world sources.
-HELLOWORLD_SRCS += bootrom/serial.S
-HELLOWORLD_SRCS += bootrom/serial.py
+HELLOWORLD_SRCS += lib/hardware/serial.S
+HELLOWORLD_SRCS += lib/hardware/serial.py
 HELLOWORLD_SRCS += bootrom/helloworld.py
 
 # Fixed point test sources.
-FIXEDPOINT_SRCS += bootrom/serial.S
-FIXEDPOINT_SRCS += bootrom/serial.py
-FIXEDPOINT_SRCS += bootrom/fixed.py
+FIXEDPOINT_SRCS += lib/hardware/serial.S
+FIXEDPOINT_SRCS += lib/hardware/serial.py
+FIXEDPOINT_SRCS += lib/math/fixed.py
 FIXEDPOINT_SRCS += bootrom/fixedtest.py
 
 # Magic rule maker for above sources to map to various files.
@@ -63,14 +63,14 @@ FIXEDPOINT_CODES += $(filter %.S, ${FIXEDPOINT_SRCS})
 # Rule to convert any python file to its output init/data/code sections.
 build/%.init.S build/%.data.S build/%.code.S: %.py
 	@mkdir -p $(dir $@)
-	python3 compiler.py --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
+	python3 compiler.py --lib lib/ --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
 
-build/bootrom_listing.S: $(LIBS) $(RUNTIME) $(BOOTROM_INITS) $(BOOTROM_DATAS) $(BOOTROM_CODES)
+build/bootrom_listing.S: $(STDLIB) $(RUNTIME) $(BOOTROM_INITS) $(BOOTROM_DATAS) $(BOOTROM_CODES)
 	@mkdir -p $(dir $@)
 	cat lib/runtime/init.S > $@
 	cat $(BOOTROM_INITS) >> $@
 	cat lib/runtime/start.S >> $@
-	cat $(LIBS) >> $@
+	cat $(STDLIB) >> $@
 	cat $(BOOTROM_CODES) >> $@
 	cat lib/runtime/const.S >> $@
 	cat lib/hardware/hwregs.S >> $@
@@ -78,12 +78,12 @@ build/bootrom_listing.S: $(LIBS) $(RUNTIME) $(BOOTROM_INITS) $(BOOTROM_DATAS) $(
 	cat $(BOOTROM_DATAS) >> $@
 	cat lib/runtime/heap.S >> $@
 
-build/helloworld_listing.S: $(LIBS) $(RUNTIME) $(HELLOWORLD_INITS) $(HELLOWORLD_DATAS) $(HELLOWORLD_CODES)
+build/helloworld_listing.S: $(STDLIB) $(RUNTIME) $(HELLOWORLD_INITS) $(HELLOWORLD_DATAS) $(HELLOWORLD_CODES)
 	@mkdir -p $(dir $@)
 	cat lib/runtime/init.S > $@
 	cat $(HELLOWORLD_INITS) >> $@
 	cat lib/runtime/start.S >> $@
-	cat $(LIBS) >> $@
+	cat $(STDLIB) >> $@
 	cat $(HELLOWORLD_CODES) >> $@
 	cat lib/runtime/const.S >> $@
 	cat lib/hardware/hwregs.S >> $@
@@ -91,12 +91,12 @@ build/helloworld_listing.S: $(LIBS) $(RUNTIME) $(HELLOWORLD_INITS) $(HELLOWORLD_
 	cat $(HELLOWORLD_DATAS) >> $@
 	cat lib/runtime/heap.S >> $@
 
-build/fixedpoint_listing.S: $(LIBS) $(RUNTIME) $(FIXEDPOINT_INITS) $(FIXEDPOINT_DATAS) $(FIXEDPOINT_CODES)
+build/fixedpoint_listing.S: $(STDLIB) $(RUNTIME) $(FIXEDPOINT_INITS) $(FIXEDPOINT_DATAS) $(FIXEDPOINT_CODES)
 	@mkdir -p $(dir $@)
 	cat lib/runtime/init.S > $@
 	cat $(FIXEDPOINT_INITS) >> $@
 	cat lib/runtime/start.S >> $@
-	cat $(LIBS) >> $@
+	cat $(STDLIB) >> $@
 	cat $(FIXEDPOINT_CODES) >> $@
 	cat lib/runtime/const.S >> $@
 	cat lib/hardware/hwregs.S >> $@

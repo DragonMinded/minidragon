@@ -1,4 +1,4 @@
-from serial import (
+from hardware.serial import (
     serial_init,
     serial_clear,
     serial_send,

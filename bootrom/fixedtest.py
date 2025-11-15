@@ -1,10 +1,10 @@
-from serial import (
+from hardware.serial import (
     serial_init,
     serial_clear,
     serial_send,
     serial_input,
 )
-from fixed import strtofixed, fixedtostr
+from math.fixed import strtofixed, fixedtostr
 
 
 def main() -> void:

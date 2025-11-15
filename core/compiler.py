@@ -9036,6 +9036,17 @@ def set_working_directory(directory: Optional[str]) -> None:
     __working_directory = directory or "."
 
 
+__library_directory: List[str] = []
+
+
+def add_library_directory(directory: str) -> None:
+    __library_directory.append(directory)
+
+
+def clear_library() -> None:
+    __library_directory.clear()
+
+
 def parse_import_refs(body: cst.ImportFrom, context: Context) -> List[Union[FunctionPrototype, GlobalVariable]]:
     # First, figure out any relative import location.
     relative = len(body.relative)
@@ -9061,14 +9072,18 @@ def parse_import_refs(body: cst.ImportFrom, context: Context) -> List[Union[Func
     else:
         path = os.path.join(*([".."] * (relative - 1)), path)
 
-    # Now load the file and parse its forward refs.
-    path = os.path.abspath(os.path.join(__working_directory, path))
-    code = __file_loader(path)
+    # Now load the file and parse its forward refs, preferring the working directory and then
+    # looking in library paths.
+    for wd in [__working_directory, *__library_directory]:
+        fullpath = os.path.abspath(os.path.join(wd, path))
+        code = __file_loader(fullpath)
+        if code:
+            break
 
     if code is None:
         raise CompilerError(f"File {path} not found when attempting import", context)
 
-    file_refs = parse_forward_refs(path, code)
+    file_refs = parse_forward_refs(fullpath, code)
 
     # Now, filter them down to what was imported.
     if not isinstance(body.names, cst.ImportStar):

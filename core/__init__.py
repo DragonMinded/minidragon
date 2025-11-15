@@ -27,6 +27,8 @@ from .compiler import (
     compile_module,
     set_working_directory,
     set_file_loader,
+    add_library_directory,
+    clear_library,
 )
 
 __all__ = [
@@ -55,4 +57,6 @@ __all__ = [
     "compile_module",
     "set_working_directory",
     "set_file_loader",
+    "add_library_directory",
+    "clear_library",
 ]
