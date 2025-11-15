@@ -46,11 +46,11 @@ The valid types available to MiniPy programs are as follows.
 
 `str`
 
- > A null-terminated ASCII string, capable of holding up to 127 characters including the null terminator byte. Implemented as a 16 bit pointer to a memory address in RAM. Takes up two bytes of memory on the stack, stored as a big-endian pointer. Note that non-constant strings are required to specify the desired maximum storage length. This is done using bracket notation as demonstrated in examples below. The exception to this is in functions returning strings which explicitly return a variable or constant. In this case, you are free to declare that your function returns a `str` without using bracket notation to define a maximum storage length.
+ > A null-terminated ASCII string, capable of holding up to `127` characters including the null terminator byte. Implemented as a 16 bit pointer to a memory address in RAM. Takes up two bytes of memory on the stack, stored as a big-endian pointer. Note that non-constant strings are required to specify the desired maximum storage length. This is done using bracket notation as demonstrated in examples below. The exception to this is in functions returning strings which explicitly return a variable or constant. In this case, you are free to declare that your function returns a `str` without using bracket notation to define a maximum storage length.
 
 `bool`
 
- > A boolean, holding the value of `True` or `False`. Under the hood this is mapped to a signe byte holding either the value `0x00` for `False` or `0xFF` for `True`.
+ > A boolean, holding the value of `True` or `False`. Under the hood this is mapped to a single byte holding either the value `0x00` for `False` or `0xFF` for `True`.
 
 `void`
 
@@ -193,7 +193,7 @@ Additionally, MiniPy specifies a few intrinsics of its own. The MiniPy specific 
 
 `fixed(value, fracbits=8)`
 
- > Given a floating point value and an optional fractional bits, converts that value to a fixed point integer that represents the decimal approximation of the floating point value. Note that in MiniPy, fixed point integers are always 32 bits wide.
+ > Given an integer or floating point value and an optional fractional bits, converts that value to a fixed point integer that represents the decimal approximation of the floating point value. Note that in MiniPy, fixed point integers are always 32 bits wide.
 
 ## Import System
 
@@ -217,11 +217,11 @@ Examples of using the import system are as follows.
 
 `from hardware.serial import serial_init, serial_clear, serial_send`
 
- > Looks for the identifiers `serial_init`, `serial_clear` and `serial_send` in the module which implements `hardware.serial` and makes them available in the current module.
+ > Looks for the identifiers `serial_init`, `serial_clear` and `serial_send` in the module which implements `hardware.serial` and makes them available in the current module. That module could be the relative file `hardware/serial.py` relative to the module performing the import, or it could be the relative file `hardware/serial.py` existing in a library directory specified to the compiler with `-l` or `--lib`.
 
 `def func(param1: int16, param2: int32) -> extern[bool]: ...`
 
- > Defines a function prototype for `func` which takes two parameters and returns a boolean. Note the `extern[]` modifier as well as the ellipses (`...`). The compiler will emit code that refers to the global label `func` which should be implemented in an assembly file and linked into the final build. Note also that it is possible to declare functions as extern instead of importing them from other modules but it is heavily recommended to not do this because prototypes could get out of sync with the actual function implementation. If this happens, the compiler will generate incorrect code to call the function and you will most likely end up with a crash. So, it's best to leave `extern[]` functions and variables for when you need to implement something in pure assembly and reference it from within MiniPy code.
+ > Defines a function prototype for `func` which takes two parameters and returns a boolean. Note the `extern[]` modifier as well as the ellipses (`...`). The compiler will emit code that refers to the global label `func` which should be implemented in an assembly file and linked into the final build. Note also that it is possible to declare functions as extern instead of importing them from other modules. It is heavily recommended to not do this because prototypes could get out of sync with the actual function implementation. If this happens, the compiler will generate incorrect code to call the function and you will most likely end up with a crash. So, it's best to leave `extern[]` functions and variables for when you need to implement something in pure assembly and reference it from within MiniPy code.
 
 ## Included Libraries
 
