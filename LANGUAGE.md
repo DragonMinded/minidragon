@@ -42,11 +42,11 @@ The valid types available to MiniPy programs are as follows.
 
 `char`
 
- > An 8 bit ASCII character, capable of holding any of the 8 bit ASCII values including the null byte. Takes up one byte of memory on the stack or one byte of memory in a string.
+ > An 8 bit extended ASCII character, capable of holding any of the 8 bit extended ASCII values including the null byte. Takes up one byte of memory on the stack or one byte of memory in a string.
 
 `str`
 
- > A null-terminated ASCII string, capable of holding up to `127` characters including the null terminator byte. Implemented as a 16 bit pointer to a memory address in RAM. Takes up two bytes of memory on the stack, stored as a big-endian pointer. Note that non-constant strings are required to specify the desired maximum storage length. This is done using bracket notation as demonstrated in examples below. The exception to this is in functions returning strings which explicitly return a variable or constant. In this case, you are free to declare that your function returns a `str` without using bracket notation to define a maximum storage length.
+ > A null-terminated extended ASCII string, capable of holding up to `127` characters including the null terminator byte. Implemented as a 16 bit pointer to a memory address in RAM. Takes up two bytes of memory on the stack, stored as a big-endian pointer. Note that non-constant strings are required to specify the desired maximum storage length. This is done using bracket notation as demonstrated in examples below. The exception to this is in functions returning strings which explicitly return a variable or constant. In this case, you are free to declare that your function returns a `str` without using bracket notation to define a maximum storage length.
 
 `bool`
 
@@ -114,7 +114,7 @@ Examples of various operations are as follows.
 
 MiniPy supports a string data type and basic operations on strings. Strings work similarly to their counterpart in Python and unlike `char *` style arrays in C-like languages. That is, strings are passed by value, not by reference. Assigning a string to a variable makes a copy of that string such that modifying the variable later will not affect what it was assigned from. Strings support indexing by both an integer to access the character at a specific index as well as indexing by slice in order to return a substring consisting of the characters at the beginning to the end index.
 
-Unlike Python, MiniPy lets you assign a character to an index in a string. This is because strings are mutable in MiniPy. Note that MiniPy only supports strings up to 127 characters in length, and has no support for non-ASCII values in strings. Unlike Python, each individual character in a string has the data type of `char`, not `str`. That means that performing an operation such as `string[5]` will return a `char` data type, whereas performing an operation such as `string[5:6]` will return a `str` data type.
+Unlike Python, MiniPy lets you assign a character to an index in a string. This is because strings are mutable in MiniPy. Note that MiniPy only supports strings up to 127 characters in length, and has no support for unicode values above codepoint 255 in strings. Unlike Python, each individual character in a string has the data type of `char`, not `str`. That means that performing an operation such as `string[5]` will return a `char` data type, whereas performing an operation such as `string[5:6]` will return a `str` data type.
 
 Note that, for speed reasons, when the compiler can prove that there is no way to accidentally cause aliasing issues, strings will be represented under the hood as a reference to another string instead of a full copy. This only happens with constant strings that are assigned to from a string literal, a global constant string, a function marked as returning a constant string, or another local constant string that was assigned to from one of these categories. Functions are only allowed to be marked as returning a constant string if the value they are returning fits within one of these categories as well. This support for references under the hood extends to string function parameters that are marked as constant.
 
