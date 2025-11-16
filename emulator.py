@@ -8,7 +8,8 @@ import time
 import tty
 from io import FileIO
 from typing import Any, Final, List, Optional
-from core import CPUCore, MemoryFilter
+
+from minidragon.core import CPUCore, MemoryFilter
 
 
 ROM_LOCATION: Final[int] = 0x0000

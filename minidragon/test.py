@@ -4,14 +4,14 @@ import textwrap
 import unittest
 from typing import Any, Dict, Optional
 
-from .assembler import (
-    sign_extend,
+from .util import (
+    signextend,
     hexstr,
     binstr,
     bintoint,
     sanitize,
-    _splitparams,
 )
+from .core import _splitparams
 from .compiler import (
     CompilerError,
     CompilerSettings,
@@ -38,12 +38,12 @@ class TestAssembler(unittest.TestCase):
         super().__init__(*args, **kwargs)
         self.maxDiff = None
 
-    def test_sign_extend(self) -> None:
-        self.assertEqual(0, sign_extend(0, 7))
-        self.assertEqual(0x007F, sign_extend(0x7F, 7))
-        self.assertEqual(0xFFFF, sign_extend(0xFF, 7))
-        self.assertEqual(0xFFFF, sign_extend(0x1F, 4))
-        self.assertEqual(0x000F, sign_extend(0x0F, 4))
+    def test_signextend(self) -> None:
+        self.assertEqual(0, signextend(0, 7))
+        self.assertEqual(0x007F, signextend(0x7F, 7))
+        self.assertEqual(0xFFFF, signextend(0xFF, 7))
+        self.assertEqual(0xFFFF, signextend(0x1F, 4))
+        self.assertEqual(0x000F, signextend(0x0F, 4))
 
     def test_hexstr(self) -> None:
         self.assertEqual("00", hexstr(0, 2))

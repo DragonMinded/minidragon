@@ -6,7 +6,8 @@ import libcst.metadata as meta
 
 from typing import Callable, Dict, Final, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
 
-from .assembler import assemble, sanitize
+from .core import assemble
+from .util import sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127

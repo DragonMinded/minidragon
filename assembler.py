@@ -2,7 +2,9 @@
 import argparse
 import os
 from typing import Dict, List
-from core import assemble, sanitize, getint
+
+from minidragon.core import assemble
+from minidragon.util import sanitize, getint
 
 
 def getlines(instr: str) -> List[str]:

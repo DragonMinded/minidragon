@@ -3,7 +3,7 @@ import os
 import sys
 from typing import List, Union
 
-from core import (
+from minidragon.compiler import (
     CompilerError,
     CompilerSettings,
     FunctionPrototype,

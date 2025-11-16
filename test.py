@@ -5,20 +5,15 @@ import struct
 import textwrap
 from itertools import chain
 from typing import Any, Container, Dict, List, Optional
-from core import (
+
+from minidragon.compiler import CompilerSettings, parse_and_compile_module, set_file_loader
+from minidragon.core import CPUCore, assemble, disassemble
+from minidragon.exception import (
     InvalidInstructionException,
     ParameterOutOfRangeException,
     CodeOutOfRangeException,
-    CPUCore,
-    CompilerSettings,
-    assemble,
-    disassemble,
-    bintoint,
-    hexstr,
-    sanitize,
-    parse_and_compile_module,
-    set_file_loader,
 )
+from minidragon.util import bintoint, hexstr, sanitize
 
 
 CLEAR_LINE = "\033[F\033[K"
