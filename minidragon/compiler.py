@@ -7791,6 +7791,19 @@ def compile_chunk(
                         if can_relocate_return(function_type, stack, clobbers, context):
                             stack.relocate("builtin(retval)", 0)
 
+                        # If they're returning a constant from a function marked as non-constant, we end up wanting a
+                        # string length for things that provably do not need one, such as returning a string literal.
+                        # Fix up the definition here so that we can avoid a strcpy as well as avoid requiring a length.
+                        original_type = stack.typeof("builtin(retval)")
+                        if original_type is None:
+                            raise Exception("Logic error, can't determine type of return value!")
+
+                        if (
+                            function_type.is_string and not function_type.const and
+                            is_safe_ref(simple_statement.value, stack, refs_copy, local_consts, context.wrap(simple_statement.value))
+                        ):
+                            stack.retype("builtin(retval)", original_type.const_clone())
+
                         # Functions that return const[str] are only allowed to do so if they return a safe ref. That
                         # means a string literal, a global constant string, a local constant string that is also a
                         # safe ref, or another function that returns a const[str]. Since functions are only allowed to
@@ -7812,6 +7825,9 @@ def compile_chunk(
                             context.wrap(simple_statement.value),
                         )
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
+
+                        # If we modified the type to avoid a strcpy, put it back here.
+                        stack.retype("builtin(retval)", original_type)
 
                     # We lie here, because while the last statement wasn't a continue, it serves a similar purpose.
                     last_statement_was_return = True

@@ -11480,7 +11480,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # Now, see if we can return a local non-constant string, and that we get the right value.
     if True:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string() -> str[32]:
+            def return_string() -> str:
                 return "This is a test."
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -11518,7 +11518,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0x8000)
         expected = "This is a test."
         _assert(
             result == expected,
@@ -11912,7 +11912,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
     # Test if statements with string returns.
     for var in [True, False]:
         sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
-            def return_string(var: bool) -> str[32]:
+            def return_string(var: bool) -> str:
                 if var:
                     return "Test 1."
                 else:
@@ -11954,7 +11954,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0x8000)
         expected = "Test 1." if var else "Test 2."
         _assert(
             result == expected,
@@ -13074,7 +13074,8 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         sliceable = "this is a test"
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
             def sliceme() -> str[32]:
-                return "{sliceable}"[{sliceval}]
+                var: str[32] = {sliceable!r}
+                return var[{sliceval}]
         """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
