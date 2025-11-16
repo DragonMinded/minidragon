@@ -7,6 +7,7 @@ from .exception import (
     DuplicateLabelDefinitionException,
     InvalidInstructionException,
     InvalidLabelDefinitionException,
+    InvalidParameterException,
     ParameterOutOfRangeException,
 )
 from .util import binstr, bintoint, getint, hexstr, highlight, signextend
@@ -1071,7 +1072,7 @@ class JRI(BaseInstruction):
                 6,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter] - origin - 1)
@@ -1270,7 +1271,7 @@ class PUSHIP(BaseInstruction):
                 allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter] - origin)
@@ -2865,7 +2866,7 @@ class LNGJUMP(BaseStackInstruction):
                 allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter])
@@ -3306,7 +3307,7 @@ class SETPC(BaseMacro):
                 allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 location = getint(
@@ -3385,7 +3386,7 @@ class PUSHADDR(BaseMacro):
                 allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 location = getint(
@@ -3458,7 +3459,7 @@ class JRIZ(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]
@@ -3509,7 +3510,7 @@ class JRINZ(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]
@@ -3560,7 +3561,7 @@ class JRIC(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]
@@ -3611,7 +3612,7 @@ class JRINC(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]
@@ -3658,7 +3659,7 @@ class LNGJUMPZ(BaseMacro):
                 allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter])
@@ -3711,7 +3712,7 @@ class LNGJUMPNZ(BaseMacro):
                 allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter])
@@ -3764,7 +3765,7 @@ class LNGJUMPC(BaseMacro):
                 allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter])
@@ -3817,7 +3818,7 @@ class LNGJUMPNC(BaseMacro):
                 allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 offset = str(labels[parameter])
@@ -3895,7 +3896,7 @@ class CALL(BaseMacro):
                 allow_unsigned=True,
                 hint=_insnrep(mnemonic, parameters),
             )
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 location = getint(
@@ -3954,7 +3955,7 @@ class CALLRI(BaseMacro):
             # instruction will go.
             if location & 0b00100000:
                 location -= 1
-        except ParameterOutOfRangeException:
+        except InvalidParameterException:
             # Now, try as a label.
             if parameter in labels:
                 absolute_location = labels[parameter]

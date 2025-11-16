@@ -4,7 +4,7 @@ from colorama import Fore, Style
 from ast import literal_eval
 from typing import Optional, Set
 
-from .exception import ParameterOutOfRangeException
+from .exception import InvalidParameterException, ParameterOutOfRangeException
 
 
 def signextend(val: int, msb: int) -> int:
@@ -115,7 +115,7 @@ def _getint(
     except ValueError:
         pass
 
-    raise ParameterOutOfRangeException(
+    raise InvalidParameterException(
         f"Invalid integer {val}"
         + f"{'' if hint is None else ' on instruction ' + hint}"
     )

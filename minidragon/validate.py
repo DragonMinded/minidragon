@@ -6,14 +6,14 @@ import textwrap
 from itertools import chain
 from typing import Any, Container, Dict, List, Optional
 
-from minidragon.compiler import CompilerSettings, parse_and_compile_module, set_file_loader
-from minidragon.core import CPUCore, assemble, disassemble
-from minidragon.exception import (
+from .compiler import CompilerSettings, parse_and_compile_module, set_file_loader
+from .core import CPUCore, assemble, disassemble
+from .exception import (
     InvalidInstructionException,
     ParameterOutOfRangeException,
     CodeOutOfRangeException,
 )
-from minidragon.util import bintoint, hexstr, sanitize
+from .util import bintoint, hexstr, sanitize
 
 
 CLEAR_LINE = "\033[F\033[K"

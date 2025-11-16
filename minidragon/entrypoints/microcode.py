@@ -1,8 +1,7 @@
-#! /usr/bin/python3
 import argparse
 import os
 from typing import List
-from minidragon.core import InstructionLoadControlSignals, ControlSignals, instructions
+from ..core import InstructionLoadControlSignals, ControlSignals, instructions
 
 
 def count_jumpers(line: str) -> int:

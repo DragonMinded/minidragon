@@ -15,6 +15,10 @@ class InvalidLabelDefinitionException(AssemblerException):
     pass
 
 
+class InvalidParameterException(AssemblerException):
+    pass
+
+
 class ParameterOutOfRangeException(AssemblerException):
     pass
 

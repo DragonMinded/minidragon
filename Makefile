@@ -63,7 +63,7 @@ FIXEDPOINT_CODES += $(filter %.S, ${FIXEDPOINT_SRCS})
 # Rule to convert any python file to its output init/data/code sections.
 build/%.init.S build/%.data.S build/%.code.S: %.py
 	@mkdir -p $(dir $@)
-	python3 compiler.py --lib lib/ --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
+	./compiler --lib lib/ --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
 
 build/bootrom_listing.S: $(STDLIB) $(RUNTIME) $(BOOTROM_INITS) $(BOOTROM_DATAS) $(BOOTROM_CODES)
 	@mkdir -p $(dir $@)
@@ -106,7 +106,7 @@ build/fixedpoint_listing.S: $(STDLIB) $(RUNTIME) $(FIXEDPOINT_INITS) $(FIXEDPOIN
 
 # Rule to convert any prefixed listing file to its associated bin/sym files.
 %.bin %.sym: build/%_listing.S
-	python3 assembler.py \
+	./assembler \
 		--origin 0x0000 \
 		--size 0x7800 \
 		--destination $@ \

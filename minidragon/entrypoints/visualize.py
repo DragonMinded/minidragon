@@ -1,4 +1,3 @@
-#! /usr/bin/python3
 import ast
 import argparse
 from typing import Dict, Optional

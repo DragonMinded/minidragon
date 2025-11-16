@@ -1,4 +1,3 @@
-#! /usr/bin/python3
 import argparse
 import os
 import serial  # type: ignore
@@ -9,7 +8,7 @@ import tty
 from io import FileIO
 from typing import Any, Final, List, Optional
 
-from minidragon.core import CPUCore, MemoryFilter
+from ..core import CPUCore, MemoryFilter
 
 
 ROM_LOCATION: Final[int] = 0x0000
