@@ -7,7 +7,7 @@ A collection of utilities for working with MiniDragon assembly and MiniPy source
 To install these files, use the following one-liner:
 
 ```
-pipx install https://github.com/DragonMinded/minidragon.git
+pipx install git+https://github.com/DragonMinded/minidragon.git
 ```
 
 To upgrade once you've installed, use the following one-liner:
