@@ -74,8 +74,7 @@ bootrom.bin: $(BUILD_DIR)/listing.S
 		$(SRC_DIR)/$(BUILD_DIR)/listing.S
 
 run: bootrom.bin
-	cd $(ROOT_DIR) && python3 emulator.py $(SRC_DIR)/
-	bootrom.bin
+	cd $(ROOT_DIR) && python3 emulator.py $(SRC_DIR)/bootrom.bin
 
 .PHONY: clean
 clean:
