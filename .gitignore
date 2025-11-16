@@ -28,3 +28,4 @@ sym-lib-table
 *.lck
 ibom.html
 build/
+minidragon.egg-info/
