@@ -6,7 +6,7 @@ TOOLS_DIR := $(ROOT_DIR)/core
 # Assembler libraries
 LIB_DIR := $(ROOT_DIR)/lib
 # Where the ROM Python sources live, relative to this Makefile
-SRC_DIR := .
+SRC_DIR := roms/bootrom
 # Local build/output directory (kept relative to this Makefile)
 BUILD_DIR := build
 
@@ -33,10 +33,10 @@ LIBS += $(LIB_DIR)/conversion/atoi.S
 LIBS += $(LIB_DIR)/conversion/hex.S
 
 # Main startup.
-SRCS += $(SRC_DIR)/main.py
+SRCS += main.py
 
 # Hardware drivers.
-SRCS += $(SRC_DIR)/serial.py
+SRCS += serial.py
 
 INITS = $(patsubst %.py, $(BUILD_DIR)/%.init.S, ${SRCS})
 DATAS = $(patsubst %.py, $(BUILD_DIR)/%.data.S, ${SRCS})
@@ -44,11 +44,12 @@ CODES = $(patsubst %.py,  $(BUILD_DIR)/%.code.S, ${SRCS})
 
 $(BUILD_DIR)/%.init.S  $(BUILD_DIR)/%.data.S  $(BUILD_DIR)/%.code.S: %.py
 	@mkdir -p $(dir $@)
-	python3 $(ROOT_DIR)/compiler.py \
+	cd $(ROOT_DIR) && python3 compiler.py \
 	    --optimize \
-	    -o $(BUILD_DIR)/$*.code.S \
-	    -d  $(BUILD_DIR)/$*.data.S \
-	    -i  $(BUILD_DIR)/$*.init.S $^
+	    -o $(abspath $(BUILD_DIR))/$*.code.S \
+	    -d  $(abspath $(BUILD_DIR))/$*.data.S \
+	    -i  $(abspath $(BUILD_DIR))/$*.init.S \
+	    $(SRC_DIR)/$^
 
 $(BUILD_DIR)/listing.S: $(LIBS) $(INITS) $(DATAS) $(CODES) $(LIB_DIR)/init.S $(LIB_DIR)/start.S $(LIB_DIR)/hwregs.S $(LIB_DIR)/const.S $(LIB_DIR)/data.S $(LIB_DIR)/heap.S
 	@mkdir -p $(dir $@)
@@ -64,16 +65,17 @@ $(BUILD_DIR)/listing.S: $(LIBS) $(INITS) $(DATAS) $(CODES) $(LIB_DIR)/init.S $(L
 	cat $(LIB_DIR)/heap.S >> $@
 
 bootrom.bin: $(BUILD_DIR)/listing.S
-	python3 $(ROOT_DIR)/assembler.py \
+	cd $(ROOT_DIR) && python3 assembler.py \
 		--origin 0x0000 \
 		--size 0x7800 \
-		--destination bootrom.bin \
+		--destination $(SRC_DIR)/bootrom.bin \
 		--generate-symbols \
-		--symbol-file bootrom.sym \
-		$(BUILD_DIR)/listing.S
+		--symbol-file $(SRC_DIR)/bootrom.sym \
+		$(SRC_DIR)/$(BUILD_DIR)/listing.S
 
 run: bootrom.bin
-	python3 $(ROOT_DIR)/emulator.py bootrom.bin
+	cd $(ROOT_DIR) && python3 emulator.py $(SRC_DIR)/
+	bootrom.bin
 
 .PHONY: clean
 clean:
