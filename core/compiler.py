@@ -3885,7 +3885,7 @@ def generate_function_call(
 
             # Evaluate the expression itself, but pretend the expr_dest is the source type.
             expr_dest = expr_temp_name()
-            stack.alloc(StackVar(expr_dest, types[expr], initialized=True))
+            stack.alloc(StackVar(expr_dest, types[expr].const_clone(), initialized=True))
             compiled += generate_expr_internal(expr, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
             compiled += generate_memcpy_stackvars(destination, expr_dest, stack, clobbers, context)
 

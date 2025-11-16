@@ -933,7 +933,7 @@ class TestCompiler(unittest.TestCase):
 
         with self.assertRaises(CompilerError) as cm:
             parse_and_compile_module("bad.py", self.__loader("bad.py") or "", CompilerSettings())
-        self.assertEqual("bad.py line 2: File /unk.py not found when attempting import", str(cm.exception))
+        self.assertEqual("bad.py line 2: File ./unk.py not found when attempting import", str(cm.exception))
 
         set_working_directory(None)
         set_file_loader(None)
@@ -944,7 +944,7 @@ class TestCompiler(unittest.TestCase):
 
         with self.assertRaises(CompilerError) as cm:
             parse_and_compile_module("wrong.py", self.__loader("wrong.py") or "", CompilerSettings())
-        self.assertEqual("wrong.py line 2: File /lib.py does not export importable some_func", str(cm.exception))
+        self.assertEqual("wrong.py line 2: File ./lib.py does not export importable some_func", str(cm.exception))
 
         set_working_directory(None)
         set_file_loader(None)
