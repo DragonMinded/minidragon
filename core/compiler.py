@@ -2759,6 +2759,15 @@ def generate_function_call_internal(
                     raise Exception(f"Logic error, cannot find destination {destination} to copy variable value to!")
 
                 if src_type.is_string and dest_type.is_string and not ((src_type.const and dest_type.const) or safe_assign(destination)):
+                    # We need to make room on the stack for temporary values to call strcpy(), but the return loc is on the
+                    # stack and untracked. So, while we get back stack locations that are less than the return location plus
+                    # the return size, keep allocating padding.
+                    padding_names: List[str] = []
+                    while stack.size < src_loc + src_size:
+                        pad_name = f"builtin(retpad_{stack.size})"
+                        stack.alloc(StackVar(pad_name, CoreType("uint8", const=True), initialized=True))
+                        padding_names.append(pad_name)
+
                     # We need to allocate locally and strcpy over.
                     if not stack.initof(destination):
                         compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
@@ -2807,6 +2816,10 @@ def generate_function_call_internal(
                     stack.free(rhs_dest)
                     if lhs_dest != destination:
                         stack.free(lhs_dest)
+
+                    # Now, free the padding.
+                    for pad_name in reversed(padding_names):
+                        stack.free(pad_name)
 
                 else:
                     stack.init(destination)
