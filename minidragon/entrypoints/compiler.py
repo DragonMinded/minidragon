@@ -18,7 +18,7 @@ from ..compiler import (
 )
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="A MiniPy Python to MiniDragon Assembly compiler."
     )
@@ -122,3 +122,7 @@ if __name__ == "__main__":
         else:
             print(str(e), file=sys.stderr)
             sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

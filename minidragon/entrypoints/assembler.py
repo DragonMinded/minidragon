@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from typing import Dict, List
 
 from ..core import assemble
@@ -16,7 +17,7 @@ def getlines(instr: str) -> List[str]:
     return lines
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="An assembler for MiniDragon."
     )
@@ -110,3 +111,9 @@ if __name__ == "__main__":
                 if label.startswith("_"):
                     continue
                 fp.write(f"{label}: {hex(address)}{os.linesep}")
+
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

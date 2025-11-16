@@ -504,7 +504,7 @@ class MiniDragonMemoryFilter(MemoryFilter):
 
 def main(boot_rom: str, serial_port: Optional[str], verbose: bool) -> int:
     # First, fill the ROM portion with the bootROM file itself.
-    with open(args.file, "rb") as bfp:
+    with open(boot_rom, "rb") as bfp:
         data = bfp.read()
     if len(data) > ROM_SIZE:
         data = data[:ROM_SIZE]
@@ -557,7 +557,7 @@ def main(boot_rom: str, serial_port: Optional[str], verbose: bool) -> int:
     return 0
 
 
-if __name__ == "__main__":
+def run() -> None:
     parser = argparse.ArgumentParser(description="A full system emulator for MiniDragon.")
     parser.add_argument(
         "file",
@@ -581,3 +581,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     sys.exit(main(args.file, args.serial_port, args.verbose))
+
+
+if __name__ == "__main__":
+    run()

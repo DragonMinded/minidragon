@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from typing import List
 
 from ..core import CPUCore, assemble
@@ -16,7 +17,7 @@ def getlines(instr: str) -> List[str]:
     return lines
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser(description="A simulator for MiniDragon.")
     parser.add_argument(
         "file",
@@ -124,3 +125,9 @@ if __name__ == "__main__":
             print("q - Quit")
         else:
             print("Unrecognized command.")
+
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

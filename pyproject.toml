@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minidragon"
+version = "1.0.0"
+description = "Core utilities for working with MiniDragon assembly and MiniPy source files."
+readme = "UTILS.md"
+requires-python = ">=3.8"
+authors = [{name = "Jennifer Taylor"}]
+dependencies = [
+    "LibCST",
+    "pySerial",
+    "colorama",
+]
+
+[project.optional-dependencies]
+cli = [
+    "types-colorama",
+    "mypy",
+    "flake8",
+]
+
+[tool.setuptools]
+packages = [
+    "minidragon",
+    "minidragon.entrypoints",
+]
+
+[project.scripts]
+minidragon-assembler = "minidragon.entrypoints.assembler:main"
+minidragon-compiler = "minidragon.entrypoints.compiler:main"
+minidragon-emulator = "minidragon.entrypoints.emulator:run"
+minidragon-simulator = "minidragon.entrypoints.simulator:main"
