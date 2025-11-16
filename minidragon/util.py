@@ -1,6 +1,7 @@
-#! /usr/bin/python3
-from colorama import Fore, Style
+import os
+import traceback
 
+from colorama import Fore, Style
 from ast import literal_eval
 from typing import Optional, Set
 
@@ -40,6 +41,10 @@ def hexstr(num: int, digits: int) -> str:
     while len(val) < digits:
         val = "0" + val
     return val
+
+
+def hexval(num: int, digits: int) -> str:
+    return "0x" + hexstr(num, digits)
 
 
 def binstr(num: int, digits: int) -> str:
@@ -144,3 +149,20 @@ def getint(
 
     # Return it masked.
     return int(intval & ((2 ** bits) - 1))
+
+
+def comment_source(extra: Optional[str] = None) -> str:
+    if not os.environ.get("INSERT_CALLER_COMMENTS"):
+        return ""
+
+    lines = [line for line in traceback.format_stack() if line.strip().startswith("File")]
+
+    # We should be the first line, so our caller is the second.
+    relevant = lines[-2]
+    relevant, _ = relevant.split(os.linesep, 1)
+    _, details = relevant.split(", ", 1)
+
+    if extra:
+        details += f" ({extra})"
+
+    return f"  ; {details}"

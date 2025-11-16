@@ -1,13 +1,12 @@
 import builtins
 import os
-import traceback
 import libcst as cst
 import libcst.metadata as meta
 
 from typing import Callable, Dict, Final, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
 
 from .core import assemble
-from .util import sanitize
+from .util import comment_source, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127
@@ -16,23 +15,6 @@ MAX_STRING_LENGTH: Final[int] = 127
 class CompilerSettings:
     def __init__(self, *, optimize: bool = False) -> None:
         self.optimize = optimize
-
-
-def comment_source(extra: Optional[str] = None) -> str:
-    if not os.environ.get("INSERT_CALLER_COMMENTS"):
-        return ""
-
-    lines = [line for line in traceback.format_stack() if line.strip().startswith("File")]
-
-    # We should be the first line, so our caller is the second.
-    relevant = lines[-2]
-    relevant, _ = relevant.split(os.linesep, 1)
-    _, details = relevant.split(", ", 1)
-
-    if extra:
-        details += f" ({extra})"
-
-    return f"  ; {details}"
 
 
 class Context:
@@ -103,6 +85,10 @@ class CompilerError(Exception):
             super().__init__(f"{context.module} line unknown: " + error)
         self.module = context.module
         self.line = metaval.start.line if metaval else None
+
+
+class NonConstantExpressionException(Exception):
+    pass
 
 
 class Sections:
@@ -466,23 +452,6 @@ class PaddingCoreType(CoreType):
         return int(self.type[9:])
 
 
-def get_int(val: str, context: Context) -> int:
-    try:
-        if val.startswith("0x"):
-            return int(val, 16)
-        elif val.startswith("0b"):
-            return int(val, 2)
-        elif val.startswith("0o"):
-            return int(val, 8)
-        else:
-            return int(val, 10)
-    except Exception:
-        # Don't want to have the exception linked as a cause.
-        pass
-
-    raise CompilerError(f"Could not parse {val} as integer.", context)
-
-
 class Constant:
     def __init__(self, name: str, vartype: CoreType, value: object) -> None:
         self.name = name
@@ -491,153 +460,6 @@ class Constant:
 
     def __repr__(self) -> str:
         return f"Local constant {self.type!r} {self.name!r}: {self.value!r}"
-
-
-def const_by_name(consts: List[Constant], name: str) -> Optional[Constant]:
-    for const in consts:
-        if const.name == name:
-            return const
-    return None
-
-
-def type_comparison_compatible(left: CoreType, right: CoreType) -> bool:
-    if left.type == "any":
-        return True
-    if right.type == "any":
-        return True
-    if left.is_integer and right.is_integer:
-        return True
-    if left.is_char and right.is_char:
-        return True
-    if left.is_bool and right.is_bool:
-        return True
-    if left.is_string and right.is_string:
-        return True
-    if left.is_pointer and right.is_pointer:
-        return True
-    if left.type == "string" and (right.is_string or right.is_char or right.type == "string"):
-        return True
-    if right.type == "string" and (left.is_string or left.is_char or left.type == "string"):
-        return True
-    return False
-
-
-def get_type(
-    expr: Optional[cst.CSTNode],
-    constants: List[Constant],
-    *,
-    allow_nopad: bool = False,
-    allow_extern: bool = False,
-    allow_array: bool = False,
-) -> Optional[CoreType]:
-    if expr is None:
-        return None
-    if isinstance(expr, cst.Annotation):
-        expr = expr.annotation
-    if not isinstance(expr, cst.BaseExpression):
-        return None
-
-    const: bool = False
-    extern: bool = False
-    nopad: bool = False
-    length: Optional[int] = None
-
-    while True:
-        if isinstance(expr, cst.Subscript):
-            # Might be a const expr or a nopad expr. Might also be a size expr.
-            qualifier = expr.value
-            if not isinstance(qualifier, cst.Name):
-                return None
-
-            if len(expr.slice) == 1:
-                sliceval = expr.slice[0]
-                if isinstance(sliceval.slice, cst.Index):
-                    # Attempt to evaluate and see if it comes back as an int.
-                    try:
-                        value = codegen_eval(sliceval.slice.value, constants, None)
-                    except NonConstantExpressionException:
-                        value = None
-
-                    if isinstance(value, int):
-                        expr = qualifier
-                        length = value
-                        continue
-
-            if qualifier.value == "const":
-                if len(expr.slice) != 1:
-                    return None
-
-                sliceval = expr.slice[0]
-                if not isinstance(sliceval.slice, cst.Index):
-                    return None
-
-                const = True
-                expr = sliceval.slice.value
-                continue
-
-            if qualifier.value == "extern":
-                if len(expr.slice) != 1:
-                    return None
-
-                sliceval = expr.slice[0]
-                if not isinstance(sliceval.slice, cst.Index):
-                    return None
-
-                extern = True
-                expr = sliceval.slice.value
-                continue
-
-            if qualifier.value == "nopad":
-                if len(expr.slice) != 1:
-                    return None
-
-                sliceval = expr.slice[0]
-                if not isinstance(sliceval.slice, cst.Index):
-                    return None
-
-                nopad = True
-                expr = sliceval.slice.value
-                continue
-
-            if qualifier.value == "pointer":
-                if len(expr.slice) != 1:
-                    return None
-
-                sliceval = expr.slice[0]
-                if not isinstance(sliceval.slice, cst.Index):
-                    return None
-
-                expr = sliceval.slice.value
-                pointed = get_type(expr, constants, allow_nopad=allow_nopad, allow_extern=allow_extern, allow_array=allow_array)
-                if pointed is None:
-                    return None
-                return CoreType("pointer", pointed, const=const, extern=extern, return_padding=not nopad)
-
-            return None
-
-        elif isinstance(expr, cst.Name):
-            if nopad and not allow_nopad:
-                return None
-            if extern and not allow_extern:
-                return None
-            if length and not allow_array:
-                return None
-
-            if expr.value == "void":
-                if length:
-                    return None
-                else:
-                    return CoreType("void", None, const=True, extern=extern, return_padding=False)
-            else:
-                if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "bool", "char", "str"}:
-                    return None
-                if length and expr.value not in {"str"}:
-                    return None
-
-                return CoreType(expr.value, None, length=length, const=const, extern=extern, return_padding=not nopad)
-
-        else:
-            return None
 
 
 class Allocation:
@@ -649,6 +471,12 @@ class Allocation:
 
     def __repr__(self) -> str:
         return f"Allocation(var={self.var!r}, storage={self.storage!r}, size={self.size!r}, used={self.used!r})"
+
+
+class FunctionParam:
+    def __init__(self, name: Optional[str], paramtype: CoreType) -> None:
+        self.name = name
+        self.type = paramtype
 
 
 class UnvalidatedName(cst.Name):
@@ -668,13 +496,6 @@ class SentinelInteger(cst.Integer):
     Exists solely to be able to create default arguments to compiler intrinsics so that
     we can detect if a user-provided value was given or omitted.
     """
-
-
-def create_call(name: str, params: Iterable[cst.BaseExpression]) -> cst.Call:
-    return cst.Call(
-        func=cst.Name(value=name),
-        args=[cst.Arg(value=param) for param in params],
-    )
 
 
 class FunctionPrototype:
@@ -727,64 +548,6 @@ class GlobalVariable:
 
     def __repr__(self) -> str:
         return f"Global variable {self.type!r} {self.name!r}"
-
-
-def global_by_name(globs: Sequence[Union[FunctionPrototype, GlobalVariable]], name: str) -> Optional[GlobalVariable]:
-    for glob in globs:
-        if isinstance(glob, GlobalVariable) and glob.name == name:
-            return glob
-    return None
-
-
-def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionPrototype, GlobalVariable]], labels: List[str] = []) -> int:
-    compiled = [sanitize(c) for c in compiled]
-    compiled = [c for c in compiled if c]
-
-    # Doesn't matter where these labels point, they're just going to be used with SETPC and CALL instrutions.
-    deduped_labels: Set[str] = set()
-    for ref in refs:
-        deduped_labels.add(ref.name)
-    for label in labels:
-        deduped_labels.add(label)
-
-    # Fix up any sort of string pointer references.
-    for line in compiled:
-        if "PUSHADDR" in line:
-            label = line.split("PUSHADDR", 1)[1]
-            label = label.strip()
-            label = label.split(";", 1)[0]
-            label = label.split(",", 1)[0]
-            label = label.strip()
-            deduped_labels.add(label)
-
-    for label in deduped_labels:
-        compiled.append(f"{label}:")
-
-    memory = assemble(compiled)
-    if not memory:
-        return 0
-
-    minval = memory[0][0]
-    maxval = minval
-    for loc, _ in memory:
-        if loc < minval:
-            minval = loc
-        if loc > maxval:
-            maxval = loc
-
-    return (maxval - minval) + 1
-
-
-def is_register_destination(name: str) -> bool:
-    return name.startswith("register(") and name.endswith(")")
-
-
-def register_type(name: str) -> Optional[CoreType]:
-    if not is_register_destination(name):
-        return None
-
-    vals = name[9:-1].split(",", 1)
-    return CoreType(vals[1].strip())
 
 
 class LoopInfo:
@@ -1064,6 +827,235 @@ class Stack:
         return "\n".join(lines)
 
 
+def strtoint(val: str, context: Context) -> int:
+    try:
+        if val.startswith("0x"):
+            return int(val, 16)
+        elif val.startswith("0b"):
+            return int(val, 2)
+        elif val.startswith("0o"):
+            return int(val, 8)
+        else:
+            return int(val, 10)
+    except Exception:
+        # Don't want to have the exception linked as a cause.
+        pass
+
+    raise CompilerError(f"Could not parse {val} as integer.", context)
+
+
+def const_by_name(consts: List[Constant], name: str) -> Optional[Constant]:
+    for const in consts:
+        if const.name == name:
+            return const
+    return None
+
+
+def type_comparison_compatible(left: CoreType, right: CoreType) -> bool:
+    if left.type == "any":
+        return True
+    if right.type == "any":
+        return True
+    if left.is_integer and right.is_integer:
+        return True
+    if left.is_char and right.is_char:
+        return True
+    if left.is_bool and right.is_bool:
+        return True
+    if left.is_string and right.is_string:
+        return True
+    if left.is_pointer and right.is_pointer:
+        return True
+    if left.type == "string" and (right.is_string or right.is_char or right.type == "string"):
+        return True
+    if right.type == "string" and (left.is_string or left.is_char or left.type == "string"):
+        return True
+    return False
+
+
+def get_type(
+    expr: Optional[cst.CSTNode],
+    constants: List[Constant],
+    *,
+    allow_nopad: bool = False,
+    allow_extern: bool = False,
+    allow_array: bool = False,
+) -> Optional[CoreType]:
+    if expr is None:
+        return None
+    if isinstance(expr, cst.Annotation):
+        expr = expr.annotation
+    if not isinstance(expr, cst.BaseExpression):
+        return None
+
+    const: bool = False
+    extern: bool = False
+    nopad: bool = False
+    length: Optional[int] = None
+
+    while True:
+        if isinstance(expr, cst.Subscript):
+            # Might be a const expr or a nopad expr. Might also be a size expr.
+            qualifier = expr.value
+            if not isinstance(qualifier, cst.Name):
+                return None
+
+            if len(expr.slice) == 1:
+                sliceval = expr.slice[0]
+                if isinstance(sliceval.slice, cst.Index):
+                    # Attempt to evaluate and see if it comes back as an int.
+                    try:
+                        value = codegen_eval(sliceval.slice.value, constants, None)
+                    except NonConstantExpressionException:
+                        value = None
+
+                    if isinstance(value, int):
+                        expr = qualifier
+                        length = value
+                        continue
+
+            if qualifier.value == "const":
+                if len(expr.slice) != 1:
+                    return None
+
+                sliceval = expr.slice[0]
+                if not isinstance(sliceval.slice, cst.Index):
+                    return None
+
+                const = True
+                expr = sliceval.slice.value
+                continue
+
+            if qualifier.value == "extern":
+                if len(expr.slice) != 1:
+                    return None
+
+                sliceval = expr.slice[0]
+                if not isinstance(sliceval.slice, cst.Index):
+                    return None
+
+                extern = True
+                expr = sliceval.slice.value
+                continue
+
+            if qualifier.value == "nopad":
+                if len(expr.slice) != 1:
+                    return None
+
+                sliceval = expr.slice[0]
+                if not isinstance(sliceval.slice, cst.Index):
+                    return None
+
+                nopad = True
+                expr = sliceval.slice.value
+                continue
+
+            if qualifier.value == "pointer":
+                if len(expr.slice) != 1:
+                    return None
+
+                sliceval = expr.slice[0]
+                if not isinstance(sliceval.slice, cst.Index):
+                    return None
+
+                expr = sliceval.slice.value
+                pointed = get_type(expr, constants, allow_nopad=allow_nopad, allow_extern=allow_extern, allow_array=allow_array)
+                if pointed is None:
+                    return None
+                return CoreType("pointer", pointed, const=const, extern=extern, return_padding=not nopad)
+
+            return None
+
+        elif isinstance(expr, cst.Name):
+            if nopad and not allow_nopad:
+                return None
+            if extern and not allow_extern:
+                return None
+            if length and not allow_array:
+                return None
+
+            if expr.value == "void":
+                if length:
+                    return None
+                else:
+                    return CoreType("void", None, const=True, extern=extern, return_padding=False)
+            else:
+                if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "bool", "char", "str"}:
+                    return None
+                if length and expr.value not in {"str"}:
+                    return None
+
+                return CoreType(expr.value, None, length=length, const=const, extern=extern, return_padding=not nopad)
+
+        else:
+            return None
+
+
+def create_call(name: str, params: Iterable[cst.BaseExpression]) -> cst.Call:
+    return cst.Call(
+        func=cst.Name(value=name),
+        args=[cst.Arg(value=param) for param in params],
+    )
+
+
+def global_by_name(globs: Sequence[Union[FunctionPrototype, GlobalVariable]], name: str) -> Optional[GlobalVariable]:
+    for glob in globs:
+        if isinstance(glob, GlobalVariable) and glob.name == name:
+            return glob
+    return None
+
+
+def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionPrototype, GlobalVariable]], labels: List[str] = []) -> int:
+    compiled = [sanitize(c) for c in compiled]
+    compiled = [c for c in compiled if c]
+
+    # Doesn't matter where these labels point, they're just going to be used with SETPC and CALL instrutions.
+    deduped_labels: Set[str] = set()
+    for ref in refs:
+        deduped_labels.add(ref.name)
+    for label in labels:
+        deduped_labels.add(label)
+
+    # Fix up any sort of string pointer references.
+    for line in compiled:
+        if "PUSHADDR" in line:
+            label = line.split("PUSHADDR", 1)[1]
+            label = label.strip()
+            label = label.split(";", 1)[0]
+            label = label.split(",", 1)[0]
+            label = label.strip()
+            deduped_labels.add(label)
+
+    for label in deduped_labels:
+        compiled.append(f"{label}:")
+
+    memory = assemble(compiled)
+    if not memory:
+        return 0
+
+    minval = memory[0][0]
+    maxval = minval
+    for loc, _ in memory:
+        if loc < minval:
+            minval = loc
+        if loc > maxval:
+            maxval = loc
+
+    return (maxval - minval) + 1
+
+
+def is_register_destination(name: str) -> bool:
+    return name.startswith("register(") and name.endswith(")")
+
+
+def register_type(name: str) -> Optional[CoreType]:
+    if not is_register_destination(name):
+        return None
+
+    vals = name[9:-1].split(",", 1)
+    return CoreType(vals[1].strip())
+
+
 def comment_stack(stack: Stack) -> List[str]:
     if not os.environ.get("INSERT_STACK_COMMENTS"):
         return []
@@ -1071,10 +1063,6 @@ def comment_stack(stack: Stack) -> List[str]:
     return [
         f"  ; Stack location: {stack.location}",
     ]
-
-
-class NonConstantExpressionException(Exception):
-    pass
 
 
 def intrinsic_eval(expr: cst.BaseExpression, constants: List[Constant], context: Context) -> object:
@@ -1216,14 +1204,6 @@ def is_safe_ref(
     return False
 
 
-def _hex(val: int, pad: int) -> str:
-    hexval = hex(val)[2:]
-    while len(hexval) < pad:
-        hexval = "0" + hexval
-
-    return "0x" + hexval
-
-
 def unescape_literal(val: str) -> str:
     escaping: str = ""
     retval: str = ""
@@ -1295,6 +1275,74 @@ def unescape_literal(val: str) -> str:
     return retval
 
 
+__comment_ref_count: int = 0
+
+
+def comment_ref() -> str:
+    global __comment_ref_count
+    __comment_ref_count += 1
+    return f"##comment_ref_{__comment_ref_count}##"
+
+
+__expr_global_count: int = 0
+
+
+def expr_temp_name() -> str:
+    global __expr_global_count
+    __expr_global_count += 1
+    return f"builtin(expr_temp_{__expr_global_count})"
+
+
+__local_label_count: int = 0
+
+
+def local_label_name(context: Context, label: str = "") -> str:
+    global __local_label_count
+    __local_label_count += 1
+
+    if label:
+        label = f"_{label}_"
+    else:
+        label = "_"
+
+    modulename = context.label
+    if modulename[-1] != "_":
+        modulename = modulename + "_"
+    if modulename[0] != "_":
+        modulename = "_" + modulename
+
+    return f"{modulename}local{label}{__local_label_count}"
+
+
+__saved_counts: List[Tuple[int, int]] = []
+
+
+def push_names() -> None:
+    __saved_counts.append((__expr_global_count, __local_label_count))
+
+
+def pop_names() -> None:
+    if not __saved_counts:
+        raise Exception("Logic error, popping saved counts without a push!")
+
+    global __expr_global_count
+    global __local_label_count
+    __expr_global_count = __saved_counts[-1][0]
+    __local_label_count = __saved_counts[-1][1]
+    __saved_counts.pop()
+
+
+def expr_integer_type(size: int) -> CoreType:
+    if size == 1:
+        return CoreType("int8")
+    elif size == 2:
+        return CoreType("int16")
+    elif size == 4:
+        return CoreType("int32")
+    else:
+        raise Exception("Logic error, unrecognized integer size!")
+
+
 def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable], consts: List[Constant], context: Context) -> Sections:
     compiled = Sections(code=[context.comment()])
 
@@ -1346,7 +1394,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                     raise CompilerError("Initialization out of bounds", context)
 
             value = value & 0xFF
-            compiled.append_code(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {hexval((value >> 0) & 0xFF, 2)}")
 
         elif assign_type.type in {"int16", "uint16"}:
             if assign_type.is_array:
@@ -1361,8 +1409,8 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                     raise CompilerError("Initialization out of bounds", context)
 
             value = value & 0xFFFF
-            compiled.append_code(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
-            compiled.append_code(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {hexval((value >> 8) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {hexval((value >> 0) & 0xFF, 2)}")
 
         elif assign_type.type in {"int32", "uint32"}:
             if assign_type.is_array:
@@ -1377,10 +1425,10 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                     raise CompilerError("Initialization out of bounds", context)
 
             value = value & 0xFFFFFFFF
-            compiled.append_code(f"  .byte {_hex((value >> 24) & 0xFF, 2)}")
-            compiled.append_code(f"  .byte {_hex((value >> 16) & 0xFF, 2)}")
-            compiled.append_code(f"  .byte {_hex((value >> 8) & 0xFF, 2)}")
-            compiled.append_code(f"  .byte {_hex((value >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {hexval((value >> 24) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {hexval((value >> 16) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {hexval((value >> 8) & 0xFF, 2)}")
+            compiled.append_code(f"  .byte {hexval((value >> 0) & 0xFF, 2)}")
 
         elif assign_type == "char":
             if assign_type.is_array:
@@ -1468,7 +1516,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                         raise CompilerError("Initialization out of bounds", context)
 
                 value = value & 0xFF
-                compiled.append_init(f"  STOREI {_hex((value >> 0) & 0xFF, 2)}")
+                compiled.append_init(f"  STOREI {hexval((value >> 0) & 0xFF, 2)}")
 
             if not assign_type.extern:
                 compiled.append_data("  .pad 1")
@@ -1487,9 +1535,9 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                         raise CompilerError("Initialization out of bounds", context)
 
                 value = value & 0xFFFF
-                compiled.append_init(f"  STOREI {_hex((value >> 8) & 0xFF, 2)}")
+                compiled.append_init(f"  STOREI {hexval((value >> 8) & 0xFF, 2)}")
                 compiled.append_init("  INCPC")
-                compiled.append_init(f"  STOREI {_hex((value >> 0) & 0xFF, 2)}")
+                compiled.append_init(f"  STOREI {hexval((value >> 0) & 0xFF, 2)}")
 
             if not assign_type.extern:
                 compiled.append_data("  .pad 2")
@@ -1508,13 +1556,13 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
                         raise CompilerError("Initialization out of bounds", context)
 
                 value = value & 0xFFFFFFFF
-                compiled.append_init(f"  STOREI {_hex((value >> 24) & 0xFF, 2)}")
+                compiled.append_init(f"  STOREI {hexval((value >> 24) & 0xFF, 2)}")
                 compiled.append_init("  INCPC")
-                compiled.append_init(f"  STOREI {_hex((value >> 16) & 0xFF, 2)}")
+                compiled.append_init(f"  STOREI {hexval((value >> 16) & 0xFF, 2)}")
                 compiled.append_init("  INCPC")
-                compiled.append_init(f"  STOREI {_hex((value >> 8) & 0xFF, 2)}")
+                compiled.append_init(f"  STOREI {hexval((value >> 8) & 0xFF, 2)}")
                 compiled.append_init("  INCPC")
-                compiled.append_init(f"  STOREI {_hex((value >> 0) & 0xFF, 2)}")
+                compiled.append_init(f"  STOREI {hexval((value >> 0) & 0xFF, 2)}")
 
             if not assign_type.extern:
                 compiled.append_data("  .pad 4")
@@ -1997,7 +2045,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
             raise CompilerError("Cannot use a negative value in an unsigned expression", context)
 
         if is_register_destination(destination):
-            compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
         else:
             clobbers.add("A")
 
@@ -2008,41 +2056,41 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
             compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
             if dest_size == 1:
-                compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+                compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
                 compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
             elif dest_size == 2:
-                compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+                compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
                 compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  DECPC")
 
                 stack.move(1)
                 compiled.code += comment_stack(stack)
 
-                compiled.append_code(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+                compiled.append_code(f"  LOADI {hexval((val >> 8) & 0xFF, 2)}")
                 compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
             elif dest_size == 4:
-                compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
+                compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
                 compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  DECPC")
 
                 stack.move(1)
                 compiled.code += comment_stack(stack)
 
-                compiled.append_code(f"  LOADI {_hex((val >> 8) & 0xFF, 2)}")
+                compiled.append_code(f"  LOADI {hexval((val >> 8) & 0xFF, 2)}")
                 compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  DECPC")
 
                 stack.move(1)
                 compiled.code += comment_stack(stack)
 
-                compiled.append_code(f"  LOADI {_hex((val >> 16) & 0xFF, 2)}")
+                compiled.append_code(f"  LOADI {hexval((val >> 16) & 0xFF, 2)}")
                 compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
                 compiled.append_code("  DECPC")
 
                 stack.move(1)
                 compiled.code += comment_stack(stack)
 
-                compiled.append_code(f"  LOADI {_hex((val >> 24) & 0xFF, 2)}")
+                compiled.append_code(f"  LOADI {hexval((val >> 24) & 0xFF, 2)}")
                 compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
             else:
                 raise CompilerError(f"Unsupported destination {destination} for const load", context)
@@ -2054,7 +2102,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
         intval = 0xFF if val else 0x00
 
         if is_register_destination(destination):
-            compiled.append_code(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  LOADI {hexval((intval >> 0) & 0xFF, 2)}")
         else:
             clobbers.add("A")
 
@@ -2064,7 +2112,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
                 raise Exception("Logic error, cannot find destination to load constant to!")
 
             compiled += generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
-            compiled.append_code(f"  LOADI {_hex((intval >> 0) & 0xFF, 2)}")
+            compiled.append_code(f"  LOADI {hexval((intval >> 0) & 0xFF, 2)}")
             compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     elif dtype.is_char:
@@ -2112,12 +2160,6 @@ def get_function_prototype(
     else:
         # TODO: Support function pointers here at some point. Maybe even objects or structs?
         raise CompilerError(f"Unsupported function call with expression node {call.func}", context)
-
-
-class FunctionParam:
-    def __init__(self, name: Optional[str], paramtype: CoreType) -> None:
-        self.name = name
-        self.type = paramtype
 
 
 def get_function_params_impl(
@@ -3911,74 +3953,6 @@ def generate_function_call(
 
     else:
         return generate_function_call_internal(call, destination, types, stack, clobbers, allocations, refs, local_consts, context)
-
-
-__comment_ref_count: int = 0
-
-
-def comment_ref() -> str:
-    global __comment_ref_count
-    __comment_ref_count += 1
-    return f"##comment_ref_{__comment_ref_count}##"
-
-
-__expr_global_count: int = 0
-
-
-def expr_temp_name() -> str:
-    global __expr_global_count
-    __expr_global_count += 1
-    return f"builtin(expr_temp_{__expr_global_count})"
-
-
-__local_label_count: int = 0
-
-
-def local_label_name(context: Context, label: str = "") -> str:
-    global __local_label_count
-    __local_label_count += 1
-
-    if label:
-        label = f"_{label}_"
-    else:
-        label = "_"
-
-    modulename = context.label
-    if modulename[-1] != "_":
-        modulename = modulename + "_"
-    if modulename[0] != "_":
-        modulename = "_" + modulename
-
-    return f"{modulename}local{label}{__local_label_count}"
-
-
-__saved_counts: List[Tuple[int, int]] = []
-
-
-def push_names() -> None:
-    __saved_counts.append((__expr_global_count, __local_label_count))
-
-
-def pop_names() -> None:
-    if not __saved_counts:
-        raise Exception("Logic error, popping saved counts without a push!")
-
-    global __expr_global_count
-    global __local_label_count
-    __expr_global_count = __saved_counts[-1][0]
-    __local_label_count = __saved_counts[-1][1]
-    __saved_counts.pop()
-
-
-def expr_integer_type(size: int) -> CoreType:
-    if size == 1:
-        return CoreType("int8")
-    elif size == 2:
-        return CoreType("int16")
-    elif size == 4:
-        return CoreType("int32")
-    else:
-        raise Exception("Logic error, unrecognized integer size!")
 
 
 def generate_local_storage_alloc(
