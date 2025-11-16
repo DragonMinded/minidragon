@@ -5,7 +5,7 @@ import textwrap
 from itertools import chain
 from typing import Any, Container, Dict, List, Optional
 
-from .compiler import CompilerSettings, parse_and_compile_module, set_file_loader
+from .compiler import CompilerSettings, Compiler, Sections
 from .core import CPUCore, assemble, disassemble
 from .exception import (
     InvalidInstructionException,
@@ -23,6 +23,11 @@ verbose: bool = False
 highlight_changes: bool = False
 print_code: bool = False
 settings: CompilerSettings = CompilerSettings()
+
+
+def parse_and_compile_module(module: str, code: str, settings: CompilerSettings) -> Sections:
+    compiler = Compiler(settings)
+    return compiler.parse_and_compile_module(module, code)
 
 
 def _assert(statement: bool, msg: str) -> None:
@@ -3924,17 +3929,17 @@ def verifyimports(only: Optional[Container[str]], full: bool) -> None:
         else:
             return None
 
-    set_file_loader(loader)
+    compiler = Compiler(settings, file_loader=loader)
 
     if True:
         memory = getmemory(os.linesep.join([
             *initlines,
-            *parse_and_compile_module("imports.py", textwrap.dedent("""
+            *compiler.parse_and_compile_module("imports.py", textwrap.dedent("""
                 from file1 import math
 
                 def func() -> int8:
                     return math(5, 10)
-            """), settings).code,
+            """)).code,
             *parse_and_compile_module("file1.py", loader("file1.py") or "", settings).code,
             "main:",
             "LOADI 111",
@@ -3975,12 +3980,12 @@ def verifyimports(only: Optional[Container[str]], full: bool) -> None:
     if True:
         memory = getmemory(os.linesep.join([
             *initlines,
-            *parse_and_compile_module("imports.py", textwrap.dedent("""
+            *compiler.parse_and_compile_module("imports.py", textwrap.dedent("""
                 from file2 import math
 
                 def func() -> int8:
                     return math(5, 10)
-            """), settings).code,
+            """)).code,
             *parse_and_compile_module("file2.py", loader("file2.py") or "", settings).code,
             "main:",
             "LOADI 111",
@@ -4018,8 +4023,6 @@ def verifyimports(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    set_file_loader(None)
-
     print(f"Average cycles for imports: {int(cycles/count)}")
     print(f"Average instructions for imports: {int(instructions/count)}")
 
@@ -4051,18 +4054,18 @@ def verifyextern(only: Optional[Container[str]], full: bool) -> None:
         else:
             return None
 
-    set_file_loader(loader)
+    compiler = Compiler(settings, file_loader=loader)
 
     # First, test extern variables.
     if True:
         memory = getmemory(os.linesep.join([
             *initlines,
-            *parse_and_compile_module("extern.py", textwrap.dedent("""
+            *compiler.parse_and_compile_module("extern.py", textwrap.dedent("""
                 global_var: extern[int8]
 
                 def func() -> nopad[int8]:
                     return global_var
-            """), settings).code,
+            """)).code,
             "main:",
             "LOADI 111",
             "MOV A, U",
@@ -4105,12 +4108,12 @@ def verifyextern(only: Optional[Container[str]], full: bool) -> None:
     if True:
         memory = getmemory(os.linesep.join([
             *initlines,
-            *parse_and_compile_module("extern.py", textwrap.dedent("""
+            *compiler.parse_and_compile_module("extern.py", textwrap.dedent("""
                 def math(var: int8) -> extern[int8]: ...
 
                 def func() -> nopad[int8]:
                     return math(5)
-            """), settings).code,
+            """)).code,
             "main:",
             "LOADI 111",
             "MOV A, U",
@@ -4158,12 +4161,12 @@ def verifyextern(only: Optional[Container[str]], full: bool) -> None:
     if True:
         memory = getmemory(os.linesep.join([
             *initlines,
-            *parse_and_compile_module("extern.py", textwrap.dedent("""
+            *compiler.parse_and_compile_module("extern.py", textwrap.dedent("""
                 from file1 import global_var
 
                 def func() -> nopad[int8]:
                     return global_var
-            """), settings).code,
+            """)).code,
             "main:",
             "LOADI 111",
             "MOV A, U",
@@ -4206,12 +4209,12 @@ def verifyextern(only: Optional[Container[str]], full: bool) -> None:
     if True:
         memory = getmemory(os.linesep.join([
             *initlines,
-            *parse_and_compile_module("extern.py", textwrap.dedent("""
+            *compiler.parse_and_compile_module("extern.py", textwrap.dedent("""
                 from file1 import math
 
                 def func() -> nopad[int8]:
                     return math(5)
-            """), settings).code,
+            """)).code,
             "main:",
             "LOADI 111",
             "MOV A, U",
@@ -4254,8 +4257,6 @@ def verifyextern(only: Optional[Container[str]], full: bool) -> None:
         cycles += cpu.cycles
         instructions += cpu.ticks
         count += 1
-
-    set_file_loader(None)
 
     print(f"Average cycles for extern: {int(cycles/count)}")
     print(f"Average instructions for extern: {int(instructions/count)}")

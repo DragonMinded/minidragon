@@ -13,6 +13,7 @@ from .util import (
 )
 from .core import _splitparams
 from .compiler import (
+    Compiler,
     CompilerError,
     CompilerSettings,
     FunctionPrototype,
@@ -21,15 +22,7 @@ from .compiler import (
     Stack,
     StackVar,
     Context,
-    get_type,
-    infer_expr_types,
-    parse_forward_refs,
-    parse_and_compile_module,
-    set_file_loader,
-    set_working_directory,
     unescape_literal,
-    push_names,
-    pop_names,
 )
 
 
@@ -98,12 +91,6 @@ class TestCompiler(unittest.TestCase):
         super().__init__(*args, **kwargs)
         self.maxDiff = None
 
-    def setUp(self) -> None:
-        push_names()
-
-    def tearDown(self) -> None:
-        pop_names()
-
     def __get_expr(self, expr: str) -> cst.BaseExpression:
         module = cst.parse_module(expr)
         first_statement = module.body[0]
@@ -115,56 +102,58 @@ class TestCompiler(unittest.TestCase):
         return expr_node.value
 
     def test_get_type(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # First check for None handling.
-        self.assertEqual(CoreType("void", const=True), get_type(self.__get_expr("void"), []))
-        void_type = get_type(self.__get_expr("void"), [])
+        self.assertEqual(CoreType("void", const=True), compiler.get_type(self.__get_expr("void"), []))
+        void_type = compiler.get_type(self.__get_expr("void"), [])
         assert void_type is not None
         self.assertTrue(void_type.is_void)
 
         # Now, simple parsing.
-        self.assertEqual(CoreType("str"), get_type(self.__get_expr("str"), []))
-        self.assertEqual(CoreType("char"), get_type(self.__get_expr("char"), []))
-        self.assertEqual(CoreType("int8"), get_type(self.__get_expr("int8"), []))
-        self.assertEqual(CoreType("int16"), get_type(self.__get_expr("int16"), []))
-        self.assertEqual(CoreType("int32"), get_type(self.__get_expr("int32"), []))
+        self.assertEqual(CoreType("str"), compiler.get_type(self.__get_expr("str"), []))
+        self.assertEqual(CoreType("char"), compiler.get_type(self.__get_expr("char"), []))
+        self.assertEqual(CoreType("int8"), compiler.get_type(self.__get_expr("int8"), []))
+        self.assertEqual(CoreType("int16"), compiler.get_type(self.__get_expr("int16"), []))
+        self.assertEqual(CoreType("int32"), compiler.get_type(self.__get_expr("int32"), []))
 
         # Now, test length/array syntax.
-        self.assertIsNone(get_type(self.__get_expr("str[16]"), []))
-        self.assertEqual(CoreType("str", length=16), get_type(self.__get_expr("str[16]"), [], allow_array=True))
+        self.assertIsNone(compiler.get_type(self.__get_expr("str[16]"), []))
+        self.assertEqual(CoreType("str", length=16), compiler.get_type(self.__get_expr("str[16]"), [], allow_array=True))
 
         # Now, make sure that constant parsing works.
-        self.assertEqual(CoreType("str", const=True), get_type(self.__get_expr("const[str]"), []))
-        self.assertEqual(CoreType("char", const=True), get_type(self.__get_expr("const[char]"), []))
-        self.assertEqual(CoreType("int8", const=True), get_type(self.__get_expr("const[int8]"), []))
-        self.assertEqual(CoreType("int16", const=True), get_type(self.__get_expr("const[int16]"), []))
-        self.assertEqual(CoreType("int32", const=True), get_type(self.__get_expr("const[int32]"), []))
+        self.assertEqual(CoreType("str", const=True), compiler.get_type(self.__get_expr("const[str]"), []))
+        self.assertEqual(CoreType("char", const=True), compiler.get_type(self.__get_expr("const[char]"), []))
+        self.assertEqual(CoreType("int8", const=True), compiler.get_type(self.__get_expr("const[int8]"), []))
+        self.assertEqual(CoreType("int16", const=True), compiler.get_type(self.__get_expr("const[int16]"), []))
+        self.assertEqual(CoreType("int32", const=True), compiler.get_type(self.__get_expr("const[int32]"), []))
 
         # Now, make sure that pointers work.
-        self.assertEqual(CoreType("pointer", CoreType("char")), get_type(self.__get_expr("pointer[char]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int8")), get_type(self.__get_expr("pointer[int8]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int16")), get_type(self.__get_expr("pointer[int16]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int32")), get_type(self.__get_expr("pointer[int32]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("char")), compiler.get_type(self.__get_expr("pointer[char]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int8")), compiler.get_type(self.__get_expr("pointer[int8]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int16")), compiler.get_type(self.__get_expr("pointer[int16]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int32")), compiler.get_type(self.__get_expr("pointer[int32]"), []))
 
         # Pointers to constants should work.
-        self.assertEqual(CoreType("pointer", CoreType("char", const=True)), get_type(self.__get_expr("pointer[const[char]]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int8", const=True)), get_type(self.__get_expr("pointer[const[int8]]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int16", const=True)), get_type(self.__get_expr("pointer[const[int16]]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int32", const=True)), get_type(self.__get_expr("pointer[const[int32]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("char", const=True)), compiler.get_type(self.__get_expr("pointer[const[char]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int8", const=True)), compiler.get_type(self.__get_expr("pointer[const[int8]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int16", const=True)), compiler.get_type(self.__get_expr("pointer[const[int16]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int32", const=True)), compiler.get_type(self.__get_expr("pointer[const[int32]]"), []))
 
         # Constant pointers to non-constant types should work.
-        self.assertEqual(CoreType("pointer", CoreType("char"), const=True), get_type(self.__get_expr("const[pointer[char]]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int8"), const=True), get_type(self.__get_expr("const[pointer[int8]]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int16"), const=True), get_type(self.__get_expr("const[pointer[int16]]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int32"), const=True), get_type(self.__get_expr("const[pointer[int32]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("char"), const=True), compiler.get_type(self.__get_expr("const[pointer[char]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int8"), const=True), compiler.get_type(self.__get_expr("const[pointer[int8]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int16"), const=True), compiler.get_type(self.__get_expr("const[pointer[int16]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int32"), const=True), compiler.get_type(self.__get_expr("const[pointer[int32]]"), []))
 
         # Constant pointers to constant types should work.
-        self.assertEqual(CoreType("pointer", CoreType("char", const=True), const=True), get_type(self.__get_expr("const[pointer[const[char]]]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int8", const=True), const=True), get_type(self.__get_expr("const[pointer[const[int8]]]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int16", const=True), const=True), get_type(self.__get_expr("const[pointer[const[int16]]]"), []))
-        self.assertEqual(CoreType("pointer", CoreType("int32", const=True), const=True), get_type(self.__get_expr("const[pointer[const[int32]]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("char", const=True), const=True), compiler.get_type(self.__get_expr("const[pointer[const[char]]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int8", const=True), const=True), compiler.get_type(self.__get_expr("const[pointer[const[int8]]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int16", const=True), const=True), compiler.get_type(self.__get_expr("const[pointer[const[int16]]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("int32", const=True), const=True), compiler.get_type(self.__get_expr("const[pointer[const[int32]]]"), []))
 
         # Now, make sure pointers of pointers work. Hopefully I don't need these but it should be possible to use them.
-        self.assertEqual(CoreType("pointer", CoreType("pointer", CoreType("int8"))), get_type(self.__get_expr("pointer[pointer[int8]]"), []))
+        self.assertEqual(CoreType("pointer", CoreType("pointer", CoreType("int8"))), compiler.get_type(self.__get_expr("pointer[pointer[int8]]"), []))
 
     def assertTypesValid(self, types: Dict[cst.CSTNode, CoreType]) -> None:
         for node, ctype in types.items():
@@ -172,115 +161,138 @@ class TestCompiler(unittest.TestCase):
                 self.fail(f"Unexpected type {ctype.type} for node {node}")
 
     def test_infer_types_const(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer a normal expression with just two variables.
         expr = self.__get_expr("15")
         stack = Stack("__test__")
-        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])
         self.assertTypesValid(types)
 
     def test_infer_types_simple(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer a normal expression with just two variables.
         expr = self.__get_expr("x + y")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int8")))
         stack.alloc(StackVar("y", CoreType("int8")))
-        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])
         self.assertTypesValid(types)
 
     def test_infer_types_simple_const(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer a normal expression with just two variables.
         expr = self.__get_expr("x + 12345")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
-        types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int16"), types[expr])
         self.assertTypesValid(types)
 
     def test_infer_types_different_types(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer an expression with different sized variables.
         expr = self.__get_expr("x + y")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
-        types = infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("int8"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int32"), types[expr])
         self.assertTypesValid(types)
 
     def test_infer_types_comparison(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer a comparison expression type.
         expr = self.__get_expr("x == y")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
-        types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("bool"), types[expr])
         self.assertTypesValid(types)
 
     def test_infer_types_comparison_const(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer a comparison expression with a constant.
         expr = self.__get_expr("x == 12345")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
-        types = infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("bool"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("bool"), types[expr])
         self.assertTypesValid(types)
 
     def test_infer_types_ifexpr(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer a comparison expression type.
         expr = self.__get_expr("x if z else y")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
         stack.alloc(StackVar("z", CoreType("bool")))
-        types = infer_expr_types(expr, CoreType("int32"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("int32"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int32"), types[expr])
         self.assertTypesValid(types)
 
     def test_infer_types_ifexpr_const(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer a comparison expression type.
         expr = self.__get_expr("x if z else 12345")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("z", CoreType("bool")))
-        types = infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("int16"), stack, [], [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int16"), types[expr])
         self.assertTypesValid(types)
 
     def test_infer_types_function(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer a function call type.
         expr = self.__get_expr("func(x, y)")
         stack = Stack("__test__")
         stack.alloc(StackVar("x", CoreType("int16")))
         stack.alloc(StackVar("y", CoreType("int32")))
         refs = [FunctionPrototype("func", CoreType("int8"), [CoreType("int16"), CoreType("int32")])]
-        types = infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])
         self.assertTypesValid(types)
 
     def test_infer_types_function_const(self) -> None:
+        compiler = Compiler(CompilerSettings())
+
         # Verify that we can infer a function call type with constants.
         expr = self.__get_expr("func(5, 15)")
         stack = Stack("__test__")
         refs = [FunctionPrototype("func", CoreType("int8"), [CoreType("int16"), CoreType("int32")])]
-        types = infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", CompilerSettings(), expr, {}))
+        types = compiler.infer_expr_types(expr, CoreType("int8"), stack, refs, [], Context("__test__", CompilerSettings(), expr, {}))
         self.assertEqual(CoreType("int8"), types[expr])
         self.assertTypesValid(types)
 
     def test_empty(self) -> None:
-        output = parse_and_compile_module("__test__", "", CompilerSettings())
+        compiler = Compiler(CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", "")
         self.assertTrue(len(output.code) == 0)
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
     def test_throw_on_top_level_statement(self) -> None:
+        compiler = Compiler(CompilerSettings())
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", 'print("Hello, world!")', CompilerSettings())
+            compiler.parse_and_compile_module("__test__", 'print("Hello, world!")')
         self.assertEqual("__test__ line 1: Arbitrary top-level statements are not supported", str(cm.exception))
 
     def test_allow_global_const_declaration_init(self) -> None:
-        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = 123', CompilerSettings())
+        compiler = Compiler(CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = 123')
         self.assertEqual([
             '  ; __test__ line 1: UINT8_CONST: const[int8] = 123',
             'UINT8_CONST:',
@@ -289,7 +301,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
-        output = parse_and_compile_module("__test__", 'UINT16_CONST: const[int16] = 0xCAFE', CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", 'UINT16_CONST: const[int16] = 0xCAFE')
         self.assertEqual([
             '  ; __test__ line 1: UINT16_CONST: const[int16] = 0xCAFE',
             'UINT16_CONST:',
@@ -299,7 +311,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
-        output = parse_and_compile_module("__test__", 'UINT32_CONST: const[int32] = 0xDEADBEEF', CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", 'UINT32_CONST: const[int32] = 0xDEADBEEF')
         self.assertEqual([
             '  ; __test__ line 1: UINT32_CONST: const[int32] = 0xDEADBEEF',
             'UINT32_CONST:',
@@ -311,7 +323,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
-        output = parse_and_compile_module("__test__", "UINT8_CONST: const[char] = 'c'", CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", "UINT8_CONST: const[char] = 'c'")
         self.assertEqual([
             "  ; __test__ line 1: UINT8_CONST: const[char] = 'c'",
             "UINT8_CONST:",
@@ -320,7 +332,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
-        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[str] = "test"', CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", 'UINT8_CONST: const[str] = "test"')
         self.assertEqual([
             '  ; __test__ line 1: UINT8_CONST: const[str] = "test"',
             'UINT8_CONST:',
@@ -334,7 +346,8 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_allow_global_const_declaration_init_expr(self) -> None:
-        output = parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = (7 * 2) + 1', CompilerSettings())
+        compiler = Compiler(CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", 'UINT8_CONST: const[int8] = (7 * 2) + 1')
         self.assertEqual([
             '  ; __test__ line 1: UINT8_CONST: const[int8] = (7 * 2) + 1',
             'UINT8_CONST:',
@@ -344,25 +357,28 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_throw_on_global_const_declaration(self) -> None:
+        compiler = Compiler(CompilerSettings())
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", 'UINT8_CONST: const[int8]', CompilerSettings())
+            compiler.parse_and_compile_module("__test__", 'UINT8_CONST: const[int8]')
         self.assertEqual("__test__ line 1: Expecting initialization value for global const definition", str(cm.exception))
 
     def test_throw_on_global_no_type(self) -> None:
+        compiler = Compiler(CompilerSettings())
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", 'SOME_CONST = 123', CompilerSettings())
+            compiler.parse_and_compile_module("__test__", 'SOME_CONST = 123')
         self.assertEqual("__test__ line 1: Global variable declarations must have a type", str(cm.exception))
 
     def test_define_simple_function(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def simple() -> void:
                 return
         """)
 
-        prototypes = parse_forward_refs("__test__", func)
+        prototypes = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("void", const=True))], prototypes)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             "simple:",
             "  ; Stack layout just after call:",
@@ -380,15 +396,16 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_define_simple_return_function(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def simple() -> int8:
                 return 15
         """)
 
-        prototypes = parse_forward_refs("__test__", func)
+        prototypes = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [PaddingCoreType(1)])], prototypes)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             'simple:',
             '  ; Stack layout just after call:',
@@ -417,15 +434,16 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_define_simple_unpadded_return_function(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def simple() -> nopad[int8]:
                 return 15
         """)
 
-        prototypes = parse_forward_refs("__test__", func)
+        prototypes = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"))], prototypes)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             'simple:',
             '  ; Stack layout just after call:',
@@ -473,15 +491,16 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_define_simple_input_and_return_function(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def simple(param: int8) -> int8:
                 return param + 15
         """)
 
-        prototypes = parse_forward_refs("__test__", func)
+        prototypes = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [CoreType("int8")], ["param"], [None])], prototypes)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             'simple:',
             '  ; Stack layout just after call:',
@@ -519,16 +538,17 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_define_use_const(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def defineconst(param: int8) -> int8:
                 SOME_CONST: const[int8] = 5
                 return param + SOME_CONST
         """)
 
-        prototypes = parse_forward_refs("__test__", func)
+        prototypes = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("defineconst", CoreType("int8"), [CoreType("int8")], ["param"], [None])], prototypes)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             'defineconst:',
             '  ; Stack layout just after call:',
@@ -567,6 +587,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_define_use_variable(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def defineconst(param: int8) -> int8:
                 some_var: int8 = 5
@@ -574,10 +595,10 @@ class TestCompiler(unittest.TestCase):
                 return some_var
         """)
 
-        prototypes = parse_forward_refs("__test__", func)
+        prototypes = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("defineconst", CoreType("int8"), [CoreType("int8")], ["param"], [None])], prototypes)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             'defineconst:',
             '  ; Stack layout just after call:',
@@ -624,6 +645,7 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_throw_on_local_definition_no_type(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
                 some_var = 5
@@ -631,20 +653,22 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 3: Unsupported type for local variable definition", str(cm.exception))
 
     def test_throw_on_local_const_no_assign(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
                 SOME_VAR: const[int8]
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 3: Expecting initialization value for local const definition", str(cm.exception))
 
     def test_throw_on_local_type_redefinition(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
                 some_var: int8 = 5
@@ -653,20 +677,22 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 4: Unsupported type redefinition for local variable assignment", str(cm.exception))
 
     def test_throw_on_undefined_local(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
                 return some_var
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 3: Undefined variable reference to 'some_var'", str(cm.exception))
 
     def test_throw_on_local_const_reassign(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
                 SOME_VAR: const[int8] = 10
@@ -675,10 +701,11 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 4: Cannot assign to variable 'SOME_VAR' declared const", str(cm.exception))
 
     def test_throw_on_var_use_before_init(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
                 some_var: int8
@@ -686,7 +713,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 4: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -698,7 +725,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 6: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -712,7 +739,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 8: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -725,7 +752,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 7: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -735,7 +762,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 4: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -751,7 +778,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 10: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -769,7 +796,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 12: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -781,7 +808,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 6: Use of uninitialized variable 'some_var'", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -795,10 +822,11 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 8: Use of uninitialized variable 'some_var'", str(cm.exception))
 
     def test_doesnt_throw_on_var_use(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
                 some_var: int8
@@ -808,7 +836,7 @@ class TestCompiler(unittest.TestCase):
                     some_var = 7
                 return some_var
         """)
-        parse_and_compile_module("__test__", func, CompilerSettings())
+        compiler.parse_and_compile_module("__test__", func)
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -821,7 +849,7 @@ class TestCompiler(unittest.TestCase):
                     some_var = 6
                 return some_var
         """)
-        parse_and_compile_module("__test__", func, CompilerSettings())
+        compiler.parse_and_compile_module("__test__", func)
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -838,7 +866,7 @@ class TestCompiler(unittest.TestCase):
                             some_var = 4
                 return some_var
         """)
-        parse_and_compile_module("__test__", func, CompilerSettings())
+        compiler.parse_and_compile_module("__test__", func)
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -847,7 +875,7 @@ class TestCompiler(unittest.TestCase):
                     some_var = 1
                 return some_var
         """)
-        parse_and_compile_module("__test__", func, CompilerSettings())
+        compiler.parse_and_compile_module("__test__", func)
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -857,7 +885,7 @@ class TestCompiler(unittest.TestCase):
                     some_var += 1
                 return 0
         """)
-        parse_and_compile_module("__test__", func, CompilerSettings())
+        compiler.parse_and_compile_module("__test__", func)
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -868,7 +896,7 @@ class TestCompiler(unittest.TestCase):
                     some_var += 1
                 return 0
         """)
-        parse_and_compile_module("__test__", func, CompilerSettings())
+        compiler.parse_and_compile_module("__test__", func)
 
         func = textwrap.dedent("""
             def localvar(param: int8) -> int8:
@@ -877,7 +905,7 @@ class TestCompiler(unittest.TestCase):
                     pass
                 return x
         """)
-        parse_and_compile_module("__test__", func, CompilerSettings())
+        compiler.parse_and_compile_module("__test__", func)
 
     def __loader(self, filename: str) -> Optional[str]:
         filename = os.path.basename(filename)
@@ -919,46 +947,26 @@ class TestCompiler(unittest.TestCase):
             return None
 
     def test_no_error_on_import_found(self) -> None:
-        set_file_loader(self.__loader)
-        set_working_directory("/")
-
-        parse_and_compile_module("good.py", self.__loader("good.py") or "", CompilerSettings())
-
-        set_working_directory(None)
-        set_file_loader(None)
+        compiler = Compiler(CompilerSettings(), file_loader=self.__loader, working_directory="/")
+        compiler.parse_and_compile_module("good.py", self.__loader("good.py") or "")
 
     def test_error_on_import_not_found(self) -> None:
-        set_file_loader(self.__loader)
-        set_working_directory("/")
-
+        compiler = Compiler(CompilerSettings(), file_loader=self.__loader, working_directory="/")
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("bad.py", self.__loader("bad.py") or "", CompilerSettings())
+            compiler.parse_and_compile_module("bad.py", self.__loader("bad.py") or "")
         self.assertEqual("bad.py line 2: File ./unk.py not found when attempting import", str(cm.exception))
 
-        set_working_directory(None)
-        set_file_loader(None)
-
     def test_error_on_import_not_existing(self) -> None:
-        set_file_loader(self.__loader)
-        set_working_directory("/")
-
+        compiler = Compiler(CompilerSettings(), file_loader=self.__loader, working_directory="/")
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("wrong.py", self.__loader("wrong.py") or "", CompilerSettings())
+            compiler.parse_and_compile_module("wrong.py", self.__loader("wrong.py") or "")
         self.assertEqual("wrong.py line 2: File ./lib.py does not export importable some_func", str(cm.exception))
 
-        set_working_directory(None)
-        set_file_loader(None)
-
     def test_error_on_import_shadow(self) -> None:
-        set_file_loader(self.__loader)
-        set_working_directory("/")
-
+        compiler = Compiler(CompilerSettings(), file_loader=self.__loader, working_directory="/")
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("shadow.py", self.__loader("shadow.py") or "", CompilerSettings())
+            compiler.parse_and_compile_module("shadow.py", self.__loader("shadow.py") or "")
         self.assertEqual("shadow.py line 2: Import of math shadows local definitions", str(cm.exception))
-
-        set_working_directory(None)
-        set_file_loader(None)
 
     def test_unescape_literal(self) -> None:
         self.assertEqual("testing\n", unescape_literal("testing\\n"))
@@ -968,12 +976,13 @@ class TestCompiler(unittest.TestCase):
         self.assertEqual("testing\001", unescape_literal("testing\\001"))
 
     def test_intrinsic_simple(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def simple() -> int32:
                 return fixed(3.14159)
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             "simple:",
             "  ; Stack layout just after call:",
@@ -1017,12 +1026,13 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_intrinsic_positional(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def simple() -> int32:
                 return fixed(3.14159, 8)
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             "simple:",
             "  ; Stack layout just after call:",
@@ -1066,12 +1076,13 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.init) == 0)
 
     def test_intrinsic_keyword(self) -> None:
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def simple() -> int32:
                 return fixed(3.14159, fracbits=8)
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             "simple:",
             "  ; Stack layout just after call:",
@@ -1122,6 +1133,7 @@ class TestCompiler(unittest.TestCase):
         to that function. So, test various scenarios for this here.
         """
 
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def func() -> const[str]:
                 some_str: str[12] = "hello"
@@ -1129,7 +1141,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 4: Cannot return a locally-computed constant value from a function marked as const.", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -1140,7 +1152,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 5: Cannot return a locally-computed constant value from a function marked as const.", str(cm.exception))
 
         func = textwrap.dedent("""
@@ -1151,7 +1163,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 5: Cannot return a locally-computed constant value from a function marked as const.", str(cm.exception))
 
         # This might seem confusing, but we allow an optimization where we don't strcpy to local parameter storage for
@@ -1163,7 +1175,7 @@ class TestCompiler(unittest.TestCase):
         """)
 
         with self.assertRaises(CompilerError) as cm:
-            parse_and_compile_module("__test__", func, CompilerSettings())
+            compiler.parse_and_compile_module("__test__", func)
         self.assertEqual("__test__ line 3: Cannot return a locally-computed constant value from a function marked as const.", str(cm.exception))
 
     def test_correct_str_const_function(self) -> None:
@@ -1171,12 +1183,13 @@ class TestCompiler(unittest.TestCase):
         Verify that in the few cases where you're allowed to return a constant string from a function, they work.
         """
 
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def func() -> const[str]:
                 return "abcde"
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_1:',
             "  .char 'a'",
@@ -1219,7 +1232,7 @@ class TestCompiler(unittest.TestCase):
                 return some_const
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_2:',
             "  .char 'a'",
@@ -1271,7 +1284,7 @@ class TestCompiler(unittest.TestCase):
                 return other_const
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_3:',
             "  .char 'a'",
@@ -1330,7 +1343,7 @@ class TestCompiler(unittest.TestCase):
                 return GLOBAL_CONST
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '  ; __test__ line 2: GLOBAL_CONST: const[str] = "abcde"',
             'GLOBAL_CONST:',
@@ -1375,7 +1388,7 @@ class TestCompiler(unittest.TestCase):
                 return other()
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             'func:',
             '  ; Stack layout just after call:',
@@ -1417,12 +1430,13 @@ class TestCompiler(unittest.TestCase):
         with variable aliasing which is extremely hard to debug.
         """
 
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def func() -> void:
                 some_str: str[12] = "abcde"
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_1:',
             "  .char 'a'",
@@ -1466,7 +1480,7 @@ class TestCompiler(unittest.TestCase):
                 some_str: str[12] = other_str
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_2:',
             "  .char 'a'",
@@ -1525,7 +1539,7 @@ class TestCompiler(unittest.TestCase):
                 some_str: str[12] = other_str
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_3:',
             "  .char 'a'",
@@ -1578,7 +1592,7 @@ class TestCompiler(unittest.TestCase):
                 some_str: const[str] = other_str
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_4:',
             "  .char 'a'",
@@ -1638,7 +1652,7 @@ class TestCompiler(unittest.TestCase):
                 return some_str
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_5:',
             "  .char 'a'",
@@ -1697,6 +1711,7 @@ class TestCompiler(unittest.TestCase):
         with our copy.
         """
 
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def other(param: str[12]) -> extern[void]: ...
 
@@ -1704,7 +1719,7 @@ class TestCompiler(unittest.TestCase):
                 other("12345")
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_1:',
             "  .char '1'",
@@ -1748,7 +1763,7 @@ class TestCompiler(unittest.TestCase):
                 other(some_str)
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_2:',
             "  .char '1'",
@@ -1807,6 +1822,7 @@ class TestCompiler(unittest.TestCase):
         we know the function isn't going to modify the const, we can safely allow this optimization.
         """
 
+        compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
             def other(param: const[str]) -> extern[void]: ...
 
@@ -1814,7 +1830,7 @@ class TestCompiler(unittest.TestCase):
                 other("12345")
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_1:',
             "  .char '1'",
@@ -1854,7 +1870,7 @@ class TestCompiler(unittest.TestCase):
                 other(some_const)
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_2:',
             "  .char '1'",
@@ -1904,7 +1920,7 @@ class TestCompiler(unittest.TestCase):
                 other(some_str)
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             '_test_local_function_string_data_3:',
             "  .char '1'",
@@ -1962,7 +1978,7 @@ class TestCompiler(unittest.TestCase):
                 other(ret())
         """)
 
-        output = parse_and_compile_module("__test__", func, CompilerSettings())
+        output = compiler.parse_and_compile_module("__test__", func)
         self.assertEqual([
             'func:',
             '  ; Stack layout just after call:',

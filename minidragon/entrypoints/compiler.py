@@ -9,12 +9,8 @@ from ..compiler import (
     FunctionPrototype,
     GlobalVariable,
     Sections,
+    Compiler,
     builtin_forward_refs,
-    parse_forward_refs,
-    compile_module,
-    set_working_directory,
-    add_library_directory,
-    clear_library,
 )
 
 
@@ -72,27 +68,27 @@ def main() -> None:
     )
     args = parser.parse_args()
     settings = CompilerSettings(optimize=args.optimize)
+    compiler = Compiler(settings)
 
-    clear_library()
     for lib in args.lib:
-        add_library_directory(os.path.abspath(lib))
+        compiler.add_library_directory(os.path.abspath(lib))
 
     try:
         refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
         for fname in args.file:
             with open(fname, "r") as fp:
                 fname = os.path.abspath(fname)
-                set_working_directory(os.path.dirname(fname))
+                compiler.set_working_directory(os.path.dirname(fname))
 
-                refs += parse_forward_refs(fname, fp.read())
+                refs += compiler.parse_forward_refs(fname, fp.read())
 
         compiled = Sections()
         for fname in args.file:
             with open(fname, "r") as fp:
                 fname = os.path.abspath(fname)
-                set_working_directory(os.path.dirname(fname))
+                compiler.set_working_directory(os.path.dirname(fname))
 
-                compiled += compile_module(fname, fp.read(), settings, refs)
+                compiled += compiler.compile_module(fname, fp.read(), refs)
 
         with open(args.output, "w") as fp:
             for line in compiled.code:
