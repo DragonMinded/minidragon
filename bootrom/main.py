@@ -19,7 +19,6 @@ def main() -> void:
 
     # Write out version information and system ready prompt.
     serial_send(f"MiniDragon v{sys.version}\n")
-    serial_send(f"Bla {sys.maxunicode}\n")
     serial_send("System ready.\n")
 
     # Core loop.
