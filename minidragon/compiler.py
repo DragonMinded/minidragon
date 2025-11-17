@@ -10,7 +10,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127
-VERSION: Final[str] = "1.0.3"
+VERSION: Final[str] = "1.0.4"
 
 
 class CompilerSettings:
@@ -6743,7 +6743,7 @@ class Compiler:
             if isinstance(possible_val, str):
                 inferred[expression] = CoreType("str", const=True)
             elif isinstance(possible_val, int):
-                inferred[expression] = CoreType("uint32", const=True)
+                inferred[expression] = CoreType("int", const=True)
             else:
                 raise CompilerError(f"Unsupported expression {expr_to_str(expression)}", context)
             return inferred
