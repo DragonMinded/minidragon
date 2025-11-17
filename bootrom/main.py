@@ -1,3 +1,5 @@
+import sys
+
 from hardware.serial import (
     serial_init,
     serial_clear,
@@ -15,7 +17,8 @@ def main() -> void:
     serial_init()
     serial_clear()
 
-    # Write out a hello world string.
+    # Write out version information and system ready prompt.
+    serial_send(f"MiniDragon v{sys.version}\n")
     serial_send("System ready.\n")
 
     # Core loop.
