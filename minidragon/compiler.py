@@ -6,10 +6,11 @@ import libcst.metadata as meta
 from typing import Callable, Dict, Final, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
 
 from .core import assemble
-from .util import comment_source, hexval, sanitize
+from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127
+VERSION: Final[str] = "1.0.3"
 
 
 class CompilerSettings:
@@ -460,6 +461,17 @@ class Constant:
 
     def __repr__(self) -> str:
         return f"Local constant {self.type!r} {self.name!r}: {self.value!r}"
+
+
+class SysConstant:
+    def __init__(self) -> None:
+        versionbytes: List[int] = [int(x) for x in VERSION.split(".")]
+        self.byteorder: str = "big"
+        self.hexversion: int = int(f"0x{hexstr(versionbytes[0], 2)}{hexstr(versionbytes[1], 2)}{hexstr(versionbytes[2], 4)}", 16)
+        self.maxsize: int = 2**31 - 1
+        self.maxunicode: int = 0xFF
+        self.platform: str = "minidragon"
+        self.version: str = VERSION
 
 
 class Allocation:
@@ -956,7 +968,7 @@ def expr_to_str(expr: cst.BaseExpression) -> str:
             ],
         )
     )
-    return code
+    return code.strip()
 
 
 def unescape_literal(val: str) -> str:
@@ -1252,10 +1264,11 @@ class Compiler:
 
         try:
             # If we can evaluate the assign value directly that means it's a safe ref. This only
-            # happens for global variables and string literals. We don't want to treat local constants
-            # that weren't safe refs as such here by substituting their value, so we leave those out.
+            # happens for global variables, string literals, and local constants, which strings are
+            # never part of.
             consts = [
                 *[Constant(gv.name, gv.type, None) for gv in refs if isinstance(gv, GlobalVariable)],
+                *local_consts
             ]
 
             self.codegen_eval(assign_value, consts, context)
@@ -6720,6 +6733,21 @@ class Compiler:
             inferred[expression] = CoreType("str", const=True)
             return inferred
 
+        elif isinstance(expression, cst.Attribute):
+            # This could be a sys reference.
+            try:
+                possible_val = self.codegen_eval(expression, local_consts, context)
+            except NonConstantExpressionException:
+                possible_val = None
+
+            if isinstance(possible_val, str):
+                inferred[expression] = CoreType("str", const=True)
+            elif isinstance(possible_val, int):
+                inferred[expression] = CoreType("uint32", const=True)
+            else:
+                raise CompilerError(f"Unsupported expression {expr_to_str(expression)}", context)
+            return inferred
+
         else:
             raise CompilerError(f"Unsupported expression {expr_to_str(expression)}", context)
 
@@ -9004,8 +9032,25 @@ class Compiler:
                             raise CompilerError(f"Import of {', '.join(common_names)} shadows local definitions", context.wrap(body))
 
                         refs = [*refs, *new_refs]
+                elif isinstance(body, cst.Import):
+                    for alias in body.names:
+                        name_str = expr_to_str(alias.name).strip()
+                        if name_str not in {"sys"}:
+                            raise CompilerError(f"Import of {name_str} is not supported", context.wrap(body))
+
+                        if alias.asname:
+                            alias_str = expr_to_str(alias.asname.name).strip()
+                        else:
+                            alias_str = name_str
+
+                        if not alias_str.isidentifier():
+                            raise CompilerError(f"Import of {name_str} as {alias_str} is not supported", context.wrap(body))
+
+                        global_consts.append(Constant(alias_str, CoreType("object", const=True), value=SysConstant()))
+
                 else:
                     raise CompilerError("Arbitrary top-level statements are not supported", context.wrap(body))
+
             elif isinstance(statement, cst.FunctionDef):
                 compiled += self.function(statement, refs, global_consts, context.wrap(statement))
             else:
