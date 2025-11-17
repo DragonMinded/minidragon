@@ -302,7 +302,7 @@ class ControlSignals:
     ) -> None:
         self.alu_src = alu_src if alu_src is not None else self.ALU_SRC_IP
         self.carry = carry if carry is not None else ALU.CARRY_CLEAR
-        self.alu_op = alu_op if alu_op is not None else ALU.OPERATION_NULL
+        self.alu_op = alu_op if alu_op is not None else ALU.OPERATION_CMP
         self.address_src = (
             address_src if address_src is not None else self.ADDRESS_SRC_IP
         )
@@ -361,8 +361,10 @@ class MemoryFilter:
 
 class ALU:
 
-    # No operation, output indeterminate.
-    OPERATION_NULL = 0
+    # Compare an 8-bit value in "A" register against an 8-bit value in "B".
+    # Carry set if A > B when interpreted as an unsigned integer. Zero set
+    # if result is zero.
+    OPERATION_CMP = 0
     # Exclusive or an 8-bit value in "A" against an 8-bit value in "B".
     # Carry never set. Zero set if result is zero.
     OPERATION_XOR = 1
@@ -439,8 +441,10 @@ class ALU:
             return (self.a | self.b) & 0xFF
         if self.op == self.OPERATION_XOR:
             return (self.a ^ self.b) & 0xFF
-        if self.op == self.OPERATION_NULL:
-            return 0xFF
+        if self.op == self.OPERATION_CMP:
+            # Defined as returning itself, although we never assert the ALU out
+            # signal for this particular instruction.
+            return self.a & 0xFF
         raise Exception("Not implemented!")
 
     @property
@@ -459,12 +463,13 @@ class ALU:
             return (self.a << 1) & 0x100 != 0
         if self.op == self.OPERATION_SHR:
             return (self.a & 0b1) != 0
+        if self.op == self.OPERATION_CMP:
+            return ((self.a & 0xFF) > (self.b & 0xFF))
         if self.op in [
             self.OPERATION_INV,
             self.OPERATION_AND,
             self.OPERATION_OR,
             self.OPERATION_XOR,
-            self.OPERATION_NULL,
         ]:
             return False
         raise Exception("Not implemented!")
@@ -473,7 +478,10 @@ class ALU:
     def zero(self) -> bool:
         # While the ALU itself is 16-bit, flags are relative to 8-bit
         # operations.
-        return self.result & 0xFF == 0
+        if self.op == self.OPERATION_CMP:
+            return (self.a & 0xFF) == (self.b & 0xFF)
+        else:
+            return self.result & 0xFF == 0
 
 
 class CPUCore:
@@ -520,7 +528,7 @@ class CPUCore:
             self.ram += ([0] * (0x10000 - len(self.ram)))
 
         # ALU
-        self.alu = ALU(ALU.OPERATION_NULL, ALU.CARRY_CLEAR, 0, 0, False)
+        self.alu = ALU(ALU.OPERATION_CMP, ALU.CARRY_CLEAR, 0, 0, False)
 
         # Busses
         self.data = 0b1111111111111111
@@ -1361,6 +1369,37 @@ class BaseALUUInstruction(BaseInstruction, ABC):
 
 
 @instruction
+class CMPU(BaseALUUInstruction):
+    # Compare the contents of A with U, setting flags accordingly.
+
+    opcode = 0b000
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                u_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_CMP,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
 class ADDU(BaseALUUInstruction):
     # Add contents of U to A register.
 
@@ -1634,6 +1673,37 @@ class BaseALUVInstruction(BaseInstruction, ABC):
 
 
 @instruction
+class CMPV(BaseALUVInstruction):
+    # Compare the contents of A with V, setting flags accordingly.
+
+    opcode = 0b000
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                v_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_CMP,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
+
+
+@instruction
 class ADDV(BaseALUVInstruction):
     # Add contents of V to A register.
 
@@ -1904,6 +1974,38 @@ class BaseALUSRAMInstruction(BaseInstruction, ABC):
     ) -> List[int]:
         _checkempty(mnemonic, parameters)
         return [0b10011000 | self.opcode]
+
+
+@instruction
+class CMP(BaseALUSRAMInstruction):
+    # Compare the contents of A with memory at P+C, setting flags accordingly.
+
+    opcode = 0b000
+
+    def signals(self) -> List["ControlSignals"]:
+        return [
+            ControlSignals(
+                address_src=ControlSignals.ADDRESS_SRC_PC,
+                sram_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_A,
+                alu_op=ALU.OPERATION_CMP,
+                flags_input=True,
+            ),
+            ControlSignals(
+                z_output=True,
+                b_input=True,
+            ),
+            ControlSignals(
+                alu_src=ControlSignals.ALU_SRC_IP,
+                alu_op=ALU.OPERATION_ADD,
+                carry=ALU.CARRY_SET,
+                alu_output=True,
+                ip_input=True,
+            ),
+        ]
 
 
 @instruction
