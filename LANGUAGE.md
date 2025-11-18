@@ -118,15 +118,71 @@ Unlike Python, MiniPy lets you assign a character to an index in a string. This 
 
 Note that, for speed reasons, when the compiler can prove that there is no way to accidentally cause aliasing issues, strings will be represented under the hood as a reference to another string instead of a full copy. This only happens with constant strings that are assigned to from a string literal, a global constant string, a function marked as returning a constant string, or another local constant string that was assigned to from one of these categories. Functions are only allowed to be marked as returning a constant string if the value they are returning fits within one of these categories as well. This support for references under the hood extends to string function parameters that are marked as constant.
 
+Examples of various operations are as follows.
+
+`a: str[16] = ""`
+
+ > Declares a string that can hold at most 16 bytes including the null terminator and initializes it to an empty string.
+
+`a += b`
+
+ > Concatenates the value of `b` to the end of an existing string `a`. If `b` is a string as well, this is equivalent to the C function `strcat(a, b)`. If `b` is a character, this appends the character to the end of the string, updating the null terminator as appropriate.
+
+`ch: char = a[5]`
+
+ > Grabs the sixth character out of the string `a` (string indexes are zero-based in MiniPy just as they are in standard Python) and assigns it to the newly declared character `ch`. Note that unlike standard Python, MiniPy character indexes are not memory safe. That means that if your string is only 3 characters long and you ask for a character at index 5 you will get a garbage result.
+
+`b: str[8] = a[3:7]`
+
+ > Declares a new string `b` and then assigns it the slice of `a` starting at index 3 and ending at index 7. Supposing `a` were to hold the value "Hello, world" then after this operation `b` will now hold "lo, ". Note that string slices are memory safe just as they are in standard Python. That means that if a string is not long enough for the slice index you should expect the result of the slice to be shorter than specified. For instance, if `a` were to hold just the string "Hello" and you were to ask for the above slice, `b` would end up containing "lo. Note that slices with no beginning and slices with no end are both supported.
+
+`a = a[:5]`
+
+ > Truncates an already-defined string `a` to just the first 5 characters. If `a` does not contain 5 characters then this has no apparent effect.
+
+`l: uint8 = len(a)`
+
+ > Calculates the length of string `a` and places the result in a newly-declared integer `l`. This is equivalent to the C function `strlen(a)`.
+
+`val: str[32] = "Value: " + str(v)`
+
+ > Converts the already-defined variable `v` to a string and concatenates it with a string constant and then assigns the result to a newly-declared string `val`. Supposing `v` was an integer holding the value `123`, you should expect that after executing this statement that `val` would contain "Value: 123". Similarly, if `v` was a boolean holding the value `True`, you should expect that after running this statement `val` would contain "Value: True".
+
+`result: str[64] = f"The result of {a} added to {b} is {a + b}."`
+
+ > Evaluates an f-string expression which references two previously-defined integer variables `a` and `b`, assigning the result to the newly-defined string `result`. Supposing `a` held the integer value `5` and `b` held the integer value of `7`, then you should expect `result` to contain "The result of 5 added to 7 is 12.". F-string expressions support all embedded expressions that MiniPy would otherwise support on a standalone line. Note that MiniPy has no support for format specifications such as `!r`.
+
 ### Boolean Support
 
 MiniPy supports a boolean data type to represent comparison expressions. It has limited support for automatic conversion from truthy values to boolean values, specifically when non-booleans are used in `if` statements, `while` loops and conditional expressions. In the case of explicit or implicit conversion to boolean, Python's truthy rules apply to MiniPy. Integers are seen as truthy if they are non-zero, and falsey when they are zero. Strings are considered truthy if they contain one or more characters, and falsey if they are empty or zero-length. Characters are considered truthy when they represent anything other than the null byte, and falsey when they represent the null byte. Internally, `False` is represented as a byte with all bits cleared (`0`) and `True` is represented by a byte with all bits set (`255`). This only matters in the case of `peek()` and `poke()` which are documented below.
+
+Boolean expressions are short-circuiting and evaluated from left to right. MiniPy does not support comparing different data types, such as strings against characters, or integers against booleans. Attempting to do so will result in a compile-time error on the offending line. The only exception to this is in if statement tests, while loop tests and if expression tests where a non-boolean expression is supplied but not compared against anything. In this case, MiniPy will behave the same as standard Python and evaluate the expression for "truthy" or "falsey" behavior. For integers and characters, a value is considered "truthy" if the value is non-zero, and "falsey" if the value is zero. For strings, a value is considered "truthy" if the string is non-empty (contains one or more characters that are not the null terminator) and "falsey" if the string is empty (the first character is the null terminator).
+
+Examples of various operations are as follows.
+
+`a: bool = param1 == param2`
+
+ > Evaluates the equality check `param1 == param2` and assigns the result to the newly-created boolean variable `a`. Note that equality checks are valid only against variables and constants of the same data type. Attempting to, for instance, compare an integer against a string will result in a compile-time error. Note also that there is support for checking equality for all supported data types.
+
+`a: int8 = -5 if x > 3 else 5`
+
+ > Evaluates an if expression with the test `x > 3` and assigning the result to a newly-defined variable `a`. If `x` is indeed greater than 3, you should expect that `a` will end up with the value `-5`. If not, you should expect at `a` will contain the value `5`.
+
+`a: bool = bool(someStr)`
+
+ > Looks at an existing variable `someStr`, assumed to be a string in this case, and evaluates it for "truthy" or "falsey" contents, assigning that to the newly-created variable `a`. If the string in question is empty, then you should expect `a` to be set to `False`. Otherwise, you should expect `a` to be set to `True`.
 
 ### Function Support
 
 MiniPy supports defining functions as well as calling functions in a similar fashion to standard Python. Parameters, including strings, are passed to functions by value except in very specific cases regarding string constants. Full support for default arguments is included, so if you specify a default for a given argument you do not need to provide a value when calling the function. Similarly, support for calling functions with keyword arguments is also available. This can come in handy when you want to specifically override only some defaults for a particular function. Note that MiniPy does not support dictionaries or lists, so support for `*args` and `**kwargs` is not available.
 
 Function calls are handled on the stack, meaning that functions are allowed to call themselves recursively. Due to the fact that strings are assigned by value, it is safe to use strings in recursive functions. All other supported data types are similarly supported for recursive functions. Due to the fact that there are no interrupts in the MiniDragon CPU, there is no support for threading or and multi-processing support. Therefore, functions do not need to worry about reentrancy.
+
+## Control Flow Support
+
+MiniPy supports standard `if`/`elif`/`else` statements for directing control flow with identical semantics to Python. It is perfectly valid to use a `return` statement within an if body similar to standard Python. It supports `while` statements as well, with support for the optional `else` case which is only executed if the while loop is not terminated early with a `break` statement. While loops fully support both `break` and `continue` as well as returning early from a function using the `return` statement. For statements are supported in limited context. MiniPy does not support iterators generally but provides two iteration styles for Python-style for loops. The first is the `range()` intrinsic which behaves identically to the [Python range](https://docs.python.org/3/library/functions.html#func-range) function in standard Python. The second is iterating over characters in a string. Note that much like `while` statements, `for` statements support the optional `else` clause as well as `break`, `continue` and `return` to early exit or change loop flow.
+
+Both `if` and `while` statement expression evaluation is short-circuiting. Both `if` and `while` also support automatic coersion of truthy values. That means that instead of writing something like `if len(str) > 0:` you can instead write the more pythonic `if str:`. Note that the latter form is also faster as it does not need to evaluate the string's length and then compare it against an integer. Under the hood the compiler can optimize the second form to just check the first character of the string against the null terminator byte. Control flow statements can be nested arbitrarily and with no restrictions to depth.
 
 ## Compiler Intrinsics
 
