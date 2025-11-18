@@ -3,6 +3,7 @@ import os
 import libcst as cst
 import libcst.metadata as meta
 
+from enum import Enum, auto
 from typing import Callable, Dict, Final, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
 
 from .core import assemble
@@ -10,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127
-VERSION: Final[str] = "1.0.4"
+VERSION: Final[str] = "1.0.5"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -618,13 +619,18 @@ class StackVar:
         return f"{self.type!r} {self.name}: {self.location} size {self.size}{' uninitialized' if not self.initialized else ''}{' relocated' if self.relocated else ''}"
 
 
+class StackOperation(Enum):
+    LOAD = auto()
+    STORE = auto()
+
+
 class Stack:
     def __init__(self, funcname: str) -> None:
         self.funcname = funcname
         self.stack: List[StackVar] = []
         self.size: int = 0
         self.location: int = 0
-        self.__tempnames: List[Tuple[str, int, int, bool, bool]] = []
+        self.__tempnames: List[Tuple[str, int, int, StackOperation]] = []
 
     def __len__(self) -> int:
         return len(self.stack)
@@ -641,11 +647,8 @@ class Stack:
     def __iter__(self) -> Iterator[StackVar]:
         yield from self.stack
 
-    def nameloc(self, name: str, location: int, size: int, load: bool = False, store: bool = False) -> None:
-        if not load and not store:
-            raise Exception("Logic error, must call with either load or store set!")
-
-        self.__tempnames.append((name, location, size, load, store))
+    def nameloc(self, name: str, location: int, size: int, operation: StackOperation) -> None:
+        self.__tempnames.append((name, location, size, operation))
 
     def unnameloc(self, name: str) -> None:
         self.__tempnames = [x for x in self.__tempnames if x[0] != name]
@@ -789,28 +792,23 @@ class Stack:
                 return entry
         return None
 
-    def comment(self, offset: int, load: bool = False, store: bool = False) -> str:
+    def comment(self, offset: int, stackop: StackOperation) -> str:
         # First, try to apply temporary names.
-        names: List[Tuple[str, int, int, bool, bool]] = []
-        for name, location, size, isload, isstore in self.__tempnames:
+        names: List[Tuple[str, int, int, StackOperation]] = []
+        for name, location, size, operation in self.__tempnames:
             if offset >= location and offset < (location + size):
-                names.append((name, location, size, isload, isstore))
+                names.append((name, location, size, operation))
 
         if len(names) == 1:
             return f" ; STACKOFF: {names[0][0]} + {offset - names[0][1]}"
         if len(names) == 2:
-            for name, location, size, isload, istore in names:
-                if load and isstore:
-                    continue
-                if store and isload:
+            for name, location, size, operation in names:
+                if operation != stackop:
                     continue
                 return f" ; STACKOFF: {name} + {offset - location}"
 
         # Now, look in the stack and figure out what we're messing with.
         potentials: List[StackVar] = []
-
-        if not load and not store:
-            raise Exception("Logic error, must call with either load or store set!")
 
         for entry in self.stack:
             entryloc = entry.location
@@ -824,9 +822,9 @@ class Stack:
             return f" ; STACKOFF: {potentials[0].name} + {offset - (potentials[0].location or 0)}"
         if len(potentials) == 2:
             for potential in potentials:
-                if load and potential.relocated:
+                if stackop == StackOperation.LOAD and potential.relocated:
                     continue
-                if store and not potential.relocated:
+                if stackop == StackOperation.STORE and not potential.relocated:
                     continue
                 return f" ; STACKOFF: {potential.name} + {offset - (potential.location or 0)}"
 
@@ -1768,13 +1766,13 @@ class Compiler:
                 for i in range(size):
                     clobbers.add(register)
 
-                    compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
+                    compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_addpci(shuffle_amount)
 
                     stack.move(-shuffle_amount)
                     compiled.code += comment_stack(stack)
 
-                    compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
+                    compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, StackOperation.STORE))
 
                     if i < size - 1:
                         compiled += self.generate_subpci(shuffle_amount - 1)
@@ -1792,13 +1790,13 @@ class Compiler:
                 for i in range(size):
                     clobbers.add(register)
 
-                    compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
+                    compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_subpci(-shuffle_amount)
 
                     stack.move(-shuffle_amount)
                     compiled.code += comment_stack(stack)
 
-                    compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
+                    compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, StackOperation.STORE))
 
                     if i < size - 1:
                         compiled += self.generate_addpci((-shuffle_amount) - 1)
@@ -1809,13 +1807,13 @@ class Compiler:
                 for i in range(size):
                     clobbers.add(register)
 
-                    compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
+                    compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_addpci(shuffle_amount)
 
                     stack.move(-shuffle_amount)
                     compiled.code += comment_stack(stack)
 
-                    compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
+                    compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, StackOperation.STORE))
 
                     if i < size - 1:
                         compiled += self.generate_subpci(shuffle_amount + 1)
@@ -1863,9 +1861,9 @@ class Compiler:
         for offset in range(destination_size):
             clobbers.add(register)
             compiled += self.generate_move_to(source, stack, clobbers, context, offset=actual_expr_offset(offset))
-            compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
+            compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, StackOperation.LOAD))
             compiled += self.generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
-            compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
+            compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, StackOperation.STORE))
 
         return compiled
 
@@ -1933,13 +1931,13 @@ class Compiler:
 
                 # Generate code to move from our position to the first byte of the retval.
                 compiled += self.generate_move_by("seeking builtin(retptr)", first_move, stack, clobbers, context)
-                compiled.append_code("  LOAD U" + stack.comment(stack.location, load=True))
+                compiled.append_code("  LOAD U" + stack.comment(stack.location, StackOperation.LOAD))
                 compiled.append_code("  DECPC")
 
                 stack.move(1)
                 compiled.code += comment_stack(stack)
 
-                compiled.append_code("  LOAD V" + stack.comment(stack.location, load=True))
+                compiled.append_code("  LOAD V" + stack.comment(stack.location, StackOperation.LOAD))
                 compiled.append_code(f"  ; {cref}")
 
             # Second, make sure the top of the stack is our return.
@@ -1963,8 +1961,8 @@ class Compiler:
 
                 # Generate code to move from our position to the first byte of the retptr.
                 retptr_final_loc = number_of_moves
-                stack.nameloc("builtin(retval)", src_loc, number_of_moves, load=True)
-                stack.nameloc("builtin(retval)", 0, number_of_moves, store=True)
+                stack.nameloc("builtin(retval)", src_loc, number_of_moves, StackOperation.LOAD)
+                stack.nameloc("builtin(retval)", 0, number_of_moves, StackOperation.STORE)
                 compiled += self.generate_memcpy_locations(src_loc, 0, number_of_moves, stack, clobbers, context)
                 compiled.append_code(f"  ; {cref}")
                 stack.unnameloc("builtin(retval)")
@@ -1977,14 +1975,14 @@ class Compiler:
             # Gotta grab it out of the saved U/V registers.
             restore_move_amt = retptr_final_loc - stack.location
             compiled += self.generate_move_by("seeking return pointer restoration point", restore_move_amt, stack, clobbers, context)
-            stack.nameloc("builtin(retptr)", retptr_final_loc, 2, store=True)
-            compiled.append_code("  STORE U" + stack.comment(stack.location, store=True))
+            stack.nameloc("builtin(retptr)", retptr_final_loc, 2, StackOperation.STORE)
+            compiled.append_code("  STORE U" + stack.comment(stack.location, StackOperation.STORE))
             compiled.append_code("  DECPC")
 
             stack.move(1)
             compiled.code += comment_stack(stack)
 
-            compiled.append_code("  STORE V" + stack.comment(stack.location, store=True))
+            compiled.append_code("  STORE V" + stack.comment(stack.location, StackOperation.STORE))
             compiled.append_code(f"  ; {cref}")
             stack.unnameloc("builtin(retptr)")
         else:
@@ -2010,8 +2008,8 @@ class Compiler:
                     raise Exception("Logic error, failed to get move amounts for builtin(retptr)!")
 
                 # Name the location so we don't end up clobbering it in an optimization pass.
-                stack.nameloc("builtin(retptr)", retptr_final_loc, number_of_moves, store=True)
-                stack.nameloc("builtin(retptr)", src_loc, number_of_moves, load=True)
+                stack.nameloc("builtin(retptr)", retptr_final_loc, number_of_moves, StackOperation.STORE)
+                stack.nameloc("builtin(retptr)", src_loc, number_of_moves, StackOperation.LOAD)
 
                 # Generate code to move from our position to the first byte of the retptr.
                 compiled += self.generate_memcpy_locations(src_loc, retptr_final_loc, number_of_moves, stack, clobbers, context)
@@ -2095,41 +2093,41 @@ class Compiler:
                 compiled += self.generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
                 if dest_size == 1:
                     compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                 elif dest_size == 2:
                     compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  DECPC")
 
                     stack.move(1)
                     compiled.code += comment_stack(stack)
 
                     compiled.append_code(f"  LOADI {hexval((val >> 8) & 0xFF, 2)}")
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                 elif dest_size == 4:
                     compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  DECPC")
 
                     stack.move(1)
                     compiled.code += comment_stack(stack)
 
                     compiled.append_code(f"  LOADI {hexval((val >> 8) & 0xFF, 2)}")
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  DECPC")
 
                     stack.move(1)
                     compiled.code += comment_stack(stack)
 
                     compiled.append_code(f"  LOADI {hexval((val >> 16) & 0xFF, 2)}")
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  DECPC")
 
                     stack.move(1)
                     compiled.code += comment_stack(stack)
 
                     compiled.append_code(f"  LOADI {hexval((val >> 24) & 0xFF, 2)}")
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                 else:
                     raise CompilerError(f"Unsupported destination {destination} for const load", context)
 
@@ -2151,7 +2149,7 @@ class Compiler:
 
                 compiled += self.generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
                 compiled.append_code(f"  LOADI {hexval((intval >> 0) & 0xFF, 2)}")
-                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
         elif dtype.is_char:
             if not isinstance(val, str):
@@ -2171,7 +2169,7 @@ class Compiler:
 
                 compiled += self.generate_move_by(f"seeking {destination}", dest_loc, stack, clobbers, context)
                 compiled.append_code(f"  LOADI {val!r}")
-                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
         else:
             raise CompilerError(f"Unsupported constant load of type {dtype.type}", context)
@@ -2467,7 +2465,7 @@ class Compiler:
                         if stackloc is None or stacksize is None:
                             raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
                         for z in range(stacksize):
-                            compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
+                            compiled.append_code("  NOP" + stack.comment(stackloc + z, StackOperation.LOAD))
 
                         if not stackvars[i].initialized:
                             raise CompilerError(f"Use of uninitialized variable {stackvars[i].name!r}", context)
@@ -2519,7 +2517,7 @@ class Compiler:
                 if stackloc is None or stacksize is None:
                     raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
                 for z in range(stacksize):
-                    compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stackloc + z, StackOperation.LOAD))
 
             elif isinstance(needed_arg.type, RegisterCoreType):
                 # Because we can't just do the calculation here since a subsequent arg expression calculation
@@ -2582,7 +2580,7 @@ class Compiler:
                 if stackloc is None or stacksize is None:
                     raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
                 for z in range(stacksize):
-                    compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stackloc + z, StackOperation.LOAD))
 
             elif isinstance(needed_arg.type, PreservedCoreType):
                 # This is just preserved, so we don't have to worry about copy it out, but we do need to allocate it.
@@ -2597,7 +2595,7 @@ class Compiler:
                 if stackloc is None or stacksize is None:
                     raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
                 for z in range(stacksize):
-                    compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stackloc + z, StackOperation.LOAD))
 
             else:
                 # This is just a normal core type, so we put it on the stack, and the function takes it back off again.
@@ -2648,7 +2646,7 @@ class Compiler:
                 if stackloc is None or stacksize is None:
                     raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
                 for z in range(stacksize):
-                    compiled.append_code("  NOP" + stack.comment(stackloc + z, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stackloc + z, StackOperation.LOAD))
 
         # Now, load our registers up with any register parameters.
         stack_skip = 0
@@ -2671,14 +2669,14 @@ class Compiler:
                 stack.alloc(StackVar(reg_dest, CoreType(reg_to_type[delayed_needed_arg.register])))
                 compiled += self.generate_expr_internal(provided_arg.value, reg_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(provided_arg.value))
                 compiled += self.generate_move_to(reg_dest, stack, clobbers, context)
-                compiled.append_code(f"  LOAD {delayed_needed_arg.register}" + stack.comment(stack.location, load=True))
+                compiled.append_code(f"  LOAD {delayed_needed_arg.register}" + stack.comment(stack.location, StackOperation.LOAD))
                 stack.free(reg_dest)
             else:
                 if not isinstance(arg.value, UnvalidatedName):
                     raise Exception("Logic error, params that don't need generation should be on the stack!")
                 reg_dest = arg.value.value
                 compiled += self.generate_move_to(reg_dest, stack, clobbers, context)
-                compiled.append_code(f"  LOAD {delayed_needed_arg.register}" + stack.comment(stack.location, load=True))
+                compiled.append_code(f"  LOAD {delayed_needed_arg.register}" + stack.comment(stack.location, StackOperation.LOAD))
                 stack_skip += 1
 
         # Now, we're ready to actually call the function. Move to the last byte of the last parameter on the stack.
@@ -2713,7 +2711,7 @@ class Compiler:
                 else:
                     compiled += self.generate_move_to(destination, stack, clobbers, context)
                     if function_prototype.return_type.register == "A":
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                         stack.init(destination)
                     else:
                         raise Exception(f"Logic error, unsupported register destination {function_prototype.return_type.register} for function")
@@ -2866,7 +2864,7 @@ class Compiler:
                         if rhs_loc is None:
                             raise Exception("Logic error, cannot find stack variable we just created!")
 
-                        stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, load=True)
+                        stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, StackOperation.LOAD)
                         compiled += self.generate_memcpy_locations(src_loc, rhs_loc, src_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
                         stack.unnameloc(f"func({function_prototype.name})")
 
@@ -2896,7 +2894,7 @@ class Compiler:
                         stack.init(destination)
 
                         if src_size == dest_size:
-                            stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, load=True)
+                            stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, StackOperation.LOAD)
                             compiled += self.generate_memcpy_locations(src_loc, dest_loc, dest_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
                             stack.unnameloc(f"func({function_prototype.name})")
                         else:
@@ -2992,8 +2990,8 @@ class Compiler:
 
                     # Set up the SPC to point at the string.
                     compiled += self.generate_move_to(destination, stack, clobbers, context, offset=1)
-                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
@@ -3104,8 +3102,8 @@ class Compiler:
 
                     # Assume that this is just a read of an address to clear a hardware register that's clear on read.
                     compiled += self.generate_move_to(addr_dest, stack, clobbers, context, offset=1)
-                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
@@ -3130,8 +3128,8 @@ class Compiler:
 
                         # This one's an easy one, just move to the right spot and load the value, copying it over.
                         compiled += self.generate_move_to(addr_dest, stack, clobbers, context, offset=1)
-                        compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                        compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                         compiled.append_code("  POP SPC")
                         stack.move(-2)
                         compiled.code += comment_stack(stack)
@@ -3143,7 +3141,7 @@ class Compiler:
 
                         if not is_register_destination(destination):
                             compiled += self.generate_move_to(destination, stack, clobbers, context)
-                            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                            compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                             stack.init(destination)
 
                     elif destination_type.type == "bool":
@@ -3153,8 +3151,8 @@ class Compiler:
                         # Can't just load like above, our compiler assumes that boolean true/false is always 0xff/0x00.
                         # So if we load a value and pretend it's boolean it could mess up any other boolean checks.
                         compiled += self.generate_move_to(addr_dest, stack, clobbers, context, offset=1)
-                        compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                        compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                         compiled.append_code("  POP SPC")
                         stack.move(-2)
                         compiled.code += comment_stack(stack)
@@ -3170,7 +3168,7 @@ class Compiler:
 
                         if not is_register_destination(destination):
                             compiled += self.generate_move_to(destination, stack, clobbers, context)
-                            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                            compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                             stack.init(destination)
 
                     elif destination_type.type in {"int16", "uint16"}:
@@ -3179,8 +3177,8 @@ class Compiler:
 
                         # This one's slightly harder, need to copy two things, but that's manageable.
                         compiled += self.generate_move_to(addr_dest, stack, clobbers, context, offset=1)
-                        compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                        compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                         compiled.append_code("  POP SPC")
                         stack.move(-2)
                         compiled.code += comment_stack(stack)
@@ -3191,7 +3189,7 @@ class Compiler:
                         compiled.append_code("  SWAP PC, SPC")
 
                         compiled += self.generate_move_to(destination, stack, clobbers, context, offset=1)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                         compiled.append_code("  SWAP PC, SPC")
                         compiled.append_code("  INCPC")
@@ -3200,7 +3198,7 @@ class Compiler:
 
                         compiled.append_code("  INCPC")
                         stack.move(-1)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                     elif destination_type.type in {"int32", "uint32"}:
                         if not sentinel:
@@ -3208,8 +3206,8 @@ class Compiler:
 
                         # This one needs to copy 4 things, but I'm gonna unroll that since it's easier than writing a loop.
                         compiled += self.generate_move_to(addr_dest, stack, clobbers, context, offset=1)
-                        compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                        compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                         compiled.append_code("  POP SPC")
                         stack.move(-2)
                         compiled.code += comment_stack(stack)
@@ -3220,7 +3218,7 @@ class Compiler:
                         compiled.append_code("  SWAP PC, SPC")
 
                         compiled += self.generate_move_to(destination, stack, clobbers, context, offset=3)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                         # Second byte.
                         compiled.append_code("  SWAP PC, SPC")
@@ -3230,7 +3228,7 @@ class Compiler:
 
                         compiled.append_code("  INCPC")
                         stack.move(-1)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                         # Third byte.
                         compiled.append_code("  SWAP PC, SPC")
@@ -3240,7 +3238,7 @@ class Compiler:
 
                         compiled.append_code("  INCPC")
                         stack.move(-1)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                         # Fourth byte.
                         compiled.append_code("  SWAP PC, SPC")
@@ -3250,7 +3248,7 @@ class Compiler:
 
                         compiled.append_code("  INCPC")
                         stack.move(-1)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                     elif destination_type.type == "str":
                         # Recast this as a string pointer, since that's what it is.
@@ -3331,11 +3329,11 @@ class Compiler:
                     # This one's an easy one, just move to the right spot and store the value, copying it over.
                     # There's no special case for bool here, since we control it's contents and are just storing it.
                     compiled += self.generate_move_to(data_dest, stack, clobbers, context)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
 
                     compiled += self.generate_move_to(addr_dest, stack, clobbers, context, offset=1)
-                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
@@ -3347,21 +3345,21 @@ class Compiler:
                 elif types[data_expr].type in {"int16", "uint16"}:
                     # This one's slightly harder, need to copy two things, but that's manageable.
                     compiled += self.generate_move_to(addr_dest, stack, clobbers, context, offset=1)
-                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
 
                     compiled += self.generate_move_to(data_dest, stack, clobbers, context, offset=1)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  SWAP PC, SPC")
                     compiled.append_code("  STORE A")
 
                     compiled.append_code("  SWAP PC, SPC")
                     compiled.append_code("  INCPC")
                     stack.move(-1)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled.append_code("  INCPC")
@@ -3371,14 +3369,14 @@ class Compiler:
                 elif types[data_expr].type in {"int32", "uint32"}:
                     # This one needs to copy 4 things, but I'm gonna unroll that since it's easier than writing a loop.
                     compiled += self.generate_move_to(addr_dest, stack, clobbers, context, offset=1)
-                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
 
                     compiled += self.generate_move_to(data_dest, stack, clobbers, context, offset=3)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  SWAP PC, SPC")
                     compiled.append_code("  STORE A")
 
@@ -3386,7 +3384,7 @@ class Compiler:
                     compiled.append_code("  SWAP PC, SPC")
                     compiled.append_code("  INCPC")
                     stack.move(-1)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled.append_code("  INCPC")
@@ -3396,7 +3394,7 @@ class Compiler:
                     compiled.append_code("  SWAP PC, SPC")
                     compiled.append_code("  INCPC")
                     stack.move(-1)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled.append_code("  INCPC")
@@ -3406,7 +3404,7 @@ class Compiler:
                     compiled.append_code("  SWAP PC, SPC")
                     compiled.append_code("  INCPC")
                     stack.move(-1)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  SWAP PC, SPC")
 
                     compiled.append_code("  INCPC")
@@ -3502,8 +3500,8 @@ class Compiler:
 
                     # Now, dereference the string and find out if it's an empty string or not.
                     compiled += self.generate_move_to(expr_dest, stack, clobbers, context, offset=1)
-                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
@@ -3520,7 +3518,7 @@ class Compiler:
 
                     if not is_register_destination(destination):
                         compiled += self.generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                         stack.init(destination)
 
                     return compiled
@@ -3547,7 +3545,7 @@ class Compiler:
 
                     if not is_register_destination(destination):
                         compiled += self.generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                         stack.init(destination)
 
                     return compiled
@@ -3567,7 +3565,7 @@ class Compiler:
 
                     # First byte check with short circuiting for non-zero.
                     clobbers.add("A")
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  INCPC")
                     compiled.append_code("  ADDI 0")
                     compiled.append_code("  LOADI 0xFF")
@@ -3575,7 +3573,7 @@ class Compiler:
                     stack.move(-1)
 
                     # Second byte check.
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  ADDI 0")
                     compiled.append_code("  LOADI 0x00")
                     compiled.append_code("  SKIPIF ZF")
@@ -3586,7 +3584,7 @@ class Compiler:
 
                     if not is_register_destination(destination):
                         compiled += self.generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                         stack.init(destination)
 
                     return compiled
@@ -3608,7 +3606,7 @@ class Compiler:
 
                     # First byte check with short circuiting for non-zero.
                     clobbers.add("A")
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  INCPC")
                     compiled.append_code("  ADDI 0")
                     compiled.append_code("  LOADI 0xFF")
@@ -3616,7 +3614,7 @@ class Compiler:
                     stack.move(-1)
 
                     # Second byte check with short circuiting for non-zero.
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  INCPC")
                     compiled.append_code("  ADDI 0")
                     compiled.append_code("  LOADI 0xFF")
@@ -3624,7 +3622,7 @@ class Compiler:
                     stack.move(-1)
 
                     # Third byte check with short circuiting for non-zero.
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  INCPC")
                     compiled.append_code("  ADDI 0")
                     compiled.append_code("  LOADI 0xFF")
@@ -3632,7 +3630,7 @@ class Compiler:
                     stack.move(-1)
 
                     # Fourth byte check.
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  ADDI 0")
                     compiled.append_code("  LOADI 0x00")
                     compiled.append_code("  SKIPIF ZF")
@@ -3649,7 +3647,7 @@ class Compiler:
 
                     if not is_register_destination(destination):
                         compiled += self.generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                         stack.init(destination)
 
                     return compiled
@@ -3682,7 +3680,7 @@ class Compiler:
 
                     if not is_register_destination(destination):
                         compiled += self.generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                         stack.init(destination)
 
                     return compiled
@@ -3697,13 +3695,13 @@ class Compiler:
 
                     # Now, load the bottom byte into the A register to return it.
                     compiled += self.generate_move_to(expr_dest, stack, clobbers, context)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     stack.free(expr_dest)
 
                     if not is_register_destination(destination):
                         clobbers.add("A")
                         compiled += self.generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                         stack.init(destination)
 
                     return compiled
@@ -3741,14 +3739,14 @@ class Compiler:
                 if destination_type.size == 1:
                     if not is_register_destination(destination):
                         compiled += self.generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                         stack.init(destination)
 
                     return compiled
 
                 elif destination_type.size == 2:
                     compiled += self.generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  INCPC")
                     compiled.append_code("  STOREI 0")
                     stack.move(-1)
@@ -3758,17 +3756,17 @@ class Compiler:
 
                 elif destination_type.size == 4:
                     compiled += self.generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  INCPC")
                     stack.move(-1)
                     compiled.append_code("  LOADI 0")
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  INCPC")
                     stack.move(-1)
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  INCPC")
                     stack.move(-1)
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     stack.init(destination)
 
                     return compiled
@@ -3809,7 +3807,7 @@ class Compiler:
 
                     if not is_register_destination(destination):
                         compiled += self.generate_move_to(destination, stack, clobbers, context)
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                         stack.init(destination)
 
                     return compiled
@@ -4096,7 +4094,7 @@ class Compiler:
                     raise CompilerError("Unsupported destination for non-integer assignment", context)
 
                 compiled += self.generate_move_to(source, stack, clobbers, context)
-                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
 
         elif stack.absfind(source) is None and (global_var := global_by_name(refs, source)) is not None:
             # Global variable lookup.
@@ -4207,7 +4205,7 @@ class Compiler:
                                 compiled.append_code("  SWAP PC, SPC")
 
                             compiled += self.generate_move_to(destination, stack, clobbers, context, offset=i)
-                            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                            compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                     elif global_var.type.size > dest_type.size:
                         # Copy, but with the destination size in mind, which should grab only the lower bits of the source.
@@ -4225,7 +4223,7 @@ class Compiler:
                                 compiled.append_code("  SWAP PC, SPC")
 
                             compiled += self.generate_move_to(destination, stack, clobbers, context, offset=i)
-                            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                            compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                     else:
                         # Copy, but with either sign extension or zero extension for the missing upper bytes.
@@ -4254,7 +4252,7 @@ class Compiler:
 
                             move_amt = stack.diff(actual_pos)
                             compiled += self.generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
-                            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                            compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                         # Need to copy the whole source, but to the correct location in the destination.
                         for i in range(global_var.type.size):
@@ -4277,7 +4275,7 @@ class Compiler:
 
                             move_amt = stack.diff(actual_pos)
                             compiled += self.generate_move_by("seeking copy byte", move_amt, stack, clobbers, context)
-                            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                            compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
         else:
             if destination is None:
@@ -4311,12 +4309,12 @@ class Compiler:
 
                 # Grab the character value itself.
                 compiled += self.generate_move_to(source, stack, clobbers, context)
-                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
 
                 # Set up the SPC to point at the string.
                 compiled += self.generate_move_to(destination, stack, clobbers, context, offset=1)
-                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
@@ -4393,7 +4391,7 @@ class Compiler:
                     # First, go to the high byte and figure out if it needs to be zero or one extended.
                     move_amt = stack.diff(source_loc + (source_type.size - 1))
                     compiled += self.generate_move_by("seeking {source}", move_amt, stack, clobbers, context)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  SHL")
                     compiled.append_code("  LOADI 0")
                     compiled.append_code("  SKIPIF !CF")
@@ -4404,7 +4402,7 @@ class Compiler:
 
                     move_amt = stack.diff(actual_pos)
                     compiled += self.generate_move_by("seeking sign extend byte", move_amt, stack, clobbers, context)
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                 # Need to copy the whole thing, and then zero out the top bytes we didn't touch.
                 compiled += self.generate_memcpy_locations(source_loc, dest_loc, source_type.size, stack, clobbers, context)
@@ -4453,7 +4451,7 @@ class Compiler:
 
                 # Move to the parameter and negate it.
                 compiled += self.generate_move_to(internal_dest, stack, clobbers, context)
-                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
 
                 if isinstance(expression.operator, cst.Minus):
                     compiled.append_code("  NEG")
@@ -4467,7 +4465,7 @@ class Compiler:
                     stack.free(internal_dest)
                 else:
                     compiled += self.generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     if internal_dest != destination:
                         stack.free(internal_dest)
             elif destination_size in {2, 4}:
@@ -4514,10 +4512,10 @@ class Compiler:
 
                     for offset in range(destination_size):
                         compiled += self.generate_move_to(internal_dest, stack, clobbers, context, offset=actual_neg_offset(offset))
-                        compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                        compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                         compiled.append_code("  INV")
                         compiled += self.generate_move_to(destination, stack, clobbers, context, offset=actual_neg_offset(offset))
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                 else:
                     raise CompilerError("Unsupported unary operation {expr_to_str(expression)}", context)
@@ -4552,7 +4550,7 @@ class Compiler:
 
             if not is_register_destination(destination):
                 compiled += self.generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
         else:
             # TODO: Handle Plus (no-op, just call with the expression value).
@@ -4646,8 +4644,8 @@ class Compiler:
                 # Need to clobber the SPC to move to that location.
                 clobbers.add("SPC")
                 compiled += self.generate_move_to(destination, stack, clobbers, context, offset=1)
-                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
@@ -4706,12 +4704,12 @@ class Compiler:
 
                     # Move to the second parameter and negate it.
                     compiled += self.generate_move_to(rhs_dest, stack, clobbers, context)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code("  NEG")
 
                     # Move to the right spot on the stack to add to the negated right hand side.
                     compiled += self.generate_move_to(lhs_dest, stack, clobbers, context)
-                    compiled.append_code("  ADD" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  ADD" + stack.comment(stack.location, StackOperation.LOAD))
 
                 elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
                     if not destination_type.is_integer:
@@ -4723,17 +4721,17 @@ class Compiler:
 
                     # Move to the right spot on the stack and then add the two numbers.
                     compiled += self.generate_move_to(rhs_dest, stack, clobbers, context)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_move_to(lhs_dest, stack, clobbers, context)
 
                     if isinstance(expression.operator, cst.Add):
-                        compiled.append_code("  ADD" + stack.comment(stack.location, load=True))
+                        compiled.append_code("  ADD" + stack.comment(stack.location, StackOperation.LOAD))
                     elif isinstance(expression.operator, cst.BitAnd):
-                        compiled.append_code("  AND" + stack.comment(stack.location, load=True))
+                        compiled.append_code("  AND" + stack.comment(stack.location, StackOperation.LOAD))
                     elif isinstance(expression.operator, cst.BitOr):
-                        compiled.append_code("  OR" + stack.comment(stack.location, load=True))
+                        compiled.append_code("  OR" + stack.comment(stack.location, StackOperation.LOAD))
                     elif isinstance(expression.operator, cst.BitXor):
-                        compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
+                        compiled.append_code("  XOR" + stack.comment(stack.location, StackOperation.LOAD))
                     else:
                         raise CompilerError(f"Unsupported operator {expression.operator} in integer expression", context)
 
@@ -4794,7 +4792,7 @@ class Compiler:
                         clobbers,
                         context,
                     )
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
 
                 else:
                     raise CompilerError(f"Unsupported run-time computation for {expression.operator}", context)
@@ -4807,7 +4805,7 @@ class Compiler:
                 else:
                     stack.free(rhs_dest)
                     compiled += self.generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     if lhs_dest != destination:
                         stack.free(lhs_dest)
 
@@ -4957,11 +4955,11 @@ class Compiler:
                     # Since bitwise operations are independent we can just do this in a loop.
                     for offset in range(destination_size):
                         compiled += self.generate_move_to(rhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                        compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                        compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                         compiled += self.generate_move_to(lhs_dest, stack, clobbers, context, offset=actual_expr_offset(offset))
-                        compiled.append_code(function + stack.comment(stack.location, load=True))
+                        compiled.append_code(function + stack.comment(stack.location, StackOperation.LOAD))
                         compiled += self.generate_move_to(destination, stack, clobbers, context, offset=actual_expr_offset(offset))
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                     stack.free(rhs_dest)
                     if lhs_dest != destination:
@@ -5069,7 +5067,7 @@ class Compiler:
 
             if not is_register_destination(destination):
                 compiled += self.generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
         elif isinstance(expression.operator, cst.Or):
             # Perform short-circuiting OR, first by handling the left hand side, and if it
@@ -5144,7 +5142,7 @@ class Compiler:
 
             if not is_register_destination(destination):
                 compiled += self.generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
         else:
             raise CompilerError(f"Unsupported boolean operation {expr_to_str(expression)}", context)
@@ -5204,7 +5202,7 @@ class Compiler:
 
             if not is_register_destination(destination):
                 compiled += self.generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
         elif isinstance(expression.comparisons[0].operator, (cst.Equal, cst.NotEqual)):
             # Determine preload value based on the comparison type.
@@ -5295,11 +5293,11 @@ class Compiler:
                 comparison_size = max(left_type.size, right_type.size)
                 if comparison_size == 1:
                     compiled += self.generate_move_to(second_dest, stack, clobbers, context)
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_move_to(first_dest, stack, clobbers, context)
 
                     # XOR the two numbers, which will give us 0 if they equal.
-                    compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  XOR" + stack.comment(stack.location, StackOperation.LOAD))
 
                     # Preload condition result into A.
                     compiled.append_code(f"  LOADI {preload_value}")
@@ -5327,11 +5325,11 @@ class Compiler:
                     finished_comparison = self.local_label_name(context, "finished_comparison")
 
                     compiled += self.generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
                     # XOR the two numbers, which will give us 0 if they equal.
-                    compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  XOR" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code(f"  JRIZ {second_byte_comparison}")
 
                     # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
@@ -5342,11 +5340,11 @@ class Compiler:
                     # Now, do the second byte comparison.
                     compiled.append_code(f"{second_byte_comparison}:")
                     compiled += self.generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
                     # XOR the two numbers, which will give us 0 if they equal.
-                    compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  XOR" + stack.comment(stack.location, StackOperation.LOAD))
 
                     # Preload condition result into A.
                     compiled.append_code(f"  LOADI {preload_value}")
@@ -5379,11 +5377,11 @@ class Compiler:
                     finished_comparison = self.local_label_name(context, "finished_comparison")
 
                     compiled += self.generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(0))
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(0))
 
                     # XOR the two numbers, which will give us 0 if they equal.
-                    compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  XOR" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code(f"  JRIZ {second_byte_comparison}")
 
                     # We failed the comparison on the first byte, move to where we would have moved to and set our result to False.
@@ -5394,11 +5392,11 @@ class Compiler:
                     # Now, do the second byte comparison.
                     compiled.append_code(f"{second_byte_comparison}:")
                     compiled += self.generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(1))
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(1))
 
                     # XOR the two numbers, which will give us 0 if they equal.
-                    compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  XOR" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code(f"  JRIZ {third_byte_comparison}")
 
                     # We failed the comparison on the second byte, move to where we would have moved to and set our result to False.
@@ -5409,11 +5407,11 @@ class Compiler:
                     # Now, do the third byte comparison.
                     compiled.append_code(f"{third_byte_comparison}:")
                     compiled += self.generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(2))
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(2))
 
                     # XOR the two numbers, which will give us 0 if they equal.
-                    compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  XOR" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled.append_code(f"  JRIZ {fourth_byte_comparison}")
 
                     # We failed the comparison on the third byte, move to where we would have moved to and set our result to False.
@@ -5424,11 +5422,11 @@ class Compiler:
                     # Now, do the fourth byte comparison.
                     compiled.append_code(f"{fourth_byte_comparison}:")
                     compiled += self.generate_move_to(second_dest, stack, clobbers, context, offset=actual_expr_offset(3))
-                    compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                     compiled += self.generate_move_to(first_dest, stack, clobbers, context, offset=actual_expr_offset(3))
 
                     # XOR the two numbers, which will give us 0 if they equal.
-                    compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
+                    compiled.append_code("  XOR" + stack.comment(stack.location, StackOperation.LOAD))
 
                     # Preload condition result into A.
                     compiled.append_code(f"  LOADI {preload_value}")
@@ -5447,7 +5445,7 @@ class Compiler:
 
             if not is_register_destination(destination):
                 compiled += self.generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
         elif isinstance(expression.comparisons[0].operator, (cst.GreaterThan, cst.GreaterThanEqual, cst.LessThan, cst.LessThanEqual)):
             # Determine preload value based on the comparison type.
@@ -5618,7 +5616,7 @@ class Compiler:
 
             if not is_register_destination(destination):
                 compiled += self.generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
         else:
             raise CompilerError(f"Unsupported comparison expression {expr_to_str(expression)}", context)
@@ -5772,8 +5770,8 @@ class Compiler:
 
             # Move to the correct spot on the stack to pop the pointer onto the SPC.
             compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
-            compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-            compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+            compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+            compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
             compiled.append_code("  POP SPC")
             stack.move(-2)
             compiled.code += comment_stack(stack)
@@ -5797,7 +5795,7 @@ class Compiler:
 
                 if not is_register_destination(destination):
                     compiled += self.generate_move_to(destination, stack, clobbers, context)
-                    compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                    compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
             if allocated:
                 stack.free(base_dest)
@@ -5895,8 +5893,8 @@ class Compiler:
                     advance_bottom = self.local_label_name(context, "advance_bottom")
 
                     # Swap over so we can check the string one byte at a time.
-                    compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                     compiled.append_code("  POP SPC")
                     stack.move(-2)
                     compiled.code += comment_stack(stack)
@@ -5960,8 +5958,8 @@ class Compiler:
 
                 # Swap over so we can check the string one byte at a time.
                 compiled.append_code("  MOV A, V")
-                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                 compiled.append_code("  POP SPC")
                 compiled.append_code("  SWAP PC, SPC")
 
@@ -6013,19 +6011,19 @@ class Compiler:
                         stack.alloc(StackVar(ending_dest, CoreType("int8"), initialized=True))
                         compiled += self.generate_move_to(ending_dest, stack, clobbers, context)
                         compiled.append_code("  NEG")
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                         # This can be mapped onto a simple strncpy, so we should calculate the ending value and do that.
                         ending_temp = self.expr_temp_name()
                         stack.alloc(StackVar(ending_temp, CoreType("uint8")))
                         compiled += self.generate_expr_internal(ending, ending_temp, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
                         compiled += self.generate_move_to(ending_temp, stack, clobbers, context)
-                        compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                        compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
                         stack.free(ending_temp)
 
                         compiled += self.generate_move_to(ending_dest, stack, clobbers, context)
-                        compiled.append_code("  ADD" + stack.comment(stack.location, load=True))
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+                        compiled.append_code("  ADD" + stack.comment(stack.location, StackOperation.LOAD))
+                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
                     compiled += self.generate_function_call_internal(
                         create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
@@ -6250,8 +6248,8 @@ class Compiler:
                             clobbers.add("SPC")
 
                             compiled += self.generate_move_to(destination, stack, clobbers, context, offset=1)
-                            compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                            compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                            compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                            compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                             compiled.append_code("  POP SPC")
                             stack.move(-2)
                             compiled.code += comment_stack(stack)
@@ -6797,7 +6795,7 @@ class Compiler:
 
             compiled += self.generate_expr_internal(expression, dest, types, stack, clobbers, allocations, refs, local_consts, context)
             compiled += self.generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+            compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
         else:
             # Just do stack-based operations.
             compiled += self.generate_expr_internal(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
@@ -6861,7 +6859,7 @@ class Compiler:
                     compiled.append_code("  SWAP PC, SPC")
 
                 compiled += self.generate_move_to(expr_temp, stack, clobbers, context, offset=i)
-                compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
+                compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
 
                 # Now, we need to copy the loaded A from our current expression result to the global value.
                 if i == 0:
@@ -6955,8 +6953,8 @@ class Compiler:
                     raise CompilerError(f"Use of uninitialized variable {assign_name!r}", context)
 
                 compiled += self.generate_move_to(assign_name, stack, clobbers, context, offset=1)
-                compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-                compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
@@ -7536,8 +7534,8 @@ class Compiler:
 
             # First, move to the string variable.
             test_compiled += self.generate_move_to(str_dest, stack, clobbers, context, offset=1)
-            test_compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
-            test_compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+            test_compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+            test_compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
             test_compiled.append_code("  POP SPC")
 
             # Now, grab the value at that location, and increment the pointer.
@@ -7547,14 +7545,14 @@ class Compiler:
             test_compiled.append_code("  SWAP PC, SPC")
 
             # Now, save the new SPC into our temporary string since we advanced past that character.
-            test_compiled.append_code("  NOP" + stack.comment(stack.location, store=True))
-            test_compiled.append_code("  NOP" + stack.comment(stack.location - 1, store=True))
+            test_compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.STORE))
+            test_compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.STORE))
             test_compiled.append_code("  PUSH SPC")
 
             # Now, move to the location of our loop variable and store the value we looked up.
             test_compiled += self.generate_move_to(iterator_dest, stack, clobbers, context)
             stack.init(iterator_dest)
-            test_compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+            test_compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
             # Finally, prime the boolean test with whether the character was a null.
             test_compiled.append_code("  ADDI 0")
