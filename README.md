@@ -256,18 +256,18 @@ The boot ROM is mapped to the bottom 30KB of addressable memory. Because 30KB EE
 
 ## Build Progress
 
-As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 72% finished with the whole project.
+As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 77% finished with the whole project.
 
 ### Hardware
 
-As a whole, the hardware side of MiniDragon is 70% complete.
+As a whole, the hardware side of MiniDragon is 72% complete.
 
  - instruction decoder: 5% complete
     - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 56 instructions (55 real instructions and a microcode board for the shared load instruction step) 3 instructions are fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
  - special registers: 100% complete
    - All design work and diagramming for necessry circuits is completed. Registers that can be read in order to perform conditional logic as well as source immediate values are completed and fully integrated onto the physical build.
- - general purpose registers: 63% complete
-   - All design work and diagramming for the eight general purpose registers is completed. Five registers (A, B, D, PC and SPC) are built and fully integrated into the physical build.
+ - general purpose registers: 75% complete
+   - All design work and diagramming for the eight general purpose registers is completed. Six registers (A, B, D, IP, PC and SPC) are built and fully integrated into the physical build.
  - ALU: 25% complete
    - The ALU core is completely designed, laid out and documented. Tested and fabricated designs for ADD, INV, OR, AND, and XOR exist, but only ADD has been integrated into the physical layout. The ALU is decomposed into seven core functions that each generate their own output and carry flag, along with a shared zero flag generator and a carry flag selector circuit.
  - memory interface: 100% complete
@@ -280,12 +280,18 @@ As a whole, the hardware side of MiniDragon is 70% complete.
 
 ### Software
 
-As a whole, the software side of MiniDragon is 75% complete.
+As a whole, the software side of MiniDragon is 84% complete.
 
- - assembler and disassembler: 100% completed.
- - simulator: 100% completed.
+ - assembler/disassembler: 100% completed.
+ - compiler: 100% completed.
+ - CPU simulator: 100% completed.
+ - system emulator: 100% completed.
  - stdlib: 100% completed.
- - BIOS: 0% completed.
-   - Because I have not yet solidified my decision on the serial chip for MiniDragon I have not bothered to start with a BIOS. Plans include basic startup and memory access tests followed by some sort of assembler or interpreter and possibly an executable format and loader.
-   - I am currently leaning towards supporting VT-100 over serial, giving me input and output that can be paired with a modern terminal emulator or a physical terminal device.
-   - I am working on a simple compiler that takes a subset of Python and outputs MiniDragon assembly for the purpose of building much of the BIOS using Python-like code instead of raw assembly code. The reason for this is stack management is very tedious and difficult to debug for more complex functions so this will enable me to code the BIOS faster and with fewer bugs.
+ - BIOS: ~5% completed.
+   - I've decided on the R6551AP for serial support and have started work on the BIOS/boot ROM. This mostly consists of serial driver code and some VT-100 routines for basic string input and output.
+
+### Eratta
+
+Various bugs have come up in board designs that weren't discovered until well after they were integrated. So, while I'm not going to fix those bugs, they're documented here including any workarounds.
+
+ - 4-bit register boards have an enable input weight of 4 instead of 1. This means that anything driving a register enable signal will see a single register board as the equivalent of four logic boards. Thus, anything needing to interface with a register's enable input needs to support a fan-out of 4 instead of 1. In practice this means that a single control signal driving a pair of registers has a smaller threshold than normal where all of the bits properly respond to the enable signal. A simple workaround is to use a double-inverting logic buffer to isolate individual registers and amplify control signals. This is done on various boards in the MiniDragon physical layout and provides an added bonus of visibility on the board itself when a control signal is active.

@@ -6,7 +6,7 @@ import libcst.metadata as meta
 
 from typing import Callable, Dict, Final, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union, overload
 
-from .assembler import assemble
+from .assembler import assemble, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127
@@ -151,12 +151,14 @@ class CoreType:
         *,
         length: Optional[int] = None,
         const: bool = False,
+        safe_ref: bool = False,
         extern: bool = False,
         return_padding: bool = True,
     ) -> None:
         self.type = base_type
         self.pointed_type = pointed_type
         self.const = const
+        self.safe_ref = safe_ref
         self.__length = length or None
         self.extern = extern
         self.return_padding = return_padding
@@ -167,7 +169,12 @@ class CoreType:
         if isinstance(other, str):
             return self.type == other
         if isinstance(other, CoreType):
-            return self.type == other.type and self.pointed_type == other.pointed_type and self.const == other.const and self.length == other.length
+            return (
+                self.type == other.type and
+                self.pointed_type == other.pointed_type and
+                self.const == other.const and
+                self.length == other.length
+            )
         return False
 
     def __repr__(self) -> str:
@@ -205,6 +212,7 @@ class CoreType:
             self.pointed_type,
             length=self.length,
             const=True,
+            safe_ref=False,
             extern=self.extern,
             return_padding=self.return_padding,
         )
@@ -220,6 +228,7 @@ class CoreType:
             self.pointed_type,
             length=self.length or MAX_STRING_LENGTH,
             const=False,
+            safe_ref=False,
             extern=self.extern,
             return_padding=self.return_padding,
         )
@@ -292,8 +301,9 @@ class CoreType:
     def is_pointer(self) -> bool:
         return self.type == "pointer"
 
-
-VoidType = CoreType("void", None, const=True, extern=False, return_padding=False)
+    @property
+    def is_void(self) -> bool:
+        return self.type == "void"
 
 
 class PreservedCoreType(CoreType):
@@ -312,6 +322,9 @@ class PreservedCoreType(CoreType):
             raise Exception("Logic error, PreservedCoreType is somehow not const?")
 
         return self
+
+    def nonconst_clone(self) -> "CoreType":
+        raise Exception("Logic error, cannot have non-const PreservedCoreType!")
 
 
 class InOutCoreType(CoreType):
@@ -332,6 +345,16 @@ class InOutCoreType(CoreType):
             self.type,
         )
         new_type.const = True
+        return new_type
+
+    def nonconst_clone(self) -> "CoreType":
+        if self.type not in {"str", "pointer"}:
+            return self
+
+        new_type = InOutCoreType(
+            self.type,
+        )
+        new_type.const = False
         return new_type
 
 
@@ -356,6 +379,16 @@ class OutCoreType(CoreType):
         new_type.const = True
         return new_type
 
+    def nonconst_clone(self) -> "OutCoreType":
+        if self.type not in {"str", "pointer"}:
+            return self
+
+        new_type = OutCoreType(
+            self.type,
+        )
+        new_type.const = False
+        return new_type
+
 
 class RegisterCoreType(CoreType):
     """
@@ -377,6 +410,16 @@ class RegisterCoreType(CoreType):
         new_type.const = True
         return new_type
 
+    def nonconst_clone(self) -> "RegisterCoreType":
+        if self.type not in {"str", "pointer"}:
+            return self
+
+        new_type = RegisterCoreType(
+            self.type, self.register
+        )
+        new_type.const = False
+        return new_type
+
 
 class ParamReturnCoreType(CoreType):
     """
@@ -388,6 +431,10 @@ class ParamReturnCoreType(CoreType):
         super().__init__("position: " + str(position), None, const=False)
 
     def const_clone(self) -> "ParamReturnCoreType":
+        # This is just a pointer to a parameter value.
+        return self
+
+    def nonconst_clone(self) -> "ParamReturnCoreType":
         # This is just a pointer to a parameter value.
         return self
 
@@ -406,6 +453,10 @@ class PaddingCoreType(CoreType):
         super().__init__("padding: " + str(padbytes), None, const=False)
 
     def const_clone(self) -> "PaddingCoreType":
+        # This is just a padding value.
+        return self
+
+    def nonconst_clone(self) -> "PaddingCoreType":
         # This is just a padding value.
         return self
 
@@ -502,7 +553,7 @@ def get_type(
                 if isinstance(sliceval.slice, cst.Index):
                     # Attempt to evaluate and see if it comes back as an int.
                     try:
-                        value = codegen_eval(sliceval.slice.value, constants)
+                        value = codegen_eval(sliceval.slice.value, constants, None)
                     except NonConstantExpressionException:
                         value = None
 
@@ -575,7 +626,7 @@ def get_type(
                 if length:
                     return None
                 else:
-                    return VoidType
+                    return CoreType("void", None, const=True, extern=extern, return_padding=False)
             else:
                 if expr.value not in {"uint8", "int8", "uint16", "int16", "uint32", "int32", "bool", "char", "str"}:
                     return None
@@ -609,6 +660,13 @@ class UnvalidatedName(cst.Name):
 
     def _validate(self) -> None:
         pass
+
+
+class SentinelInteger(cst.Integer):
+    """
+    Exists solely to be able to create default arguments to compiler intrinsics so that
+    we can detect if a user-provided value was given or omitted.
+    """
 
 
 def create_call(name: str, params: Iterable[cst.BaseExpression]) -> cst.Call:
@@ -678,7 +736,7 @@ def global_by_name(globs: Sequence[Union[FunctionPrototype, GlobalVariable]], na
 
 
 def get_assembled_length(compiled: List[str], refs: Sequence[Union[FunctionPrototype, GlobalVariable]], labels: List[str] = []) -> int:
-    compiled = [c.split(";", 1)[0].strip() for c in compiled]
+    compiled = [sanitize(c) for c in compiled]
     compiled = [c for c in compiled if c]
 
     # Doesn't matter where these labels point, they're just going to be used with SETPC and CALL instrutions.
@@ -1018,7 +1076,66 @@ class NonConstantExpressionException(Exception):
     pass
 
 
-def codegen_eval(expr: cst.BaseExpression, constants: List[Constant]) -> object:
+def intrinsic_eval(expr: cst.BaseExpression, constants: List[Constant], context: Context) -> object:
+    if not isinstance(expr, cst.Call):
+        return None
+
+    if not isinstance(expr.func, cst.Name):
+        return None
+
+    try:
+        function_prototype = get_function_prototype(expr, builtin_functions(), constants, context)
+    except CompilerError:
+        # This isn't a built-in function so it can't be an intrinsic.
+        return None
+
+    intrinsic_args, _ = get_function_params(expr, function_prototype, context)
+
+    if function_prototype.name == "fixed":
+        # Fixed width conversion intrinsic.
+        if len(intrinsic_args) != 2:
+            raise CompilerError("Intrinsic function fixed takes two arguments.", context)
+
+        number = codegen_eval(intrinsic_args[0].value, constants, context)
+        if len(intrinsic_args) == 2:
+            fracbits = codegen_eval(intrinsic_args[1].value, constants, context)
+        else:
+            fracbits = 8
+
+        if number is None or fracbits is None:
+            raise CompilerError("Intrinsic function fixed takes a number or string as its first parameter and a number of fractional bits as its second.", context)
+        try:
+            numberString = str(float(number))  # type: ignore
+        except ValueError:
+            raise CompilerError("Intrinsic function fixed takes a number or string as its first parameter.", context)
+
+        if not isinstance(fracbits, int):
+            raise CompilerError("Intrinsic function fixed takes a number of fractional bits as its second parameter.", context)
+
+        if numberString[0] == "-":
+            negative = True
+            numberString = numberString[1:]
+        else:
+            negative = False
+
+        if "." in numberString:
+            before, after = numberString.split(".", 1)
+            precision = len(after)
+
+            numberInt = int(before + after)
+            numberInt <<= fracbits
+            numberInt //= (10 ** precision)
+        else:
+            numberInt = int(numberString)
+            numberInt <<= fracbits
+
+        return -numberInt if negative else numberInt
+
+    # Unrecognized.
+    return None
+
+
+def expr_to_str(expr: cst.BaseExpression) -> str:
     fresh_module = cst.parse_module("")
     code = fresh_module.code_for_node(
         cst.SimpleStatementLine(
@@ -1027,6 +1144,17 @@ def codegen_eval(expr: cst.BaseExpression, constants: List[Constant]) -> object:
             ],
         )
     )
+    return code
+
+
+def codegen_eval(expr: cst.BaseExpression, constants: List[Constant], context: Optional[Context]) -> object:
+    if context is not None:
+        # Handle compiler intrinsics first.
+        if (intrinsic := intrinsic_eval(expr, constants, context)) is not None:
+            return intrinsic
+
+    # Render out the tree so we can pass to eval().
+    code = expr_to_str(expr)
 
     # If we don't control our builtins, python will eval a bunch of stuff we don't support due to
     # its own builtins, and it will appear to work but only for constant expressions.
@@ -1040,6 +1168,51 @@ def codegen_eval(expr: cst.BaseExpression, constants: List[Constant]) -> object:
         pass
 
     raise NonConstantExpressionException(f"{expr} is not constant, cannot eval!")
+
+
+def is_safe_ref(
+    assign_value: cst.BaseExpression,
+    stack: Stack,
+    refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+    local_consts: List[Constant],
+    context: Context,
+) -> bool:
+    """
+    Given an expression, determine if that expression is a reference to a constant that's safe
+    to treat as a string without a strcpy.
+    """
+
+    if isinstance(assign_value, cst.Name):
+        possible_type = stack.typeof(assign_value.value)
+        if possible_type and possible_type.safe_ref:
+            # This is being assigned from another constant variable that was a safe reference.
+            return True
+
+    if isinstance(assign_value, cst.Call):
+        # Functions returning string constants are only allowed to do so if they are returning a
+        # safe ref themselves, so we only need to look at the return value for this function.
+        try:
+            function_prototype = get_function_prototype(assign_value, refs, local_consts, context)
+            return_type = function_prototype.return_type
+            return return_type.is_string and return_type.const
+        except CompilerError:
+            # Ignore this, it's probably somebody trying to return a builtin such as cast() or str().
+            pass
+
+    try:
+        # If we can evaluate the assign value directly that means it's a safe ref. This only
+        # happens for global variables and string literals. We don't want to treat local constants
+        # that weren't safe refs as such here by substituting their value, so we leave those out.
+        consts = [
+            *[Constant(gv.name, gv.type, None) for gv in refs if isinstance(gv, GlobalVariable)],
+        ]
+
+        codegen_eval(assign_value, consts, context)
+        return True
+    except NonConstantExpressionException:
+        pass
+
+    return False
 
 
 def _hex(val: int, pad: int) -> str:
@@ -1083,7 +1256,7 @@ def unescape_literal(val: str) -> str:
                 elif v in "x":
                     escaping += v
                 else:
-                    raise Exception("Logic error, couldn't unescape {val}!")
+                    raise Exception(f"Logic error, couldn't unescape {val!r}!")
 
                 continue
 
@@ -1110,7 +1283,7 @@ def unescape_literal(val: str) -> str:
 
                             continue
 
-            raise Exception(f"Logic error, couldn't unescape {val}!")
+            raise Exception(f"Logic error, couldn't unescape {val!r}!")
 
         else:
             if v == "\\":
@@ -1153,7 +1326,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
 
         # Attempt to codegen and evaluate the python code.
         try:
-            value = codegen_eval(assign_value, consts)
+            value = codegen_eval(assign_value, consts, context)
         except NonConstantExpressionException:
             raise CompilerError("Non-constant initialization value for global const definition", context)
 
@@ -1268,7 +1441,7 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
         if assign_value is not None:
             # Attempt to codegen and evaluate the python code.
             try:
-                value = codegen_eval(assign_value, consts)
+                value = codegen_eval(assign_value, consts, context)
             except NonConstantExpressionException:
                 raise CompilerError("Non-constant initialization value for global const definition", context)
         else:
@@ -1402,15 +1575,43 @@ def generate_global_variable(assign: cst.AnnAssign, globs: List[GlobalVariable],
     return compiled
 
 
-def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str], context: Context) -> Sections:
+def generate_addpci(move_amt: int, reason: Optional[str] = None, prefix: Optional[str] = None) -> Sections:
+    compiled = Sections()
+    while move_amt > 31:
+        if prefix is not None:
+            compiled.append_code(prefix)
+        compiled.append_code("  ADDPCI 31" + comment_source(reason))
+        move_amt -= 31
+    if move_amt:
+        if prefix is not None:
+            compiled.append_code(prefix)
+        compiled.append_code(f"  ADDPCI {move_amt}" + comment_source(reason))
+    return compiled
+
+
+def generate_subpci(move_amt: int, reason: Optional[str] = None, prefix: Optional[str] = None) -> Sections:
+    compiled = Sections()
+    while move_amt > 32:
+        if prefix is not None:
+            compiled.append_code(prefix)
+        compiled.append_code("  SUBPCI 32" + comment_source(reason))
+        move_amt -= 32
+    if move_amt:
+        if prefix is not None:
+            compiled.append_code(prefix)
+        compiled.append_code(f"  SUBPCI {move_amt}" + comment_source(reason))
+    return compiled
+
+
+def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str], context: Context, prefix: Optional[str] = None) -> Sections:
     compiled = Sections()
     if move_amt == 0:
         return compiled
 
     if move_amt > 0:
-        compiled.append_code(f"  SUBPCI {move_amt}" + comment_source(reason))
+        compiled += generate_subpci(move_amt, reason, prefix=prefix)
     elif move_amt < 0:
-        compiled.append_code(f"  ADDPCI {-move_amt}" + comment_source(reason))
+        compiled += generate_addpci(-move_amt, reason, prefix=prefix)
 
     stack.move(move_amt)
     compiled.code += comment_stack(stack)
@@ -1418,7 +1619,7 @@ def generate_move_by(reason: str, move_amt: int, stack: Stack, clobbers: Set[str
     return compiled
 
 
-def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context, *, offset: int = 0) -> Sections:
+def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context: Context, *, offset: int = 0, prefix: Optional[str] = None) -> Sections:
     compiled = Sections()
     move_amt = stack.find(destination)
     if move_amt is None:
@@ -1428,9 +1629,9 @@ def generate_move_to(destination: str, stack: Stack, clobbers: Set[str], context
         return compiled
 
     if move_amt > 0:
-        compiled.append_code(f"  SUBPCI {move_amt}" + comment_source(f"seeking {destination}"))
+        compiled += generate_subpci(move_amt, f"seeking {destination}", prefix=prefix)
     elif move_amt < 0:
-        compiled.append_code(f"  ADDPCI {-move_amt}" + comment_source(f"seeking {destination}"))
+        compiled += generate_addpci(-move_amt, f"seeking {destination}", prefix=prefix)
 
     stack.move(move_amt)
     compiled.code += comment_stack(stack)
@@ -1478,7 +1679,7 @@ def generate_memcpy_locations(
                 clobbers.add(register)
 
                 compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
-                compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
+                compiled += generate_addpci(shuffle_amount)
 
                 stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
@@ -1486,7 +1687,7 @@ def generate_memcpy_locations(
                 compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
                 if i < size - 1:
-                    compiled.append_code(f"  SUBPCI {shuffle_amount - 1}" + comment_source())
+                    compiled += generate_subpci(shuffle_amount - 1)
                     stack.move(shuffle_amount - 1)
                     compiled.code += comment_stack(stack)
 
@@ -1502,7 +1703,7 @@ def generate_memcpy_locations(
                 clobbers.add(register)
 
                 compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
-                compiled.append_code(f"  SUBPCI {-shuffle_amount}" + comment_source())
+                compiled += generate_subpci(-shuffle_amount)
 
                 stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
@@ -1510,7 +1711,7 @@ def generate_memcpy_locations(
                 compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
                 if i < size - 1:
-                    compiled.append_code(f"  ADDPCI {(-shuffle_amount) - 1}" + comment_source())
+                    compiled += generate_addpci((-shuffle_amount) - 1)
                     stack.move(-((-shuffle_amount) - 1))
                     compiled.code += comment_stack(stack)
 
@@ -1519,7 +1720,7 @@ def generate_memcpy_locations(
                 clobbers.add(register)
 
                 compiled.append_code(f"  LOAD {register}" + stack.comment(stack.location, load=True))
-                compiled.append_code(f"  ADDPCI {shuffle_amount}" + comment_source())
+                compiled += generate_addpci(shuffle_amount)
 
                 stack.move(-shuffle_amount)
                 compiled.code += comment_stack(stack)
@@ -1527,7 +1728,7 @@ def generate_memcpy_locations(
                 compiled.append_code(f"  STORE {register}" + stack.comment(stack.location, store=True))
 
                 if i < size - 1:
-                    compiled.append_code(f"  SUBPCI {shuffle_amount + 1}" + comment_source())
+                    compiled += generate_subpci(shuffle_amount + 1)
                     stack.move(shuffle_amount + 1)
                     compiled.code += comment_stack(stack)
 
@@ -1580,7 +1781,7 @@ def generate_memcpy_stackvars(
 
 
 def can_relocate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], context: Context) -> bool:
-    if function_type is VoidType:
+    if function_type.is_void:
         raise Exception("Logic error, cannot calculate overlap with void function!")
 
     # If we are a string type and we overlap with actual values on the stack, we can't relocate since
@@ -1622,7 +1823,7 @@ def generate_return(function_type: CoreType, stack: Stack, clobbers: Set[str], c
     # Make sure to move the return value, the return pointer, and then pop all of our saved builtins.
     retptr_in_uv = False
     retptr_final_loc = 0
-    if function_type is not VoidType:
+    if not function_type.is_void:
         # First, we need to figure out if where we're copying the return value will clobber the return pointer.
         # If so, we need to store that in the U/V registers. We could put it on the stack but that's way more
         # shuffling so much slower. Much better to just mark U/V as clobbered and use them.
@@ -1789,10 +1990,10 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
     if dtype.is_integer:
         if not isinstance(val, int):
-            raise CompilerError("Unsupported non-integer constant load!", context)
+            raise CompilerError("Unsupported non-integer constant load", context)
 
         if dtype.is_unsigned and val < 0:
-            raise CompilerError("Cannot use a negative value in an unsigned expression!", context)
+            raise CompilerError("Cannot use a negative value in an unsigned expression", context)
 
         if is_register_destination(destination):
             compiled.append_code(f"  LOADI {_hex((val >> 0) & 0xFF, 2)}")
@@ -1847,7 +2048,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
     elif dtype.is_bool:
         if not isinstance(val, bool):
-            raise CompilerError("Unsupported non-boolean constant load!", context)
+            raise CompilerError("Unsupported non-boolean constant load", context)
 
         intval = 0xFF if val else 0x00
 
@@ -1867,7 +2068,7 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
 
     elif dtype.is_char:
         if not isinstance(val, str):
-            raise CompilerError("Unsupported non-character constant load!", context)
+            raise CompilerError("Unsupported non-character constant load", context)
         if len(val) != 1:
             raise CompilerError(f"Invalid character constant {val!r}", context)
 
@@ -1886,14 +2087,13 @@ def generate_const_load(val: object, destination: str, stack: Stack, clobbers: S
             compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
-        raise CompilerError(f"Unsupported constant load of type {dtype.type}!", context)
+        raise CompilerError(f"Unsupported constant load of type {dtype.type}", context)
 
     return compiled
 
 
 def get_function_prototype(
     call: cst.Call,
-    stack: Stack,
     refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
     local_consts: List[Constant],
     context: Context,
@@ -2005,6 +2205,16 @@ def get_function_params(
     return args, needed_args
 
 
+def safe_assign(
+    destination: str,
+) -> bool:
+    """
+    Checks whether the current assignment is a safe assignment to perform without a strcpy. Basically
+    that only happens when the destination we're assigning to is the return value builtin.
+    """
+    return destination == "builtin(retval)"
+
+
 def generate_function_call_internal(
     call: cst.Call,
     destination: Optional[str],
@@ -2017,10 +2227,10 @@ def generate_function_call_internal(
     context: Context,
 ) -> Sections:
     compiled = Sections(code=[context.comment()])
-    function_prototype = get_function_prototype(call, stack, refs, local_consts, context)
+    function_prototype = get_function_prototype(call, refs, local_consts, context)
 
     # Ensure that we're not trying to assign a void function call to an expression.
-    if destination is not None and function_prototype.return_type is VoidType:
+    if destination is not None and function_prototype.return_type.is_void:
         raise CompilerError(f"Cannot assign result of function {function_prototype.name} returning void", context)
 
     # Make sure that the prototype's params actually make sense.
@@ -2265,7 +2475,7 @@ def generate_function_call_internal(
                         is_usable = True
                     else:
                         try:
-                            codegen_eval(arg_in_question, local_consts)
+                            codegen_eval(arg_in_question, local_consts, context)
                             is_usable = True
                         except NonConstantExpressionException:
                             is_usable = False
@@ -2331,7 +2541,7 @@ def generate_function_call_internal(
                         is_usable = True
                     else:
                         try:
-                            codegen_eval(arg_in_question, local_consts)
+                            codegen_eval(arg_in_question, local_consts, context)
                             is_usable = True
                         except NonConstantExpressionException:
                             is_usable = False
@@ -2461,25 +2671,72 @@ def generate_function_call_internal(
             dst = destination
 
             source_size = stack.sizeof(src)
+            source_type = stack.typeof(src)
             dest_size = stack.sizeof(dst)
-            if source_size is None:
+            dest_type = stack.typeof(dst)
+            if source_size is None or source_type is None:
                 raise Exception(f"Logic error, undefined variable reference to {src!r}", context)
-            if dest_size is None:
+            if dest_size is None or dest_type is None:
                 raise Exception("Logic error, cannot find destination to copy variable value to!")
 
-            stack.init(dst)
+            if source_type.is_string and dest_type.is_string and not ((source_type.const and dest_type.const) or safe_assign(dst)):
+                # We need to allocate locally and strcpy over.
+                if not stack.initof(dst):
+                    compiled += generate_local_storage_alloc(dst, stack, clobbers, allocations, context)
 
-            if source_size == dest_size:
-                compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                    # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                    stack.init(dst)
+
+                # Now, set up the stack for a strcpy operation, to initialize the local data with
+                # a copy of the function return we're copying in.
+                if stack[-1].name != dst:
+                    # In order to ensure that it's possible to do stack math on this value, locate it in
+                    # a temporary location for the time being if the destination isn't the top of the stack.
+                    lhs_dest = expr_temp_name()
+                    stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
+
+                    compiled += generate_memcpy_stackvars(lhs_dest, dst, stack, clobbers, context)
+                else:
+                    # Safe to put first parameter in the top of the stack where it already is useful for math.
+                    lhs_dest = dst
+
+                # Now, point at it.
+                rhs_dest = expr_temp_name()
+                stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
+                compiled += generate_memcpy_stackvars(rhs_dest, src, stack, clobbers, context)
+
+                # Now call strcpy.
+                compiled += generate_function_call_internal(
+                    create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
+                    None,
+                    types,
+                    stack,
+                    clobbers,
+                    allocations,
+                    refs,
+                    local_consts,
+                    context,
+                )
+
+                # Finally, free the stack.
+                stack.free(rhs_dest)
+                if lhs_dest != dst:
+                    stack.free(lhs_dest)
+
             else:
-                raise CompilerError("Unsupported function return from different variable sizes", context)
+                stack.init(dst)
+
+                if source_size == dest_size:
+                    compiled += generate_memcpy_stackvars(dst, src, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                else:
+                    raise CompilerError("Unsupported function return from different variable sizes", context)
 
     # Now, fix up our view of the stack.
     for entry in reversed(temporary_stack_entries):
         stack.free(entry)
 
     # Now, if needed, copy the return value from the stack to its location.
-    if (not return_handled) and (not (function_prototype.return_type is VoidType)):
+    if (not return_handled) and (not (function_prototype.return_type.is_void)):
         if destination is not None:
             if is_register_destination(destination):
                 # Pop the value from the stack, instead of copying.
@@ -2493,19 +2750,86 @@ def generate_function_call_internal(
                 compiled.append_code("  LOAD A" + f" ; STACKOFF: func({function_prototype.name}) + 0")
             else:
                 src_loc = normal_return_loc
+                src_type = function_prototype.return_type
                 src_size = function_prototype.return_type.size
                 dest_loc = stack.absfind(destination)
+                dest_type = stack.typeof(destination)
                 dest_size = stack.sizeof(destination)
-                if dest_loc is None or dest_size is None:
+                if dest_loc is None or dest_size is None or dest_type is None:
                     raise Exception(f"Logic error, cannot find destination {destination} to copy variable value to!")
-                stack.init(destination)
 
-                if src_size == dest_size:
+                if src_type.is_string and dest_type.is_string and not ((src_type.const and dest_type.const) or safe_assign(destination)):
+                    # We need to make room on the stack for temporary values to call strcpy(), but the return loc is on the
+                    # stack and untracked. So, while we get back stack locations that are less than the return location plus
+                    # the return size, keep allocating padding.
+                    padding_names: List[str] = []
+                    while stack.size < src_loc + src_size:
+                        pad_name = f"builtin(retpad_{stack.size})"
+                        stack.alloc(StackVar(pad_name, CoreType("uint8", const=True), initialized=True))
+                        padding_names.append(pad_name)
+
+                    # We need to allocate locally and strcpy over.
+                    if not stack.initof(destination):
+                        compiled += generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+
+                        # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                        stack.init(destination)
+
+                    # Now, set up the stack for a strcpy operation, to initialize the local data with
+                    # a copy of the function return we're copying in.
+                    if stack[-1].name != destination:
+                        # In order to ensure that it's possible to do stack math on this value, locate it in
+                        # a temporary location for the time being if the destination isn't the top of the stack.
+                        lhs_dest = expr_temp_name()
+                        stack.alloc(StackVar(lhs_dest, CoreType("str"), initialized=True))
+
+                        compiled += generate_memcpy_stackvars(lhs_dest, destination, stack, clobbers, context)
+                    else:
+                        # Safe to put first parameter in the top of the stack where it already is useful for math.
+                        lhs_dest = destination
+
+                    # Now, point at it.
+                    rhs_dest = expr_temp_name()
+                    stack.alloc(StackVar(rhs_dest, CoreType("str"), initialized=True))
+                    rhs_loc = stack.absfind(rhs_dest)
+                    if rhs_loc is None:
+                        raise Exception("Logic error, cannot find stack variable we just created!")
+
                     stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, load=True)
-                    compiled += generate_memcpy_locations(src_loc, dest_loc, dest_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                    compiled += generate_memcpy_locations(src_loc, rhs_loc, src_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
                     stack.unnameloc(f"func({function_prototype.name})")
+
+                    # Now call strcpy.
+                    compiled += generate_function_call_internal(
+                        create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]),
+                        None,
+                        types,
+                        stack,
+                        clobbers,
+                        allocations,
+                        refs,
+                        local_consts,
+                        context,
+                    )
+
+                    # Finally, free the stack.
+                    stack.free(rhs_dest)
+                    if lhs_dest != destination:
+                        stack.free(lhs_dest)
+
+                    # Now, free the padding.
+                    for pad_name in reversed(padding_names):
+                        stack.free(pad_name)
+
                 else:
-                    raise CompilerError("Unsupported function return from different variable sizes", context)
+                    stack.init(destination)
+
+                    if src_size == dest_size:
+                        stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, load=True)
+                        compiled += generate_memcpy_locations(src_loc, dest_loc, dest_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                        stack.unnameloc(f"func({function_prototype.name})")
+                    else:
+                        raise CompilerError("Unsupported function return from different variable sizes", context)
 
     return compiled
 
@@ -2522,16 +2846,24 @@ def generate_function_call(
     context: Context,
 ) -> Sections:
     # Generate builtins code for python intrinsics that we wish to support.
-    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex", "min", "max"}:
-        function_prototype = get_function_prototype(call, stack, [*refs, *builtin_functions()], local_consts, context)
+    if isinstance(call.func, cst.Name) and call.func.value in {"len", "str", "peek", "poke", "abs", "bool", "chr", "ord", "int", "hex", "min", "max", "fixed", "range", "cast"}:
+        function_prototype = get_function_prototype(call, [*refs, *builtin_functions()], local_consts, context)
         args, arg_types = get_function_params(call, function_prototype, context)
+
+        if function_prototype.name == "range":
+            # Should only be uesd inside of for statements.
+            raise CompilerError("Unsupported use of range function.", context)
+
+        if function_prototype.name == "fixed":
+            # Should only be uesd inside of for statements.
+            raise CompilerError("Unsupported use of fixed function.", context)
 
         if function_prototype.name == "len":
             if len(args) != 1 or len(arg_types) != 1:
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # String or array length calculation.
             return generate_function_call_internal(
@@ -2551,7 +2883,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Cast from whatever data type to string, so we must handle this on a case by case basis.
             expr = args[0].value
@@ -2669,8 +3001,11 @@ def generate_function_call(
         elif function_prototype.name == "peek":
             compiled = Sections()
 
-            if len(args) != 1 or len(arg_types) != 1:
+            if len(args) != 2 or len(arg_types) != 2:
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            # Figure out if we have a sentinel second parameter or if it's real.
+            sentinel = isinstance(args[1].value, SentinelInteger)
 
             # Generate the actual memory address that we're going to peek from.
             addr_expr = args[0].value
@@ -2682,6 +3017,10 @@ def generate_function_call(
             clobbers.add("SPC")
 
             if destination is None:
+                if not sentinel:
+                    # We could support this, but there isn't anything that needs it, so let's keep it simple.
+                    raise CompilerError("Cannot provide a length parameter to peek when performing a dummy read", context)
+
                 # Assume that this is just a read of an address to clear a hardware register that's clear on read.
                 compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
                 compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
@@ -2702,6 +3041,12 @@ def generate_function_call(
                     raise Exception("Logic error, couldn't determine destination type for peek!")
 
                 if destination_type.type in {"int8", "uint8", "char"}:
+                    if not sentinel:
+                        if destination_type.type == "char":
+                            raise CompilerError("Cannot provide a length parameter to peek when reading characters", context)
+                        else:
+                            raise CompilerError("Cannot provide a length parameter to peek when reading integers", context)
+
                     # This one's an easy one, just move to the right spot and load the value, copying it over.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
                     compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
@@ -2721,6 +3066,9 @@ def generate_function_call(
                         stack.init(destination)
 
                 elif destination_type.type == "bool":
+                    if not sentinel:
+                        raise CompilerError("Cannot provide a length parameter to peek when reading booleans", context)
+
                     # Can't just load like above, our compiler assumes that boolean true/false is always 0xff/0x00.
                     # So if we load a value and pretend it's boolean it could mess up any other boolean checks.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
@@ -2745,6 +3093,9 @@ def generate_function_call(
                         stack.init(destination)
 
                 elif destination_type.type in {"int16", "uint16"}:
+                    if not sentinel:
+                        raise CompilerError("Cannot provide a length parameter to peek when reading integers", context)
+
                     # This one's slightly harder, need to copy two things, but that's manageable.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
                     compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
@@ -2771,6 +3122,9 @@ def generate_function_call(
                     compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
                 elif destination_type.type in {"int32", "uint32"}:
+                    if not sentinel:
+                        raise CompilerError("Cannot provide a length parameter to peek when reading integers", context)
+
                     # This one needs to copy 4 things, but I'm gonna unroll that since it's easier than writing a loop.
                     compiled += generate_move_to(addr_dest, stack, clobbers, context, offset=1)
                     compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
@@ -2828,17 +3182,37 @@ def generate_function_call(
                         # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
                         stack.init(destination)
 
-                    compiled += generate_function_call_internal(
-                        create_call("strcpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest)]),
-                        None,
-                        types,
-                        stack,
-                        clobbers,
-                        allocations,
-                        refs,
-                        local_consts,
-                        context,
-                    )
+                    if not sentinel:
+                        length_dest = expr_temp_name()
+                        stack.alloc(StackVar(length_dest, CoreType("uint8")))
+                        compiled += generate_expr_internal(args[1].value, length_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[1].value))
+
+                        compiled += generate_function_call_internal(
+                            create_call("strncpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest), UnvalidatedName(length_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context,
+                        )
+
+                        stack.free(length_dest)
+
+                    else:
+                        compiled += generate_function_call_internal(
+                            create_call("strcpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context,
+                        )
 
                 else:
                     raise Exception(f"Logic error, unexpected type {destination_type.type} in peek() evaluation!")
@@ -2987,7 +3361,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Absolute value calculation.
             destination_type = types[call]
@@ -3001,7 +3375,7 @@ def generate_function_call(
                 raise Exception("Logic error, unknown destination size!")
 
             if not destination_type.is_integer:
-                raise CompilerError("The builtin function abs() only works on integers!", context)
+                raise CompilerError("The builtin function abs() only works on integers", context)
 
             # If it's already unsigned, don't do anything to it.
             if destination_type.is_unsigned:
@@ -3024,7 +3398,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Cast from whatever data type to string, so we must handle this on a case by case basis.
             expr = args[0].value
@@ -3207,13 +3581,13 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Cast from integer to char, but the 8-bit case is simple.
             expr = args[0].value
 
             if not types[expr].is_integer:
-                raise CompilerError("Unsupported conversion from {types[expr].type} to character!", context)
+                raise CompilerError("Unsupported conversion from {types[expr].type} to character", context)
 
             if types[expr].size == 1:
                 # Simply evaluate the expression into the destination directly, but pretend that the destination
@@ -3261,13 +3635,13 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # Cast from integer to char, but the 8-bit case is simple.
             expr = args[0].value
 
             if not types[expr].is_char:
-                raise CompilerError("Unsupported conversion from {types[expr].type} to integer!", context)
+                raise CompilerError("Unsupported conversion from {types[expr].type} to integer", context)
 
             # Figure out what to do based on the destination type.
             destination_type = stack.typeof(destination)
@@ -3326,7 +3700,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # This could be a passthrough, in the case of an integer input, undefined in case of char, a simple
             # cast in case of bool, and an atoi call in case of a string.
@@ -3338,7 +3712,7 @@ def generate_function_call(
                 return compiled
 
             elif types[expr].is_char:
-                raise CompilerError("Unsupported conversion from {types[expr].type} to integer!", context)
+                raise CompilerError("Unsupported conversion from {types[expr].type} to integer", context)
 
             elif types[expr].is_bool:
                 clobbers.add("A")
@@ -3362,10 +3736,10 @@ def generate_function_call(
             elif types[expr].is_string:
                 destination_type = stack.typeof(destination)
                 if destination_type is None:
-                    raise Exception("Logic error, couldn't determine destination type for ord!")
+                    raise Exception("Logic error, couldn't determine destination type for int!")
 
                 if not destination_type.is_integer:
-                    raise Exception("Logic error, type checker phase should have guaranteed this!")
+                    raise CompilerError("Cannot assign the result of ord to non-integer type {destination_type.type}", context)
 
                 if destination_type.size == 1:
                     func = "atoi8"
@@ -3396,7 +3770,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             destination_type = stack.typeof(destination)
             if destination_type is None:
@@ -3404,7 +3778,7 @@ def generate_function_call(
 
             expr = args[0].value
             if not destination_type.is_string or not types[expr].is_integer:
-                raise CompilerError("The builtin function hex() only converts integers to strings!", context)
+                raise CompilerError("The builtin function hex() only converts integers to strings", context)
 
             compiled = Sections()
 
@@ -3448,7 +3822,7 @@ def generate_function_call(
                 raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
 
             if destination is None:
-                raise CompilerError("Unsupported expression without assignment!", context)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             destination_type = stack.typeof(destination)
             if destination_type is None:
@@ -3457,7 +3831,7 @@ def generate_function_call(
             left = args[0].value
             right = args[1].value
             if not destination_type.is_integer or not types[left].is_integer or not types[right].is_integer:
-                raise CompilerError(f"The builtin function {function_prototype.name}() only compares integers!", context)
+                raise CompilerError(f"The builtin function {function_prototype.name}() only compares integers", context)
 
             if destination_type.size == 1:
                 if destination_type.is_unsigned:
@@ -3488,6 +3862,48 @@ def generate_function_call(
                 local_consts,
                 context,
             )
+
+        elif function_prototype.name == "cast":
+            if len(args) != 2 or len(arg_types) != 2:
+                raise Exception("Logic error, should have raised a compiler error for incorrect parameters above!")
+
+            if destination is None:
+                raise CompilerError("Unsupported expression without assignment", context)
+
+            # Cast from given type to specified type.
+            requested = get_type(args[0].value, local_consts, allow_nopad=False, allow_extern=False, allow_array=False)
+            expr = args[1].value
+
+            if not requested:
+                raise CompilerError("Unrecognized type in cast", context)
+
+            if requested.type in {"uint16", "int16"}:
+                if not types[expr].is_string:
+                    raise CompilerError("Unsupported cast from {types[expr]} to {requested}", context)
+            elif requested.type in {"str"}:
+                if types[expr].type not in {"uint16", "int16"}:
+                    raise CompilerError("Unsupported cast from {types[expr]} to {requested}", context)
+
+            # Figure out what to do based on the destination type.
+            destination_type = stack.typeof(destination)
+            if destination_type is None:
+                raise Exception("Logic error, couldn't determine destination type for cast!")
+
+            if destination_type.size != 2:
+                raise CompilerError("Cannot assign result of a cast to {destination_type}", context)
+
+            # Simply evaluate the expression into the destination directly, but pretend that the destination
+            # is the type we're casting to.
+            compiled = Sections()
+
+            # Evaluate the expression itself, but pretend the expr_dest is the source type.
+            expr_dest = expr_temp_name()
+            stack.alloc(StackVar(expr_dest, types[expr].const_clone(), initialized=True))
+            compiled += generate_expr_internal(expr, expr_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expr))
+            compiled += generate_memcpy_stackvars(destination, expr_dest, stack, clobbers, context)
+
+            stack.free(expr_dest)
+            return compiled
 
         else:
             raise Exception(f"Logic error, attempted to generate unsupported internal function {function_prototype.name}!")
@@ -3852,7 +4268,7 @@ def generate_variable_lookup(
 
     else:
         if destination is None:
-            raise CompilerError("Unsupported expression without assignment!", context)
+            raise CompilerError("Unsupported expression without assignment", context)
         if not stack.initof(source):
             raise CompilerError(f"Use of uninitialized variable {source!r}", context)
 
@@ -4005,7 +4421,7 @@ def generate_unary_expr(
 
     if isinstance(expression.operator, (cst.Minus, cst.BitInvert)):
         if not destination_type.is_integer:
-            raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+            raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
         if destination_size == 1:
             if is_register_destination(destination) or stack[-1].name != destination:
@@ -4031,7 +4447,7 @@ def generate_unary_expr(
             elif isinstance(expression.operator, cst.BitInvert):
                 compiled.append_code("  INV")
             else:
-                raise CompilerError("Unsupported unary operation {expression}", context)
+                raise CompilerError("Unsupported unary operation {expr_to_str(expression)}", context)
 
             # This call puts the result in a, so check if that's what we want.
             if is_register_destination(destination):
@@ -4091,7 +4507,7 @@ def generate_unary_expr(
                     compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
             else:
-                raise CompilerError("Unsupported unary operation {expression}", context)
+                raise CompilerError("Unsupported unary operation {expr_to_str(expression)}", context)
 
             if internal_dest != destination:
                 stack.free(internal_dest)
@@ -4127,7 +4543,7 @@ def generate_unary_expr(
 
     else:
         # TODO: Handle Plus (no-op, just call with the expression value).
-        raise CompilerError(f"Unsupported unary operation {expression}", context)
+        raise CompilerError("Unsupported unary operation {expr_to_str(expression)}", context)
 
     return compiled
 
@@ -4269,7 +4685,7 @@ def generate_binary_expr(
         if destination_size == 1:
             if isinstance(expression.operator, cst.Subtract):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 if not is_register_destination(destination):
                     # Subtracting clobbers the A register, since it is the accumulator.
@@ -4286,7 +4702,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.Add, cst.BitAnd, cst.BitOr, cst.BitXor)):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 if not is_register_destination(destination):
                     # Adding clobbers the A register, since it is the accumulator.
@@ -4306,11 +4722,11 @@ def generate_binary_expr(
                 elif isinstance(expression.operator, cst.BitXor):
                     compiled.append_code("  XOR" + stack.comment(stack.location, load=True))
                 else:
-                    raise Exception("Logic error, unexpected operator {expression.operator)}")
+                    raise CompilerError(f"Unsupported operator {expression.operator} in integer expression", context)
 
             elif isinstance(expression.operator, (cst.Multiply, cst.LeftShift, cst.RightShift)):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 if isinstance(expression.operator, cst.Multiply):
                     func = "mult8"
@@ -4319,7 +4735,7 @@ def generate_binary_expr(
                 elif isinstance(expression.operator, cst.RightShift):
                     func = "rshift8"
                 else:
-                    raise Exception("Logic error, unexpected operator!")
+                    raise CompilerError(f"Unsupported operator {expression.operator} in integer expression", context)
 
                 compiled.append_code("  ; just before function call")
                 compiled += generate_function_call_internal(
@@ -4339,7 +4755,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
                 if not (destination_type.is_integer and destination_type.is_unsigned):
-                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression", context)
 
                 # Division is weird, since the built-in stdlib function handles both modulo and division.
                 # The stdlib function is setup to return both in the input stack locations, so we need to
@@ -4368,7 +4784,7 @@ def generate_binary_expr(
                 compiled.append_code("  LOAD A" + stack.comment(stack.location, load=True))
 
             else:
-                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+                raise CompilerError(f"Unsupported run-time computation for {expression.operator}", context)
 
             # This call puts the result in a, so check if that's what we want.
             if is_register_destination(destination):
@@ -4385,7 +4801,7 @@ def generate_binary_expr(
         else:
             if isinstance(expression.operator, cst.Subtract):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 # Using the neg16 or neg32 fnction that's part of our stdlib.
                 negfunc = "neg16" if destination_size == 2 else "neg32"
@@ -4428,7 +4844,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.Add, cst.Multiply, cst.LeftShift, cst.RightShift)):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 if isinstance(expression.operator, cst.Add):
                     # Using the add16 or add32 function that's part of our stdlib.
@@ -4443,7 +4859,7 @@ def generate_binary_expr(
                     # Using the rshift16 or rshift32 function that's part of our stdlib.
                     function = "rshift16" if destination_size == 2 else "rshift32"
                 else:
-                    raise Exception("Logic error, unexpected operator {expression.operator)}")
+                    raise CompilerError(f"Unsupported operator {expression.operator} in integer expression", context)
 
                 compiled += generate_function_call_internal(
                     create_call(
@@ -4466,7 +4882,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.Divide, cst.FloorDivide, cst.Modulo)):
                 if not (destination_type.is_integer and destination_type.is_unsigned):
-                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for unsigned division expression", context)
 
                 # Division is weird, since the built-in stdlib function handles both modulo and division.
                 # The stdlib function is setup to return both in the input stack locations, so we need to
@@ -4498,7 +4914,7 @@ def generate_binary_expr(
 
             elif isinstance(expression.operator, (cst.BitAnd, cst.BitOr, cst.BitXor)):
                 if not destination_type.is_integer:
-                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression!", context)
+                    raise CompilerError(f"Unsupported type {destination_type.type} for integer expression", context)
 
                 # Adding clobbers the A register, since it is the accumulator.
                 clobbers.add("A")
@@ -4511,7 +4927,7 @@ def generate_binary_expr(
                 elif isinstance(expression.operator, cst.BitXor):
                     function = "  XOR"
                 else:
-                    raise Exception("Logic error, unexpected operator {expression.operator)}")
+                    raise CompilerError(f"Unsupported operator {expression.operator} in integer expression", context)
 
                 if stack_is_at(rhs_dest, stack, offset=destination_size - 1):
                     # We're already at the top of the stack, generate the load/func/store loop downwards
@@ -4539,7 +4955,7 @@ def generate_binary_expr(
                     stack.free(lhs_dest)
 
             else:
-                raise CompilerError(f"Unsupported run-time computation for {expression.operator}!", context)
+                raise CompilerError(f"Unsupported run-time computation for {expression.operator}", context)
 
     return compiled
 
@@ -4698,7 +5114,7 @@ def generate_boolean_expr(
             compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
-        raise CompilerError(f"Unsupported boolean operation {expression}!", context)
+        raise CompilerError(f"Unsupported boolean operation {expr_to_str(expression)}", context)
 
     return compiled
 
@@ -4727,14 +5143,14 @@ def generate_comparison_expr(
         raise CompilerError("Cannot assign comparison expression to non-bool", context)
 
     if len(expression.comparisons) != 1:
-        raise CompilerError(f"Unsupported multi-comparison expression {expression}", context)
+        raise CompilerError(f"Unsupported multi-comparison expression {expr_to_str(expression)}", context)
 
     # Special case for is checks.
     if isinstance(expression.comparisons[0].operator, cst.Is):
         rhs_expr = expression.comparisons[0].comparator
 
         try:
-            value = codegen_eval(rhs_expr, local_consts)
+            value = codegen_eval(rhs_expr, local_consts, context)
         except NonConstantExpressionException:
             value = None
 
@@ -4998,7 +5414,7 @@ def generate_comparison_expr(
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A" + stack.comment(stack.location))
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     elif isinstance(expression.comparisons[0].operator, (cst.GreaterThan, cst.GreaterThanEqual, cst.LessThan, cst.LessThanEqual)):
         # Determine preload value based on the comparison type.
@@ -5019,7 +5435,7 @@ def generate_comparison_expr(
         elif isinstance(expression.comparisons[0].operator, cst.LessThanEqual):
             op = "<="
         else:
-            raise Exception("Logic error, unexpected comparison type!")
+            raise CompilerError("Unsupported comparison operator {expression.comparisons[0].operator}", context)
 
         if left_type.is_string or right_type.is_string:
             if not (left_type.is_string and right_type.is_string):
@@ -5165,15 +5581,14 @@ def generate_comparison_expr(
             compiled.append_code("  SKIPIF ZF")
             compiled.append_code("  INV")
         else:
-            raise Exception("Logic error, unexpected comparison type!")
+            raise CompilerError("Unsupported comparison operator {op}", context)
 
         if not is_register_destination(destination):
             compiled += generate_move_to(destination, stack, clobbers, context)
-            compiled.append_code("  STORE A" + stack.comment(stack.location))
+            compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
     else:
-        # TODO: Additional comparisons.
-        raise CompilerError(f"Unsupported comparison expression {expression}!", context)
+        raise CompilerError(f"Unsupported comparison expression {expr_to_str(expression)}", context)
 
     return compiled
 
@@ -5345,18 +5760,18 @@ def generate_subscript_expr(
                 raise Exception("Logic error, could not calculate type of destination!")
 
             if destination_size != 1 or not destination_type.is_char:
-                raise Exception("Logic error, invalid character assignment expression!")
+                raise CompilerError(f"Unsupported conversion from character to {destination_type.type}", context)
 
             if not is_register_destination(destination):
                 compiled += generate_move_to(destination, stack, clobbers, context)
-                compiled.append_code("  STORE A" + stack.comment(stack.location))
+                compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
 
         if allocated:
             stack.free(base_dest)
 
     elif isinstance(slice_or_index, cst.Slice):
         if destination is None:
-            raise CompilerError("Unsupported expression without assignment!", context)
+            raise CompilerError("Unsupported expression without assignment", context)
 
         destination_type = stack.typeof(destination)
         if destination_type is None:
@@ -5429,26 +5844,50 @@ def generate_subscript_expr(
                 if lhs_dest != destination:
                     raise Exception("Logic error, expected these to equal for optimized case to work!")
 
+                # Instead of just using ADDPC here to increment past the bytes we don't want, we increment one at
+                # a time. This is so we can check for an early null-terminator to make truncation memory safe.
                 clobbers.add("A")
+                clobbers.add("U")
+                clobbers.add("V")
                 clobbers.add("SPC")
 
                 # Get the offset value that we just calculated.
                 compiled += generate_move_to(ending_dest, stack, clobbers, context)
-                compiled.append_code("  LOAD A")
+                compiled.append_code("  LOAD V")
 
-                # Load the string pointer so we can offset into the string.
+                # Move to the correct spot on the stack to move the pointer to the right offset.
                 compiled += generate_move_to(lhs_dest, stack, clobbers, context, offset=1)
+
+                advance_top = local_label_name(context, "advance_top")
+                advance_bottom = local_label_name(context, "advance_bottom")
+
+                # Swap over so we can check the string one byte at a time.
                 compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
                 compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
                 compiled.append_code("  POP SPC")
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
 
-                # Swap to it, add our destination offset and then null terminate at that location.
+                # Loop through, checking for termination conditions. First check for end of loop by advancing enough.
+                # Then, check if we've hit a null byte.
                 compiled.append_code("  SWAP PC, SPC")
-                compiled.append_code("  ADDPC")
+                compiled.append_code(f"{advance_top}:")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code(f"  JRIZ {advance_bottom}")
+                compiled.append_code("  DEC")
+                compiled.append_code("  MOV A, U")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  ADDI 0")
+                compiled.append_code(f"  JRIZ {advance_bottom}")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  MOV U, A")
+                compiled.append_code(f"  JRI {advance_top}")
+                compiled.append_code(f"{advance_bottom}:")
+
+                # Swap to it, add our destination offset and then null terminate at that location.
                 compiled.append_code("  STOREI 0")
                 compiled.append_code("  SWAP PC, SPC")
+
             else:
                 compiled += generate_function_call_internal(
                     create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
@@ -5529,7 +5968,7 @@ def generate_subscript_expr(
                 try:
                     # Attempt to do a constant unroll to avoild a bunch of nasty codegen.
                     expr = cst.BinaryOperation(left=ending, operator=cst.Subtract(), right=beginning)
-                    codegen_eval(expr, local_consts)
+                    codegen_eval(expr, local_consts, context)
 
                     ending_dest = expr_temp_name()
                     stack.alloc(StackVar(ending_dest, CoreType("int8")))
@@ -5670,7 +6109,7 @@ def generate_expr_internal(
 
     try:
         # If we can evaluate this directly, do so!
-        value = codegen_eval(expression, local_consts)
+        value = codegen_eval(expression, local_consts, context)
         if isinstance(value, (bool, int)):
             if destination is not None:
                 compiled += generate_const_load(value, destination, stack, clobbers, context)
@@ -5702,7 +6141,7 @@ def generate_expr_internal(
                     return compiled
 
                 if not destination_type.is_string:
-                    raise Exception("Logic error, tried to assign string pointer to wrong type!")
+                    raise CompilerError("Unsupported string assignment to type {destination_type.type)", context)
 
                 if destination_type.const:
                     # First, set up somewhere to put the initialized string data so we can point at it.
@@ -5846,8 +6285,7 @@ def generate_expr_internal(
             compiled += generate_fstring_expr(expression, destination, types, stack, clobbers, allocations, refs, local_consts, context)
 
     else:
-        # TODO: What other expression types are we missing? Probably array and memory operations.
-        raise CompilerError(f"Unsupported expression type {expression} in expression compiler!", context)
+        raise CompilerError(f"Unsupported expression {expr_to_str(expression)} in expression compiler", context)
 
     if destination is not None:
         # We're gonna assign to this, so it should be considered initialized. Do this here instead of at the top
@@ -5938,7 +6376,7 @@ def infer_expr_types_impl(
 
     elif isinstance(expression, cst.SimpleString):
         try:
-            value = codegen_eval(expression, [])
+            value = codegen_eval(expression, [], context)
         except NonConstantExpressionException:
             raise Exception("Logic error, couldn't get string from SimpleString!")
         if not isinstance(value, str):
@@ -6002,9 +6440,9 @@ def infer_expr_types_impl(
                     return inferred
 
             if not left_inferred.is_integer:
-                raise CompilerError(f"Unsupported binary operation for type {left_inferred.type}", context)
+                raise CompilerError(f"Unsupported binary operation for types {left_inferred.type} and {right_inferred.type}", context)
             if not right_inferred.is_integer:
-                raise CompilerError(f"Unsupported binary operation for type {right_inferred.type}", context)
+                raise CompilerError(f"Unsupported binary operation for types {left_inferred.type} and {right_inferred.type}", context)
 
             # Any math against two integers will result in an integer. Pick the wider of two types.
             if right_inferred.type == "int":
@@ -6054,22 +6492,57 @@ def infer_expr_types_impl(
         return inferred
 
     elif isinstance(expression, cst.Call):
-        function_prototype = get_function_prototype(expression, stack, [*refs, *builtin_functions()], local_consts, context)
+        function_prototype = get_function_prototype(expression, [*refs, *builtin_functions()], local_consts, context)
+
+        # Intrinsics can end up complicated since they're built-in functions that the compiler substitutes
+        # a constant value for. So, check for those first and if we get a value back, don't evaluate types on the args.
+        if intrinsic_eval(expression, local_consts, context):
+            # Ignore the arg expression evaluation below. This would cause an exception when we tried to
+            # ask for their types, but we know we're going to substitute a constant value at compile time.
+            inferred[expression] = function_prototype.return_type
+            return inferred
+
         args, arg_types = get_function_params(expression, function_prototype, context)
 
-        for i, (arg, argtype) in enumerate(zip(args, arg_types)):
+        # Special case for cast, since the return type is the first parameter.
+        if function_prototype.name == "cast":
+            requested = get_type(args[0].value, local_consts, allow_nopad=False, allow_extern=False, allow_array=False)
+
+            if len(args) != 2 or len(arg_types) != 2:
+                raise Exception("Logic error, unexpected argument count for cast that should have been caught in get_function_params")
+
+            arg = args[1]
+            argtype = arg_types[1]
             arg_inferred = infer_expr_types_impl(arg.value, stack, refs, local_consts, context.wrap(arg.value))
 
             if not type_comparison_compatible(arg_inferred[arg.value], argtype.type):
-                raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter {i + 1}", context)
+                raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter 2", context)
 
             # Special case for functions like abs(), min() and max() where the input and output are both inferred.
             if argtype.type.type != "int":
                 infer_tree(arg_inferred, argtype.type, context)
             inferred.update(arg_inferred)
 
-        inferred[expression] = function_prototype.return_type
-        return inferred
+            if requested:
+                inferred[expression] = requested
+            else:
+                inferred[expression] = function_prototype.return_type
+
+            return inferred
+        else:
+            for i, (arg, argtype) in enumerate(zip(args, arg_types)):
+                arg_inferred = infer_expr_types_impl(arg.value, stack, refs, local_consts, context.wrap(arg.value))
+
+                if not type_comparison_compatible(arg_inferred[arg.value], argtype.type):
+                    raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter {i + 1}", context)
+
+                # Special case for functions like abs(), min() and max() where the input and output are both inferred.
+                if argtype.type.type != "int":
+                    infer_tree(arg_inferred, argtype.type, context)
+                inferred.update(arg_inferred)
+
+            inferred[expression] = function_prototype.return_type
+            return inferred
 
     elif isinstance(expression, cst.Comparison):
         left_tree = infer_expr_types_impl(expression.left, stack, refs, local_consts, context.wrap(expression.left))
@@ -6228,7 +6701,7 @@ def infer_expr_types_impl(
         return inferred
 
     else:
-        raise CompilerError(f"Unsupported expression type {expression} in type inferencer!", context)
+        raise CompilerError(f"Unsupported expression {expr_to_str(expression)}", context)
 
 
 def generate_expr(
@@ -6252,7 +6725,7 @@ def generate_expr(
             raise Exception("Logic error, couldn't determine type of expression destination!")
     else:
         dsize = 0
-        dtype = VoidType
+        dtype = CoreType("void")
 
     types: Dict[cst.CSTNode, CoreType] = infer_expr_types(expression, dtype, stack, refs, local_consts, context)
 
@@ -6514,7 +6987,7 @@ def generate_assign_expr(
                     if const_by_name(local_consts, assign_name) is not None:
                         raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
 
-                    value = codegen_eval(assign_value, local_consts)
+                    value = codegen_eval(assign_value, local_consts, context)
                     local_consts.append(Constant(assign_name, assign_type, value))
                     return compiled
                 except NonConstantExpressionException:
@@ -6531,21 +7004,10 @@ def generate_assign_expr(
                 # If we don't, we won't end up assigning local storage for this variable and then
                 # we will end up trying to concatenate against the constant in ROM.
                 if assign_type.is_string and assign_type.const:
-                    try:
-                        # If we can evaluate this directly, do so! In the case that the RhS is a
-                        # global constant, we want to not directly allocate storage in that case
-                        # as well.
-                        consts = [
-                            *local_consts,
-                            *[Constant(gv.name, gv.type, None) for gv in refs if isinstance(gv, GlobalVariable)],
-                        ]
-
-                        codegen_eval(assign_value, consts)
-                        is_constant = True
-                    except NonConstantExpressionException:
-                        is_constant = False
-
-                    if is_constant:
+                    if is_safe_ref(assign_value, stack, refs, local_consts, context):
+                        # This constant was initialized from a true constant (const string, global variable, another constant)
+                        # so we can safely do a copy and mark it as also a safe ref.
+                        assign_type.safe_ref = True
                         stack.alloc(StackVar(assign_name, assign_type))
                     else:
                         stack.alloc(StackVar(assign_name, assign_type.nonconst_clone()))
@@ -6893,10 +7355,8 @@ def generate_while_statement(
         if loop.stack_location != stack.location:
             # If we're exiting, we have to put ourselves back to the right spot on the stack because
             # that's the spot we promised to be in when we exit the loop through a break.
-            compiled.append_code("  SKIPIF ZF")
-
             move_amount = loop.stack_location - stack.location
-            compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context)
+            compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context, prefix="  SKIPIF ZF")
 
         compiled.append_code(f"  {insn} {exit_label}")
         compiled += loop_compiled
@@ -6990,82 +7450,165 @@ def generate_for_statement(
     context: Context,
 ) -> Tuple[Sections, bool, bool]:
     compiled = Sections()
+    free_list: List[str] = []
 
-    # First, we need to figure out if this is a for x in range() statement, which is the only type of iterator we support.
-    range_params = get_range_params(statement.iter)
-    if range_params is None:
-        raise CompilerError("Unsupported if statement iterator", context)
-
-    # Make sure that any fabricated nodes we created in the range params helper are recognized.
-    context = context.virtual(range_params[0]).virtual(range_params[1]).virtual(range_params[2])
-
-    # Now, we need to be sure we know the type of the iterator variable.
+    # Before anything, we need to be sure we know the type of the iterator variable.
     if not isinstance(statement.target, cst.Name):
-        raise CompilerError("Unsupported if statement iteration variable", context)
+        raise CompilerError("Unsupported for statement iteration variable", context)
 
     iterator_dest = statement.target.value
     iterator_type = stack.typeof(iterator_dest)
     if iterator_type is None:
         raise CompilerError(f"Undefined variable reference to {iterator_dest!r}", context)
 
-    # First we want to generate the iterator initialization.
-    compiled += generate_assign_expr(
-        statement.target,
-        None,
-        range_params[0],
-        stack,
-        clobbers,
-        allocations,
-        refs,
-        local_consts,
-        context,
-    )
+    # First, figure out if the iter is actually a string. If so, we'll iterate over that.
+    itertypes = infer_expr_types_impl(statement.iter, stack, refs, local_consts, context)
+    if itertypes[statement.iter].type in {"str", "string"}:
+        if not iterator_type.is_char:
+            raise CompilerError(f"Unsupported destination type {iterator_type} in for statement iteration variable", context)
 
-    # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
-    # and so that we can support else statements in for loops.
-    test_label = local_label_name(context, "loop_test")
-    increment_label = local_label_name(context, "loop_increment")
-    else_label = local_label_name(context, "loop_else") if statement.orelse else None
-    exit_label = local_label_name(context, "loop_exit")
-    loop = LoopInfo(stack.location, iter_label=increment_label, else_label=else_label, exit_label=exit_label)
+        # Figure out if the string we have is already ready.
+        allocated = False
+        if isinstance(statement.iter, cst.Name):
+            iter_name = statement.iter.value
+            iter_type = stack.typeof(iter_name)
+            if iter_type is not None and iter_type.is_string:
+                str_dest = expr_temp_name()
+                free_list.append(str_dest)
+                stack.alloc(StackVar(str_dest, CoreType("str"), initialized=True))
+                compiled += generate_memcpy_stackvars(str_dest, iter_name, stack, clobbers, context)
+                allocated = True
 
-    # Since everything will be jumping back to the increment label, we need to make sure that it is generated from the
-    # perspective of the stack at this point.
-    increment = cst.BinaryOperation(left=statement.target, operator=cst.Add(), right=range_params[2])
-    types = infer_expr_types(increment, iterator_type, stack, refs, local_consts, context)
+        if not allocated:
+            # We need to generate a temporary string that can be used for the expression evaluation.
+            str_dest = expr_temp_name()
+            free_list.append(str_dest)
+            stack.alloc(StackVar(str_dest, CoreType("str", length=MAX_STRING_LENGTH), initialized=True))
 
-    increment_stack = stack.clone()
-    increment_compiled = generate_expr_internal(
-        increment,
-        iterator_dest,
-        types,
-        increment_stack,
-        clobbers,
-        allocations,
-        refs,
-        local_consts,
-        context.virtual(increment),
-    )
+            compiled += generate_local_storage_alloc(str_dest, stack, clobbers, allocations, context)
+            compiled += generate_expr_internal(
+                statement.iter,
+                str_dest,
+                itertypes,
+                stack,
+                clobbers,
+                allocations,
+                refs,
+                local_consts,
+                context.wrap(statement.iter),
+            )
 
-    if loop.stack_location != increment_stack.location:
-        move_amount = loop.stack_location - increment_stack.location
-        increment_compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, increment_stack, clobbers, context)
+        # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
+        # and so that we can support else statements in for loops.
+        test_label = local_label_name(context, "loop_test")
+        increment_label = local_label_name(context, "loop_increment")
+        else_label = local_label_name(context, "loop_else") if statement.orelse else None
+        exit_label = local_label_name(context, "loop_exit")
+        loop = LoopInfo(stack.location, iter_label=increment_label, else_label=else_label, exit_label=exit_label)
 
-    # We're at the point we want to loop back to, so generate the test itself.
-    comparison = cst.Comparison(left=statement.target, comparisons=[cst.ComparisonTarget(cst.LessThan(), range_params[1])])
-    types = infer_expr_types(comparison, CoreType("bool"), stack, refs, local_consts, context)
+        # Need somewhere to put our test which is also our increment, and need empty space for the unused increment spot.
+        increment_compiled = Sections()
+        test_compiled = Sections()
 
-    test_compiled = generate_expr_internal(
-        comparison,
-        "register(A, bool)",
-        types,
-        stack,
-        clobbers,
-        allocations,
-        refs,
-        local_consts,
-        context.virtual(comparison),
-    )
+        # We're gonna use the SPC for looping, as well as the A register for grabbing the value.
+        clobbers.add("SPC")
+        clobbers.add("A")
+
+        # First, move to the string variable.
+        test_compiled += generate_move_to(str_dest, stack, clobbers, context, offset=1)
+        test_compiled.append_code("  NOP" + stack.comment(stack.location, load=True))
+        test_compiled.append_code("  NOP" + stack.comment(stack.location - 1, load=True))
+        test_compiled.append_code("  POP SPC")
+
+        # Now, grab the value at that location, and increment the pointer.
+        test_compiled.append_code("  SWAP PC, SPC")
+        test_compiled.append_code("  LOAD A")
+        test_compiled.append_code("  INCPC")
+        test_compiled.append_code("  SWAP PC, SPC")
+
+        # Now, save the new SPC into our temporary string since we advanced past that character.
+        test_compiled.append_code("  NOP" + stack.comment(stack.location, store=True))
+        test_compiled.append_code("  NOP" + stack.comment(stack.location - 1, store=True))
+        test_compiled.append_code("  PUSH SPC")
+
+        # Now, move to the location of our loop variable and store the value we looked up.
+        test_compiled += generate_move_to(iterator_dest, stack, clobbers, context)
+        stack.init(iterator_dest)
+        test_compiled.append_code("  STORE A" + stack.comment(stack.location, store=True))
+
+        # Finally, prime the boolean test with whether the character was a null.
+        test_compiled.append_code("  ADDI 0")
+        test_compiled.append_code("  LOADI 0xFF")
+        test_compiled.append_code("  SKIPIF !ZF")
+        test_compiled.append_code("  INV")
+
+    else:
+        # We need to figure out if this is a for x in range() statement, which is the only other type of iterator we support.
+        range_params = get_range_params(statement.iter)
+        if range_params is None:
+            raise CompilerError("Unsupported for statement iterator", context)
+
+        # Make sure that any fabricated nodes we created in the range params helper are recognized.
+        context = context.virtual(range_params[0]).virtual(range_params[1]).virtual(range_params[2])
+
+        # First we want to generate the iterator initialization.
+        compiled += generate_assign_expr(
+            statement.target,
+            None,
+            range_params[0],
+            stack,
+            clobbers,
+            allocations,
+            refs,
+            local_consts,
+            context,
+        )
+
+        # Now, figure out our loop control points so that break/continue can be handled inside the nested compiled_chunk,
+        # and so that we can support else statements in for loops.
+        test_label = local_label_name(context, "loop_test")
+        increment_label = local_label_name(context, "loop_increment")
+        else_label = local_label_name(context, "loop_else") if statement.orelse else None
+        exit_label = local_label_name(context, "loop_exit")
+        loop = LoopInfo(stack.location, iter_label=increment_label, else_label=else_label, exit_label=exit_label)
+
+        # Since everything will be jumping back to the increment label, we need to make sure that it is generated from the
+        # perspective of the stack at this point.
+        increment = cst.BinaryOperation(left=statement.target, operator=cst.Add(), right=range_params[2])
+        types = infer_expr_types(increment, iterator_type, stack, refs, local_consts, context)
+
+        increment_stack = stack.clone()
+        increment_compiled = generate_expr_internal(
+            increment,
+            iterator_dest,
+            types,
+            increment_stack,
+            clobbers,
+            allocations,
+            refs,
+            local_consts,
+            context.virtual(increment),
+        )
+
+        if loop.stack_location != increment_stack.location:
+            move_amount = loop.stack_location - increment_stack.location
+            increment_compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, increment_stack, clobbers, context)
+
+        # We're at the point we want to loop back to, so generate the test itself.
+        comparison = cst.Comparison(left=statement.target, comparisons=[cst.ComparisonTarget(cst.LessThan(), range_params[1])])
+        types = infer_expr_types(comparison, CoreType("bool"), stack, refs, local_consts, context)
+
+        test_compiled = generate_expr_internal(
+            comparison,
+            "register(A, bool)",
+            types,
+            stack,
+            clobbers,
+            allocations,
+            refs,
+            local_consts,
+            context.virtual(comparison),
+        )
 
     # Now, generate the code necessary to perform the loop, as well as optionally the else.
     if statement.orelse is None:
@@ -7087,10 +7630,8 @@ def generate_for_statement(
         if loop.stack_location != stack.location:
             # If we're exiting, we have to put ourselves back to the right spot on the stack because
             # that's the spot we promised to be in when we exit the loop through a break.
-            test_compiled.append_code("  SKIPIF ZF")
-
             move_amount = loop.stack_location - stack.location
-            test_compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context)
+            test_compiled += generate_move_by("move stack to same spot as beginning of loop check", move_amount, stack, clobbers, context, prefix="  SKIPIF ZF")
 
         test_compiled.append_code(f"  {conditionalinsn} {exit_label}")
 
@@ -7111,10 +7652,6 @@ def generate_for_statement(
 
         if stack.location != loop.stack_location:
             raise Exception("Logic error, didn't move stack back properly!")
-
-        # The last statement isn't always a return, because even if the loop returned,
-        # we could still skip that for the false loop control case.
-        return compiled, False, False
 
     else:
         # Generate both the loop stack and the else stack from the same stack location, because we jump to the else stack from the
@@ -7167,10 +7704,11 @@ def generate_for_statement(
         # instruction, and if somebody uses a "break" inside the loop it will move back to the stack location before jumping to the exit_label.
         stack.location = loop.stack_location
 
-        # The last statement isn't always a return, because even if the loop returned,
-        # we could still skip that for the false loop control case.
-        return compiled, False, False
+    for free in reversed(free_list):
+        stack.free(free)
 
+    # The last statement isn't always a return, because even if the loop returned,
+    # we could still skip that for the false loop control case.
     return compiled, False, False
 
 
@@ -7238,12 +7776,12 @@ def compile_chunk(
                 if isinstance(simple_statement, cst.Return):
                     if simple_statement.value is None:
                         # Simple return by itself, doesn't update the retval.
-                        if function_type is not VoidType:
+                        if not function_type.is_void:
                             raise CompilerError("Returning nothing from a function marked with a return value", context)
                         compiled += generate_return(function_type, stack, clobbers, context.wrap(simple_statement))
                     else:
                         # Return of some sort of expression.
-                        if function_type is VoidType:
+                        if function_type.is_void:
                             raise CompilerError("Returning something from a function marked with no return value", context)
 
                         # Since we're performing one last expression before returning, we know that any
@@ -7251,6 +7789,16 @@ def compile_chunk(
                         # we can relocate the retval.
                         if can_relocate_return(function_type, stack, clobbers, context):
                             stack.relocate("builtin(retval)", 0)
+
+                        # Functions that return const[str] are only allowed to do so if they return a safe ref. That
+                        # means a string literal, a global constant string, a local constant string that is also a
+                        # safe ref, or another function that returns a const[str]. Since functions are only allowed to
+                        # return a const[str] if the value being returned is a safe ref, we can assume another function
+                        # marked as returning const[str] is safe in itself.
+                        if function_type.is_string and function_type.const:
+                            # Ensure that the value we're returning is actually a safe ref const.
+                            if not is_safe_ref(simple_statement.value, stack, refs_copy, local_consts, context.wrap(simple_statement.value)):
+                                raise CompilerError("Cannot return a locally-computed constant value from a function marked as const.", context.wrap(simple_statement))
 
                         compiled += generate_expr(
                             simple_statement.value,
@@ -7421,7 +7969,7 @@ def compile_chunk(
 
     if require_return and not last_statement_was_return:
         # Simple return by itself, doesn't update the retval.
-        if function_type is not VoidType:
+        if not function_type.is_void:
             raise CompilerError("Function is missing a return statement", context)
         compiled += generate_return(function_type, stack, clobbers, context)
         last_statement_was_return = True
@@ -7435,7 +7983,7 @@ def compile_chunk(
 
 
 def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionPrototype:
-    function_type = get_type(func.returns, [], allow_nopad=True, allow_array=True)
+    function_type = get_type(func.returns, [], allow_nopad=True, allow_extern=True, allow_array=True)
     function_params = func.params.params
 
     if function_type is None:
@@ -7472,12 +8020,24 @@ def function_prototype(func: cst.FunctionDef, context: Context) -> FunctionProto
 def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, GlobalVariable]], global_consts: List[Constant], context: Context) -> Sections:
     compiled = Sections()
     function_name = func.name.value
-    function_type = get_type(func.returns, [], allow_nopad=True, allow_array=True)
+    function_type = get_type(func.returns, [], allow_nopad=True, allow_extern=True, allow_array=True)
     function_params = func.params.params
     stack: Stack = Stack(function_name)
 
     if function_type is None:
         raise CompilerError("Unsupported return type for function definition", context)
+
+    # If this is an extern function, make sure it has no body.
+    if function_type.extern:
+        if len(func.body.body) != 1:
+            raise CompilerError("Unsupported body in extern function definition", context)
+        element = func.body.body[0]
+        if not isinstance(element, cst.Expr):
+            raise CompilerError("Unsupported body in extern function definition", context)
+        if not isinstance(element.value, cst.Ellipsis):
+            raise CompilerError("Unsupported body in extern function definition", context)
+
+        return compiled
 
     if func.params.kwonly_params or func.params.posonly_params:
         raise CompilerError("Unsupported parameter definition for function definition", context)
@@ -7528,7 +8088,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
 
     preamble.append("  ; Stack layout just before return:")
     fake_stack: Stack = Stack(function_name)
-    if function_type is not VoidType:
+    if not function_type.is_void:
         fake_stack.alloc(StackVar("builtin(retval)", function_type))
     fake_stack.alloc(StackVar("builtin(retptr)", CoreType("pointer", CoreType("void")), initialized=True))
     prevals = []
@@ -7544,7 +8104,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     # Temporary room for the return value, which will be placed after clobbers, but we need
     # somewhere so clobber calculation can work.
     temp_size = 0
-    if function_type is not VoidType:
+    if not function_type.is_void:
         temp_size = stack.alloc(StackVar("builtin(retval)", function_type))
         stack.move(temp_size)
 
@@ -7573,7 +8133,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
     compiled.code += comment_stack(stack)
 
     if padding_move_amt > 0:
-        compiled.append_code(f"  SUBPCI {padding_move_amt}" + comment_source("allocating padding"))
+        compiled += generate_subpci(padding_move_amt, "allocating padding")
         stack.move(padding_move_amt)
         compiled.code += comment_stack(stack)
 
@@ -7611,7 +8171,7 @@ def function(func: cst.FunctionDef, refs: Sequence[Union[FunctionPrototype, Glob
 
     # Make sure that we have room on the stack for the return value. Don't move at this point
     # because we might not want to generate instructions to move.
-    if function_type is not VoidType:
+    if not function_type.is_void:
         stack.alloc(StackVar("builtin(retval)", function_type))
 
     # Now, second pass to actually compile.
@@ -7715,7 +8275,7 @@ def remove_empty_comments(code: List[str]) -> List[str]:
                     should_nuke = False
                     break
 
-                meat, _ = checkline.split(";", 1)
+                meat = sanitize(checkline)
                 if meat.strip():
                     # There's an instruction here.
                     should_nuke = False
@@ -7777,33 +8337,6 @@ def optimization_pass(code: List[str], enabled: bool) -> List[str]:
 
 def optimization_pass_impl(code: List[str]) -> List[str]:
     codelen = len(code)
-
-    def sanitize(line: str) -> str:
-        if not line:
-            return ""
-        if ";" in line:
-            # Need to be mindful of quotes.
-            nocomment: str = ""
-            quote: str = ""
-
-            for ch in line:
-                if ch == quote:
-                    nocomment += ch
-                    quote = ""
-                elif ch in {"'", '"'}:
-                    if not quote:
-                        quote = ch
-                    nocomment += ch
-                elif ch == ";":
-                    if not quote:
-                        break
-                    nocomment += ch
-                else:
-                    nocomment += ch
-
-            line = nocomment
-        line = line.strip()
-        return line
 
     def calcoffsets(pos: int, offset: int, amount: int) -> List[int]:
         # First, find the base offset based on our current pos, skipping comments.
@@ -7941,6 +8474,17 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
             return -int(line.split(" ", 1)[1])
         raise Exception("Logic error, unexpected instruction!")
 
+    def toggle_check(param: str) -> str:
+        if param.endswith(" ZF"):
+            return param[:-3] + " !ZF"
+        if param.endswith(" !ZF"):
+            return param[:-4] + " ZF"
+        if param.endswith(" CF"):
+            return param[:-3] + " !CF"
+        if param.endswith(" !CF"):
+            return param[:-4] + " !CF"
+        raise Exception("Logic error, shouldn't be inverting instruction that isn't SKIPIF!")
+
     stack_counts: Dict[str, int] = {
         'builtin(retptr) + 0': 1,
         'builtin(retptr) + 1': 1,
@@ -7986,12 +8530,13 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 replace(pos, 2, ["  INCPC"])
             elif total_move == -1:
                 replace(pos, 2, ["  DECPC"])
-            elif total_move > 1:
+            elif total_move > 1 and total_move <= 31:
                 replace(pos, 2, [f"  ADDPCI {total_move}"])
-            elif total_move < -1:
+            elif total_move < -1 and total_move >= -32:
                 replace(pos, 2, [f"  SUBPCI {-total_move}"])
             else:
-                raise Exception("Logic error, unknown move amount!")
+                # Can't combine, move too great.
+                pos = offset(pos, 1)
 
         elif insn(cur) in memoryop and insn(prv) in stackop and insn(nxt) in stackop:
             # In this case, we can reorder instructions since it doesn't matter what order they
@@ -8005,7 +8550,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 getline(pos, offset=-2) == "INV" and
                 getline(pos, offset=-3) == "SKIPIF ZF" and
                 insn(getline(pos, offset=-4)) == "LOADI" and param_as_int(getline(pos, offset=-4)) in {0x00, 0xFF} and
-                (insn(getline(pos, offset=-5)) == "XOR" or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
+                (insn(getline(pos, offset=-5)) in {"XOR", "AND", "OR"} or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
             ):
                 param_val = param_as_int(getline(pos, offset=-4))
 
@@ -8028,7 +8573,7 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                 getline(pos, offset=-2) == "INV" and
                 getline(pos, offset=-3) == "SKIPIF !ZF" and
                 insn(getline(pos, offset=-4)) == "LOADI" and param_as_int(getline(pos, offset=-4)) in {0x00, 0xFF} and
-                (insn(getline(pos, offset=-5)) == "XOR" or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
+                (insn(getline(pos, offset=-5)) in {"XOR", "AND", "OR"} or (insn(getline(pos, offset=-5)) == "ADDI" and param_as_int(getline(pos, offset=-5)) == 0))
             ):
                 param_val = param_as_int(getline(pos, offset=-4))
 
@@ -8086,6 +8631,125 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
 
                 replace(pos, 5, replacement, offset=-4)
                 pos = offset(pos, -4)
+
+            else:
+                pos = offset(pos, 1)
+
+        elif insn(cur) in {"JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"} and getline(pos, offset=-3) == "INV" and insn(getline(pos, offset=-2)) == "SKIPIF":
+            # Strict equality/inequality checks for string/integer/characters.
+            if (
+                getline(pos, offset=-4) == "INV" and
+                getline(pos, offset=-5) == "SKIPIF ZF" and
+                insn((pos_6 := getline(pos, offset=-6))) == "LOADI" and param_as_int(pos_6) in {0x00, 0xFF} and
+                (insn((pos_7 := getline(pos, offset=-7))) in {"XOR", "AND", "OR"} or (insn(pos_7) == "ADDI" and param_as_int(pos_7) == 0))
+            ):
+                param_val = param_as_int(pos_6)
+                if param_val == 0x00:
+                    skip_insn = toggle_check(getline(pos, offset=-2, sanitize=False))
+                else:
+                    skip_insn = getline(pos, offset=-2, sanitize=False)
+
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRINZ {params(cur)}"] if param_val == 0x00 else [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRIZ {params(cur)}"] if param_val == 0x00 else [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"] if param_val == 0x00 else [f"  LNGJUMPZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"] if param_val == 0x00 else [f"  LNGJUMPNZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replacement = [
+                    skip_insn,
+                    getline(pos, offset=-1, sanitize=False),
+                    *replacement,
+                ]
+                replace(pos, 7, replacement, offset=-6)
+                pos = offset(pos, -6)
+
+            # Strict equality/inequality checks for string/integer/characters.
+            elif (
+                getline(pos, offset=-4) == "INV" and
+                getline(pos, offset=-5) == "SKIPIF !ZF" and
+                insn((pos_6 := getline(pos, offset=-6))) == "LOADI" and param_as_int(pos_6) in {0x00, 0xFF} and
+                (insn((pos_7 := getline(pos, offset=-7))) in {"XOR", "AND", "OR"} or (insn(pos_7) == "ADDI" and param_as_int(pos_7) == 0))
+            ):
+                param_val = param_as_int(pos_6)
+                if param_val == 0xFF:
+                    skip_insn = toggle_check(getline(pos, offset=-2, sanitize=False))
+                else:
+                    skip_insn = getline(pos, offset=-2, sanitize=False)
+
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRINZ {params(cur)}"] if param_val == 0xFF else [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRIZ {params(cur)}"] if param_val == 0xFF else [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"] if param_val == 0xFF else [f"  LNGJUMPZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"] if param_val == 0xFF else [f"  LNGJUMPNZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replacement = [
+                    skip_insn,
+                    getline(pos, offset=-1, sanitize=False),
+                    *replacement,
+                ]
+                replace(pos, 7, replacement, offset=-6)
+                pos = offset(pos, -6)
+
+            # Alligator expression inequality checks for integers.
+            elif (
+                getline(pos, offset=-4) == "INV" and
+                getline(pos, offset=-5) == "SKIPIF !ZF" and
+                insn(getline(pos, offset=-6)) == "ZERO" and
+                insn((pos_7 := getline(pos, offset=-7))) == "ADDI" and param_as_int(pos_7) in {1, -1}
+            ):
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replacement = [
+                    getline(pos, offset=-2, sanitize=False),
+                    getline(pos, offset=-1, sanitize=False),
+                    *replacement,
+                ]
+                replace(pos, 7, replacement, offset=-6)
+                pos = offset(pos, -6)
+
+            elif (
+                getline(pos, offset=-4) == "INV" and
+                getline(pos, offset=-5) == "SKIPIF ZF" and
+                insn(getline(pos, offset=-6)) == "ZERO" and
+                insn((pos_7 := getline(pos, offset=-7))) == "ADDI" and param_as_int(pos_7) in {1, -1}
+            ):
+                if insn(cur) == "JRIZ":
+                    replacement = [f"  JRINZ {params(cur)}"]
+                elif insn(cur) == "JRINZ":
+                    replacement = [f"  JRIZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPZ":
+                    replacement = [f"  LNGJUMPNZ {params(cur)}"]
+                elif insn(cur) == "LNGJUMPNZ":
+                    replacement = [f"  LNGJUMPZ {params(cur)}"]
+                else:
+                    raise Exception("Logic error, unknown replacement!")
+
+                replacement = [
+                    toggle_check(getline(pos, offset=-2, sanitize=False)),
+                    getline(pos, offset=-1, sanitize=False),
+                    *replacement,
+                ]
+                replace(pos, 7, replacement, offset=-6)
+                pos = offset(pos, -6)
 
             else:
                 pos = offset(pos, 1)
@@ -8178,14 +8842,45 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     raise Exception("Logic error, unrecognized instruction to replace!")
 
         elif insn(prv) == "NEG" and insn(cur) == "NEG" and insn(nxt) == "NEG":
-            # Triple negation is equivalent to a single, including flags.
-            remove(pos, 2)
+            if insn(getline(pos, offset=-2)) != "SKIPIF":
+                # Triple negation is equivalent to a single, including flags. However,
+                # if the instruction before the first NEG is a SKIPIF, we can't skip
+                # since sometimes we wouldn't perform an ALU operation to set flags.
+                remove(pos, 2)
+
+            else:
+                # Didn't remove anything, onward.
+                pos = offset(pos, 1)
 
         elif insn(prv) == "INV" and insn(cur) == "INV" and insn(nxt) == "INV":
-            # Triple negation is equivalent to a single, including flags.
-            remove(pos, 2)
+            if insn(getline(pos, offset=-2)) != "SKIPIF":
+                # Triple negation is equivalent to a single, including flags.
+                remove(pos, 2)
 
-        elif insn(prv) == "LOADI" and insn(cur) in {"INV", "NEG"}:
+            elif (
+                insn(getline(pos, offset=-2)) == "SKIPIF" and
+                insn((pos_3 := getline(pos, offset=-3))) == "LOADI" and param_as_int(pos_3) in {0x00, 0xFF}
+            ):
+                param_val = param_as_int(pos_3)
+                actual = getline(pos, offset=-3, sanitize=False)
+                if ";" in actual:
+                    raise Exception("Logic error, unexpected comment in load immediate!")
+                if param_val is None:
+                    raise Exception("Logic error, param value cannot be null!")
+
+                replacement = [
+                    f"  LOADI {hex((~param_val) & 0xFF)}",
+                    getline(pos, offset=-2, sanitize=False)
+                ]
+
+                replace(pos, 3, replacement, offset=-3)
+                pos = offset(pos, -3)
+
+            else:
+                # Didn't remove anything, onward.
+                pos = offset(pos, 1)
+
+        elif insn(prv) == "LOADI" and insn(cur) in {"INV", "NEG"} and insn(nxt) not in {"SKIPIF", "JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}:
             intparam = param_as_int(prv)
             if intparam is not None:
                 if insn(cur) == "INV":
@@ -8196,6 +8891,10 @@ def optimization_pass_impl(code: List[str]) -> List[str]:
                     intparam = None
 
             if intparam is not None:
+                actual = getline(pos, offset=-1, sanitize=False)
+                if ";" in actual:
+                    raise Exception("Logic error, unexpected comment in load immediate!")
+
                 replace(pos, 2, [f"  LOADI {hex(intparam)}"], offset=-1)
                 pos = offset(pos, -1)
             else:
@@ -8350,6 +9049,17 @@ def set_working_directory(directory: Optional[str]) -> None:
     __working_directory = directory or "."
 
 
+__library_directory: List[str] = []
+
+
+def add_library_directory(directory: str) -> None:
+    __library_directory.append(directory)
+
+
+def clear_library() -> None:
+    __library_directory.clear()
+
+
 def parse_import_refs(body: cst.ImportFrom, context: Context) -> List[Union[FunctionPrototype, GlobalVariable]]:
     # First, figure out any relative import location.
     relative = len(body.relative)
@@ -8375,14 +9085,18 @@ def parse_import_refs(body: cst.ImportFrom, context: Context) -> List[Union[Func
     else:
         path = os.path.join(*([".."] * (relative - 1)), path)
 
-    # Now load the file and parse its forward refs.
-    path = os.path.abspath(os.path.join(__working_directory, path))
-    code = __file_loader(path)
+    # Now load the file and parse its forward refs, preferring the working directory and then
+    # looking in library paths.
+    for wd in [__working_directory, *__library_directory]:
+        fullpath = os.path.abspath(os.path.join(wd, path))
+        code = __file_loader(fullpath)
+        if code:
+            break
 
     if code is None:
         raise CompilerError(f"File {path} not found when attempting import", context)
 
-    file_refs = parse_forward_refs(path, code)
+    file_refs = parse_forward_refs(fullpath, code)
 
     # Now, filter them down to what was imported.
     if not isinstance(body.names, cst.ImportStar):
@@ -8449,20 +9163,41 @@ def parse_and_compile_module(module: str, code: str, settings: CompilerSettings)
     return compile_module(module, code, settings, forward_refs)
 
 
+VoidType = CoreType("void", None, const=True, extern=False, return_padding=False)
+
+
 def builtin_functions() -> List[FunctionPrototype]:
     return [
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("str")]),
-        FunctionPrototype("str", CoreType("str"), [CoreType("any")]),
+        # Allows for an optional named parameter.
+        FunctionPrototype("str", CoreType("str"), [CoreType("any")], ["object"]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("int", CoreType("int"), [CoreType("any")]),
-        FunctionPrototype("peek", CoreType("any"), [CoreType("uint16")]),
-        FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")]),
+        # Allows for a named parameter if needed. We don't normally support None, but we use this as a sentinel to ignore the param in cases that shouldn't need it.
+        FunctionPrototype("peek", CoreType("any"), [CoreType("uint16"), CoreType("uint8")], ["addr", "length"], [None, SentinelInteger("0")]),
+        # Allows for a named parameter if desired.
+        FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")], ["addr", "object"]),
+        # Allows for a named parameter if desired.
+        FunctionPrototype("cast", CoreType("any"), [CoreType("any"), CoreType("any")], ["typ", "val"]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("abs", CoreType("int"), [CoreType("int")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("bool", CoreType("bool"), [CoreType("any")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("chr", CoreType("char"), [CoreType("int")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("ord", CoreType("uint8"), [CoreType("char")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("hex", CoreType("str"), [CoreType("int")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("min", CoreType("int"), [CoreType("int"), CoreType("int")]),
+        # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("max", CoreType("int"), [CoreType("int"), CoreType("int")]),
+        # Allows for named parameters if so desired, with the second parameter being optional and defaulting to 8 frac bits.
+        FunctionPrototype("fixed", CoreType("int32"), [CoreType("int"), CoreType("int")], ["value", "fracbits"], [None, cst.Integer("8")]),
+        # Defined by python to have positional-only parameters, so no named params. Defined defaults, however, to bypass type checking.
+        FunctionPrototype("range", CoreType("int"), [CoreType("int"), CoreType("int"), CoreType("int")], None, [None, cst.Integer("0"), cst.Integer("0")]),
     ]
 
 

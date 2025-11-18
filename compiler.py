@@ -13,40 +13,49 @@ from core import (
     parse_forward_refs,
     compile_module,
     set_working_directory,
+    add_library_directory,
+    clear_library,
 )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Simple Python to MiniDragon Assembly compiler."
+        description="A MiniPy Python to MiniDragon Assembly compiler."
     )
     parser.add_argument(
         "-o",
         "--output",
         type=str,
-        help="The output file, defaults to out.S",
+        help="The code file we will produce, defaults to out.S",
         default="out.S",
     )
     parser.add_argument(
         "-d",
         "--data",
         type=str,
-        help="The data file, defaults to data.S",
+        help="The data file we will produce, defaults to data.S",
         default="data.S",
     )
     parser.add_argument(
         "-i",
         "--init",
         type=str,
-        help="The init file, defaults to init.S",
+        help="The init file we will produce, defaults to init.S",
         default="init.S",
     )
     parser.add_argument(
         "-z",
         "--optimize",
         action="store_true",
-        help="Optimize compiled code",
+        help="Optimize compiled code, defaults to unoptimized code",
         default=False,
+    )
+    parser.add_argument(
+        "-l",
+        "--lib",
+        action="append",
+        help="Look for libraries in this directory",
+        default=[],
     )
     parser.add_argument(
         "file",
@@ -63,6 +72,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     settings = CompilerSettings(optimize=args.optimize)
+
+    clear_library()
+    for lib in args.lib:
+        add_library_directory(os.path.abspath(lib))
 
     try:
         refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()

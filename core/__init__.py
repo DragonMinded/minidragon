@@ -12,6 +12,7 @@ from .assembler import (
     bintoint,
     getint,
     hexstr,
+    sanitize,
 )
 
 from .compiler import (
@@ -26,6 +27,8 @@ from .compiler import (
     compile_module,
     set_working_directory,
     set_file_loader,
+    add_library_directory,
+    clear_library,
 )
 
 __all__ = [
@@ -47,10 +50,13 @@ __all__ = [
     "bintoint",
     "getint",
     "hexstr",
+    "sanitize",
     "builtin_forward_refs",
     "parse_forward_refs",
     "parse_and_compile_module",
     "compile_module",
     "set_working_directory",
     "set_file_loader",
+    "add_library_directory",
+    "clear_library",
 ]

@@ -7,7 +7,7 @@ import termios
 import time
 import tty
 from io import FileIO
-from typing import Final, List, Optional
+from typing import Any, Final, List, Optional
 from core import CPUCore, MemoryFilter
 
 
@@ -75,13 +75,19 @@ class R6551AP(Peripheral):
 
         self.__stdin: Optional[FileIO] = None
         self.__stdout: Optional[FileIO] = None
+        self.__old: Optional[Any] = None
         if self.__port is None:
             os.set_blocking(0, False)
             self.__stdin = os.fdopen(0, 'rb', buffering=0)
             self.__stdout = os.fdopen(1, 'wb', buffering=0)
 
             # Ensure that the terminal emulator we're under doesn't buffer input before sending to us.
+            self.__old = termios.tcgetattr(self.__stdin.fileno())
             tty.setcbreak(self.__stdin.fileno(), termios.TCSANOW)
+
+    def __del__(self) -> None:
+        if self.__old and self.__stdin:
+            termios.tcsetattr(self.__stdin.fileno(), termios.TCSADRAIN, self.__old)
 
     def _baud(self) -> Optional[int]:
         if self.sbr == 1:
@@ -518,7 +524,7 @@ def main(boot_rom: str, serial_port: Optional[str], verbose: bool) -> int:
     )
 
     # Calculate how much time a single tick should take as a fraction of a second.
-    ticktime = 1.0 / 13750.0
+    ticktime = 1.0 / 15300.0
 
     # Now, instantiate the CPU core and run until a halt instruction is encountered.
     cpu = CPUCore(memory, ram_filter)
@@ -534,7 +540,7 @@ def main(boot_rom: str, serial_port: Optional[str], verbose: bool) -> int:
         cpu.tick()
         ram_filter.tick()
 
-        # The real CPU runs at ~13.5KHz, simulate that here.
+        # The real CPU runs at ~15KHz, simulate that here.
         cycles = cpu.cycles - cycles
         expected = float(cycles) * ticktime
         after = time.time()

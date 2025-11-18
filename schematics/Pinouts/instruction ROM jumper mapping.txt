@@ -1,0 +1,39 @@
+[ ] Microcode Reset
+[ ] V input
+[ ] U input
+[ ] V output
+
+[ ] < 0 Address src IP   1 Address src PC
+[ ] / 0         1            0                      1
+[ ] \ 0 NO OP   0 Z output   1 Immediate 6 output   1 Immediate 4 output
+[ ] / 0         1       0      1       0       1       0       1
+    | |         |       |      |       |       |       |       |
+[ ] | 0         0       1      1       0       0       1       1
+[ ] \ 0 NO OP   0 XOR   0 OR   0 AND   1 INV   1 SHR   1 SHL   1 ADD
+[ ] / 0               1                    0             1 
+[ ] \ 0 Carry clear   0 Carry from Flags   1 Carry set   1 INVALID
+
+[ ] / 0              1              0             1
+[ ] \ 0 ALU src IP   0 ALU src PC   1 ALU src A   1 INVALID
+[ ] PC swap
+[ ] Flags output
+
+[ ] SRAM output
+[ ] U output
+[ ] D output
+[ ] A output
+
+[ ] ALU low output
+[ ] / 0         1              0                 1 
+[ ] \ 0 NO OP   0 ALU output   1 D high output   1 A high output
+[ ] Flags input
+
+[ ] SRAM input
+[ ] P input
+[ ] D input
+[ ] C input
+
+[ ] B input
+[ ] A input
+[ ] IR input
+[ ] IP input

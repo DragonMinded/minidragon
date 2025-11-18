@@ -2,15 +2,14 @@
 import argparse
 import os
 from typing import Dict, List
-from core import assemble, getint
+from core import assemble, sanitize, getint
 
 
 def getlines(instr: str) -> List[str]:
     lines: List[str] = []
 
     for line in instr.split(os.linesep):
-        line, *_ = line.split(';')
-        line = line.strip()
+        line = sanitize(line)
         if line:
             lines.append(line)
     return lines

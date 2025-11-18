@@ -1,0 +1,47 @@
+[ ] Address src IP
+[ ] Address src PC
+
+[ ] Immediate 4 output
+[ ] Immediate 6 output
+[ ] Z output
+[ ] 
+[ ] 
+[ ] Carry set
+[ ] Carry from flags
+[ ] Carry clear
+
+[ ] 
+[ ] ALU src A
+[ ] ALU src PC
+[ ] ALU src IP
+[ ] A high output
+[ ] D high output
+[ ] ALU output
+[ ] 
+
+[ ] Microcode Reset
+[ ] 
+[ ] V in
+[ ] U in
+[ ] V out
+[ ] ALU OP 0
+[ ] ALU OP 1
+[ ] ALU OP 2
+
+[ ] PC swap
+[ ] Flags output
+[ ] SRAM output
+[ ] U output
+[ ] D output
+[ ] A output
+[ ] ALU low output
+[ ] Flags input
+
+[ ] SRAM input
+[ ] P input
+[ ] D input
+[ ] C input
+[ ] B input
+[ ] A input
+[ ] IR input
+[ ] IP input
