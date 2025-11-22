@@ -116,7 +116,7 @@ MiniPy supports a string data type and basic operations on strings. Strings work
 
 Unlike Python, MiniPy lets you assign a character to an index in a string. This is because strings are mutable in MiniPy. Note that MiniPy only supports strings up to 127 characters in length and has no support for multi-byte unicode values. There is no support for Python's `encode()` and `decode()` functions and there is no support for raw bytestrings because a MiniPy string is effectively a null-terminated bytestring. Unlike Python, each individual character in a string has the data type of `char`, not `str`. That means that performing an operation such as `string[5]` will return a `char` data type, whereas performing an operation such as `string[5:6]` will return a `str` data type.
 
-Note that, for speed reasons, when the compiler can prove that there is no way to accidentally cause aliasing issues, strings will be represented under the hood as a reference to another string instead of a full copy. This only happens with constant strings that are assigned to from a string literal, a global constant string, a function marked as returning a constant string, or another local constant string that was assigned to from one of these categories. Functions are only allowed to be marked as returning a constant string if the value they are returning fits within one of these categories as well. This support for references under the hood extends to string function parameters that are marked as constant.
+Note that, for speed reasons, when the compiler can prove that there is no way to accidentally cause aliasing issues, strings will be represented under the hood as a reference to another string instead of a full copy. This only happens with constant strings that are assigned to from a string literal, a global constant string, a function marked as returning a constant string, or another local constant string that was assigned to from one of these categories. Functions are only allowed to be marked as returning a constant string if the value they are returning fits within one of these categories as well. This support for references under the hood extends to string function parameters that are marked as constant. In order for the compiler to guarantee correctness, functions declared as returning a constant string with `const[str]` are checked to ensure that all of their returns match the above rules. Functions which attempt to return non-constant expressions or even local constants that were derived from non-constant expressions will be flagged with a compiler error.
 
 Examples of various operations are as follows.
 
@@ -177,6 +177,58 @@ Examples of various operations are as follows.
 MiniPy supports defining functions as well as calling functions in a similar fashion to standard Python. Parameters, including strings, are passed to functions by value except in very specific cases regarding string constants. Full support for default arguments is included, so if you specify a default for a given argument you do not need to provide a value when calling the function. Similarly, support for calling functions with keyword arguments is also available. This can come in handy when you want to specifically override only some defaults for a particular function. Note that MiniPy does not support dictionaries or lists, so support for `*args` and `**kwargs` is not available.
 
 Function calls are handled on the stack, meaning that functions are allowed to call themselves recursively. Due to the fact that strings are assigned by value, it is safe to use strings in recursive functions. All other supported data types are similarly supported for recursive functions. Due to the fact that there are no interrupts in the MiniDragon CPU, there is no support for threading or and multi-processing support. Therefore, functions do not need to worry about reentrancy.
+
+Examples of various function definitions and their calls are as follows.
+
+```
+def foo(p1: int8, p2: int8) -> int8:
+    return p1 * 2 + p2
+
+def main() -> void:
+    local: int8 = foo(5, 7)
+```
+
+ > Defines a function `foo` which takes two parameters, both specified as 8 bit signed integers. The function itself is simply, evaluating the expression `p1 * 2 + p2` and returning that to the caller. Defines a function `main` which calls function `foo` with two parameters as required, assigning the result of the function to a newly-defined variable `local`. After executing this, you should expect that the value of `local` is `17`. If you were to try to call `foo` with more than or less than two parameters you should expect a compile-time error on the offending line.
+
+```
+def foo(p1: int8, p2: int8) -> int8:
+    return p1 * 2 + p2
+
+def main() -> void:
+    local: int8 = foo(p2=5, p1=7)
+```
+
+ > Defines an identical function to the previous example, but shows off the function being called using named parameters in `main`. Since parameter names were used, the compiler will assign the values according to name instead of position. You should expect that the value of `local` is `19` after execution. Note that it is a compile-time error to specify a parameter both positionally and in a named parameter, to specify the same named parameter multiple times, or to leave out a parameter that does not have a default. Note that you are allowed to mix and match positional and named parameters as you see fit, but named parameters must always come after all positional parameters.
+
+```
+def foo(p1: int8, p2: int8 = 9) -> int8:
+    return p1 * 2 + p2
+
+def main() -> void:
+    local1: int8 = foo(3)
+    local2: int8 = foo(4, 6)
+    local3: int8 = foo(7, p2=8)
+```
+
+ > Defines a function `foo` that has an identical body to the previous two examples, but provides a default value for the parameter `p2`. Note the three calling styles that used when invoking `foo` inside `main`. The first invocation leaves out the second parameter entirely. The compiler will substitute the default which is `9` in this case, assigning the result of `15` to `local1`. The second invocation supplies a value for both `p1` and `p2` positionally so the compiler will override the default, assigning the result of `14` to the variable `local2`. In the third invocation the caller is mixing positional and named arguments. The result of `22` will be assigned to the variable `local3`.
+
+```
+def lut(key: uint8) -> const[str]:
+    if key == 0:
+        return "foo"
+    elif key == 1:
+        return "bar"
+    else:
+        return "baz"
+
+def op(prefix: const[str], key: uint8) -> str[16]:
+    return prefix + " " + lut(key)
+
+def main() -> void:
+    local: str[32] = op("val:", 1)
+```
+
+ > Defines a function `lut` which operates as a look-up for a particular key. Note that the function is typed as returning a `const[str]`. This is allowed because the compiler can see that all valid return paths return a constant string. If the function were to return a local variable or the result of an expression, the compiler would not allow the function to be typed as `const[str]`. Defines a second function `op` which takes a `prefix` string and a `key` integer and computes a string concatenation with said prefix and the result of the `lut` function call. Note that since the function is returning the result of an expression, the function return must have a size specifier for the string. This is similar to how non-constant string variables must have a maximum size specification. Finally, the code is executed in main, assigning the result of `op` to the `local` string. Upon executing this code, you should expect the value of `local` to be `"val: bar"`.
 
 ## Control Flow Support
 
