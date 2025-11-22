@@ -172,6 +172,73 @@ Examples of various operations are as follows.
 
  > Looks at an existing variable `someStr`, assumed to be a string in this case, and evaluates it for "truthy" or "falsey" contents, assigning that to the newly-created variable `a`. If the string in question is empty, then you should expect `a` to be set to `False`. Otherwise, you should expect `a` to be set to `True`.
 
+## Control Flow Support
+
+MiniPy supports standard `if`/`elif`/`else` statements for directing control flow with identical semantics to Python. It is perfectly valid to use a `return` statement within an if body similar to standard Python. It supports `while` statements as well, with support for the optional `else` case which is only executed if the while loop is not terminated early with a `break` statement. While loops fully support both `break` and `continue` as well as returning early from a function using the `return` statement. For statements are supported in limited context. MiniPy does not support iterators generally but provides two iteration styles for Python-style for loops. The first is the `range()` intrinsic which behaves identically to the [Python range](https://docs.python.org/3/library/functions.html#func-range) function in standard Python. The second is iterating over characters in a string. Note that much like `while` statements, `for` statements support the optional `else` clause as well as `break`, `continue` and `return` to early exit or change loop flow.
+
+Both `if` and `while` statement expression evaluation is short-circuiting. Both `if` and `while` also support automatic coersion of truthy values. That means that instead of writing something like `if len(str) > 0:` you can instead write the more pythonic `if str:`. Note that the latter form is also faster as it does not need to evaluate the string's length and then compare it against an integer. Under the hood the compiler can optimize the second form to just check the first character of the string against the null terminator byte. Control flow statements can be nested arbitrarily and with no restrictions to depth.
+
+Examples of various control flow statements are as follows.
+
+```
+var: int8 = 5
+if someVal > 10:
+   var += 2
+```
+
+ > This chunk of code will define a new local variable `var` which is a signed 8 bit integer. Then, given an existing variable `someVal`, if `someVal` is greater than `10` adds two to `var`. Note that `if` statements do not necessarily need an `else` statement. If omitted, the compiler will simply generate code that skips over the body of the `if` statement if the conditional is false.
+
+```
+if someVal and someFun(someVal):
+   someVal = otherVal
+```
+
+ > This chunk of code will conditionally set the existing and previously defined `someVal` to the same value as `otherVal` as long as the `if` statement conditional is true. In this case, `someVal` can be any data type since the compiler will evaluate both parts of the `and` expression for truthiness. It can be a string, in which case the left hand side will evaluate to `True` if the string is non-empty. It can be an integer, in which case the left hand side will evaluate to `True` if the integer is non-zero. It can be a boolean which will be evaluated directly. It can be a character, in which the left hand side will evaluate to `True` if the character is not the null character. Note that the function `someFun` is only called with the value `someVal` if the left hand side evaluates to `True`. If not, the right hand side is skipped entirely since the compiler performs short circuiting on conditional expression evaluation.
+
+```
+local: str[8] = "hello"
+count: int8 = 0
+while count < 5:
+    if local[count] == '!':
+        break
+    if local[count] == '@':
+        count += 2
+        continue
+    count += 1
+else:
+    count -= 5
+```
+
+ > This chunk of code demonstrates a couple of concepts. First, it shows how to create a `while` loop with a conditional. Second, it shows that while loops can use `break` or `continue` to early exit from the loop or skip over the rest of the body of the loop and resume from the top. Third, it shows off both standard Python and MiniPy's support for the `else` case in loops. This is a lesser-known feature of Python that allows you to conditionally run code only if the loop was not exited from early. That means if a `break` statement is ever executed, then the code will jump directly past the `else` clause. If the loop exited due to the loop conditional `count < 5` becoming false, then the code will jump to the `else` body and execute the code therein. Note that just like with `if` statements, you do not need to provide an `else` statement for `while` loops. Omitting this statement is perfectly allowed.
+
+```
+i: uint8
+j: uint8 = 0
+for i in range(5):
+    j += 1
+```
+
+ > This chunk of code demonstrates the standard way of creating a `for` statement in both Python and MiniPy. The `range()` intrinsic, when given a single parameter, will generate an iterator that loops through the values `0`, `1`, `2`, `3` and finally `4`. You can think of `for` statements in this format as having an equivalent C representation of `for(int i = 0; i < 5; i++)`. Note that this particular example does not show any use of a `break`, `continue`, or an `else` clause on the `for` statement itself. If the example code were to use a `continue` statement, the code would begin execution again at the top of the body of the `for` statement after incrementing the loop counter `i` and checking it against the terminating condition. These are all supported in an identical fashion to `while` statements. Note that there is one key difference between this code and standard Python code. In standard Python, the value of `i` after the loop exits will be `4` because Python is generating an actual iterator under the hood and the last value in that iterator is `4`. In MiniPy, the value of `i` after the loop exits will be `5` because MiniPy evaluates the loop iterator (which is implicitly `1` in this case) before checking the termination condition.
+
+```
+i: uint8
+j: uint8 = 0
+for i in range(1, 9, 2):
+    j += 1
+```
+
+ > This chunk of code demonstrates that the `range()` intrinsic can also be used to specify a beginning value, an end value and an increment value. The `for` statement here would have the equivalent C representation of `for(int i = 1; i < 9; i += 2)`. Both standard Python and MiniPy allow you to specify a `range()` intrinsic with a single, two, or three values. In the first case, the value specified is the end value, and the compiler will create a loop for you starting at `0`, incrementing by `1` each loop, and terminating when the loop variable hits the end value. In the second case with two parameters, the compiler will generate a loop for you starting at the first value provided, incrementing by `1` each loop, and terminating when the loop variable hits the second value provided. In the third case with three parameters, the compiler will generate a loop for you starting at the first value provided, incrementing by the third value each loop, and terminating when the loop variable hits the second value provided. Variables and expressions can be used for any of the parameters to the `range()` intrinsic, but do note that both the end and increment expression will be evaluated on every iteration. Note also that `break`, `continue` and an `else` clause are all valid in any of these types of `for` loops.
+
+```
+someStr: str[8] = "hello":
+ch: char
+sum: uint8 = 0
+for ch in someStr:
+    sum += ord(ch)
+```
+
+ > This chunk of code demonstrates that you can use a string as an iterator for a `for` statement. The code here shows an incredibly simple checksum algorithm which simply computes the sum of all characters in the string `someStr`. The loop will iterate over each character in the string, in order, until the null terminator character is hit. Both `break` and `continue` work here as expected, as does the `else` clause. If all you need to do is access each character in a string in order without the index, this form is faster than a similar `for` statement iterating over every position and fetching the character out of the string using `someStr[index]`.
+
 ### Function Support
 
 MiniPy supports defining functions as well as calling functions in a similar fashion to standard Python. Parameters, including strings, are passed to functions by value except in very specific cases regarding string constants. Full support for default arguments is included, so if you specify a default for a given argument you do not need to provide a value when calling the function. Similarly, support for calling functions with keyword arguments is also available. This can come in handy when you want to specifically override only some defaults for a particular function. Note that MiniPy does not support dictionaries or lists, so support for `*args` and `**kwargs` is not available.
@@ -229,12 +296,6 @@ def main() -> void:
 ```
 
  > Defines a function `lut` which operates as a look-up for a particular key. Note that the function is typed as returning a `const[str]`. This is allowed because the compiler can see that all valid return paths return a constant string. If the function were to return a local variable or the result of an expression, the compiler would not allow the function to be typed as `const[str]`. Defines a second function `op` which takes a `prefix` string and a `key` integer and computes a string concatenation with said prefix and the result of the `lut` function call. Note that since the function is returning the result of an expression, the function return must have a size specifier for the string. This is similar to how non-constant string variables must have a maximum size specification. Finally, the code is executed in main, assigning the result of `op` to the `local` string. Upon executing this code, you should expect the value of `local` to be `"val: bar"`.
-
-## Control Flow Support
-
-MiniPy supports standard `if`/`elif`/`else` statements for directing control flow with identical semantics to Python. It is perfectly valid to use a `return` statement within an if body similar to standard Python. It supports `while` statements as well, with support for the optional `else` case which is only executed if the while loop is not terminated early with a `break` statement. While loops fully support both `break` and `continue` as well as returning early from a function using the `return` statement. For statements are supported in limited context. MiniPy does not support iterators generally but provides two iteration styles for Python-style for loops. The first is the `range()` intrinsic which behaves identically to the [Python range](https://docs.python.org/3/library/functions.html#func-range) function in standard Python. The second is iterating over characters in a string. Note that much like `while` statements, `for` statements support the optional `else` clause as well as `break`, `continue` and `return` to early exit or change loop flow.
-
-Both `if` and `while` statement expression evaluation is short-circuiting. Both `if` and `while` also support automatic coersion of truthy values. That means that instead of writing something like `if len(str) > 0:` you can instead write the more pythonic `if str:`. Note that the latter form is also faster as it does not need to evaluate the string's length and then compare it against an integer. Under the hood the compiler can optimize the second form to just check the first character of the string against the null terminator byte. Control flow statements can be nested arbitrarily and with no restrictions to depth.
 
 ## Compiler Intrinsics
 
