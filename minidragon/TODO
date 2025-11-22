@@ -1,6 +1,5 @@
 General TODO:
  - Need to write up a langauge specification.
-   - Gotta mention globals, their use and initialization.
    - ABI examples.
    - Document included python libraries.
 

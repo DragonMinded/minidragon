@@ -297,6 +297,34 @@ def main() -> void:
 
  > Defines a function `lut` which operates as a look-up for a particular key. Note that the function is typed as returning a `const[str]`. This is allowed because the compiler can see that all valid return paths return a constant string. If the function were to return a local variable or the result of an expression, the compiler would not allow the function to be typed as `const[str]`. Defines a second function `op` which takes a `prefix` string and a `key` integer and computes a string concatenation with said prefix and the result of the `lut` function call. Note that since the function is returning the result of an expression, the function return must have a size specifier for the string. This is similar to how non-constant string variables must have a maximum size specification. Finally, the code is executed in main, assigning the result of `op` to the `local` string. Upon executing this code, you should expect the value of `local` to be `"val: bar"`.
 
+### Global Variable Support
+
+MiniPy's support for non-function execution is extremely minimal. Essentially the only thing you're allowed to do at the top level is import identifiers from another module or define a function. Arbitrary top-level code is not supported and will generate a compiler error on the offending line. However, defining global constants and global variables is supported. These work similarly to standard Python in that you can always access the value of a global variable that is in your scope without defining it as long as the name isn't shadowed by a local variable. Writing to a global variable requires declaring that you are accessing a global variable with the `global` keyword. Aside from that, globals are accessed in an identical manner to local variables and behave identically.
+
+Initializing global constants is required since MiniPy requires that to use the `const[]` modifier you do not attempt to modify the variable once it has been declared. Initializing global variables is not required, but it is recommended to do so. Unlike local variables where the compiler will generate an error on the offending line if you attempt to use a variable that has been declared but not initialized, global variables have no protection against their use before initialization. Both global constants and global variables can only be initialized with a constant expression. That is, if the value of the expression is known at compile-time, the initialization is valid. This can include other global constants that were defined previously but not global constants that were imported from other modules.
+
+Examples of various global variable uses are as follows.
+
+```
+GLOBAL_CONST: const[str] = "Hello, world!"
+global_var: int8 = -37
+```
+
+ > Defines two global variables. The first one, `GLOBAL_CONST`, is a constant, meaning it cannot be mutated or overwritten after defining it. the second one, `global_var`, is non-constant and initialized to the value `-37`. Both can be read freely from any function in the same module. Both can be imported as identifiers to other modules and then used freely inside functions fonud in those other modules.
+
+```
+_running: bool = False
+
+def setRunning(newVal: bool) -> None:
+    global _running
+    _running = newVal
+
+def getRunning() -> bool:
+    return _running
+```
+
+ > Defines a global variable `_running` that uses Python's convention of prefixing variables and functions that should not be imported with an underscore. Note that the compiler will freely let you import a function or global variable starting with an underscore but it is considered bad form. Also defines a setter and a getter function that allows code to call a function to set the value or get the value of `_running`, presumably designed as the public interface to this global variable. Notice that the setter function `setRunning` requires you to declare that you intend to use the global variable `_running` using the `global` declaration. Failing to do so will cause the compiler to assume you meant to assign to a local variable which has not been defined yet. The getter function `getRunning` follows Python's convention where reading the value of a variable first looks in the local stack and then falls back to globally defined variables.
+
 ## Compiler Intrinsics
 
 Standard Python has support for a plethora of built-in functions. MiniPy replicates support for only a limited subset of these functions. Additionally, it adds a few intrinsics of its own. All supported intrinsics are documented here. The standard Python built-ins which MiniPy supports are listed below. In general, these should behave the same as their standard Python counterparts unless documented otherwise. For standard Python documentation of these intrinsicts, please see the [Built-In Functions](https://docs.python.org/3/library/functions.html)
