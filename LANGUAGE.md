@@ -16,41 +16,61 @@ MiniPy will perform all expression evaluation at the width of the destination in
 
 The valid types available to MiniPy programs are as follows.
 
+---
+
 `uint8`
 
  > An 8 bit unsigned integer, capable of representing values from 0 through 255. Takes up one byte of memory on the stack.
+
+---
 
 `int8`
 
  > An 8 bit two's compliment signed integer, capable of representing values from -128 through 127. Takes up one byte of memory on the stack.
 
+---
+
 `uint16`
 
  > A 16 bit unsigned integer, capable of representing values from 0 through 65535. Takes up two bytes of memory on the stack, stored as big-endian.
+
+---
 
 `int16`
 
  > A 16 bit two's compliment signed integer, capable of representing values from -32768 through 32767. Takes up two bytes of memory on the stack, stored as big-endian.
 
+---
+
 `uint32`
 
  > A 32 bit unsigned integer, capable of representing values from 0 through 4294967295. Takes up four bytes of memory on the stack, stored as big-endian.
+
+---
 
 `int32`
 
  > A 32 bit two's compliment integer, capable of representing values from -2147483648 through 2147483647. Takes up four bytes of memory on the stack, stored as big-endian.
 
+---
+
 `char`
 
  > An 8 bit extended ASCII character, capable of holding any of the 8 bit extended ASCII values including the null byte. Takes up one byte of memory on the stack or one byte of memory in a string.
+
+---
 
 `str`
 
  > A null-terminated extended ASCII string, capable of holding up to `127` characters including the null terminator byte. Implemented as a 16 bit pointer to a memory address in RAM. Takes up two bytes of memory on the stack, stored as a big-endian pointer. Note that non-constant strings are required to specify the desired maximum storage length. This is done using bracket notation as demonstrated in examples below. The exception to this is in functions returning strings which explicitly return a variable or constant. In this case, you are free to declare that your function returns a `str` without using bracket notation to define a maximum storage length.
 
+---
+
 `bool`
 
  > A boolean, holding the value of `True` or `False`. Under the hood this is mapped to a single byte holding either the value `0x00` for `False` or `0xFF` for `True`.
+
+---
 
 `void`
 
@@ -60,21 +80,31 @@ Additionally, any parameter, function return or local variable can be declared c
 
 Examples of various types are as follows.
 
+---
+
 `a: int16`
 
  > Declare a local variable `a` as a signed 16 bit integer. The compiler will allocate space on the stack for this variable at time of allocation.
+
+---
 
 `a: const[uint32] = b + 37`
 
  > Declare a local variable `a` as a constant unsigned 32 bit integer and assign it the value of `b + 37`. Note that it is a compile error to declare a constant variable without assigning it a value since it would be impossible to mutate the value at a later time.
 
+---
+
 `a: str[32] = ""`
 
  > Declare a local variable `a` as a string with a maximum storage of 32 bytes including the null terminator and initialize it to the empty string.
 
+---
+
 `def func(param1: int8, param2: const[int8]) -> bool: ...`
 
  > Declare a function which takes two parameters and returns a boolean. `param1` is an 8 bit signed integer and `param2` is a constant 8 bit signed integer. This means that within the function code is free to assign to `param1` but attempting to modify `param2` will result in a compiler error. The compiler will use the types of the parameters and return to allocate space on the stack for the parameters and the return itself. Note that the example provides an ellipses (`...`) instead of a function body. This would normally result in a compiler error unless you were declaring an `extern` function but has been shown here to demonstrate how a function prototype might look without needing to specify a function body.
+
+---
 
 `def func(param: const[str]) -> void: ...`
 
@@ -94,17 +124,25 @@ Integer arithmetic that causes overflow does not automatically resize the intege
 
 Examples of various operations are as follows.
 
+---
+
 `a: uint8 = b + c`
 
  > Adds the integers `b` and `c` together and places the result into a newly-defined variable `a`. The operation will be performed with 8 bits of precision due to the destination of the expression being an 8 bit integer. If `b` or `c` are larger integers they will be truncated to 8 bits before the addition is performed.
+
+---
 
 `a += 5`
 
  > Adds 5 to the already-defined integer `a`. Note that this requires `a` to already exist since it is adding 5 to it, so `a` will have been defined with a type on a previous line.
 
+---
+
 `a: int16 = b - c`
 
  > Subtracts the value in `c` from `b` and places the result into a newly-defined variable `a`. The operation will be performed with 16 bits of precision. If `b` or `c` are larger than 16 bits, they will be truncated to 16 bits before the operation is performed. If `b` or `c` are smaller than 16 bits, they will be sign-extended to 16 bits before the operation is performed due to the fact that the result of the operation is a signed integer. If `a` was instead defined as a `uint16` then smaller integers would be zero-extended instead.
+
+---
 
 `a = (a + 1) & 0x3F`
 
@@ -120,33 +158,49 @@ Note that, for speed reasons, when the compiler can prove that there is no way t
 
 Examples of various operations are as follows.
 
+---
+
 `a: str[16] = ""`
 
  > Declares a string that can hold at most 16 bytes including the null terminator and initializes it to an empty string.
+
+---
 
 `a += b`
 
  > Concatenates the value of `b` to the end of an existing string `a`. If `b` is a string as well, this is equivalent to the C function `strcat(a, b)`. If `b` is a character, this appends the character to the end of the string, updating the null terminator as appropriate.
 
+---
+
 `ch: char = a[5]`
 
  > Grabs the sixth character out of the string `a` (string indexes are zero-based in MiniPy just as they are in standard Python) and assigns it to the newly declared character `ch`. Note that unlike standard Python, MiniPy character indexes are not memory safe. That means that if your string is only 3 characters long and you ask for a character at index 5 you will get a garbage result.
+
+---
 
 `b: str[8] = a[3:7]`
 
  > Declares a new string `b` and then assigns it the slice of `a` starting at index 3 and ending at index 7. Supposing `a` were to hold the value "Hello, world" then after this operation `b` will now hold "lo, ". Note that string slices are memory safe just as they are in standard Python. That means that if a string is not long enough for the slice index you should expect the result of the slice to be shorter than specified. For instance, if `a` were to hold just the string "Hello" and you were to ask for the above slice, `b` would end up containing "lo. Note that slices with no beginning and slices with no end are both supported.
 
+---
+
 `a = a[:5]`
 
  > Truncates an already-defined string `a` to just the first 5 characters. If `a` does not contain 5 characters then this has no apparent effect.
+
+---
 
 `l: uint8 = len(a)`
 
  > Calculates the length of string `a` and places the result in a newly-declared integer `l`. This is equivalent to the C function `strlen(a)`.
 
+---
+
 `val: str[32] = "Value: " + str(v)`
 
  > Converts the already-defined variable `v` to a string and concatenates it with a string constant and then assigns the result to a newly-declared string `val`. Supposing `v` was an integer holding the value `123`, you should expect that after executing this statement that `val` would contain "Value: 123". Similarly, if `v` was a boolean holding the value `True`, you should expect that after running this statement `val` would contain "Value: True".
+
+---
 
 `result: str[64] = f"The result of {a} added to {b} is {a + b}."`
 
@@ -160,13 +214,19 @@ Boolean expressions are short-circuiting and evaluated from left to right. MiniP
 
 Examples of various operations are as follows.
 
+---
+
 `a: bool = param1 == param2`
 
  > Evaluates the equality check `param1 == param2` and assigns the result to the newly-created boolean variable `a`. Note that equality checks are valid only against variables and constants of the same data type. Attempting to, for instance, compare an integer against a string will result in a compile-time error. Note also that there is support for checking equality for all supported data types.
 
+---
+
 `a: int8 = -5 if x > 3 else 5`
 
  > Evaluates an if expression with the test `x > 3` and assigning the result to a newly-defined variable `a`. If `x` is indeed greater than 3, you should expect that `a` will end up with the value `-5`. If not, you should expect at `a` will contain the value `5`.
+
+---
 
 `a: bool = bool(someStr)`
 
@@ -180,6 +240,8 @@ Both `if` and `while` statement expression evaluation is short-circuiting. Both 
 
 Examples of various control flow statements are as follows.
 
+---
+
 ```
 var: int8 = 5
 if someVal > 10:
@@ -188,12 +250,16 @@ if someVal > 10:
 
  > This chunk of code will define a new local variable `var` which is a signed 8 bit integer. Then, given an existing variable `someVal`, if `someVal` is greater than `10` adds two to `var`. Note that `if` statements do not necessarily need an `else` statement. If omitted, the compiler will simply generate code that skips over the body of the `if` statement if the conditional is false.
 
+---
+
 ```
 if someVal and someFun(someVal):
    someVal = otherVal
 ```
 
  > This chunk of code will conditionally set the existing and previously defined `someVal` to the same value as `otherVal` as long as the `if` statement conditional is true. In this case, `someVal` can be any data type since the compiler will evaluate both parts of the `and` expression for truthiness. It can be a string, in which case the left hand side will evaluate to `True` if the string is non-empty. It can be an integer, in which case the left hand side will evaluate to `True` if the integer is non-zero. It can be a boolean which will be evaluated directly. It can be a character, in which the left hand side will evaluate to `True` if the character is not the null character. Note that the function `someFun` is only called with the value `someVal` if the left hand side evaluates to `True`. If not, the right hand side is skipped entirely since the compiler performs short circuiting on conditional expression evaluation.
+
+---
 
 ```
 local: str[8] = "hello"
@@ -211,6 +277,8 @@ else:
 
  > This chunk of code demonstrates a couple of concepts. First, it shows how to create a `while` loop with a conditional. Second, it shows that while loops can use `break` or `continue` to early exit from the loop or skip over the rest of the body of the loop and resume from the top. Third, it shows off both standard Python and MiniPy's support for the `else` case in loops. This is a lesser-known feature of Python that allows you to conditionally run code only if the loop was not exited from early. That means if a `break` statement is ever executed, then the code will jump directly past the `else` clause. If the loop exited due to the loop conditional `count < 5` becoming false, then the code will jump to the `else` body and execute the code therein. Note that just like with `if` statements, you do not need to provide an `else` statement for `while` loops. Omitting this statement is perfectly allowed.
 
+---
+
 ```
 i: uint8
 j: uint8 = 0
@@ -220,6 +288,8 @@ for i in range(5):
 
  > This chunk of code demonstrates the standard way of creating a `for` statement in both Python and MiniPy. The `range()` intrinsic, when given a single parameter, will generate an iterator that loops through the values `0`, `1`, `2`, `3` and finally `4`. You can think of `for` statements in this format as having an equivalent C representation of `for(int i = 0; i < 5; i++)`. Note that this particular example does not show any use of a `break`, `continue`, or an `else` clause on the `for` statement itself. If the example code were to use a `continue` statement, the code would begin execution again at the top of the body of the `for` statement after incrementing the loop counter `i` and checking it against the terminating condition. These are all supported in an identical fashion to `while` statements. Note that there is one key difference between this code and standard Python code. In standard Python, the value of `i` after the loop exits will be `4` because Python is generating an actual iterator under the hood and the last value in that iterator is `4`. In MiniPy, the value of `i` after the loop exits will be `5` because MiniPy evaluates the loop iterator (which is implicitly `1` in this case) before checking the termination condition.
 
+---
+
 ```
 i: uint8
 j: uint8 = 0
@@ -228,6 +298,8 @@ for i in range(1, 9, 2):
 ```
 
  > This chunk of code demonstrates that the `range()` intrinsic can also be used to specify a beginning value, an end value and an increment value. The `for` statement here would have the equivalent C representation of `for(int i = 1; i < 9; i += 2)`. Both standard Python and MiniPy allow you to specify a `range()` intrinsic with a single, two, or three values. In the first case, the value specified is the end value, and the compiler will create a loop for you starting at `0`, incrementing by `1` each loop, and terminating when the loop variable hits the end value. In the second case with two parameters, the compiler will generate a loop for you starting at the first value provided, incrementing by `1` each loop, and terminating when the loop variable hits the second value provided. In the third case with three parameters, the compiler will generate a loop for you starting at the first value provided, incrementing by the third value each loop, and terminating when the loop variable hits the second value provided. Variables and expressions can be used for any of the parameters to the `range()` intrinsic, but do note that both the end and increment expression will be evaluated on every iteration. Note also that `break`, `continue` and an `else` clause are all valid in any of these types of `for` loops.
+
+---
 
 ```
 someStr: str[8] = "hello":
@@ -247,6 +319,8 @@ Function calls are handled on the stack, meaning that functions are allowed to c
 
 Examples of various function definitions and their calls are as follows.
 
+---
+
 ```
 def foo(p1: int8, p2: int8) -> int8:
     return p1 * 2 + p2
@@ -257,6 +331,8 @@ def main() -> void:
 
  > Defines a function `foo` which takes two parameters, both specified as 8 bit signed integers. The function itself is simply, evaluating the expression `p1 * 2 + p2` and returning that to the caller. Defines a function `main` which calls function `foo` with two parameters as required, assigning the result of the function to a newly-defined variable `local`. After executing this, you should expect that the value of `local` is `17`. If you were to try to call `foo` with more than or less than two parameters you should expect a compile-time error on the offending line.
 
+---
+
 ```
 def foo(p1: int8, p2: int8) -> int8:
     return p1 * 2 + p2
@@ -266,6 +342,8 @@ def main() -> void:
 ```
 
  > Defines an identical function to the previous example, but shows off the function being called using named parameters in `main`. Since parameter names were used, the compiler will assign the values according to name instead of position. You should expect that the value of `local` is `19` after execution. Note that it is a compile-time error to specify a parameter both positionally and in a named parameter, to specify the same named parameter multiple times, or to leave out a parameter that does not have a default. Note that you are allowed to mix and match positional and named parameters as you see fit, but named parameters must always come after all positional parameters.
+
+---
 
 ```
 def foo(p1: int8, p2: int8 = 9) -> int8:
@@ -278,6 +356,8 @@ def main() -> void:
 ```
 
  > Defines a function `foo` that has an identical body to the previous two examples, but provides a default value for the parameter `p2`. Note the three calling styles that used when invoking `foo` inside `main`. The first invocation leaves out the second parameter entirely. The compiler will substitute the default which is `9` in this case, assigning the result of `15` to `local1`. The second invocation supplies a value for both `p1` and `p2` positionally so the compiler will override the default, assigning the result of `14` to the variable `local2`. In the third invocation the caller is mixing positional and named arguments. The result of `22` will be assigned to the variable `local3`.
+
+---
 
 ```
 def lut(key: uint8) -> const[str]:
@@ -305,12 +385,16 @@ Initializing global constants is required since MiniPy requires that to use the 
 
 Examples of various global variable uses are as follows.
 
+---
+
 ```
 GLOBAL_CONST: const[str] = "Hello, world!"
 global_var: int8 = -37
 ```
 
  > Defines two global variables. The first one, `GLOBAL_CONST`, is a constant, meaning it cannot be mutated or overwritten after defining it. the second one, `global_var`, is non-constant and initialized to the value `-37`. Both can be read freely from any function in the same module. Both can be imported as identifiers to other modules and then used freely inside functions fonud in those other modules.
+
+---
 
 ```
 _running: bool = False
@@ -330,45 +414,67 @@ def getRunning() -> bool:
 Standard Python has support for a plethora of built-in functions. MiniPy replicates support for only a limited subset of these functions. Additionally, it adds a few intrinsics of its own. All supported intrinsics are documented here. The standard Python built-ins which MiniPy supports are listed below. In general, these should behave the same as their standard Python counterparts unless documented otherwise. For standard Python documentation of these intrinsicts, please see the [Built-In Functions](https://docs.python.org/3/library/functions.html)
 documentation.
 
+---
+
 `len(str)`
 
  > Given a string literal or variable as its only argument, returns the length of the string in characters (not including the null terminator) as a `uint8`. Note that this only works with strings up to 127 characters long as that is the supported length limit of strings in MiniPy
+
+---
 
 `str(obj)`
 
  > Given any supported data type, returns a string conversion of that data type. Supports integers, booleans, characters and other strings. For strings and characters, the literal value as a string will be returned. For integers, the conversion of that integer to a decmial number including a negative sign will be returned. For booleans, the string "True" or "False" will be returned depending on the value of the boolean.
 
+---
+
 `int(obj)`
 
  > Given a string, integer or boolean, returns an integer conversion of that data type. For Strings, the conversion to an integer including a potential negative sign will be returned. For integers, the number passed in will be returned. For booleans, the number 1 or 0 will be returned for `True` and `False` which is identical to standard Python.
+
+---
 
 `abs(int)`
 
  > Given a signed integer, returns the absolute value of that signed integer at the same integer width.
 
+---
+
 `bool(obj)`
 
  > Given any supported data type, returns a boolean representing the truthiness of the data type passed in. For strings, returns `True` for any string that is not zero-length, and `False` for empty or zero-length strings. For integers, returns `True` for all nonzero numbers and `False` for zero. For booleans, returns the value passed in. For characters, returns `True` for all characters that are not the null byte, and `False` for the null byte.
+
+---
 
 `chr(int)`
 
  > Given an integer, returns the character equivalent of that integer.
 
+---
+
 `ord(char)`
 
  > Given a character, returns the integer equivalent of that character.
+
+---
 
 `hex(int)`
 
  > Given an integer, returns a string representing the hexidecimal value of the integer, including the `0x` prefix, mirroring standard Python.
 
+---
+
 `min(int, int)`
 
  > Given two integers, returns whichever one is smallest in magnitude.
 
+---
+
 `max(int, int)`
 
  > Given two integers, returns whichever one is the largest in magnitude.
+
+---
 
 `range(int, int=None, int=None)`
 
@@ -376,17 +482,25 @@ documentation.
 
 Additionally, MiniPy specifies a few intrinsics of its own. The MiniPy specific intrinsics are documented below.
 
+---
+
 `peek(addr, length=None)`
 
  > Given a 16 bit integer interpreted as a raw memory address, peek at that memory address and return the value contained therein. The return type of peek is dependent on the variable being assigned to in the expression that it is used in. When assigning to an 8 bit integer, peek will read the byte at the memory location and return that as an 8 bit integer. When assigning to a 16 bit integer, peek will read the two bytes at the memory address and subsequent memory address and interpret and return the value as a big-endian 16 bit integer. When assigning to a 32 bit integer, peek will read the four bytes at the memory address and subsequent three memory addresses and interpret and return the value as a big-endian 32 bit integer. When assigning to a character, peek will read the byte at the memory address and return it as a character. When assigning to a boolean, peek will read the byte at the memory address and return `True` for a non-zero byte and `False` for a zero byte. When assigning to a string, peek will perform a string copy starting at the given memory address until it encounters a null terminator byte. Optionally, for strings, you can specify a second parameter as an integer which will be treated as the length to copy. Strings longer than that will be truncated when the length limit is hit, and strings equal to or less than that length will be copied in their entirity.
+
+---
 
 `poke(addr, obj)`
 
  > Given a 16 bit integer interpreted as a raw memory address and a value to store, stores that value at that address. For integers, stores the value starting at that address in big-endian. For 8 bit integers, this only modifies the byte at the specified address. For 16 bit integers, this modifies the specified and subsequent byte. For 32 bit integers, this modifies the specified and subsequent three bytes. For characters, stores the character as a byte at the address specified. For booleans, stores either 0 or 255 depending on whether the value is `False` or `True`. For strings, copies the specified string starting at the memory address until the end of the string is reached. Note that the null byte is copied in this instance.
 
+---
+
 `cast(type, obj)`
 
  > Given a valid MiniPy type and an object, cast that object to that type. Currently only supports casting `uint16` to `str` and `str` to `uint16`. When performing a cast from a string to an integer, the resulting value that is returned is the memory address that the string resides at. When performing a cast from an integer to a string, the resulting value is a string that points at the given memory address.
+
+---
 
 `fixed(value, fracbits=8)`
 
@@ -412,9 +526,13 @@ To reference a constant, variable or function that is defined only in assembly, 
 
 Examples of using the import system are as follows.
 
+---
+
 `from hardware.serial import serial_init, serial_clear, serial_send`
 
  > Looks for the identifiers `serial_init`, `serial_clear` and `serial_send` in the module which implements `hardware.serial` and makes them available in the current module. That module could be the relative file `hardware/serial.py` relative to the module performing the import, or it could be the relative file `hardware/serial.py` existing in a library directory specified to the compiler with `-l` or `--lib`.
+
+---
 
 `def func(param1: int16, param2: int32) -> extern[bool]: ...`
 
@@ -428,25 +546,37 @@ MiniPy ships with a stdlib that was implemented in assembly as well as several l
 
 MiniPy has extremely limited support for Python's `sys` module. Absolutely no functions are supported but if you `import sys` you will have access to a few constants provided by the compiler that you can use in your code. Note that there is currently no support for `from sys import X` style importing of the pieces of `sys` that are supported. The bits of `sys` that are supported are documented below.
 
+---
+
 `sys.byteorder`
 
  > A string constant that is always equal to `big`, representing that MiniPy byte order is big-endian.
+
+---
 
 `sys.hexversion`
 
  > A uint32 integer that is set to the current version of the compiler, in the form of `0xAABBCCCC` where `AA` is an 8 bit major version, `BB` is an 8 bit minor version, and `CCCC` is a 16 bit point version. This should not be used for displaying version information, but can be used in integer comparisons if you need to switch on compiler version.
 
+---
+
 `sys.maxsize`
 
  > An integer that is set to the maximum size of a signed integer in MiniPy. This is the constant `2^31 - 1`.
+
+---
 
 `sys.maxunicode`
 
  > An integer that is set to the maximum supported unicode codepoint. Since MiniPy only deals with extended ASCII characters in strings and has no unicode support, this is set to `0xFF` or `255`.
 
+---
+
 `sys.platform`
 
  > A string constant that is always equal to `minidragon`. This can be used in code you intend to be semi-portable to determine if you're running under MiniPy or on a standard Python distribution.
+
+---
 
 `sys.version`
 
@@ -456,49 +586,73 @@ MiniPy has extremely limited support for Python's `sys` module. Absolutely no fu
 
 A library for interacting with a VT-100 terminal over a serial port attached to a R6551AP serial chip in peripheral slot 0. This is the intended serial chip and peripheral slot number for the serial port on the actual MiniDragon as built. It is where keyboard input as well as text output is handled for interactive programs. To use any of the following functions, import them using a statement in the form of `from hardware.serial import bla` where `bla` is the function that you wish to support. Note that in order to successfully compile, the compiler will need to know where to find this library. So, you should use the compiler option `-lib /path/to/lib/` to point the compiler at the `lib/` directory included at the root of this repo.
 
+---
+
 `serial_init() -> void`
 
  > Initializes the serial chip so that it is ready to communicate with a VT-100 at 9600 baud, 8 bits, no parity bit, a single stop bit, and with XON/XOFF software control flow enabled. If you wish to use any serial features you must call this early in your program init, preferrably near the top of your `main()` function.
+
+---
 
 `serial_send_byte(byte: const[uint8]) -> void`
 
  > Send a single byte over the wire to the remote VT-100. Note that this takes a byte, not a character. To cast a character to a byte you can use the built-in `ord()` which works identically to its counterpart in standard Python. Note that while this function will wait until the transmit buffer is empty before sending the byte, it does not handle any XON/XOFF control flow from the remote side. So, this should be seen as an incredibly low level direct-access function to send a byte as soon as it is possible to do so.
 
+---
+
 `serial_has_byte() -> bool`
 
  > Returns a boolean `True` if there is a byte waiting in the receive buffer of the serial chip, or `False` if there is not. To receive that byte, call `serial_recv_byte()`.
+
+---
 
 `serial_recv_byte() -> uint8`
 
  > Receives a single byte from the serial buffer. If a byte is ready to be received, returns that byte. If not, then the behavior of this function is undefined and you will get whatever the R6551AP wants to return when reading a buffer that has no byte in it. This is likely to be a null byte, but the datasheet does not specify. Note that this does not handle any XON/OFF control flow so if the VT-100 has requested to turn off transmit you may read an `0x11` or `0x13` from this. So, this should be seen as an incredibly low level direct-access function to receive a byte should there be one to receive. To cast a byte to a character you can use the built-in `chr()` which works identically to its counterpart in standard Python.
 
+---
+
 `serial_clear() -> void`
 
  > Sends the appropriate VT-100 escape sequence to clear the screen, reset all text decoration and move the cursor to the top left position.
+
+---
 
 `serial_normal() -> void`
 
  > Sends the appropriate VT-100 escape sequence to turn off any text decoration previously requested.
 
+---
+
 `serial_bold() -> void`
 
  > Sends the appropriate VT-100 escape sequence to turn text bolding on. Subsequent text sent to the VT-100 will appear bold along with any other active decorations.
+
+---
 
 `serial_underline() -> void`
 
  > Sends the appropriate VT-100 escape sequence to turn text underlining on. Subsequent text sent to the VT-100 will appear underlined along with any other active decorations.
 
+---
+
 `serial_reverse() -> void`
 
  > Sends the appropriate VT-100 escape sequence to turn text reverse printing on. Subsequent text sent to the VT-100 will appear with the foreground and background colors reversed along with any other active decorations.
+
+---
 
 `serial_send(data: const[str]) -> void`
 
  > Sends a null-terminated string to the VT-100. This could include escape sequences or any text for display. Note that this function handles polling the remote VT-100 for XON/XOFF control flow so that it does not overwhelm a remote terminal. It also swallows any incoming escape sequences sent by the terminal. It does this because in order to detect control flow bytes it must read from the remote side. If it gets an escape sequence it must read until the sequence is done otherwise code that reads after calling `serial_send()` could end up reading part of an escape sequence and corrupting user input.
 
+---
+
 `serial_recv(echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str`
 
  > Receives a null-terminated string from the VT-100. Reads from the VT-100, swallowing escape sequences and buffering any user input until the return key is pressed. Supports erasing previously-input text using the backspace key. Also supports handling XON/XOFF style control flow in the case that the VT-100 has sent us a request to stop transmitting. By default the input that is typed will be echoed to the terminal much in the same way typing on the command-line works on a modern computer. To turn that off, set the `echo_input` parameter to `False` instead of the default `True`. To echo the mask character `*` instead of the typed character, turn on `mask_input` by setting the parameter to `True` instead of the default `False`. Note that this setting has no effect if `echo_input` is `False`. If you wish to allow empty string input (pressing enter without typing anything), you can set `allow_empty` to `True`. Otherwise, the function will only let the user continue once at least one character has been typed before pressing enter.
+
+---
 
 `serial_input(prompt: const[str], echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:`
 
@@ -512,9 +666,13 @@ Note that there is no math library for working with fixed point decimal numbers.
 
 To use any of the following functions, import them using a statement in the form of `from conversion.fixed import bla` where `bla` is the function that you wish to support. Note that in order to successfully compile, the compiler will need to know where to find this library. So, you should use the compiler option `-lib /path/to/lib/` to point the compiler at the `lib/` directory included at the root of this repo.
 
+---
+
 `strtofixed(val: const[str], fracbits: uint8 = 8) -> int32`
 
  > Given a string that represents an integer or decimal number, conver it to a fixed width integer suitable for performing math against. Note that much like the `fixed()` intrinsic, this defaults to 8 fractional bits of precision, allowing you to represent down to `1/256` of decimal. If you wish to change this, you can specify another value for the `fracbits` parameter. Note that fixed width decmials do not carry any metadata with them so neither the compiler nor the conversion library will warn you if you try to convert a number with one `fracbits` value and then display it with another `fracbits`.
+
+---
 
 `fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str`
 
