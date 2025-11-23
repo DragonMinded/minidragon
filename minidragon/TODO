@@ -1,7 +1,6 @@
 General TODO:
  - Need to write up a langauge specification.
    - ABI examples.
-   - Document included python libraries.
 
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.

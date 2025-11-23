@@ -422,7 +422,103 @@ Examples of using the import system are as follows.
 
 ## Included Libraries
 
-MiniPy ships with a stdlib that was implemented in assembly as well as several libraries of functions implemented in MiniPy itself. Note that under most circumstances you should not need to call the assembly stdlib directly as the functionality has been mapped onto standard Python operations. However, if you so desire, you can call the functions directly in your code.
+MiniPy ships with a stdlib that was implemented in assembly as well as several libraries of functions implemented in MiniPy itself. Note that under most circumstances you should not need to call the assembly stdlib directly as the functionality has been mapped onto standard Python operations. However, if you so desire, you can call the functions directly in your code. Those functions aren't documented here because they're meant to be internal to the compiler. Instead, libraries that are intended to be used are documented here.
+
+### sys
+
+MiniPy has extremely limited support for Python's `sys` module. Absolutely no functions are supported but if you `import sys` you will have access to a few constants provided by the compiler that you can use in your code. Note that there is currently no support for `from sys import X` style importing of the pieces of `sys` that are supported. The bits of `sys` that are supported are documented below.
+
+`sys.byteorder`
+
+ > A string constant that is always equal to `big`, representing that MiniPy byte order is big-endian.
+
+`sys.hexversion`
+
+ > A uint32 integer that is set to the current version of the compiler, in the form of `0xAABBCCCC` where `AA` is an 8 bit major version, `BB` is an 8 bit minor version, and `CCCC` is a 16 bit point version. This should not be used for displaying version information, but can be used in integer comparisons if you need to switch on compiler version.
+
+`sys.maxsize`
+
+ > An integer that is set to the maximum size of a signed integer in MiniPy. This is the constant `2^31 - 1`.
+
+`sys.maxunicode`
+
+ > An integer that is set to the maximum supported unicode codepoint. Since MiniPy only deals with extended ASCII characters in strings and has no unicode support, this is set to `0xFF` or `255`.
+
+`sys.platform`
+
+ > A string constant that is always equal to `minidragon`. This can be used in code you intend to be semi-portable to determine if you're running under MiniPy or on a standard Python distribution.
+
+`sys.version`
+
+ > A string constant that is set to the current version of the compiler, in the form of `A.B.C` where `A` is the major version, `B` is the minor version and `C` is the point version. This can be used to display the version of the toolchain a particular program was compiled with.
+
+### hardware.serial
+
+A library for interacting with a VT-100 terminal over a serial port attached to a R6551AP serial chip in peripheral slot 0. This is the intended serial chip and peripheral slot number for the serial port on the actual MiniDragon as built. It is where keyboard input as well as text output is handled for interactive programs. To use any of the following functions, import them using a statement in the form of `from hardware.serial import bla` where `bla` is the function that you wish to support. Note that in order to successfully compile, the compiler will need to know where to find this library. So, you should use the compiler option `-lib /path/to/lib/` to point the compiler at the `lib/` directory included at the root of this repo.
+
+`serial_init() -> void`
+
+ > Initializes the serial chip so that it is ready to communicate with a VT-100 at 9600 baud, 8 bits, no parity bit, a single stop bit, and with XON/XOFF software control flow enabled. If you wish to use any serial features you must call this early in your program init, preferrably near the top of your `main()` function.
+
+`serial_send_byte(byte: const[uint8]) -> void`
+
+ > Send a single byte over the wire to the remote VT-100. Note that this takes a byte, not a character. To cast a character to a byte you can use the built-in `ord()` which works identically to its counterpart in standard Python. Note that while this function will wait until the transmit buffer is empty before sending the byte, it does not handle any XON/XOFF control flow from the remote side. So, this should be seen as an incredibly low level direct-access function to send a byte as soon as it is possible to do so.
+
+`serial_has_byte() -> bool`
+
+ > Returns a boolean `True` if there is a byte waiting in the receive buffer of the serial chip, or `False` if there is not. To receive that byte, call `serial_recv_byte()`.
+
+`serial_recv_byte() -> uint8`
+
+ > Receives a single byte from the serial buffer. If a byte is ready to be received, returns that byte. If not, then the behavior of this function is undefined and you will get whatever the R6551AP wants to return when reading a buffer that has no byte in it. This is likely to be a null byte, but the datasheet does not specify. Note that this does not handle any XON/OFF control flow so if the VT-100 has requested to turn off transmit you may read an `0x11` or `0x13` from this. So, this should be seen as an incredibly low level direct-access function to receive a byte should there be one to receive. To cast a byte to a character you can use the built-in `chr()` which works identically to its counterpart in standard Python.
+
+`serial_clear() -> void`
+
+ > Sends the appropriate VT-100 escape sequence to clear the screen, reset all text decoration and move the cursor to the top left position.
+
+`serial_normal() -> void`
+
+ > Sends the appropriate VT-100 escape sequence to turn off any text decoration previously requested.
+
+`serial_bold() -> void`
+
+ > Sends the appropriate VT-100 escape sequence to turn text bolding on. Subsequent text sent to the VT-100 will appear bold along with any other active decorations.
+
+`serial_underline() -> void`
+
+ > Sends the appropriate VT-100 escape sequence to turn text underlining on. Subsequent text sent to the VT-100 will appear underlined along with any other active decorations.
+
+`serial_reverse() -> void`
+
+ > Sends the appropriate VT-100 escape sequence to turn text reverse printing on. Subsequent text sent to the VT-100 will appear with the foreground and background colors reversed along with any other active decorations.
+
+`serial_send(data: const[str]) -> void`
+
+ > Sends a null-terminated string to the VT-100. This could include escape sequences or any text for display. Note that this function handles polling the remote VT-100 for XON/XOFF control flow so that it does not overwhelm a remote terminal. It also swallows any incoming escape sequences sent by the terminal. It does this because in order to detect control flow bytes it must read from the remote side. If it gets an escape sequence it must read until the sequence is done otherwise code that reads after calling `serial_send()` could end up reading part of an escape sequence and corrupting user input.
+
+`serial_recv(echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str`
+
+ > Receives a null-terminated string from the VT-100. Reads from the VT-100, swallowing escape sequences and buffering any user input until the return key is pressed. Supports erasing previously-input text using the backspace key. Also supports handling XON/XOFF style control flow in the case that the VT-100 has sent us a request to stop transmitting. By default the input that is typed will be echoed to the terminal much in the same way typing on the command-line works on a modern computer. To turn that off, set the `echo_input` parameter to `False` instead of the default `True`. To echo the mask character `*` instead of the typed character, turn on `mask_input` by setting the parameter to `True` instead of the default `False`. Note that this setting has no effect if `echo_input` is `False`. If you wish to allow empty string input (pressing enter without typing anything), you can set `allow_empty` to `True`. Otherwise, the function will only let the user continue once at least one character has been typed before pressing enter.
+
+`serial_input(prompt: const[str], echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:`
+
+ > Display the prompt string `prompt` to the VT-100 before waiting for the user to enter some text and press enter. Upon pressing enter a newline will be sent to the VT-100 to place the cursor on the next line. The optional parameters `echo_input`, `mask_input` and `allow_empty` have the same functionality and default values as in `serial_recv()`.
+
+### conversion.fixed
+
+A library for converting fixed point decimal numbers to strings and strings to fixed point decimal numbers. MiniDragon and MiniPy both lack any floating point support and generally only work with integers. However, floating point decimals are not the only system. Fixed point decimal numbers are employed to allow working with decimal numbers in a way that is possible with the speed and hardware limitations of the MiniDragon. Along with the `fixed()` intrinsic that allows you to define decimal constants in code easily, the conversion library allows you to accept user input and convert it to a fixed point number suitable for performing math against. It also allows you to take a fixed point number and convert to the approximate decimal representation for displaying to a user.
+
+Note that there is no math library for working with fixed point decimal numbers. That's because the math for fixed point decimal numbers works out to be compatible with existing integers. For more information, please read up on [Fixed Point Arithmetic](https://en.wikipedia.org/wiki/Fixed-point_arithmetic). However, non-bitwise math should generally work out. For instance, to add two fixed-point numbers stored in `a` and `b` with the same `fracbits` together, one would simply perform the expression `a + b`. The same thing works for subtraction, where you would perform `a - b`. Negating numbers works as expected, and negative numbers input by the user will be in the correct form for arithmetic to work out. Multipliciation is similar to how you learned to multiply on paper. The result of any multiplication needs to be shifted right by `fracbits`. So, to multiply two numbers, you would perform an expression similar to `(a * b) >> fracbits`. Division works in reverse, where you would shift left by the number of fracbits. Tricks for multiplying or dividing by a power of two using a shift operation still work the same. Note that there are concerns with loss of precision when multiplying and dividing, as well as the possibility of multiplying and dividing numbers with different `fracbits` as long as you manage your final shift correctly. For details, please read up on the wikipedia link above.
+
+To use any of the following functions, import them using a statement in the form of `from conversion.fixed import bla` where `bla` is the function that you wish to support. Note that in order to successfully compile, the compiler will need to know where to find this library. So, you should use the compiler option `-lib /path/to/lib/` to point the compiler at the `lib/` directory included at the root of this repo.
+
+`strtofixed(val: const[str], fracbits: uint8 = 8) -> int32`
+
+ > Given a string that represents an integer or decimal number, conver it to a fixed width integer suitable for performing math against. Note that much like the `fixed()` intrinsic, this defaults to 8 fractional bits of precision, allowing you to represent down to `1/256` of decimal. If you wish to change this, you can specify another value for the `fracbits` parameter. Note that fixed width decmials do not carry any metadata with them so neither the compiler nor the conversion library will warn you if you try to convert a number with one `fracbits` value and then display it with another `fracbits`.
+
+`fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str`
+
+ > Given a fixed point decimal number and a precision, converts that number to a string suitable for display to a user. The `precision` argument is the number of digits after the decimal place. Valid values are `0`-`6` inclusive. Note that this function will round the number before display so that the rendered display is as close to correct as possible. So, if you had the number `3.75` or `3.9` and converted it to a string with `precision` set to `0`, you should expect to get back a string with the value `"4"`. Similarly if you had the number `3.01` and converted it with a `precision` of `1` you should expect to get a string back with the value `"3.0"`. If instead your number was `3.09` and you specified the same precision, you'd instead expect to get back a string with the value `"3.1"`. The same warning about `fracbits` applies. It is your responsibility to ensure that you use the same `fracbits` for all conversions and `fixed()` intrinsics if you wish for the converted numbers to be correct.
 
 ## Application Binary Interface
 
