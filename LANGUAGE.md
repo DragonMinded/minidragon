@@ -534,6 +534,8 @@ Note that in cases where the return value takes more space on the stack than the
 
 Examples of functions as well as both their just-after-call and their just-before-return stack layout are shown below. An arbitrary stack address of `0xBEE5` has been chosen as the location of `PC` just prior to the function parameters being pladed onto the stack. The stack is presented where the highest value on the screen is also the highest memory address.
 
+---
+
 `def fun() -> void: ...`
 
 The stack on the first instruction of the function as well as the stack just before returning looks like the following. `PC` should be set to `0xBEE3` both in the first instruction and just prior to returning from the function.
