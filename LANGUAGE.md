@@ -522,13 +522,81 @@ To use any of the following functions, import them using a statement in the form
 
 ## Application Binary Interface
 
-Since the MiniDragon ISA is stack-based with an accumulator, it should come as no surprise that function parameters, local variables, the function return and the return address are placed onto the stack. If you are looking to write functions in assembly which interop with MiniPy code it is important to respect the ABI otherwise you will most likely get a crash. The easiest way to conform to the interface for a given function is to simply let the compiler generate the function stub for you. Define the function with its parameters and return in a module, return a dummy value, compile it, and copy the skeleton out of the assembly listing.
+Since the MiniDragon ISA is stack-based with an accumulator, it should come as no surprise that function parameters, local variables, the function return and the return address are placed onto the stack. If you are looking to write functions in assembly which interop with MiniPy code it is important to respect the ABI otherwise you will most likely get a crash from stack corruption. The easiest way to conform to the interface for a given function is to simply let the compiler generate the function stub for you. Define the function with its parameters and return in a module, return a dummy value, compile it, and copy the skeleton out of the assembly listing.
 
 The MiniDragon CPU uses a standard stack that starts at the top of memory and grows down. A push operation will decrement the PC register and then store the value at the memory location pointed at by PC. A pop operation will load the value from the memory location pointed at by PC and then increment the PC register. Function parameters are always provided on the stack even when they could fit in the A, U or V registers. They are pushed onto the stack in the order that they appear in the function definition. When a function is called, after the compiler pushes all of the parameters onto the stack, the actual call operation will push the address of the instruction after the call onto the stack as a big-endian 16 bit address and then jump to the first byte of the function. That means upon entering a function you should expect the PC register to point at the first byte of the return address in memory with the second byte in the next memory address.
+
+It is the function's responsibility to restore all registers to their previous state upon exiting a function. The compiler does not recognize any temporary registers that are considered dirty after a function call. That means if you use a register in your function, you're required to push the value of that register onto the stack at the beginning of your function and pop the value off of the stack just before returning. This requirement exists for the `A`, `U`, `V` and `SPC` registers but does not exist for the `PC` or `IP` registers since those are expected to be modified by executing the function. Just about every useful function will end up clobbering the `A` register so it is a safe bet to assume you will be saving this register when writing any meaningful function.
 
 When leaving a function, a ret operation is used to pop the return address from the stack and jump to it. This means that when you leave a function you are expected to have the PC register pointing at the first byte of the return address on the stack. When that return address is popped, the PC will be incremented by 2 and should point at the first byte of the return value. The calling code will expect to pop that value from the stack which should return the PC register to the location that it pointed at before any function parameters were pushed onto the stack. That means that it is the called function's responsibility to move the return address and return value when appropriate. This will be necessary when the function parameters take more space on the stack than the return value. Since the calling code expects the parameters to be "consumed" by the called function it will not attempt to pop the parameters off the stack when execution is returned to it after the ret operation.
 
 Note that in cases where the return value takes more space on the stack than the parameters the compiler will insert padding bytes onto the stack so that the called function does not need to relocate the return pointer down the stack to make room for the return value. If the length of all parameters exactly equals or surpasses the size of the return value (or the function is a `void` return) then no padding will be inserted. If you do not want this and you are willing to relocate the return value and return pointer on the stack even when padding bytes could be inserted for you, you can use the `nopad[]` modifier on the function's return type. Using `nopad[]` will instruct the compiler not to insert padding bytes under any circumstance and you will be responsible for moving the return pointer as well as locating the return value on the stack manually.
+
+Examples of functions as well as both their just-after-call and their just-before-return stack layout are shown below. An arbitrary stack address of `0xBEE5` has been chosen as the location of `PC` just prior to the function parameters being pladed onto the stack. The stack is presented where the highest value on the screen is also the highest memory address.
+
+`def fun() -> void: ...`
+
+The stack on the first instruction of the function as well as the stack just before returning looks like the following. `PC` should be set to `0xBEE3` both in the first instruction and just prior to returning from the function.
+
+| Memory Location | Description                 |
+| --------------- | --------------------------- |
+| `0xBEE4`        | low byte of return address  |
+| `0xBEE3`        | high byte of return address |
+
+`def fun(p1: int8, p2: int16) -> void: ...`
+
+The stack on the first instruction of the function looks like the following. Note that `PC` should be set to `0xBEE0` when your function starts executing.
+
+| Memory Location | Description                 |
+| --------------- | --------------------------- |
+| `0xBEE4`        | parameter p1                |
+| `0xBEE3`        | low byte of parameter p2    |
+| `0xBEE2`        | high byte of parameter p2   |
+| `0xBEE1`        | low byte of return address  |
+| `0xBEE0`        | high byte of return address |
+
+You are responsible for making sure the stack looks like the following before returning by moving the return address. Note that `PC` should point to `0xBEE3` just prior to returning.
+
+| Memory Location | Description                 |
+| --------------- | --------------------------- |
+| `0xBEE4`        | low byte of return address  |
+| `0xBEE3`        | high byte of return address |
+
+`def fun() -> int8: ...`
+
+The stack on the first instruction of the function looks like the following. Note the padding byte the compiler inserts so you have room for the return value. Note that `PC` should be set to `0xBEE2` when your function starts executing.
+
+| Memory Location | Description                      |
+| --------------- | -------------------------------- |
+| `0xBEE4`        | padding byte for function return |
+| `0xBEE3`        | low byte of return address       |
+| `0xBEE2`        | high byte of return address      |
+
+The stack should look like the following just before returning. Note that `PC` should point to `0xBEE2` just before executing the return instruction.
+
+| Memory Location | Description                 |
+| --------------- | --------------------------- |
+| `0xBEE4`        | function return value       |
+| `0xBEE3`        | low byte of return address  |
+| `0xBEE2`        | high byte of return address |
+
+`def fun() -> nopad[int16]: ...`
+
+The stack on the first instruction of the function looks like the following. Note that the compiler was told not to insert padding, so you are responsible for relocating the return address to make room for the function return. Note that `PC` should be set to `0xBEE3` when your function starts executing.
+
+| Memory Location | Description                      |
+| --------------- | -------------------------------- |
+| `0xBEE4`        | low byte of return address       |
+| `0xBEE3`        | high byte of return address      |
+
+The stack should look like the following just before returning. You are responsible for moving the return address to make room for the return value. Note that `PC` should point to `0xBEE1` just before executing the return instruction.
+
+| Memory Location | Description                     |
+| --------------- | ------------------------------- |
+| `0xBEE4`        | function return value low byte  |
+| `0xBEE3`        | function return value high byte |
+| `0xBEE2`        | low byte of return address      |
+| `0xBEE1`        | high byte of return address     |
 
 ## Compiler Optimizations
 
