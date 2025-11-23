@@ -205,9 +205,10 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False, allow_empty: 
                 accum = accum[:length]
 
                 # Erase last letter.
-                serial_send_byte(ord("\x08"))
-                serial_send_byte(ord(" "))
-                serial_send_byte(ord("\x08"))
+                if echo_input:
+                    serial_send_byte(ord("\x08"))
+                    serial_send_byte(ord(" "))
+                    serial_send_byte(ord("\x08"))
 
             continue
 
