@@ -543,6 +543,8 @@ The stack on the first instruction of the function as well as the stack just bef
 | `0xBEE4`        | low byte of return address  |
 | `0xBEE3`        | high byte of return address |
 
+---
+
 `def fun(p1: int8, p2: int16) -> void: ...`
 
 The stack on the first instruction of the function looks like the following. Note that `PC` should be set to `0xBEE0` when your function starts executing.
@@ -562,6 +564,8 @@ You are responsible for making sure the stack looks like the following before re
 | `0xBEE4`        | low byte of return address  |
 | `0xBEE3`        | high byte of return address |
 
+---
+
 `def fun() -> int8: ...`
 
 The stack on the first instruction of the function looks like the following. Note the padding byte the compiler inserts so you have room for the return value. Note that `PC` should be set to `0xBEE2` when your function starts executing.
@@ -579,6 +583,8 @@ The stack should look like the following just before returning. Note that `PC` s
 | `0xBEE4`        | function return value       |
 | `0xBEE3`        | low byte of return address  |
 | `0xBEE2`        | high byte of return address |
+
+---
 
 `def fun() -> nopad[int16]: ...`
 
