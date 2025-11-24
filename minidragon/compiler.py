@@ -7894,17 +7894,21 @@ class Compiler:
                         if len(simple_statement.targets) != 1:
                             raise CompilerError("Unsupported multi-variable assignment", context.wrap(simple_statement))
 
-                        compiled += self.generate_assign_expr(
-                            simple_statement.targets[0].target,
-                            None,
-                            simple_statement.value,
-                            stack,
-                            clobbers,
-                            allocations,
-                            refs_copy,
-                            local_consts,
-                            context.wrap(simple_statement),
-                        )
+                        target = simple_statement.targets[0].target
+                        assignment = expr_to_str(simple_statement.value).strip()
+                        if target != assignment:
+                            compiled += self.generate_assign_expr(
+                                target,
+                                None,
+                                simple_statement.value,
+                                stack,
+                                clobbers,
+                                allocations,
+                                refs_copy,
+                                local_consts,
+                                context.wrap(simple_statement),
+                            )
+
                         last_statement_was_return = False
                         last_statement_was_continue = False
 
