@@ -5056,7 +5056,7 @@ class Compiler:
             # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
             right_length = get_assembled_length(right_compiled.code, refs)
             short_circuit = self.local_label_name(context, "short_circuit")
-            if right_length > 32:
+            if right_length >= 32:
                 insn = "LNGJUMPZ"
             else:
                 insn = "JRIZ"
@@ -5131,7 +5131,7 @@ class Compiler:
             # In order to possibly jump past the right expression, we need to know its length, so we can either JRI or LNGJUMP.
             right_length = get_assembled_length(right_compiled.code, refs)
             short_circuit = self.local_label_name(context, "short_circuit")
-            if right_length > 32:
+            if right_length >= 32:
                 insn = "LNGJUMPNZ"
             else:
                 insn = "JRINZ"
@@ -5700,7 +5700,7 @@ class Compiler:
 
         # Now, figure out the else size so we can jump past it in the body.
         right_length = get_assembled_length(right_compiled.code, refs)
-        if right_length > 32:
+        if right_length >= 32:
             left_compiled.append_code(f"  LNGJUMP {expr_end}")
         else:
             left_compiled.append_code(f"  JRI {expr_end}")
@@ -5714,7 +5714,7 @@ class Compiler:
         # Now, generate the code to figure out if the expression is true/false and
         # then jump to it.
         compiled.append_code("  INV")
-        if left_length > 32:
+        if left_length >= 32:
             compiled.append_code(f"  LNGJUMPNZ {false_expr}")
         else:
             compiled.append_code(f"  JRINZ {false_expr}")
@@ -7203,7 +7203,7 @@ class Compiler:
             # Now, figure out how far we need to jump on false.
             child_length = get_assembled_length(child_compiled.code, refs, loop.labels if loop else [])
             false_case = self.local_label_name(context, "false_case")
-            if child_length > 32:
+            if child_length >= 32:
                 insn = "LNGJUMPNZ"
             else:
                 insn = "JRINZ"
@@ -7255,7 +7255,7 @@ class Compiler:
             # Now, figure out the else size so we can jump past it in the body.
             else_length = get_assembled_length(else_body_compiled.code, refs, loop.labels if loop else [])
             if not if_body_returned:
-                if else_length > 32:
+                if else_length >= 32:
                     if_body_compiled.append_code(f"  LNGJUMP {if_end}")
                 else:
                     if_body_compiled.append_code(f"  JRI {if_end}")
@@ -7268,7 +7268,7 @@ class Compiler:
             # Now, generate the code to figure out if the expression is true/false and
             # then jump to it.
             compiled.append_code("  INV")
-            if if_length > 32:
+            if if_length >= 32:
                 compiled.append_code(f"  LNGJUMPNZ {false_case}")
             else:
                 compiled.append_code(f"  JRINZ {false_case}")
@@ -7325,7 +7325,7 @@ class Compiler:
             # Now, figure out the else size so we can jump past it in the body.
             else_length = get_assembled_length(else_body_compiled.code, refs, loop.labels if loop else [])
             if not if_body_returned:
-                if else_length > 32:
+                if else_length >= 32:
                     if_body_compiled.append_code(f"  LNGJUMP {if_end}")
                 else:
                     if_body_compiled.append_code(f"  JRI {if_end}")
@@ -7338,7 +7338,7 @@ class Compiler:
             # Now, generate the code to figure out if the expression is true/false and
             # then jump to it.
             compiled.append_code("  INV")
-            if if_length > 32:
+            if if_length >= 32:
                 compiled.append_code(f"  LNGJUMPNZ {false_case}")
             else:
                 compiled.append_code(f"  JRINZ {false_case}")
@@ -7401,7 +7401,7 @@ class Compiler:
 
             # Now, figure out how far we need to jump on loop condition is false.
             child_length = get_assembled_length(loop_compiled.code, refs, loop.labels)
-            if child_length > 32:
+            if child_length >= 32:
                 insn = "LNGJUMPNZ"
             else:
                 insn = "JRINZ"
@@ -7445,7 +7445,7 @@ class Compiler:
 
             # Now, figure out how far we need to jump on loop condition is false.
             child_length = get_assembled_length(loop_compiled.code, refs, loop.labels)
-            if child_length > 32:
+            if child_length >= 32:
                 insn = "LNGJUMPNZ"
             else:
                 insn = "JRINZ"
@@ -7648,7 +7648,7 @@ class Compiler:
 
             # Now, figure out how far we need to jump on loop condition is false.
             child_length = get_assembled_length(loop_compiled.code, refs, loop.labels) + get_assembled_length(increment_compiled.code, refs, loop.labels)
-            if child_length > 32:
+            if child_length >= 32:
                 conditionalinsn = "LNGJUMPNZ"
             else:
                 conditionalinsn = "JRINZ"
@@ -7666,7 +7666,7 @@ class Compiler:
 
             # Also figure out how far we have to jump for the increment back to loop case.
             increment_length = get_assembled_length(test_compiled.code, refs, loop.labels) + child_length
-            if increment_length > 32:
+            if increment_length >= 32:
                 incrementinsn = "LNGJUMP"
             else:
                 incrementinsn = "JRI"
@@ -7703,7 +7703,7 @@ class Compiler:
 
             # Now, figure out how far we need to jump on loop condition is false.
             child_length = get_assembled_length(loop_compiled.code, refs, loop.labels) + get_assembled_length(increment_compiled.code, refs, loop.labels)
-            if child_length > 32:
+            if child_length >= 32:
                 conditionalinsn = "LNGJUMPNZ"
             else:
                 conditionalinsn = "JRINZ"
@@ -7714,7 +7714,7 @@ class Compiler:
 
             # Also figure out how far we have to jump for the increment back to loop case.
             increment_length = get_assembled_length(test_compiled.code, refs, loop.labels) + child_length
-            if increment_length > 32:
+            if increment_length >= 32:
                 incrementinsn = "LNGJUMP"
             else:
                 incrementinsn = "JRI"
