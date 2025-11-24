@@ -529,7 +529,6 @@ def main(boot_rom: str, serial_port: Optional[str], verbose: bool) -> int:
     # Now, instantiate the CPU core and run until a halt instruction is encountered.
     cpu = CPUCore(memory, ram_filter)
     after = time.time()
-    thing = time.time()
     while True:
         if cpu.mnemonic == "HALT":
             break

@@ -1230,6 +1230,31 @@ class Compiler:
 
         raise NonConstantExpressionException(f"{expr} is not constant, cannot eval!")
 
+    def is_safe_return(
+        self,
+        assign_value: cst.BaseExpression,
+        stack: Stack,
+        refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+        local_consts: List[Constant],
+        context: Context,
+    ) -> bool:
+        """
+        Given an expression, determine if that expression is safe to return without a strcpy.
+        """
+        if self.is_safe_ref(assign_value, stack, refs, local_consts, context):
+            # This could actually have been a constant return.
+            return True
+
+        if isinstance(assign_value, cst.Name):
+            # Safe to return an alias because we know the caller will strcpy.
+            return True
+
+        if isinstance(assign_value, cst.Call):
+            # Safe to return an alias because we know the caller will strcpy.
+            return True
+
+        return False
+
     def is_safe_ref(
         self,
         assign_value: cst.BaseExpression,
@@ -4589,13 +4614,7 @@ class Compiler:
 
             if types[expression.right].is_string:
                 # First, generate the left hand side of the expression.
-                if stack[-1].name != destination:
-                    lhs_dest = self.expr_temp_name()
-                    stack.alloc(StackVar(lhs_dest, CoreType("str", length=destination_type.length)))
-                else:
-                    lhs_dest = destination
-
-                compiled += self.generate_expr_internal(expression.left, lhs_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
+                compiled += self.generate_expr_internal(expression.left, destination, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.left))
 
                 # Now, again with the right!
                 rhs_dest = self.expr_temp_name()
@@ -4606,7 +4625,7 @@ class Compiler:
                 compiled += self.generate_function_call_internal(
                     create_call(
                         "strcat",
-                        [UnvalidatedName(lhs_dest), UnvalidatedName(rhs_dest)]
+                        [UnvalidatedName(destination), UnvalidatedName(rhs_dest)]
                     ),
                     None,
                     types,
@@ -4620,14 +4639,6 @@ class Compiler:
 
                 # No longer needed since we concatenated it.
                 stack.free(rhs_dest)
-
-                # Now, copy the destination pointer if needed.
-                if lhs_dest != destination:
-                    compiled += self.generate_memcpy_stackvars(destination, lhs_dest, stack, clobbers, context)
-
-                # Now that we copied this to the destination, this is useless.
-                if lhs_dest != destination:
-                    stack.free(lhs_dest)
 
             elif types[expression.right].is_char:
                 # First, generate the left hand side of the expression.
@@ -7815,11 +7826,22 @@ class Compiler:
                             if original_type is None:
                                 raise Exception("Logic error, can't determine type of return value!")
 
-                            if (
-                                function_type.is_string and not function_type.const and
-                                self.is_safe_ref(simple_statement.value, stack, refs_copy, local_consts, context.wrap(simple_statement.value))
-                            ):
-                                stack.retype("builtin(retval)", original_type.const_clone())
+                            free_list: List[str] = []
+                            return_dest = "builtin(retval)"
+                            if function_type.is_string and not function_type.const:
+                                if self.is_safe_return(simple_statement.value, stack, refs_copy, local_consts, context.wrap(simple_statement.value)):
+                                    # Help out with optmiizations by skipping out on a strcpy.
+                                    stack.retype("builtin(retval)", original_type.const_clone())
+                                else:
+                                    # Ensure that downstream code doesn't try to accidentally strcat to a const.
+                                    compiled += self.generate_local_storage_alloc("builtin(retval)", stack, clobbers, allocations, context)
+                                    stack.init("builtin(retval)")
+
+                                    return_dest = self.expr_temp_name()
+                                    stack.alloc(StackVar(return_dest, original_type, initialized=True))
+                                    free_list.append(return_dest)
+
+                                    compiled += self.generate_memcpy_stackvars(return_dest, "builtin(retval)", stack, clobbers, context)
 
                             # Functions that return const[str] are only allowed to do so if they return a safe ref. That
                             # means a string literal, a global constant string, a local constant string that is also a
@@ -7833,7 +7855,7 @@ class Compiler:
 
                             compiled += self.generate_expr(
                                 simple_statement.value,
-                                "builtin(retval)",
+                                return_dest,
                                 stack,
                                 clobbers,
                                 allocations,
@@ -7845,6 +7867,9 @@ class Compiler:
 
                             # If we modified the type to avoid a strcpy, put it back here.
                             stack.retype("builtin(retval)", original_type)
+
+                            for var in reversed(free_list):
+                                stack.free(var)
 
                         # We lie here, because while the last statement wasn't a continue, it serves a similar purpose.
                         last_statement_was_return = True
