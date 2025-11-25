@@ -8184,6 +8184,101 @@ def verifyternaryexpressions(only: Optional[Container[str]], full: bool) -> None
                 instructions += cpu.ticks
                 count += 1
 
+    # Now test constant narrowing.
+    for vartype in ["uint8", "int8"]:
+        for a in [-5, 0, 5] if vartype == "int8" else [1, 9]:
+            for const in [-7, 0, 7] if vartype == "int8" else [3, 8]:
+                for val in [False, True]:
+                    memory = getmemory(os.linesep.join([
+                        *initlines,
+                        *parse_and_compile_module("ternaryexpressions", textwrap.dedent(f"""
+                            def func(a: {vartype}, op: bool) -> int8:
+                                return a if op else {const}
+                        """), settings).code,
+                        "main:",
+                        f"PUSHI {a}",
+                        f"PUSHI {'0xFF' if val else '0x00'}",
+                        "LOADI 111",
+                        "MOV A, U",
+                        "LOADI 222",
+                        "MOV A, V",
+                        "LOADI 123",
+                        "CALL func",
+                        "HALT",
+                    ]))
+                    cpu = CPUCore(memory)
+                    rununtilhalt(cpu)
+
+                    _assert(
+                        cpu.a == 123,
+                        f"ternaryexpressions changed accumulator value from {123} to {cpu.a}!",
+                    )
+                    _assert(
+                        cpu.u == 111,
+                        f"ternaryexpressions changed U value from {111} to {cpu.u}!",
+                    )
+                    _assert(
+                        cpu.v == 222,
+                        f"ternaryexpressions changed V value from {222} to {cpu.v}!",
+                    )
+                    result = bintoint(cpu.ram[cpu.pc + 0])
+                    expected = a if val else const
+                    _assert(
+                        result == expected,
+                        "Failed to ternaryexpressions, "
+                        + f"got {result} instead of {expected}!",
+                    )
+                    cycles += cpu.cycles
+                    instructions += cpu.ticks
+                    count += 1
+
+    for vartype in ["uint8", "int8"]:
+        for a in [-5, 0, 5] if vartype == "int8" else [1, 9]:
+            for const in [-7, 0, 7] if vartype == "int8" else [3, 8]:
+                for val in [False, True]:
+                    memory = getmemory(os.linesep.join([
+                        *initlines,
+                        *parse_and_compile_module("ternaryexpressions", textwrap.dedent(f"""
+                            def func(a: {vartype}, op: bool) -> int8:
+                                return {const} if op else a
+                        """), settings).code,
+                        "main:",
+                        f"PUSHI {a}",
+                        f"PUSHI {'0xFF' if val else '0x00'}",
+                        "LOADI 111",
+                        "MOV A, U",
+                        "LOADI 222",
+                        "MOV A, V",
+                        "LOADI 123",
+                        "CALL func",
+                        "HALT",
+                    ]))
+                    cpu = CPUCore(memory)
+                    rununtilhalt(cpu)
+
+                    _assert(
+                        cpu.a == 123,
+                        f"ternaryexpressions changed accumulator value from {123} to {cpu.a}!",
+                    )
+                    _assert(
+                        cpu.u == 111,
+                        f"ternaryexpressions changed U value from {111} to {cpu.u}!",
+                    )
+                    _assert(
+                        cpu.v == 222,
+                        f"ternaryexpressions changed V value from {222} to {cpu.v}!",
+                    )
+                    result = bintoint(cpu.ram[cpu.pc + 0])
+                    expected = const if val else a
+                    _assert(
+                        result == expected,
+                        "Failed to ternaryexpressions, "
+                        + f"got {result} instead of {expected}!",
+                    )
+                    cycles += cpu.cycles
+                    instructions += cpu.ticks
+                    count += 1
+
     # Now test with coercing to a boolean type.
     for a in [-5, 0, 5]:
         for b in [-7, 0, 7]:

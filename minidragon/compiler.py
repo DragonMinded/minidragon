@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127
-VERSION: Final[str] = "1.0.7"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.0.8"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -6630,6 +6630,9 @@ class Compiler:
             for comparison in expression.comparisons:
                 right_tree = self.infer_expr_types_impl(comparison.comparator, stack, refs, local_consts, context.wrap(comparison.comparator))
 
+                if not type_comparison_compatible(left_tree[expression.left], right_tree[comparison.comparator]):
+                    raise CompilerError(f"Unsupported comparison of types {left_tree[expression.left].type} and {right_tree[comparison.comparator].type}", context)
+
                 # Infer constant widths based on comparison types.
                 if left_tree[expression.left].type == "int" and right_tree[comparison.comparator].type != "int":
                     self.infer_tree(left_tree, right_tree[comparison.comparator], context)
@@ -6641,8 +6644,6 @@ class Compiler:
                     self.infer_tree(right_tree, left_tree[expression.left], context)
 
                 # Verify that we're comparing two equivalent types.
-                if not type_comparison_compatible(left_tree[expression.left], right_tree[comparison.comparator]):
-                    raise CompilerError(f"Unsupported comparison of types {left_tree[expression.left].type} and {right_tree[comparison.comparator].type}", context)
                 if left_tree[expression.left].is_unsigned != right_tree[comparison.comparator].is_unsigned:
                     raise CompilerError(f"Unsupported comparison of types {left_tree[expression.left].type} and {right_tree[comparison.comparator].type}", context)
 
@@ -6672,8 +6673,6 @@ class Compiler:
             body_inferred = body_tree[expression.body]
             orelse_inferred = orelse_tree[expression.orelse]
             if not type_comparison_compatible(body_inferred, orelse_inferred):
-                raise CompilerError(f"Unsupported mixed types {body_inferred.type} and {orelse_inferred.type} in if expression", context)
-            if body_inferred.is_unsigned != orelse_inferred.is_unsigned:
                 raise CompilerError(f"Unsupported mixed types {body_inferred.type} and {orelse_inferred.type} in if expression", context)
 
             # Infer constants and pick the widest of the two sides for this expression's type.
@@ -6708,6 +6707,9 @@ class Compiler:
             else:
                 # Pick the right because its either wider than the left, or equivalent in width.
                 picked = orelse_inferred
+
+            if body_inferred.is_unsigned != orelse_inferred.is_unsigned:
+                raise CompilerError(f"Unsupported mixed types {body_inferred.type} and {orelse_inferred.type} in if expression", context)
 
             inferred[expression] = CoreType(picked.type, picked.pointed_type, const=picked.const, extern=picked.extern, return_padding=picked.return_padding)
             return inferred
