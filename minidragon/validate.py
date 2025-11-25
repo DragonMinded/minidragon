@@ -12467,6 +12467,64 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
         instructions += cpu.ticks
         count += 1
 
+    # Concatenate stress test.
+    for val in ["jen", "dragon", "world"]:
+        sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
+            def caller() -> str:
+                local_string: str[32] = {val!r}
+                local_string = local_string + "123"
+                local_string = "456" + local_string
+                local_string = f"abc{{local_string}}def"
+                local_string = ">>" + local_string + "<<"
+                return local_string
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            *strcatlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL caller",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringconcatenation", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringconcatenation changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringconcatenation changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringconcatenation changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        expected = f">>abc456{val}123def<<"
+        _assert(
+            result == expected,
+            "Failed to stringconcatenation simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     # Concatenate global string and return that.
     for val in ["jen", "dragon", "world"]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""

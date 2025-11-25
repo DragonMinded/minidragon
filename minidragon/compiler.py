@@ -1097,6 +1097,45 @@ def get_range_params(statement: cst.BaseExpression) -> Optional[Tuple[cst.BaseEx
         return None
 
 
+class NameCheckVisitor(cst.CSTVisitor):
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.count = 0
+
+    def visit_Name(self, node: cst.Name) -> bool:
+        if node.value == self.name:
+            self.count += 1
+        return True
+
+
+def is_leftmost(name: str, expr: cst.BaseExpression) -> bool:
+    if isinstance(expr, cst.Name):
+        return expr.value == name
+
+    if isinstance(expr, cst.BinaryOperation):
+        return is_leftmost(name, expr.left)
+
+    if isinstance(expr, cst.Subscript):
+        return is_leftmost(name, expr.value)
+
+    return False
+
+
+def assignment_needs_temporary(destination: str, expr: cst.BaseExpression) -> bool:
+    visitor = NameCheckVisitor(destination)
+    expr.visit(visitor)
+
+    if visitor.count == 0:
+        # Doesn't self-reference, so no need for a temporary.
+        return False
+    if visitor.count > 1:
+        # Self-references multiple times, so we need a temporary for the multiple copies to be correct.
+        return True
+
+    # If the reference is the left-most in the expression, then this is safe.
+    return not is_leftmost(destination, expr)
+
+
 class Compiler:
     def __init__(
         self,
@@ -7073,16 +7112,62 @@ class Compiler:
                     else:
                         stack.alloc(StackVar(assign_name, assign_type))
 
-                compiled += self.generate_expr(
-                    assign_value,
-                    assign_name,
-                    stack,
-                    clobbers,
-                    allocations,
-                    refs,
-                    local_consts,
-                    context.wrap(assign_value),
-                )
+                # For strings, ensure that the destination does not appear in the expression. If it does, we will need
+                # to generate temporary storage to manpulate since we manipulate strings by mutating the destination pointer.
+                stack_assign_type = stack.typeof(assign_name)
+                if stack_assign_type is None:
+                    raise Exception("Logic error, can't get type of variable we just defined!")
+
+                if stack_assign_type.is_string and assignment_needs_temporary(assign_name, assign_value):
+                    # This can only happen in assignment operations that have already allocated the destination, otherwise we'd
+                    # be assigning to a variable that was not initialized.
+                    if not stack.initof(assign_name):
+                        raise CompilerError(f"Use of uninitialized variable {assign_name!r}", context)
+
+                    # First, create a temporary string with the same length as the destination.
+                    temp_assign_name = self.expr_temp_name()
+                    stack.alloc(StackVar(temp_assign_name, CoreType("str", length=stack_assign_type.length), initialized=True))
+
+                    compiled += self.generate_local_storage_alloc(temp_assign_name, stack, clobbers, allocations, context)
+
+                    # Now, render the expression into that temporary string.
+                    compiled += self.generate_expr(
+                        assign_value,
+                        temp_assign_name,
+                        stack,
+                        clobbers,
+                        allocations,
+                        refs,
+                        local_consts,
+                        context.wrap(assign_value),
+                    )
+
+                    # Now call strcpy to copy the temporary string back to the destination.
+                    compiled += self.generate_function_call_internal(
+                        create_call("strcpy", [UnvalidatedName(assign_name), UnvalidatedName(temp_assign_name)]),
+                        None,
+                        {},
+                        stack,
+                        clobbers,
+                        allocations,
+                        refs,
+                        local_consts,
+                        context,
+                    )
+
+                    # Finally, free the stack.
+                    stack.free(temp_assign_name)
+                else:
+                    compiled += self.generate_expr(
+                        assign_value,
+                        assign_name,
+                        stack,
+                        clobbers,
+                        allocations,
+                        refs,
+                        local_consts,
+                        context.wrap(assign_value),
+                    )
 
                 if assign_type is not None and reassigned:
                     # Might need to retype back to the assign type if we temporarily marked a string
