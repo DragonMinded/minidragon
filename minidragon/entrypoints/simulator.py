@@ -40,7 +40,7 @@ def main() -> None:
         default="0",
     )
     args = parser.parse_args()
-    origin = getint(args.origin, 16)
+    origin = getint(args.origin, 16, allow_unsigned=True)
 
     memory = [0] * 0x8000
     if args.binary:

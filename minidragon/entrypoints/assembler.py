@@ -73,8 +73,8 @@ def main() -> None:
         help="File to assemble",
     )
     args = parser.parse_args()
-    start = getint(args.origin, 16)
-    size = getint(args.size, 16)
+    start = getint(args.origin, 16, allow_unsigned=True)
+    size = getint(args.size, 16, allow_unsigned=True)
     lines: List[str] = []
 
     for fname in args.file:
@@ -89,7 +89,7 @@ def main() -> None:
             for symbol in symbols:
                 label, addr = symbol.split(":", 1)
                 label = label.strip()
-                address = getint(addr.strip(), 16)
+                address = getint(addr.strip(), 16, allow_unsigned=True)
                 labels[label] = address
 
     assembled = assemble(lines, labels)
