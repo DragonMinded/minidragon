@@ -8,6 +8,7 @@
 experiment.S
 *.bin
 *.sym
+*.cart
 *.000
 *.bak
 *.bck

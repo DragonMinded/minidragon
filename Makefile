@@ -32,6 +32,9 @@ STDLIB += lib/conversion/hex.S
 # Bootrom sources.
 BOOTROM_SRCS += lib/hardware/serial.S
 BOOTROM_SRCS += lib/hardware/serial.py
+BOOTROM_SRCS += lib/hardware/cartridge.S
+BOOTROM_SRCS += lib/hardware/cartridge.py
+BOOTROM_SRCS += lib/conversion/fixed.py
 BOOTROM_SRCS += bootrom/main.py
 
 # Hello world sources.
@@ -46,6 +49,7 @@ FIXEDPOINT_SRCS += lib/conversion/fixed.py
 FIXEDPOINT_SRCS += bootrom/fixedtest.py
 
 # Magic rule maker for above sources to map to various files.
+BOOTROM_JUMPTABLE += bootrom/jumptable.S
 BOOTROM_INITS := $(patsubst %.py, build/%.init.S, $(filter %.py, ${BOOTROM_SRCS}))
 BOOTROM_DATAS := $(patsubst %.py, build/%.data.S, $(filter %.py, ${BOOTROM_SRCS}))
 BOOTROM_CODES := $(patsubst %.py, build/%.code.S, $(filter %.py, ${BOOTROM_SRCS}))
@@ -66,9 +70,10 @@ build/%.init.S build/%.data.S build/%.code.S: %.py
 	@mkdir -p $(dir $@)
 	./compiler --lib lib/ --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
 
-build/bootrom_listing.S: $(STDLIB) $(RUNTIME) $(BOOTROM_INITS) $(BOOTROM_DATAS) $(BOOTROM_CODES)
+build/bootrom_listing.S: $(STDLIB) $(RUNTIME) $(BOOTROM_JUMPTABLE) $(BOOTROM_INITS) $(BOOTROM_DATAS) $(BOOTROM_CODES)
 	@mkdir -p $(dir $@)
 	cat lib/runtime/init.S > $@
+	cat $(BOOTROM_JUMPTABLE) >> $@
 	cat $(BOOTROM_INITS) >> $@
 	cat lib/runtime/start.S >> $@
 	cat $(STDLIB) >> $@
@@ -117,6 +122,11 @@ build/fixedpoint_listing.S: $(STDLIB) $(RUNTIME) $(FIXEDPOINT_INITS) $(FIXEDPOIN
 		--generate-symbols \
 		--symbol-file $(@:bin=sym) \
 		$^
+
+.PHONY: jumptable
+jumptable: bootrom.bin
+	cat bootrom.sym | grep "jumptable_" | grep -v "jumptable_end" | sed 's/jumptable_//' > cartridge/lib/bootrom.sym
+	cp bootrom.bin cartridge/lib/bootrom.bin
 
 .PHONY: clean
 clean:
