@@ -4,6 +4,7 @@ all: helloworld.bin fixedpoint.bin bootrom.bin
 RUNTIME += lib/runtime/init.S
 RUNTIME += lib/runtime/start.S
 RUNTIME += lib/runtime/const.S
+RUNTIME += lib/runtime/cart.S
 RUNTIME += lib/runtime/data.S
 RUNTIME += lib/runtime/heap.S
 RUNTIME += lib/hardware/hwregs.S
@@ -74,6 +75,7 @@ build/bootrom_listing.S: $(STDLIB) $(RUNTIME) $(BOOTROM_INITS) $(BOOTROM_DATAS) 
 	cat $(BOOTROM_CODES) >> $@
 	cat lib/runtime/const.S >> $@
 	cat lib/hardware/hwregs.S >> $@
+	cat lib/runtime/cart.S >> $@
 	cat lib/runtime/data.S >> $@
 	cat $(BOOTROM_DATAS) >> $@
 	cat lib/runtime/heap.S >> $@
@@ -87,6 +89,7 @@ build/helloworld_listing.S: $(STDLIB) $(RUNTIME) $(HELLOWORLD_INITS) $(HELLOWORL
 	cat $(HELLOWORLD_CODES) >> $@
 	cat lib/runtime/const.S >> $@
 	cat lib/hardware/hwregs.S >> $@
+	cat lib/runtime/cart.S >> $@
 	cat lib/runtime/data.S >> $@
 	cat $(HELLOWORLD_DATAS) >> $@
 	cat lib/runtime/heap.S >> $@
@@ -100,6 +103,7 @@ build/fixedpoint_listing.S: $(STDLIB) $(RUNTIME) $(FIXEDPOINT_INITS) $(FIXEDPOIN
 	cat $(FIXEDPOINT_CODES) >> $@
 	cat lib/runtime/const.S >> $@
 	cat lib/hardware/hwregs.S >> $@
+	cat lib/runtime/cart.S >> $@
 	cat lib/runtime/data.S >> $@
 	cat $(FIXEDPOINT_DATAS) >> $@
 	cat lib/runtime/heap.S >> $@

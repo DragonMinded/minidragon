@@ -15,14 +15,60 @@ ROM_LOCATION: Final[int] = 0x0000
 ROM_SIZE: Final[int] = 0x7800
 PERIPHERALS_LOCATION: Final[int] = 0x7800
 PERIPHERALS_SIZE: Final[int] = 0x800
-RAM_LOCATION: Final[int] = 0x8000
-RAM_SIZE: Final[int] = 0x8000
+CART_LOCATION: Final[int] = 0x8000
+CART_SIZE: Final[int] = 0x4000
+RAM_LOCATION: Final[int] = 0xC000
+RAM_SIZE: Final[int] = 0x4000
+
+
+class ExpansionBus:
+    def __init__(self) -> None:
+        self.value = 0
+
+
+class Cartridge:
+    def __init__(self, expansion: ExpansionBus, data: bytes, banks: int = 1) -> None:
+        self.expansion = expansion
+        self.data = data
+
+        # Cartridge bank control.
+        self.cb = 0
+
+        # Cartridge input, always 0 for now.
+        self.ci = 0
+
+        # Cartridge bank configuration, always 1 executable page for now.
+        self.cbc = banks
+
+    def read(self, address: int) -> int:
+        if address < 0:
+            address = 0
+        address = address & 0x3FFF
+        address |= (self.cb << 15)
+
+        if address >= len(self.data):
+            return 0
+        return self.data[address]
+
+    def write(self, address: int, data: int) -> Optional[int]:
+        # Right now, cartridges are emulated as read-only.
+        return None
+
+    def tick(self) -> None:
+        # Nothing happens for carts right now, they're essentially ROM boards.
+        pass
+
+
+class EmptyCartridge(Cartridge):
+    def __init__(self, expansion: ExpansionBus) -> None:
+        super().__init__(expansion, b"", banks=0)
 
 
 class Peripheral:
-    def __init__(self, slot: int, verbose: bool) -> None:
+    def __init__(self, slot: int, expansion: ExpansionBus, verbose: bool) -> None:
         # What peripheral slot this is addressed under.
         self.slot = slot
+        self.expansion = expansion
         self.verbose = verbose
 
     def log(self, data: str) -> None:
@@ -40,8 +86,8 @@ class Peripheral:
 
 
 class R6551AP(Peripheral):
-    def __init__(self, port: Optional[str], verbose: bool) -> None:
-        super().__init__(0, verbose)
+    def __init__(self, expansion: ExpansionBus, port: Optional[str], verbose: bool) -> None:
+        super().__init__(0, expansion, verbose)
 
         # Status register bits.
         self.irq = False
@@ -453,9 +499,37 @@ class R6551AP(Peripheral):
             raise Exception("Logic error, invalid register!")
 
 
+class CCR(Peripheral):
+    def __init__(self, expansion: ExpansionBus, cartridge: Cartridge, verbose: bool) -> None:
+        # What peripheral slot this is addressed under.
+        super().__init__(7, expansion, verbose)
+
+        self.cartridge = cartridge
+
+    def read(self, address: int) -> int:
+        if address == 0:
+            # Bottom 4 bits are the cartridge bank control, upper 4 are always zeros.
+            return self.cartridge.cb & 0xF
+        if address == 1:
+            # Bottom 4 bits are the cartridge bank configuration, upper 4 are cartridge input.
+            return (self.cartridge.cbc & 0xF) | ((self.cartridge.ci & 0xF) << 4)
+        if address == 2:
+            # 8 expansion bits readable as a register.
+            return self.expansion.value & 0xFF
+
+        # No other registers.
+        return 0
+
+    def write(self, address: int, value: int) -> None:
+        if address == 0:
+            # Bottom 4 bits are the cartridge bank control, writing changes the bank.
+            self.cartridge.cb = value & 0xF
+
+
 class MiniDragonMemoryFilter(MemoryFilter):
-    def __init__(self, peripherals: List[Peripheral], verbose: bool) -> None:
+    def __init__(self, peripherals: List[Peripheral], cartridge: Cartridge, verbose: bool) -> None:
         self.peripherals = {p.slot: p for p in peripherals}
+        self.cartridge = cartridge
         self.verbose = verbose
 
     def log(self, data: str) -> None:
@@ -465,12 +539,16 @@ class MiniDragonMemoryFilter(MemoryFilter):
     def tick(self) -> None:
         for peripheral in self.peripherals.values():
             peripheral.tick()
+        self.cartridge.tick()
 
     def read(self, address: int) -> Optional[int]:
         # Bottom part of memory is the ROM file. top 2KB of ROM space is
         # where the peripherals are mapped.
         if address < PERIPHERALS_LOCATION or address >= RAM_LOCATION:
             return None
+
+        if address >= CART_LOCATION:
+            return self.cartridge.read(address - CART_LOCATION)
 
         # Calculate peripheral offset, pass off to the peripheral's impl.
         slot = (address - PERIPHERALS_LOCATION) // 0x100
@@ -489,6 +567,9 @@ class MiniDragonMemoryFilter(MemoryFilter):
         if address >= RAM_LOCATION:
             # RAM is directly writeable, pass the data value on.
             return data
+        if address >= CART_LOCATION:
+            # Cart space is writeable, pass the data value on.
+            return self.cartridge.write(address - CART_LOCATION, data)
 
         # Calculate peripheral offset, pass off to the peripheral's impl.
         slot = (address - PERIPHERALS_LOCATION) // 0x100
@@ -502,7 +583,7 @@ class MiniDragonMemoryFilter(MemoryFilter):
         return None
 
 
-def main(boot_rom: str, serial_port: Optional[str], verbose: bool) -> int:
+def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], verbose: bool) -> int:
     # First, fill the ROM portion with the bootROM file itself.
     with open(boot_rom, "rb") as bfp:
         data = bfp.read()
@@ -515,11 +596,25 @@ def main(boot_rom: str, serial_port: Optional[str], verbose: bool) -> int:
     for i, byte in enumerate(data):
         memory[i] = byte
 
+    # Expansion bus is emulated but currently unused. It's only available on the
+    # peripheral board but it's wired to all peripherals an the cart slot.
+    expansion = ExpansionBus()
+
+    # Load any cartridge presented.
+    if cartridge:
+        with open(cartridge, "rb") as bfp:
+            cdata = bfp.read()
+            chw = Cartridge(expansion, cdata)
+    else:
+        chw = EmptyCartridge(expansion)
+
     # Hook up peripherals to the system.
     ram_filter = MiniDragonMemoryFilter(
         [
-            R6551AP(serial_port, verbose),
+            R6551AP(expansion, serial_port, verbose),
+            CCR(expansion, chw, verbose),
         ],
+        chw,
         verbose,
     )
 
@@ -565,6 +660,14 @@ def run() -> None:
         help="The bootROM file to emulate.",
     )
     parser.add_argument(
+        "-c",
+        "--cartridge",
+        metavar="ROM",
+        type=str,
+        default=None,
+        help="Attach this cartridge image to the cartridge port.",
+    )
+    parser.add_argument(
         "-s",
         "--serial-port",
         metavar="PORT",
@@ -580,7 +683,7 @@ def run() -> None:
     )
 
     args = parser.parse_args()
-    sys.exit(main(args.file, args.serial_port, args.verbose))
+    sys.exit(main(args.file, args.cartridge, args.serial_port, args.verbose))
 
 
 if __name__ == "__main__":
