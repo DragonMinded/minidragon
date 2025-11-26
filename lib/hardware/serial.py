@@ -143,7 +143,7 @@ def serial_send(data: const[str]) -> void:
         offset += 1
 
 
-def serial_recv(echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:
+def serial_recv(max_length: uint8 = 127, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:
     """
     Receive a string that is terminated with a newline character. That means
     the remote side hit enter. The newline character itself will not be appended
@@ -212,18 +212,19 @@ def serial_recv(echo_input: bool = True, mask_input: bool = False, allow_empty: 
 
             continue
 
-        # Echo it back to the serial terminal.
-        if echo_input:
-            serial_send_byte(ord('*') if mask_input else ord(recvd))
+        if length != max_length:
+            # Echo it back to the serial terminal.
+            if echo_input:
+                serial_send_byte(ord('*') if mask_input else ord(recvd))
 
-        # Add it to our accumulator.
-        accum += recvd
-        length += 1
+            # Add it to our accumulator.
+            accum += recvd
+            length += 1
 
     return accum
 
 
-def serial_input(prompt: const[str], echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:
+def serial_input(prompt: const[str], max_length: uint8 = 127, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:
     """
     Given a prompt string, send that prompt over serial, then read input until
     the enter key is pressed, echoing the received characters back to the
@@ -231,7 +232,7 @@ def serial_input(prompt: const[str], echo_input: bool = True, mask_input: bool =
     """
     serial_send(prompt)
 
-    retval: const[str] = serial_recv(echo_input, mask_input, allow_empty)
+    retval: const[str] = serial_recv(max_length, echo_input, mask_input, allow_empty)
     serial_send_byte(ord("\n"))
 
     return retval

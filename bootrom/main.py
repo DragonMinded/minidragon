@@ -45,7 +45,7 @@ def main() -> void:
 
             # Prompt for an input.
             while True:
-                selected: str[8] = serial_input("Select a program: ", allow_empty=False)
+                selected: str[4] = serial_input("Select a program: ", max_length=3, allow_empty=False)
                 bank = int(selected)
                 if bank:
                     if bank > banks:
