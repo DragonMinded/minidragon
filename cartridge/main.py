@@ -4,6 +4,7 @@ from hardware.serial import (
     serial_clear,
     serial_send,
     serial_recv,
+    serial_move,
 )
 
 
@@ -16,8 +17,9 @@ def main() -> void:
 
     # Display hello world.
     serial_send("Hello, world!\n")
-    serial_send("\n")
-    serial_send("Press [ENTER] to return to boot ROM\n")
+    serial_move(24, 1)
+    serial_send("Press [ENTER] to return to boot ROM")
+    serial_move(24, 80)
 
     # Wait until enter pressed.
     serial_recv(echo_input=False, allow_empty=True)

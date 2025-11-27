@@ -149,6 +149,8 @@ jumptable_strtofixed:
     LNGJUMP strtofixed
 jumptable_fixetostr:
     LNGJUMP fixedtostr
+jumptable_serial_move:
+    LNGJUMP serial_move
 
     ; Now that we're done defining a jump table, resume execution here.
 jumptable_end:

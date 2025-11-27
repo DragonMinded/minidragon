@@ -71,3 +71,4 @@ cartridge_input: 0xd3
 cartridge_expansion: 0xd6
 strtofixed: 0xd9
 fixetostr: 0xdc
+serial_move: 0xdf

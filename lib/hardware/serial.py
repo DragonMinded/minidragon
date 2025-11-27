@@ -96,6 +96,33 @@ def serial_reverse() -> void:
     serial_send("\033[7m")
 
 
+def serial_move(row: uint8, col: uint8) -> void:
+    """
+    Moves the cursor to the specified row and column. This is one-indexed, so 1, 1 would be the upper left
+    of the terminal. Remember that a VT-100 has 24 rows and 80 columns.
+    """
+
+    # Cap off our row and column, using unsigned integer wraparound to our advantage. Avoid a costly
+    # comparison operation for numbers we know are safe.
+    row -= 1
+    col -= 1
+    if (row & 0xF0) and row > 23:
+        row = 23
+    if (row & 0xC0) and col > 79:
+        col = 79
+
+    # Send the escape sequence to move our cursor.
+    serial_send(f"\033[")
+    serial_send(_serial_lut(row))
+    serial_send_byte(ord(";"))
+    serial_send(_serial_lut(col))
+    serial_send_byte(ord("H"))
+
+
+def _serial_lut(val: uint8) -> extern[const[str]]: ...
+    # Look up the string conversion for a particular val given we precalculated these for speed.
+
+
 def serial_send(data: const[str]) -> void:
     """
     Given a string, write that data to the serial port. Note that you are

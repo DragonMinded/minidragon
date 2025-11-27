@@ -35,6 +35,11 @@ def serial_underline() -> extern[void]: ...
 def serial_reverse() -> extern[void]: ...
 
 
+# Moves the cursor to the specified row and column. This is one-indexed, so 1, 1 would be the upper left
+# of the terminal. Remember that a VT-100 has 24 rows and 80 columns.
+def serial_move(row: uint8, col: uint8) -> extern[void]: ...
+
+
 # Given a string, write that data to the serial port. Note that you are
 # responsible for adding your own newline to the end, unlile python's
 # print().
