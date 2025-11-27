@@ -62,11 +62,11 @@ def cartridge_author() -> str[64]:
     """
     Read and return the author of the cartridge.
     """
-    return peek(CARTRIDGE_HEADER_AUTHOR, 64)
+    return peek(CARTRIDGE_HEADER_AUTHOR, 63)
 
 
 def cartridge_title() -> str[64]:
     """
     Read and return the title of the cartridge.
     """
-    return peek(CARTRIDGE_HEADER_TITLE, 64)
+    return peek(CARTRIDGE_HEADER_TITLE, 63)
