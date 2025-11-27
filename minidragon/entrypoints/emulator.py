@@ -54,7 +54,7 @@ class Cartridge:
         # Right now, cartridges are emulated as read-only.
         return None
 
-    def tick(self) -> None:
+    def tick(self, cycles: int, instructions: int) -> None:
         # Nothing happens for carts right now, they're essentially ROM boards.
         pass
 
@@ -81,7 +81,7 @@ class Peripheral:
     def write(self, address: int, value: int) -> None:
         pass
 
-    def tick(self) -> None:
+    def tick(self, cycles: int, instructions: int) -> None:
         pass
 
 
@@ -328,7 +328,7 @@ class R6551AP(Peripheral):
 
             return None
 
-    def tick(self) -> None:
+    def tick(self, cycles: int, instructions: int) -> None:
         # Attempt to read a byte from our interface.
         if self.__rxw is not None:
             if self.__rxw <= time.time():
@@ -505,6 +505,8 @@ class CCR(Peripheral):
         super().__init__(7, expansion, verbose)
 
         self.cartridge = cartridge
+        self.cycles = 0
+        self.instructions = 0
 
     def read(self, address: int) -> int:
         if address == 0:
@@ -525,6 +527,14 @@ class CCR(Peripheral):
             # Bottom 4 bits are the cartridge bank control, writing changes the bank.
             self.cartridge.cb = value & 0xF
 
+        if address == 255:
+            # Special debug trigger instruction, output CPU cycles and instructions.
+            print(f"Current cycles: {self.cycles}, current instructions: {self.instructions}", file=sys.stderr)
+
+    def tick(self, cycles: int, instructions: int) -> None:
+        self.cycles = cycles
+        self.instructions = instructions
+
 
 class MiniDragonMemoryFilter(MemoryFilter):
     def __init__(self, peripherals: List[Peripheral], cartridge: Cartridge, verbose: bool) -> None:
@@ -536,10 +546,10 @@ class MiniDragonMemoryFilter(MemoryFilter):
         if self.verbose:
             print(data, file=sys.stderr)
 
-    def tick(self) -> None:
+    def tick(self, cycles: int, instructions: int) -> None:
         for peripheral in self.peripherals.values():
-            peripheral.tick()
-        self.cartridge.tick()
+            peripheral.tick(cycles, instructions)
+        self.cartridge.tick(cycles, instructions)
 
     def read(self, address: int) -> Optional[int]:
         # Bottom part of memory is the ROM file. top 2KB of ROM space is
@@ -633,7 +643,7 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
         before = after
 
         cpu.tick()
-        ram_filter.tick()
+        ram_filter.tick(cpu.cycles, cpu.ticks)
 
         # The real CPU runs at ~17.5KHz, simulate that here.
         cycles = cpu.cycles - cycles

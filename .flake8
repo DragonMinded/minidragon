@@ -3,3 +3,4 @@ extend-ignore = E501
 exclude =
     lib/
     bootrom/
+    cartridge/
