@@ -629,7 +629,7 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
     )
 
     # Calculate how much time a single tick should take as a fraction of a second.
-    ticktime = 1.0 / 17500.0
+    ticktime = 1.0 / 18000.0
 
     # Now, instantiate the CPU core and run until a halt instruction is encountered.
     cpu = CPUCore(memory, ram_filter)
@@ -645,7 +645,7 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
         cpu.tick()
         ram_filter.tick(cpu.cycles, cpu.ticks)
 
-        # The real CPU runs at ~17.5KHz, simulate that here.
+        # The real CPU runs at ~18.0KHz, simulate that here.
         cycles = cpu.cycles - cycles
         expected = float(cycles) * ticktime
         after = time.time()
