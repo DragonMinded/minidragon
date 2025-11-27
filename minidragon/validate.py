@@ -9786,17 +9786,17 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
                 f"globalvariablewrite changed V value from {222} to {cpu.v}!",
             )
             if global_width == "int8":
-                result = bintoint(cpu.ram[0x8000])
+                result = bintoint(cpu.ram[0xC000])
             elif global_width == "int16":
                 result = bintoint16(
-                    (cpu.ram[0x8000] << 8) + cpu.ram[0x8001]
+                    (cpu.ram[0xC000] << 8) + cpu.ram[0xC001]
                 )
             elif global_width == "int32":
                 result = bintoint32(
-                    (cpu.ram[0x8000] << 24) +
-                    (cpu.ram[0x8001] << 16) +
-                    (cpu.ram[0x8002] << 8) +
-                    cpu.ram[0x8003]
+                    (cpu.ram[0xC000] << 24) +
+                    (cpu.ram[0xC001] << 16) +
+                    (cpu.ram[0xC002] << 8) +
+                    cpu.ram[0xC003]
                 )
             else:
                 result = 0xDEADBEEF
@@ -9852,17 +9852,17 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
                 f"globalvariablewrite changed V value from {222} to {cpu.v}!",
             )
             if global_width == "uint8":
-                result = (cpu.ram[0x8000])
+                result = (cpu.ram[0xC000])
             elif global_width == "uint16":
                 result = (
-                    (cpu.ram[0x8000] << 8) + cpu.ram[0x8001]
+                    (cpu.ram[0xC000] << 8) + cpu.ram[0xC001]
                 )
             elif global_width == "uint32":
                 result = (
-                    (cpu.ram[0x8000] << 24) +
-                    (cpu.ram[0x8001] << 16) +
-                    (cpu.ram[0x8002] << 8) +
-                    cpu.ram[0x8003]
+                    (cpu.ram[0xC000] << 24) +
+                    (cpu.ram[0xC001] << 16) +
+                    (cpu.ram[0xC002] << 8) +
+                    cpu.ram[0xC003]
                 )
             else:
                 result = 0xDEADBEEF
@@ -9919,10 +9919,10 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
         f"globalvariablewrite changed V value from {222} to {cpu.v}!",
     )
     original = (
-        (cpu.ram[0x8000] << 24) +
-        (cpu.ram[0x8001] << 16) +
-        (cpu.ram[0x8002] << 8) +
-        cpu.ram[0x8003]
+        (cpu.ram[0xC000] << 24) +
+        (cpu.ram[0xC001] << 16) +
+        (cpu.ram[0xC002] << 8) +
+        cpu.ram[0xC003]
     )
     _assert(
         original == 0x0,
@@ -11510,7 +11510,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = "This is a test."
         _assert(
             result == expected,
@@ -11613,7 +11613,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0x8000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0xC000)
         expected = "This is a test."
         _assert(
             result == expected,
@@ -11721,7 +11721,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = "This is a test."
         _assert(
             result == expected,
@@ -11824,7 +11824,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = "This is a test."
         _assert(
             result == expected,
@@ -11877,7 +11877,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = "This is a test."
         _assert(
             result == expected,
@@ -11935,7 +11935,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = "Test 1." if var else "Test 2."
         _assert(
             result == expected,
@@ -11993,7 +11993,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = "Test 1." if var else "Test 2."
         _assert(
             result == expected,
@@ -12049,7 +12049,7 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringreturn changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0x8000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0xC000)
         expected = "Test 1." if var else "Test 2."
         _assert(
             result == expected,
@@ -12495,7 +12495,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
             cpu.v == 222,
             f"stringconcatenation changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f"Hello, {val}!"
         _assert(
             result == expected,
@@ -12551,7 +12551,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
             cpu.v == 222,
             f"stringconcatenation changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f"Hello, {val}!"
         _assert(
             result == expected,
@@ -12609,7 +12609,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
             cpu.v == 222,
             f"stringconcatenation changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f">>abc456{val}123def<<"
         _assert(
             result == expected,
@@ -12669,7 +12669,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
             cpu.v == 222,
             f"stringconcatenation changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f"Hello, {val}!"
         _assert(
             result == expected,
@@ -12725,7 +12725,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
             cpu.v == 222,
             f"stringconcatenation changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f"Hello, {val}!"
         _assert(
             result == expected,
@@ -12782,7 +12782,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
                 cpu.v == 222,
                 f"stringconcatenation changed V value from {222} to {cpu.v}!",
             )
-            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
             expected = f"Hello, {val}{ending}"
             _assert(
                 result == expected,
@@ -12846,7 +12846,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
             cpu.v == 222,
             f"stringconcatenation changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f"Hello, {val}!"
         _assert(
             result == expected,
@@ -13321,7 +13321,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringslice changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = eval(f'"{sliceable}"[{sliceval}]')
         _assert(
             result == expected,
@@ -13377,7 +13377,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringslice changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = eval(f'"{sliceable}"[{sliceval}]')
         _assert(
             result == expected,
@@ -13434,7 +13434,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringslice changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = sliceable[:sliceint]
         _assert(
             result == expected,
@@ -13490,7 +13490,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringslice changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = sliceable[sliceint:]
         _assert(
             result == expected,
@@ -13548,7 +13548,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
                 cpu.v == 222,
                 f"stringslice changed V value from {222} to {cpu.v}!",
             )
-            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
             expected = sliceable[sliceint:(sliceint + extendval)]
             _assert(
                 result == expected,
@@ -13632,7 +13632,7 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
                 cpu.v == 222,
                 f"stringassignment changed V value from {222} to {cpu.v}!",
             )
-            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
             expected = sliceable[:offset] + updated + sliceable[(offset + 1):]
             _assert(
                 result == expected,
@@ -13692,7 +13692,7 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
                 cpu.v == 222,
                 f"stringassignment changed V value from {222} to {cpu.v}!",
             )
-            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
             expected = sliceable[:offset] + updated + sliceable[(offset + 1):]
             _assert(
                 result == expected,
@@ -13758,7 +13758,7 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringassignment changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = "Hello" if setval else "Goodbye"
         _assert(
             result == expected,
@@ -13847,7 +13847,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringcast changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = str(char)
         _assert(
             result == expected,
@@ -13901,7 +13901,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringcast changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = str(boolean)
         _assert(
             result == expected,
@@ -13958,7 +13958,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringcast changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = str(string)
         _assert(
             result == expected,
@@ -14028,7 +14028,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringcast changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = str(integer)
         _assert(
             result == expected,
@@ -14097,7 +14097,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringcast changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = str(integer)
         _assert(
             result == expected,
@@ -14170,7 +14170,7 @@ def verifystringcast(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringcast changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = str(integer)
         _assert(
             result == expected,
@@ -14263,7 +14263,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringformat changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f"A string: {string}"
         _assert(
             result == expected,
@@ -14317,7 +14317,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringformat changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f"A character: {char}"
         _assert(
             result == expected,
@@ -14371,7 +14371,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringformat changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f"A boolean: {boolean}"
         _assert(
             result == expected,
@@ -14430,7 +14430,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringformat changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = f"An integer: {integer}"
         _assert(
             result == expected,
@@ -14490,7 +14490,7 @@ def verifystringformat(only: Optional[Container[str]], full: bool) -> None:
                 cpu.v == 222,
                 f"stringformat changed V value from {222} to {cpu.v}!",
             )
-            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
             expected = f"The sum of {x} and {y} is {x + y}"
             _assert(
                 result == expected,
@@ -14573,7 +14573,7 @@ def verifystringcombination(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringcombination changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = "hinge hat"
         _assert(
             result == expected,
@@ -15105,7 +15105,7 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"peek changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = val
         _assert(
             result == expected,
@@ -15159,7 +15159,7 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"peek changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expected = val[:20]
         _assert(
             result == expected,
@@ -15241,7 +15241,7 @@ def verifycast(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"cast changed V value from {222} to {cpu.v}!",
         )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0x8000)
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0xC000)
         expected = val[5:]
         _assert(
             result == expected,
@@ -16155,7 +16155,7 @@ def verifychr(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"chr changed V value from {222} to {cpu.v}!",
         )
-        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expectedstr = "ABCDE"
         _assert(
             resultstr == expectedstr,
@@ -16600,7 +16600,7 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
                 cpu.v == 222,
                 f"int changed V value from {222} to {cpu.v}!",
             )
-            resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
             _assert(
                 resultstr == expectedstr,
                 "Failed to int at string, "
@@ -16661,7 +16661,7 @@ def verifyint(only: Optional[Container[str]], full: bool) -> None:
                 cpu.v == 222,
                 f"int changed V value from {222} to {cpu.v}!",
             )
-            resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
             _assert(
                 resultstr == expectedstr,
                 "Failed to int at string, "
@@ -16757,7 +16757,7 @@ def verifyhex(only: Optional[Container[str]], full: bool) -> None:
                 cpu.v == 222,
                 f"hex changed V value from {222} to {cpu.v}!",
             )
-            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
             expected = realhex(val, width)
             _assert(
                 result == expected,
@@ -17549,7 +17549,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringtruncation changed V value from {222} to {cpu.v}!",
         )
-        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expectedstr = "Hello"
         _assert(
             resultstr == expectedstr,
@@ -17608,7 +17608,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringtruncation changed V value from {222} to {cpu.v}!",
         )
-        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expectedstr = "Hello"
         _assert(
             resultstr == expectedstr,
@@ -17667,7 +17667,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringtruncation changed V value from {222} to {cpu.v}!",
         )
-        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expectedstr = "+++"
         _assert(
             resultstr == expectedstr,
@@ -17726,7 +17726,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringtruncation changed V value from {222} to {cpu.v}!",
         )
-        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expectedstr = "Hello!"
         _assert(
             resultstr == expectedstr,
@@ -17786,7 +17786,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringtruncation changed V value from {222} to {cpu.v}!",
         )
-        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expectedstr = "Hel"
         _assert(
             resultstr == expectedstr,
@@ -17846,7 +17846,7 @@ def verifyoptimizations(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringtruncation changed V value from {222} to {cpu.v}!",
         )
-        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x8000, 0x10000)
+        resultstr = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
         expectedstr = "Hell"
         _assert(
             resultstr == expectedstr,
