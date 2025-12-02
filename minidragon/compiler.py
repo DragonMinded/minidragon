@@ -1136,6 +1136,19 @@ def assignment_needs_temporary(destination: str, expr: cst.BaseExpression) -> bo
     return not is_leftmost(destination, expr)
 
 
+def string_prefix(expr: cst.BaseExpression) -> str:
+    if isinstance(expr, cst.SimpleString):
+        raw_value = expr.value
+        prefix = ""
+        for ch in raw_value:
+            if ch == '"' or ch == "'":
+                break
+            prefix += ch
+        return prefix
+
+    return ""
+
+
 class Compiler:
     def __init__(
         self,
@@ -1489,8 +1502,13 @@ class Compiler:
                 raise CompilerError("Unsupported initialization value for global const definition", context)
 
             # Attempt to codegen and evaluate the python code.
+            prefix = string_prefix(assign_value)
             try:
                 value = self.codegen_eval(assign_value, consts, context)
+                if "b" in prefix:
+                    if not isinstance(value, bytes):
+                        raise Exception("Logic error, expected a bytestring when given a bytes prefix!")
+                    value = "".join([chr(x) for x in value])
             except NonConstantExpressionException:
                 raise CompilerError("Non-constant initialization value for global const definition", context)
 
@@ -1550,7 +1568,8 @@ class Compiler:
                     raise CompilerError("Unsupported array length for global const definition", context)
                 if not isinstance(value, str):
                     raise CompilerError("Unsupported initialization value for global const definition", context)
-                value = unescape_literal(value)
+                if "r" not in prefix:
+                    value = unescape_literal(value)
                 if len(value) != 1:
                     raise CompilerError("Unsupported initialization value for global const definition", context)
                 compiled.append_code(f"  .char {value[0]!r}")
@@ -1559,7 +1578,8 @@ class Compiler:
                 if not isinstance(value, str):
                     raise CompilerError("Unsupported initialization value for global const definition", context)
 
-                value = unescape_literal(value)
+                if "r" not in prefix:
+                    value = unescape_literal(value)
                 length_needed = len(value) + 1
                 if assign_type.is_array:
                     # They want to specify an exact length, okay.
@@ -6201,8 +6221,15 @@ class Compiler:
 
                 return compiled
 
+            prefix = string_prefix(expression)
+            if "b" in prefix:
+                if not isinstance(value, bytes):
+                    raise Exception("Logic error, expected a bytestring when given a bytes prefix!")
+                value = "".join([chr(x) for x in value])
+
             if isinstance(value, str):
-                value = unescape_literal(value)
+                if "r" not in prefix:
+                    value = unescape_literal(value)
                 if len(value) >= MAX_STRING_LENGTH:
                     raise CompilerError(f"Unsupported too-long string, strings are required to be {MAX_STRING_LENGTH} characters maximum", context)
 
@@ -6460,7 +6487,7 @@ class Compiler:
                 value = self.codegen_eval(expression, [], context)
             except NonConstantExpressionException:
                 raise Exception("Logic error, couldn't get string from SimpleString!")
-            if not isinstance(value, str):
+            if not isinstance(value, (str, bytes)):
                 raise Exception("Logic error, didn't get string back from codegen_eval!")
 
             length_needed = len(value) + 1

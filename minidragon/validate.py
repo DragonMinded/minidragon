@@ -11573,10 +11573,10 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Now, see if we can return a local non-constant string, and that we get the right value.
-    if True:
-        sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
+    for prefix in ["", "b", "r", "u"]:
+        sections = parse_and_compile_module("stringreturn", textwrap.dedent(f"""
             def return_string() -> str:
-                return "This is a test."
+                return {prefix}"This is a test."
         """), settings)
         memory = getmemory(os.linesep.join([
             *initlines,
@@ -11615,6 +11615,58 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         )
         result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0xC000)
         expected = "This is a test."
+        _assert(
+            result == expected,
+            "Failed to stringreturn simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # Now make sure raw strings work fine.
+    if True:
+        sections = parse_and_compile_module("stringreturn", textwrap.dedent(r"""
+            def return_string() -> str:
+                return r"This is a test.\n"
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "SUBPCI 2",
+            "CALL return_string",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringreturn", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringreturn changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringreturn changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringreturn changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x0000, 0xC000)
+        expected = r"This is a test.\n"
         _assert(
             result == expected,
             "Failed to stringreturn simple, "
@@ -11732,10 +11784,10 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    if True:
-        sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
+    for prefix in ["", "b", "r", "u"]:
+        sections = parse_and_compile_module("stringreturn", textwrap.dedent(f"""
             def return_string() -> const[str]:
-                LOCAL_CONST: const[str] = "This is a test."
+                LOCAL_CONST: const[str] = {prefix}"This is a test."
                 return LOCAL_CONST
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -11783,10 +11835,10 @@ def verifystringreturn(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    if True:
-        sections = parse_and_compile_module("stringreturn", textwrap.dedent("""
+    for prefix in ["", "b", "r", "u"]:
+        sections = parse_and_compile_module("stringreturn", textwrap.dedent(f"""
             def return_string() -> str:
-                local: str[32] = "This is a test."
+                local: str[32] = {prefix}"This is a test."
                 return local
         """), settings)
         memory = getmemory(os.linesep.join([

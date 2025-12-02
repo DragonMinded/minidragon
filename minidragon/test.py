@@ -368,6 +368,127 @@ class TestCompiler(unittest.TestCase):
             compiler.parse_and_compile_module("__test__", 'SOME_CONST = 123')
         self.assertEqual("__test__ line 1: Global variable declarations must have a type", str(cm.exception))
 
+    def test_global_string_declaration_simple(self) -> None:
+        compiler = Compiler(CompilerSettings())
+        func = textwrap.dedent(r"""
+            const_str: const[str] = "This is a test.\n"
+        """)
+        output = compiler.parse_and_compile_module("__test__", func)
+        self.assertEqual([
+            r'  ; __test__ line 2: const_str: const[str] = "This is a test.\n"',
+            'const_str:',
+            "  .char 'T'",
+            "  .char 'h'",
+            "  .char 'i'",
+            "  .char 's'",
+            "  .char ' '",
+            "  .char 'i'",
+            "  .char 's'",
+            "  .char ' '",
+            "  .char 'a'",
+            "  .char ' '",
+            "  .char 't'",
+            "  .char 'e'",
+            "  .char 's'",
+            "  .char 't'",
+            "  .char '.'",
+            r"  .char '\n'",
+            '  .byte 0x00'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+    def test_global_string_declaration_unicode(self) -> None:
+        compiler = Compiler(CompilerSettings())
+        func = textwrap.dedent(r"""
+            const_str: const[str] = u"This is a test.\n"
+        """)
+        output = compiler.parse_and_compile_module("__test__", func)
+        self.assertEqual([
+            r'  ; __test__ line 2: const_str: const[str] = u"This is a test.\n"',
+            'const_str:',
+            "  .char 'T'",
+            "  .char 'h'",
+            "  .char 'i'",
+            "  .char 's'",
+            "  .char ' '",
+            "  .char 'i'",
+            "  .char 's'",
+            "  .char ' '",
+            "  .char 'a'",
+            "  .char ' '",
+            "  .char 't'",
+            "  .char 'e'",
+            "  .char 's'",
+            "  .char 't'",
+            "  .char '.'",
+            r"  .char '\n'",
+            '  .byte 0x00'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+    def test_global_string_declaration_bytes(self) -> None:
+        compiler = Compiler(CompilerSettings())
+        func = textwrap.dedent(r"""
+            const_str: const[str] = b"This is a test.\n"
+        """)
+        output = compiler.parse_and_compile_module("__test__", func)
+        self.assertEqual([
+            r'  ; __test__ line 2: const_str: const[str] = b"This is a test.\n"',
+            'const_str:',
+            "  .char 'T'",
+            "  .char 'h'",
+            "  .char 'i'",
+            "  .char 's'",
+            "  .char ' '",
+            "  .char 'i'",
+            "  .char 's'",
+            "  .char ' '",
+            "  .char 'a'",
+            "  .char ' '",
+            "  .char 't'",
+            "  .char 'e'",
+            "  .char 's'",
+            "  .char 't'",
+            "  .char '.'",
+            r"  .char '\n'",
+            '  .byte 0x00'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
+    def test_global_string_declaration_raw(self) -> None:
+        compiler = Compiler(CompilerSettings())
+        func = textwrap.dedent(r"""
+            const_str: const[str] = r"This is a test.\n"
+        """)
+        output = compiler.parse_and_compile_module("__test__", func)
+        self.assertEqual([
+            r'  ; __test__ line 2: const_str: const[str] = r"This is a test.\n"',
+            'const_str:',
+            "  .char 'T'",
+            "  .char 'h'",
+            "  .char 'i'",
+            "  .char 's'",
+            "  .char ' '",
+            "  .char 'i'",
+            "  .char 's'",
+            "  .char ' '",
+            "  .char 'a'",
+            "  .char ' '",
+            "  .char 't'",
+            "  .char 'e'",
+            "  .char 's'",
+            "  .char 't'",
+            "  .char '.'",
+            r"  .char '\\'",
+            "  .char 'n'",
+            '  .byte 0x00'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
     def test_define_simple_function(self) -> None:
         compiler = Compiler(CompilerSettings())
         func = textwrap.dedent("""
