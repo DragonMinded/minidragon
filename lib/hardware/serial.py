@@ -112,7 +112,7 @@ def serial_move(row: uint8, col: uint8) -> void:
         col = 79
 
     # Send the escape sequence to move our cursor.
-    serial_send(f"\033[")
+    serial_send("\033[")
     serial_send(_serial_lut(row))
     serial_send_byte(ord(";"))
     serial_send(_serial_lut(col))
@@ -130,8 +130,8 @@ def serial_send(data: const[str]) -> void:
     print().
     """
 
-    offset: uint8 = 0
-    while True:
+    byte: char
+    for byte in data:
         # Flow control must be handled here, so we don't overwhelm the serial terminal.
         if R6551AP_status_reg & R6551AP_RDRF:
             recvd: const[uint8] = R6551AP_buffer_reg
@@ -162,12 +162,7 @@ def serial_send(data: const[str]) -> void:
                     if (R6551AP_buffer_reg & 0b11011111) - ord('A') < 26:
                         break
 
-        byte: char = data[offset]
-        if not byte:
-            return
-
         serial_send_byte(ord(byte))
-        offset += 1
 
 
 def serial_recv(max_length: uint8 = 127, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:
