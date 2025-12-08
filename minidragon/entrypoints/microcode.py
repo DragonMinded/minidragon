@@ -12,6 +12,13 @@ def count_jumpers(line: str) -> int:
     return count
 
 
+def format_line(microcode: str) -> str:
+    if len(microcode) != 32:
+        raise Exception("Logic error, unexpected number of microcodes!")
+
+    return f"{microcode[0:8]} {microcode[8:16]} {microcode[16:24]} {microcode[24:32]}"
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Generates microcode programming lines."
@@ -113,7 +120,7 @@ if __name__ == "__main__":
         # Keep track of how many jumpers we will need
         jumpers += count_jumpers(microcode)
         holes += (32 - count_jumpers(microcode))
-        microcodes.append(microcode)
+        microcodes.append(format_line(microcode))
 
     microcodes.append("Instruction Load")
     append_microcode(InstructionLoadControlSignals())
@@ -132,6 +139,8 @@ if __name__ == "__main__":
         microcodes.append(instruction.__class__.__name__)
         for num, step in enumerate(signals):
             append_microcode(step)
+            if num % 4 == 3:
+                microcodes.append("")
 
         # One-indexed instead of zero-indexed, and add one for the early
         # terminate. One-indexed because the first ROM board for every
@@ -158,7 +167,7 @@ if __name__ == "__main__":
             # We can cheat, we don't care about the rest of the signals since
             # we're going to reset the microcode counter asynchronously,
             # looking up the next instruction in the process.
-            microcodes.append("...............................X")
+            microcodes.append(format_line("...............................X"))
             jumpers += 1
             holes += 31
         else:
@@ -166,6 +175,11 @@ if __name__ == "__main__":
                 "Cannot generate microcode reset signal, this instruction "
                 "will infinite loop!"
             )
+
+        while actual % 4 in {2, 3}:
+            microcodes.append(format_line("................................"))
+            actual += 1
+
         microcodes.append(f"ROM boards: {addboards}")
         microcodes.append(f"MiniROM boards: {addminiboards}")
         microcodes.append("")
