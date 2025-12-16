@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127
-VERSION: Final[str] = "1.1.3"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.2.0"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -1485,9 +1485,6 @@ class Compiler:
         if assign_type is None:
             raise CompilerError("Unsupported type for global variable definition", context)
 
-        if assign_type.const and assign_type.extern:
-            raise CompilerError("Cannot have a const extern global variable", context)
-
         for const in consts:
             if const.name == assign_name:
                 raise CompilerError("Cannot reassign global variable", context)
@@ -1495,7 +1492,14 @@ class Compiler:
             if glob.name == assign_name:
                 raise CompilerError("Cannot reassign global variable", context)
 
-        if assign_type.const:
+        if assign_type.const and assign_type.extern:
+            if assign_value:
+                raise CompilerError("Cannot initialize an extern global const variable", context)
+
+            # All we need to do is register a global for this.
+            globs.append(GlobalVariable(assign_name, assign_type))
+
+        elif assign_type.const:
             if assign_value is None:
                 raise CompilerError("Expecting initialization value for global const definition", context)
             if not isinstance(assign_value, cst.BaseExpression):

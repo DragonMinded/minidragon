@@ -6,6 +6,7 @@ all: helloworld.cart
 # Assumes you have installed this repository by default, change these if that's not true.
 COMPILER ?= minidragon-compiler
 ASSEMBLER ?= minidragon-assembler
+GENERATOR ?= minidragon-generator
 
 # Platform support. You normally won't need to mess with this.
 PLATFORM += lib/runtime/init.S
