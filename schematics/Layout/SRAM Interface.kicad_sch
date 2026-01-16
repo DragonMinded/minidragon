@@ -2130,7 +2130,7 @@
 	)
 	(text "These are labelled no connection, but they go off to the \nexternal RAM boards that house EPROMs, RAMs, address decoder\nlogic, etc. All of these are done with TTL-compatible\nCMOS PDIP chips. These particular connections go to the upper\n8 bits of the address lines to the various chips."
 		(exclude_from_sim no)
-		(at 109.474 84.328 0)
+		(at 109.982 83.058 0)
 		(effects
 			(font
 				(size 1.27 1.27)
