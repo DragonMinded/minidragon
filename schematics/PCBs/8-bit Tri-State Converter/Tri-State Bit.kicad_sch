@@ -1,0 +1,2475 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "9.0")
+	(uuid "0b9ac2f7-6899-4c7a-bce3-ed67ae63c938")
+	(paper "A4")
+	(title_block
+		(title "8-Bit Tri-State Buffer")
+		(date "2025-05-03")
+		(rev "1")
+	)
+	(lib_symbols
+		(symbol "2n2222:2N2222"
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "Q"
+				(at 5.08 1.905 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "2N2222"
+				(at 5.08 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline"
+				(at 5.08 -1.905 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+						(italic yes)
+					)
+					(justify left)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+					(hide yes)
+				)
+			)
+			(property "Description" "0.2A Ic, 40V Vce, Small Signal NPN Transistor, TO-92"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "NPN Transistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "TO?92*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "2N2222_0_1"
+				(polyline
+					(pts
+						(xy 0.635 1.905) (xy 0.635 -1.905) (xy 0.635 -1.905)
+					)
+					(stroke
+						(width 0.508)
+						(type solid)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.635 0.635) (xy 2.54 2.54)
+					)
+					(stroke
+						(width 0)
+						(type solid)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.635 -0.635) (xy 2.54 -2.54) (xy 2.54 -2.54)
+					)
+					(stroke
+						(width 0)
+						(type solid)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(circle
+					(center 1.27 0)
+					(radius 2.8194)
+					(stroke
+						(width 0.254)
+						(type solid)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 -1.778) (xy 1.778 -1.27) (xy 2.286 -2.286) (xy 1.27 -1.778) (xy 1.27 -1.778)
+					)
+					(stroke
+						(width 0)
+						(type solid)
+					)
+					(fill
+						(type outline)
+					)
+				)
+			)
+			(symbol "2N2222_1_1"
+				(pin passive line
+					(at -5.08 0 0)
+					(length 5.715)
+					(name "B"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 2.54 5.08 270)
+					(length 2.54)
+					(name "C"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 2.54 -5.08 90)
+					(length 2.54)
+					(name "E"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "Device:R"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "R"
+				(at 2.032 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "R"
+				(at 0 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at -1.778 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Resistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "R res resistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "R_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "R_0_1"
+				(rectangle
+					(start -1.016 -2.54)
+					(end 1.016 2.54)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "R_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "power:GND"
+			(power)
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 0 -6.35 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "GND"
+				(at 0 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "GND_0_1"
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 -1.27) (xy 1.27 -1.27) (xy 0 -2.54) (xy -1.27 -1.27) (xy 0 -1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "GND_1_1"
+				(pin power_in line
+					(at 0 0 270)
+					(length 0)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "power:VCC"
+			(power)
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 0 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "VCC"
+				(at 0 3.556 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"VCC\""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "VCC_0_1"
+				(polyline
+					(pts
+						(xy -0.762 1.27) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 2.54) (xy 0.762 1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "VCC_1_1"
+				(pin power_in line
+					(at 0 0 90)
+					(length 0)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(junction
+		(at 127 76.2)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "41e2f734-3b6f-45e8-97f3-e2d31e8f7800")
+	)
+	(junction
+		(at 90.17 50.8)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "96021224-8b92-4027-bf45-5e5dd74a8c98")
+	)
+	(junction
+		(at 111.76 101.6)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "98f43390-62d9-45cf-93f9-3aa7de97bfee")
+	)
+	(junction
+		(at 74.93 101.6)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "b59b47b8-157d-4f09-918c-7ea50d7894a7")
+	)
+	(junction
+		(at 114.3 50.8)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "f9f23216-11b1-43fb-89a5-f37069bd2219")
+	)
+	(wire
+		(pts
+			(xy 90.17 48.26) (xy 90.17 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0778a6a1-296f-4f82-8fd7-73a27b973988")
+	)
+	(wire
+		(pts
+			(xy 114.3 50.8) (xy 114.3 54.61)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "11b57459-e776-4bea-8cef-c1f66da227f7")
+	)
+	(wire
+		(pts
+			(xy 111.76 101.6) (xy 119.38 101.6)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "22fe375f-c56e-44ba-b60c-de18ad1b08ed")
+	)
+	(wire
+		(pts
+			(xy 127 76.2) (xy 127 96.52)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3116faa3-3f11-45fa-81d8-7ca3cbde51b9")
+	)
+	(wire
+		(pts
+			(xy 111.76 119.38) (xy 111.76 121.92)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "36cba370-4050-4df0-a336-0ec0aa16ce0f")
+	)
+	(wire
+		(pts
+			(xy 74.93 101.6) (xy 74.93 109.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "44bfddc6-2f4f-4502-b9e3-f82f56eb4881")
+	)
+	(wire
+		(pts
+			(xy 127 55.88) (xy 127 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5dd3191c-d3af-4c00-9081-4ef82e5e159f")
+	)
+	(wire
+		(pts
+			(xy 90.17 64.77) (xy 90.17 67.31)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5e958f19-ec12-4d78-8986-c674eddcc61e")
+	)
+	(wire
+		(pts
+			(xy 127 106.68) (xy 127 109.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6061451c-887b-4db7-9764-4ba45b11d46f")
+	)
+	(wire
+		(pts
+			(xy 127 76.2) (xy 140.97 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6856c985-7c32-4f8d-898c-da6972ea086e")
+	)
+	(wire
+		(pts
+			(xy 90.17 50.8) (xy 114.3 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "77aa9cbf-b2b8-4278-abae-f475cc972680")
+	)
+	(wire
+		(pts
+			(xy 114.3 50.8) (xy 119.38 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8aea3043-bce7-4cc6-b12f-5acd4afbaa03")
+	)
+	(wire
+		(pts
+			(xy 58.42 114.3) (xy 59.69 114.3)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9dd42252-6a52-4e21-b901-22dafd0dfa64")
+	)
+	(wire
+		(pts
+			(xy 114.3 64.77) (xy 114.3 67.31)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a5e15586-a41c-47e7-8b6c-7586d79637db")
+	)
+	(wire
+		(pts
+			(xy 74.93 101.6) (xy 111.76 101.6)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "afa94df5-0748-4064-87e6-569cf42783a7")
+	)
+	(wire
+		(pts
+			(xy 111.76 101.6) (xy 111.76 109.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b4d503cc-0a85-4f11-bec5-be904bed4213")
+	)
+	(wire
+		(pts
+			(xy 111.76 101.6) (xy 111.76 99.06)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c4b4cefc-1ab3-46ca-a35b-c6d9be6bc05d")
+	)
+	(wire
+		(pts
+			(xy 90.17 54.61) (xy 90.17 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c7acd02e-b595-4e20-8114-34f926eec2cd")
+	)
+	(wire
+		(pts
+			(xy 82.55 59.69) (xy 74.93 59.69)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e1c04311-bf49-4081-972a-89a6bfcf93fe")
+	)
+	(wire
+		(pts
+			(xy 127 43.18) (xy 127 45.72)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e483330a-a33b-45a0-98e5-dddcbce9ffd0")
+	)
+	(wire
+		(pts
+			(xy 74.93 59.69) (xy 74.93 101.6)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e9a89114-676d-48c1-913e-35464d618002")
+	)
+	(hierarchical_label "OUT"
+		(shape output)
+		(at 140.97 76.2 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "5fa41744-0012-4f93-85f4-f7ab1d187d34")
+	)
+	(hierarchical_label "~{EN}"
+		(shape input)
+		(at 104.14 114.3 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "8a76295e-8a85-4c9f-aa8c-b50d9492dd8c")
+	)
+	(hierarchical_label "~{EN}"
+		(shape input)
+		(at 106.68 59.69 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "8e285396-10e3-4ba0-a04f-441af3514e5f")
+	)
+	(hierarchical_label "D"
+		(shape input)
+		(at 58.42 114.3 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "bb1c8539-fa44-4596-91a5-854f41696515")
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 74.93 119.38 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "36a7da9b-5d9d-4bb9-b00d-88a3cd276718")
+		(property "Reference" "#PWR015"
+			(at 74.93 125.73 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 75.057 123.7742 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 74.93 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 74.93 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 74.93 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "26b4bff4-b497-4891-9147-60f4e57ea3c3")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "#PWR047")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "#PWR063")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "#PWR071")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "#PWR023")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "#PWR039")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "#PWR031")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "#PWR055")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "#PWR015")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 63.5 114.3 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "4bd92200-5a7f-41f0-9088-9c12fe40d69c")
+		(property "Reference" "R4"
+			(at 63.5 116.84 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10K"
+			(at 63.5 119.126 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_THT:R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal"
+			(at 63.5 116.078 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 63.5 114.3 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 63.5 114.3 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "7ada98bb-cef5-4e42-9ec8-0f2dceec111c")
+		)
+		(pin "1"
+			(uuid "39f2880a-dd41-4407-be40-c14716260d4b")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "R16")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "R22")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "R25")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "R7")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "R13")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "R10")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "R19")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "R4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "2n2222:2N2222")
+		(at 109.22 114.3 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "5f02c1e2-98a2-4317-9b47-8664bcd34450")
+		(property "Reference" "Q4"
+			(at 114.046 113.1316 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2N2222"
+			(at 114.046 115.443 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline"
+			(at 114.3 116.205 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf"
+			(at 109.22 114.3 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 109.22 114.3 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "6d1d0205-5832-4e52-bde3-fea36df37ece")
+		)
+		(pin "2"
+			(uuid "e523cfa9-93b0-4804-a383-b7dba49903bd")
+		)
+		(pin "3"
+			(uuid "f5544831-9bcc-46d7-8d97-283135ee6799")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "Q28")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "Q40")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "Q46")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "Q10")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "Q22")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "Q16")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "Q34")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "Q4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:VCC")
+		(at 90.17 40.64 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "625a95ef-23bc-4dcd-b68d-ba0c7cd3e3fb")
+		(property "Reference" "#PWR019"
+			(at 90.17 44.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "VCC"
+			(at 90.6018 36.2458 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 90.17 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 90.17 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 90.17 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "68ba0791-345e-401e-aa6b-eba9fc83a54b")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "#PWR051")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "#PWR067")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "#PWR075")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "#PWR027")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "#PWR043")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "#PWR035")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "#PWR059")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "#PWR019")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 111.76 95.25 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "6a8e3de6-61b2-427a-9e2f-edf453f41dd9")
+		(property "Reference" "R5"
+			(at 113.538 94.0816 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "1K"
+			(at 113.538 96.393 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_THT:R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal"
+			(at 109.982 95.25 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 111.76 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 111.76 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "1436519b-610f-455c-8591-8924691d14a5")
+		)
+		(pin "1"
+			(uuid "79f9c935-6db0-47a0-9061-9878f6bc29a6")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "R17")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "R23")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "R26")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "R8")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "R14")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "R11")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "R20")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "R5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "2n2222:2N2222")
+		(at 87.63 59.69 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "6c388079-f54d-41ff-ba7a-6cef83ea7eeb")
+		(property "Reference" "Q3"
+			(at 92.456 58.5216 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2N2222"
+			(at 92.456 60.833 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline"
+			(at 92.71 61.595 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf"
+			(at 87.63 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 87.63 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "b68e1337-c51d-44e5-9bfb-fb1de26fb943")
+		)
+		(pin "2"
+			(uuid "cc387687-c19d-41f0-a871-bee26d5ff1a4")
+		)
+		(pin "3"
+			(uuid "322c0936-42ff-4e1a-b9d1-d7c0117be7d2")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "Q27")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "Q39")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "Q45")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "Q9")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "Q21")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "Q15")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "Q33")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "Q3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 127 109.22 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "73a86e67-d4f5-4a55-b810-ffd9ffc7a414")
+		(property "Reference" "#PWR022"
+			(at 127 115.57 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 127.127 113.6142 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 127 109.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 127 109.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 127 109.22 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "a6c13b94-1dcf-4d09-aab6-a3a2b5a1c5b4")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "#PWR054")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "#PWR070")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "#PWR078")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "#PWR030")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "#PWR046")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "#PWR038")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "#PWR062")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "#PWR022")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "2n2222:2N2222")
+		(at 124.46 101.6 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "7e70321a-a7f1-4131-92b8-1f98d003db43")
+		(property "Reference" "Q7"
+			(at 129.286 100.4316 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2N2222"
+			(at 129.286 102.743 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline"
+			(at 129.54 103.505 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf"
+			(at 124.46 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 124.46 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "1538cc02-b194-4181-8244-d109b81f8c5e")
+		)
+		(pin "2"
+			(uuid "ec889ad4-424f-463f-a3fe-8dadadfcae63")
+		)
+		(pin "3"
+			(uuid "657d9521-59b2-4f77-8506-f90aa071160d")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "Q31")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "Q43")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "Q49")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "Q13")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "Q25")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "Q19")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "Q37")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "Q7")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 90.17 44.45 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "8157006d-95fe-42ca-a1e6-e956d38852cd")
+		(property "Reference" "R6"
+			(at 91.948 43.2816 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "1K"
+			(at 91.948 45.593 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_THT:R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal"
+			(at 88.392 44.45 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 90.17 44.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 90.17 44.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "ef1594a8-9607-47d6-973d-6f83df6eb731")
+		)
+		(pin "1"
+			(uuid "a4268922-0087-42d1-b991-41b6a90902fc")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "R18")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "R24")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "R27")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "R9")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "R15")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "R12")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "R21")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "R6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "2n2222:2N2222")
+		(at 111.76 59.69 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "8ce90acf-ffe3-4723-b532-abecf1046abf")
+		(property "Reference" "Q5"
+			(at 116.586 58.5216 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2N2222"
+			(at 116.586 60.833 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline"
+			(at 116.84 61.595 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf"
+			(at 111.76 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 111.76 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "2d392ff5-075f-45ce-905b-cd1df7f3a892")
+		)
+		(pin "2"
+			(uuid "99344bb6-0d1e-4cbf-92d1-d4c37ae0d72e")
+		)
+		(pin "3"
+			(uuid "ee154e7e-4bec-4c5c-8a01-ca3978e30a8c")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "Q29")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "Q41")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "Q47")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "Q11")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "Q23")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "Q17")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "Q35")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "Q5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 114.3 67.31 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "99928512-a6d0-4a65-ab56-649e472f483e")
+		(property "Reference" "#PWR020"
+			(at 114.3 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 114.427 71.7042 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 114.3 67.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 114.3 67.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 114.3 67.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "e1c91eee-c6b5-4a56-93bf-f5c9aec4ef2f")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "#PWR052")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "#PWR068")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "#PWR076")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "#PWR028")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "#PWR044")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "#PWR036")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "#PWR060")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "#PWR020")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:VCC")
+		(at 127 43.18 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "a128dcc2-6d62-4991-ad26-a867b53efb09")
+		(property "Reference" "#PWR021"
+			(at 127 46.99 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "VCC"
+			(at 127.4318 38.7858 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 127 43.18 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 127 43.18 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 127 43.18 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "1cf316cf-836d-4c65-a016-3014d90419a7")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "#PWR053")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "#PWR069")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "#PWR077")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "#PWR029")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "#PWR045")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "#PWR037")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "#PWR061")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "#PWR021")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "2n2222:2N2222")
+		(at 72.39 114.3 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "b8c1ae03-8d79-4ed9-aff6-68b9d08eb2b6")
+		(property "Reference" "Q2"
+			(at 77.216 113.1316 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2N2222"
+			(at 77.216 115.443 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline"
+			(at 77.47 116.205 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf"
+			(at 72.39 114.3 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 72.39 114.3 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "3ae2cb31-ad13-468d-a6db-2b7ea1f712b5")
+		)
+		(pin "2"
+			(uuid "30753859-239e-42d9-b267-05b1aae1af1e")
+		)
+		(pin "3"
+			(uuid "a728c877-b81e-4a8c-81fa-785db33168e9")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "Q26")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "Q38")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "Q44")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "Q8")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "Q20")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "Q14")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "Q32")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "Q2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 111.76 121.92 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c10884c6-b9b2-4e2c-bb78-bc76b918dbd1")
+		(property "Reference" "#PWR018"
+			(at 111.76 128.27 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 111.887 126.3142 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 111.76 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 111.76 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 111.76 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "59ffb7ab-afc0-46d0-9c47-010b4278eaaa")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "#PWR050")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "#PWR066")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "#PWR074")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "#PWR026")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "#PWR042")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "#PWR034")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "#PWR058")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "#PWR018")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "2n2222:2N2222")
+		(at 124.46 50.8 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "cacc5d53-0137-4096-bc5c-7d5069d68b8c")
+		(property "Reference" "Q6"
+			(at 129.286 49.6316 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2N2222"
+			(at 129.286 51.943 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline"
+			(at 129.54 52.705 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.fairchildsemi.com/datasheets/2N/2N3904.pdf"
+			(at 124.46 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 124.46 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "8682a1d2-180f-41ff-8bbf-e1fa356d6ee3")
+		)
+		(pin "2"
+			(uuid "a973b72b-cd80-42ae-a02d-b86dd889c910")
+		)
+		(pin "3"
+			(uuid "7c25b984-7bed-4208-8e97-14da6930beb5")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "Q30")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "Q42")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "Q48")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "Q12")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "Q24")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "Q18")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "Q36")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "Q6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:VCC")
+		(at 111.76 91.44 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "d00c8e51-1401-475f-96d1-85784e83e452")
+		(property "Reference" "#PWR017"
+			(at 111.76 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "VCC"
+			(at 112.1918 87.0458 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 111.76 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 111.76 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 111.76 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "70cb5525-adc6-4a7e-9564-03da073fdc4c")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "#PWR049")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "#PWR065")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "#PWR073")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "#PWR025")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "#PWR041")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "#PWR033")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "#PWR057")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "#PWR017")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 90.17 67.31 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "d1d98119-3850-4178-a7b0-04b5f29735fc")
+		(property "Reference" "#PWR016"
+			(at 90.17 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 90.297 71.7042 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 90.17 67.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 90.17 67.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 90.17 67.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "da6f41de-37ec-4552-a0ba-205ae5b66a81")
+		)
+		(instances
+			(project "Transistor 8-Bit Tri-State Circuit"
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/0e508bef-f514-4cb7-a405-ad8a3c7d4aa9"
+					(reference "#PWR048")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/2e599542-310a-4361-8836-cc5946160614"
+					(reference "#PWR064")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/51df177b-75d7-497c-83af-734e2772bfe9"
+					(reference "#PWR072")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/6adbd26b-614b-42b2-b6a0-4364985f01fe"
+					(reference "#PWR024")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/7461e27b-d366-4f3a-aa03-b0120dc74cc1"
+					(reference "#PWR040")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c3374266-aa87-4650-b416-d25728186707"
+					(reference "#PWR032")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/c84632c7-3ea7-42f7-aac2-a7bc305c5801"
+					(reference "#PWR056")
+					(unit 1)
+				)
+				(path "/b9903089-ca7f-40ba-b8db-0c71d638f9c9/d2b03936-eeca-4a4a-9790-0ebb2af59b3c"
+					(reference "#PWR016")
+					(unit 1)
+				)
+			)
+		)
+	)
+)

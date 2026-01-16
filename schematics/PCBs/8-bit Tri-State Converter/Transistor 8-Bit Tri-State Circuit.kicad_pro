@@ -48,7 +48,7 @@
         "silk_text_thickness": 0.15,
         "silk_text_upright": false,
         "zones": {
-          "min_clearance": 0.508
+          "min_clearance": 0.0
         }
       },
       "diff_pair_dimensions": [
@@ -77,9 +77,9 @@
         "duplicate_footprints": "warning",
         "extra_footprint": "warning",
         "footprint": "error",
-        "footprint_filters_mismatch": "ignore",
+        "footprint_filters_mismatch": "error",
         "footprint_symbol_mismatch": "warning",
-        "footprint_type_mismatch": "ignore",
+        "footprint_type_mismatch": "error",
         "hole_clearance": "error",
         "hole_near_hole": "error",
         "hole_to_hole": "error",
@@ -94,7 +94,7 @@
         "malformed_courtyard": "error",
         "microvia_drill_out_of_range": "error",
         "mirrored_text_on_front_layer": "warning",
-        "missing_courtyard": "ignore",
+        "missing_courtyard": "error",
         "missing_footprint": "warning",
         "net_conflict": "warning",
         "nonmirrored_text_on_back_layer": "warning",
@@ -431,7 +431,7 @@
       "extra_units": "error",
       "footprint_filter": "error",
       "footprint_link_issues": "warning",
-      "four_way_junction": "error",
+      "four_way_junction": "ignore",
       "global_label_dangling": "warning",
       "hier_label_mismatch": "error",
       "label_dangling": "error",
@@ -458,7 +458,6 @@
       "single_global_label": "error",
       "unannotated": "error",
       "unconnected_wire_endpoint": "warning",
-      "undefined_netclass": "error",
       "unit_value_mismatch": "error",
       "unresolved_variable": "error",
       "wire_dangling": "error"
@@ -469,7 +468,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "Transistor Buffer.kicad_pro",
+    "filename": "Transistor 8-Bit Tri-State Circuit.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -509,63 +508,143 @@
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J1-Pad2)"
+        "pattern": "Net-(J2-Pad1)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J1-Pad3)"
+        "pattern": "Net-(J2-Pad2)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J1-Pad4)"
+        "pattern": "Net-(J2-Pad3)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J1-Pad5)"
+        "pattern": "Net-(J2-Pad4)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J1-Pad6)"
+        "pattern": "Net-(J2-Pad5)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J1-Pad7)"
+        "pattern": "Net-(J2-Pad6)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J1-Pad8)"
+        "pattern": "Net-(J2-Pad7)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J5-Pad1)"
+        "pattern": "Net-(J2-Pad8)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J5-Pad2)"
+        "pattern": "Net-(J3-Pad1)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J5-Pad3)"
+        "pattern": "Net-(J3-Pad2)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J5-Pad4)"
+        "pattern": "Net-(J3-Pad3)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J5-Pad5)"
+        "pattern": "Net-(J3-Pad4)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J5-Pad6)"
+        "pattern": "Net-(J3-Pad5)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J5-Pad7)"
+        "pattern": "Net-(J3-Pad6)"
       },
       {
         "netclass": "Default",
-        "pattern": "Net-(J5-Pad8)"
+        "pattern": "Net-(J3-Pad7)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(J3-Pad8)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q1-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q1-Pad3)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q10-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q11-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q12-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q13-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q14-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q14-Pad3)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q15-Pad3)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q16-Pad3)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q17-Pad3)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q18-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q19-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q20-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q21-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q6-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q7-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q8-Pad2)"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "Net-(Q9-Pad2)"
       },
       {
         "netclass": "Default",
@@ -577,7 +656,7 @@
     "last_paths": {
       "gencad": "",
       "idf": "",
-      "netlist": "Transistor Buffer.net",
+      "netlist": "Transistor 8-Bit Bus Output Circuit.net",
       "plot": "",
       "pos_files": "",
       "specctra_dsn": "",
@@ -589,7 +668,7 @@
   },
   "schematic": {
     "annotate_start_num": 0,
-    "bom_export_filename": "${PROJECTNAME}.csv",
+    "bom_export_filename": "",
     "bom_fmt_presets": [],
     "bom_fmt_settings": {
       "field_delimiter": ",",
@@ -611,39 +690,9 @@
           "show": true
         },
         {
-          "group_by": false,
-          "label": "Qty",
-          "name": "${QUANTITY}",
-          "show": true
-        },
-        {
           "group_by": true,
           "label": "Value",
           "name": "Value",
-          "show": true
-        },
-        {
-          "group_by": true,
-          "label": "DNP",
-          "name": "${DNP}",
-          "show": true
-        },
-        {
-          "group_by": true,
-          "label": "Exclude from BOM",
-          "name": "${EXCLUDE_FROM_BOM}",
-          "show": true
-        },
-        {
-          "group_by": true,
-          "label": "Exclude from Board",
-          "name": "${EXCLUDE_FROM_BOARD}",
-          "show": true
-        },
-        {
-          "group_by": true,
-          "label": "Footprint",
-          "name": "Footprint",
           "show": true
         },
         {
@@ -651,12 +700,30 @@
           "label": "Datasheet",
           "name": "Datasheet",
           "show": true
+        },
+        {
+          "group_by": false,
+          "label": "Footprint",
+          "name": "Footprint",
+          "show": true
+        },
+        {
+          "group_by": false,
+          "label": "Qty",
+          "name": "${QUANTITY}",
+          "show": true
+        },
+        {
+          "group_by": true,
+          "label": "DNP",
+          "name": "${DNP}",
+          "show": true
         }
       ],
       "filter_string": "",
       "group_symbols": true,
-      "include_excluded_from_bom": true,
-      "name": "Default Editing",
+      "include_excluded_from_bom": false,
+      "name": "Grouped By Value",
       "sort_asc": true,
       "sort_field": "Reference"
     },
@@ -703,8 +770,40 @@
   },
   "sheets": [
     [
-      "8c4cf072-0f79-4c35-9a6a-dbd1bc041a67",
+      "b9903089-ca7f-40ba-b8db-0c71d638f9c9",
       "Root"
+    ],
+    [
+      "d2b03936-eeca-4a4a-9790-0ebb2af59b3c",
+      "Tri-State Bit0"
+    ],
+    [
+      "6adbd26b-614b-42b2-b6a0-4364985f01fe",
+      "Tri-State Bit1"
+    ],
+    [
+      "c3374266-aa87-4650-b416-d25728186707",
+      "Tri-State Bit2"
+    ],
+    [
+      "7461e27b-d366-4f3a-aa03-b0120dc74cc1",
+      "Tri-State Bit3"
+    ],
+    [
+      "0e508bef-f514-4cb7-a405-ad8a3c7d4aa9",
+      "Tri-State Bit4"
+    ],
+    [
+      "c84632c7-3ea7-42f7-aac2-a7bc305c5801",
+      "Tri-State Bit5"
+    ],
+    [
+      "2e599542-310a-4361-8836-cc5946160614",
+      "Tri-State Bit6"
+    ],
+    [
+      "51df177b-75d7-497c-83af-734e2772bfe9",
+      "Tri-State Bit7"
     ]
   ],
   "text_variables": {}
