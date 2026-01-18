@@ -1341,6 +1341,10 @@ class ADDU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -1375,6 +1379,10 @@ class ADCU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -1409,6 +1417,10 @@ class ANDU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -1443,6 +1455,10 @@ class ORU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -1477,6 +1493,10 @@ class XORU(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
@@ -1594,6 +1614,10 @@ class ADDV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
@@ -1628,6 +1652,10 @@ class ADCV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
@@ -1662,6 +1690,10 @@ class ANDV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
@@ -1696,6 +1728,10 @@ class ORV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
@@ -1730,6 +1766,10 @@ class XORV(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
+                # This doesn't matter for non-memory operations, but we set it in
+                # the same instructions for memory versions of these, so do that
+                # here so that the microcode is as similar as possible.
+                address_src=ControlSignals.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
