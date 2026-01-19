@@ -42,6 +42,7 @@ def assemble(
             # Origin directive
             org = getint(mnemonic[5:], 16, allow_unsigned=True)
         elif mnemonic.startswith(".pad "):
+            # Raw padding
             val = int(mnemonic[5:])
             org += val
         elif mnemonic.startswith(".byte "):
@@ -71,6 +72,12 @@ def assemble(
                 data[org] = val
                 seen.add(org)
                 org += 1
+        elif mnemonic.startswith(".ptr "):
+            # Pointer directive
+            seen.add(org)
+            org += 1
+            seen.add(org)
+            org += 1
 
         # Labels.
         elif mnemonic.endswith(":"):
@@ -133,6 +140,27 @@ def assemble(
         elif mnemonic.startswith(".str "):
             for char in literal_eval(mnemonic[5:]):
                 org += 1
+        elif mnemonic.startswith(".ptr "):
+            mnemonic, param = mnemonic.split(" ", 1)
+            if param in labels:
+                offset = str(labels[param])
+                location = getint(
+                    offset,
+                    16,
+                    allow_unsigned=True,
+                    hint=_insnrep(mnemonic, (param, )),
+                )
+
+                data[org] = (location >> 8) & 0xFF
+                org += 1
+                data[org] = (location >> 0) & 0xFF
+                org += 1
+            else:
+                raise ParameterOutOfRangeException(
+                    f"Undefined label {_paramrep((param, ))} for directive "
+                    + _insnrep(mnemonic, (param, ))
+                )
+
         # Labels.
         elif mnemonic.endswith(":"):
             pass
@@ -159,8 +187,8 @@ def assemble(
                         f"Unrecognized instruction {mnemonic} {param}"
                     )
 
-            # Assemble without labels, telling the instruction to
-            # substitute whatever.
+            # Assemble with labels, telling the instruction to substitute
+            # the actual label value.
             for val in inst.vals(
                 mnemonic, params, org, labels, loose=False
             ):

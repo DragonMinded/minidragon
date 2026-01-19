@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 127
-VERSION: Final[str] = "1.2.0"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.2.1"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
