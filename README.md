@@ -256,42 +256,44 @@ The boot ROM is mapped to the bottom 30KB of addressable memory. Because 30KB EE
 
 ## Build Progress
 
-As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 77% finished with the whole project.
+As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 86% finished with the whole project.
 
 ### Hardware
 
-As a whole, the hardware side of MiniDragon is 72% complete.
+As a whole, the hardware side of MiniDragon is 87% complete.
 
- - instruction decoder: 5% complete
-    - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 56 instructions (55 real instructions and a microcode board for the shared load instruction step) 3 instructions are fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
+ - instruction decoder: 35% complete
+    - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 56 instructions (55 real instructions and a microcode board for the shared load instruction step) 19 instructions are fully hooked in. The instruction decoder core is fully built and integrated into the physical build.
  - special registers: 100% complete
    - All design work and diagramming for necessry circuits is completed. Registers that can be read in order to perform conditional logic as well as source immediate values are completed and fully integrated onto the physical build.
- - general purpose registers: 75% complete
-   - All design work and diagramming for the eight general purpose registers is completed. Six registers (A, B, D, IP, PC and SPC) are built and fully integrated into the physical build.
- - ALU: 25% complete
-   - The ALU core is completely designed, laid out and documented. Tested and fabricated designs for ADD, INV, OR, AND, and XOR exist, but only ADD has been integrated into the physical layout. The ALU is decomposed into seven core functions that each generate their own output and carry flag, along with a shared zero flag generator and a carry flag selector circuit.
+ - general purpose registers: 100% complete
+   - All design work and diagramming for the eight general purpose registers is completed. All registers (A, B, D, U, V, IP, PC and SPC) are built and fully integrated into the physical build.
+ - ALU: 75% complete
+   - The ALU core is completely designed, laid out and documented. Tested and fabricated designs for ADD, INV, OR, AND, and XOR  are integrated into the physical layout. The ALU is decomposed into seven core functions that each generate their own output and carry flag, along with a shared zero flag generator and a carry flag selector circuit.
  - memory interface: 100% complete
    - The MiniDragon CPU is designed to appear like a standard 80's TTL CPU from external components' perspective. This means 16 output "pins" for address lines, 8 bidirectional "pins" for data lines, and a few crucial control signals brought out. These signals include a negated write enable and read enable signal, a negated reset signal and a buffered clock signal. It should be noted that all of these signals (save for the clock) are asynchronous, but the write enable line does pulse low with the clock transition since various memory chips use the low to high transition as their write signal. All signals are TTL level and impedance compatible, and the bidirectional data bus uses TTL-compatible tri-state logic.
    - Additional circuitry that is not technically part of MiniDragon but will be necessary for its execution include a serial chip for IO, glue logic to support address decoding, a ROM chip and an SRAM chip to provide nonvolatile and volatile storage. These will likely be built using off-the-shelf TTL-compatible 7400 logic and ASICs since they aren't part of the CPU itself.
  - power distribution: 100% complete
-   - I went with an adjustable 5V switching mode power supply that can supply the necessary amperage (5+ amps estimated at this point) along with a few digital readouts sprinkled across the board for fine adjustments. The circuits are fairly sensitive to core voltage being at or slightly above 4.75V so the main power supply is turned up to about 5.40V to accomodate voltage sag in the power distribution circuits.
+   - I went with an adjustable 5V switching mode power supply that can supply the necessary amperage (5+ amps estimated at this point) along with a few digital readouts sprinkled across the board for fine adjustments. The circuits are fairly sensitive to core voltage being at or slightly above 4.75V so the main power supply is turned up to about 5.60V to accomodate voltage sag in the power distribution circuits.
  - debugging boards: 100% complete
    - Various debugging boards, used mostly for setting hand-selected values on various busses are designed and fabricated. They are currently in use both as tools for helping test boards during bring-up and as a simulated memory interface for board integration and system testing.
 
 ### Software
 
-As a whole, the software side of MiniDragon is 84% complete.
+As a whole, the software side of MiniDragon is 85% complete.
 
  - assembler/disassembler: 100% completed.
  - compiler: 100% completed.
  - CPU simulator: 100% completed.
  - system emulator: 100% completed.
  - stdlib: 100% completed.
- - BIOS: ~5% completed.
-   - I've decided on the R6551AP for serial support and have started work on the BIOS/boot ROM. This mostly consists of serial driver code and some VT-100 routines for basic string input and output.
+ - BIOS: ~10% completed.
+   - I've decided on the R6551AP for serial support and have started work on the BIOS/boot ROM. This mostly consists of serial driver code and some VT-100 routines for basic string input and output, but also includes stdlib functions for string manipulation, fixed point conversion, integer conversion and math operations that aren't intrinsic to the CPU.
 
 ### Eratta
 
 Various bugs have come up in board designs that weren't discovered until well after they were integrated. So, while I'm not going to fix those bugs, they're documented here including any workarounds.
 
  - 4-bit register boards have an enable input weight of 4 instead of 1. This means that anything driving a register enable signal will see a single register board as the equivalent of four logic boards. Thus, anything needing to interface with a register's enable input needs to support a fan-out of 4 instead of 1. In practice this means that a single control signal driving a pair of registers has a smaller threshold than normal where all of the bits properly respond to the enable signal. A simple workaround is to use a double-inverting logic buffer to isolate individual registers and amplify control signals. This is done on various boards in the MiniDragon physical layout and provides an added bonus of visibility on the board itself when a control signal is active.
+
+ - 3-bit dynamic ROM enhancer boards do not stop asserting when their enable signal is low. These were designed to be run in parallel but unfortunately a design bug means that when they are disabled they overpower other boards connected to the same ROM bits, forcing the value to be 0 no matter what the other boards are asserting. This turns out to only be a problem in one instruction decoder board which needed 8 values instead of 4. For that, an enhanced dynamic ROM enhancer board which takes a 3 bit address instead of a 2 bit address was designed. In the rest of the spots where these boards exist this flaw does not impede their use.
