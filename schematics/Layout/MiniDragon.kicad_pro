@@ -504,6 +504,10 @@
     [
       "85d1886b-8ec3-4894-8c64-513e2cde88a3",
       "Add Circuit"
+    ],
+    [
+      "f9d43bbc-c84e-469e-b95c-94b7b0bb1a98",
+      "Boolean Circuit"
     ]
   ],
   "text_variables": {}
