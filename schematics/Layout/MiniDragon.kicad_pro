@@ -508,6 +508,10 @@
     [
       "f9d43bbc-c84e-469e-b95c-94b7b0bb1a98",
       "Boolean Circuit"
+    ],
+    [
+      "8702e5db-37f8-4e7f-b9bd-a6126c76ff05",
+      "Shift and Compare"
     ]
   ],
   "text_variables": {}

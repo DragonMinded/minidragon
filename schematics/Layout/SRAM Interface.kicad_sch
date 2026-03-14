@@ -1879,8 +1879,12 @@
 		)
 		(symbol "power:GND"
 			(power)
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(offset 0)
+				(hide yes)
 			)
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -1956,8 +1960,7 @@
 				(pin power_in line
 					(at 0 0 270)
 					(length 0)
-					(hide yes)
-					(name "GND"
+					(name "~"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -1977,8 +1980,12 @@
 		)
 		(symbol "power:VCC"
 			(power)
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(offset 0)
+				(hide yes)
 			)
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -1993,7 +2000,7 @@
 				)
 			)
 			(property "Value" "VCC"
-				(at 0 3.81 0)
+				(at 0 3.556 0)
 				(effects
 					(font
 						(size 1.27 1.27)
@@ -2078,8 +2085,7 @@
 				(pin power_in line
 					(at 0 0 90)
 					(length 0)
-					(hide yes)
-					(name "VCC"
+					(name "~"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -4123,7 +4129,6 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Logic Buffer_1")
 		(lib_id "MiniDragon:8-bit Logic Buffer")
 		(at 53.34 82.55 0)
 		(unit 1)
@@ -4558,6 +4563,7 @@
 		)
 	)
 	(symbol
+		(lib_name "8-bit Logic Buffer_1")
 		(lib_id "MiniDragon:8-bit Logic Buffer")
 		(at 53.34 34.29 0)
 		(unit 1)

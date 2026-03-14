@@ -2203,8 +2203,12 @@
 		)
 		(symbol "power:GND"
 			(power)
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(offset 0)
+				(hide yes)
 			)
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -2280,8 +2284,7 @@
 				(pin power_in line
 					(at 0 0 270)
 					(length 0)
-					(hide yes)
-					(name "GND"
+					(name "~"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -2301,8 +2304,12 @@
 		)
 		(symbol "power:VCC"
 			(power)
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(offset 0)
+				(hide yes)
 			)
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -2317,7 +2324,7 @@
 				)
 			)
 			(property "Value" "VCC"
-				(at 0 3.81 0)
+				(at 0 3.556 0)
 				(effects
 					(font
 						(size 1.27 1.27)
@@ -2402,8 +2409,7 @@
 				(pin power_in line
 					(at 0 0 90)
 					(length 0)
-					(hide yes)
-					(name "VCC"
+					(name "~"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -3157,7 +3163,6 @@
 		(uuid "ffa1f19d-25f8-4c52-8825-5af13b9c2603")
 	)
 	(symbol
-		(lib_name "Logic NAND_1")
 		(lib_id "MiniDragon:Logic NAND")
 		(at 223.52 149.86 0)
 		(unit 1)
@@ -4072,7 +4077,7 @@
 		)
 	)
 	(symbol
-		(lib_name "Logic NAND_2")
+		(lib_name "Logic NAND_1")
 		(lib_id "MiniDragon:Logic NAND")
 		(at 185.42 137.16 0)
 		(unit 1)
@@ -4418,7 +4423,7 @@
 		)
 	)
 	(symbol
-		(lib_name "D Flip Flop_2")
+		(lib_name "D Flip Flop_1")
 		(lib_id "MiniDragon:D Flip Flop")
 		(at 121.92 168.91 0)
 		(unit 1)
@@ -4638,7 +4643,7 @@
 		)
 	)
 	(symbol
-		(lib_name "Logic Buffer_2")
+		(lib_name "Logic Buffer_1")
 		(lib_id "MiniDragon:Logic Buffer")
 		(at 77.47 163.83 0)
 		(unit 1)
@@ -4715,6 +4720,7 @@
 		)
 	)
 	(symbol
+		(lib_name "Logic NAND_2")
 		(lib_id "MiniDragon:Logic NAND")
 		(at 185.42 162.56 0)
 		(unit 1)
@@ -4790,7 +4796,6 @@
 		)
 	)
 	(symbol
-		(lib_name "D Flip Flop_1")
 		(lib_id "MiniDragon:D Flip Flop")
 		(at 121.92 130.81 0)
 		(unit 1)
@@ -5010,6 +5015,7 @@
 		)
 	)
 	(symbol
+		(lib_name "D Flip Flop_2")
 		(lib_id "MiniDragon:D Flip Flop")
 		(at 121.92 92.71 0)
 		(unit 1)
@@ -5485,7 +5491,7 @@
 		)
 	)
 	(symbol
-		(lib_name "Logic Buffer_1")
+		(lib_name "Logic Buffer_2")
 		(lib_id "MiniDragon:Logic Buffer")
 		(at 77.47 125.73 0)
 		(unit 1)

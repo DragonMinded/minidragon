@@ -3319,8 +3319,12 @@
 		)
 		(symbol "power:GND"
 			(power)
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(offset 0)
+				(hide yes)
 			)
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -3396,8 +3400,7 @@
 				(pin power_in line
 					(at 0 0 270)
 					(length 0)
-					(hide yes)
-					(name "GND"
+					(name "~"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -3417,8 +3420,12 @@
 		)
 		(symbol "power:VCC"
 			(power)
+			(pin_numbers
+				(hide yes)
+			)
 			(pin_names
 				(offset 0)
+				(hide yes)
 			)
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -3433,7 +3440,7 @@
 				)
 			)
 			(property "Value" "VCC"
-				(at 0 3.81 0)
+				(at 0 3.556 0)
 				(effects
 					(font
 						(size 1.27 1.27)
@@ -3518,8 +3525,7 @@
 				(pin power_in line
 					(at 0 0 90)
 					(length 0)
-					(hide yes)
-					(name "VCC"
+					(name "~"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -5174,6 +5180,7 @@
 		(uuid "fa622c96-c035-4b62-b61a-22ffe96ad935")
 	)
 	(symbol
+		(lib_name "4-Bit Register_1")
 		(lib_id "MiniDragon:4-Bit Register")
 		(at 234.95 158.75 0)
 		(unit 1)
@@ -5470,6 +5477,7 @@
 		)
 	)
 	(symbol
+		(lib_name "8-bit Bus Output_1")
 		(lib_id "MiniDragon:8-bit Bus Output")
 		(at 173.99 95.25 0)
 		(unit 1)
@@ -5653,7 +5661,7 @@
 		)
 	)
 	(symbol
-		(lib_name "Logic Buffer_1")
+		(lib_name "Logic Buffer_2")
 		(lib_id "MiniDragon:Logic Buffer")
 		(at 105.41 59.69 0)
 		(unit 1)
@@ -5730,7 +5738,7 @@
 		)
 	)
 	(symbol
-		(lib_name "4-Bit Register_3")
+		(lib_name "4-Bit Register_2")
 		(lib_id "MiniDragon:4-Bit Register")
 		(at 236.22 97.79 0)
 		(unit 1)
@@ -6027,6 +6035,7 @@
 		)
 	)
 	(symbol
+		(lib_name "Logic Buffer_1")
 		(lib_id "MiniDragon:Logic Buffer")
 		(at 105.41 34.29 0)
 		(unit 1)
@@ -6103,7 +6112,6 @@
 		)
 	)
 	(symbol
-		(lib_name "Logic Buffer_2")
 		(lib_id "MiniDragon:Logic Buffer")
 		(at 57.15 190.5 0)
 		(unit 1)
@@ -6375,7 +6383,6 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Bus Output_1")
 		(lib_id "MiniDragon:8-bit Bus Output")
 		(at 173.99 146.05 0)
 		(unit 1)
@@ -6623,7 +6630,6 @@
 		)
 	)
 	(symbol
-		(lib_name "4-Bit Register_1")
 		(lib_id "MiniDragon:4-Bit Register")
 		(at 104.14 158.75 0)
 		(unit 1)
@@ -7232,7 +7238,7 @@
 		)
 	)
 	(symbol
-		(lib_name "4-Bit Register_2")
+		(lib_name "4-Bit Register_3")
 		(lib_id "MiniDragon:4-Bit Register")
 		(at 105.41 97.79 0)
 		(unit 1)
