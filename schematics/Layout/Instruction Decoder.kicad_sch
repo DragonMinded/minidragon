@@ -10189,7 +10189,7 @@
 			(uuid "6ab290b5-c3b4-4d71-b56b-0f5076081048")
 		)
 		(instances
-			(project ""
+			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/594cfbb3-4318-4cd8-aec5-fb0b40024144"
 					(reference "B30")
 					(unit 1)

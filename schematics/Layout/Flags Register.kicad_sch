@@ -4414,7 +4414,7 @@
 			(uuid "9031dca7-df5f-476c-b05a-189c607f7d0b")
 		)
 		(instances
-			(project ""
+			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/96cd97b6-0afb-4945-9172-64f474d863c8"
 					(reference "B123")
 					(unit 1)

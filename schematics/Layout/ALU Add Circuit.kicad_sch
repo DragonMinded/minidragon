@@ -5620,7 +5620,7 @@
 			(uuid "80364a46-5e74-4937-89bc-feaabae72f79")
 		)
 		(instances
-			(project ""
+			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/c3b6f7dd-0ce3-4cc1-a732-22edb2c920fc/85d1886b-8ec3-4894-8c64-513e2cde88a3"
 					(reference "B111")
 					(unit 1)
@@ -5816,7 +5816,7 @@
 			(uuid "a51a65ec-67fd-4973-8004-f14f0812281b")
 		)
 		(instances
-			(project ""
+			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/c3b6f7dd-0ce3-4cc1-a732-22edb2c920fc/85d1886b-8ec3-4894-8c64-513e2cde88a3"
 					(reference "B114")
 					(unit 1)
@@ -6467,7 +6467,7 @@
 			(uuid "a51a65ec-67fd-4973-8004-f14f0812281c")
 		)
 		(instances
-			(project ""
+			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/c3b6f7dd-0ce3-4cc1-a732-22edb2c920fc/85d1886b-8ec3-4894-8c64-513e2cde88a3"
 					(reference "B116")
 					(unit 1)
@@ -6630,7 +6630,7 @@
 			(uuid "a51a65ec-67fd-4973-8004-f14f0812281d")
 		)
 		(instances
-			(project ""
+			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/c3b6f7dd-0ce3-4cc1-a732-22edb2c920fc/85d1886b-8ec3-4894-8c64-513e2cde88a3"
 					(reference "B113")
 					(unit 1)
@@ -6987,7 +6987,7 @@
 			(uuid "a51a65ec-67fd-4973-8004-f14f0812281e")
 		)
 		(instances
-			(project ""
+			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/c3b6f7dd-0ce3-4cc1-a732-22edb2c920fc/85d1886b-8ec3-4894-8c64-513e2cde88a3"
 					(reference "B115")
 					(unit 1)
@@ -7292,7 +7292,7 @@
 			(uuid "bb6ddda6-ea55-4253-a6e5-b1aad12db578")
 		)
 		(instances
-			(project ""
+			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/c3b6f7dd-0ce3-4cc1-a732-22edb2c920fc/85d1886b-8ec3-4894-8c64-513e2cde88a3"
 					(reference "B112")
 					(unit 1)

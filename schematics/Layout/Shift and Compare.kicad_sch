@@ -3066,7 +3066,7 @@
 			(uuid "9cd90e10-67da-4387-a75e-66aa130737db")
 		)
 		(instances
-			(project ""
+			(project "MiniDragon"
 				(path "/5049efcd-4f75-45d1-9c4f-a0a8d8f08d5b/c3b6f7dd-0ce3-4cc1-a732-22edb2c920fc/8702e5db-37f8-4e7f-b9bd-a6126c76ff05"
 					(reference "B187")
 					(unit 1)
