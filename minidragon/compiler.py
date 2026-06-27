@@ -10,8 +10,8 @@ from .core import assemble
 from .util import comment_source, hexstr, hexval, sanitize
 
 
-MAX_STRING_LENGTH: Final[int] = 127
-VERSION: Final[str] = "1.2.1"  # Also bump version in pyproject.toml
+MAX_STRING_LENGTH: Final[int] = 256  # Length of string including null-termination.
+VERSION: Final[str] = "1.2.2"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -5839,8 +5839,9 @@ class Compiler:
             clobbers.add("A")
             compiled += self.generate_expr_internal(slice_or_index.value, "register(A, uint8)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(slice_or_index.value))
 
-            # We clobber the SPC to do this index lookup.
+            # We clobber the SPC to do this index lookup, and U to save the advance pointer.
             clobbers.add("SPC")
+            clobbers.add("U")
 
             # Move to the correct spot on the stack to pop the pointer onto the SPC.
             compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
@@ -5850,7 +5851,17 @@ class Compiler:
             stack.move(-2)
             compiled.code += comment_stack(stack)
 
+            upper_clear = self.local_label_name(context, "upper_clear")
             compiled.append_code("  SWAP PC, SPC")
+            compiled.append_code("  SHL")
+            compiled.append_code(f"  JRINC {upper_clear}")
+            compiled.append_code("  MOV A, U")
+            compiled.append_code("  LOADI 127")
+            compiled.append_code("  ADDPC")
+            compiled.append_code("  INCPC")
+            compiled.append_code("  MOV U, A")
+            compiled.append_code(f"{upper_clear}:")
+            compiled.append_code("  SHR")
             compiled.append_code("  ADDPC")
             compiled.append_code("  LOAD A")
             compiled.append_code("  SWAP PC, SPC")
@@ -7003,9 +7014,10 @@ class Compiler:
             if not offset_types[assign_offset].is_integer:
                 raise CompilerError(f"Unsupported non-integer offset {offset_types[assign_offset].type} in subscript assignment", context)
 
-            # We're going to clobber the SPC and A register to assign the value.
+            # We're going to clobber the SPC and A register to assign the value, and U to advance past 127 characters.
             clobbers.add("SPC")
             clobbers.add("A")
+            clobbers.add("U")
 
             # Figure out if this is a global or local variable assignment.
             orig_type = stack.typeof(assign_name)
@@ -7045,7 +7057,17 @@ class Compiler:
             # Now, calculate the offset we need to assign at.
             compiled += self.generate_expr_internal(assign_offset, "register(A, uint8)", offset_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_offset))
 
+            upper_clear = self.local_label_name(context, "upper_clear")
             compiled.append_code("  SWAP PC, SPC")
+            compiled.append_code("  SHL")
+            compiled.append_code(f"  JRINC {upper_clear}")
+            compiled.append_code("  MOV A, U")
+            compiled.append_code("  LOADI 127")
+            compiled.append_code("  ADDPC")
+            compiled.append_code("  INCPC")
+            compiled.append_code("  MOV U, A")
+            compiled.append_code(f"{upper_clear}:")
+            compiled.append_code("  SHR")
             compiled.append_code("  ADDPC")
             compiled.append_code("  SWAP PC, SPC")
 
@@ -9388,9 +9410,9 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("itoa8", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
         FunctionPrototype("itoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
         FunctionPrototype("itoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),
-        FunctionPrototype("utoa8", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
-        FunctionPrototype("utoa16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
-        FunctionPrototype("utoa32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),
+        FunctionPrototype("utoa8", VoidType, [RegisterCoreType("uint8", "A"), PreservedCoreType("str")]),
+        FunctionPrototype("utoa16", VoidType, [PreservedCoreType("uint16"), PreservedCoreType("str")]),
+        FunctionPrototype("utoa32", VoidType, [PreservedCoreType("uint32"), PreservedCoreType("str")]),
         FunctionPrototype("itohex8", VoidType, [RegisterCoreType("int8", "A"), PreservedCoreType("str")]),
         FunctionPrototype("itohex16", VoidType, [PreservedCoreType("int16"), PreservedCoreType("str")]),
         FunctionPrototype("itohex32", VoidType, [PreservedCoreType("int32"), PreservedCoreType("str")]),

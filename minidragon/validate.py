@@ -12283,7 +12283,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
     count = 0
 
     # Attempt to do string length on a constant string.
-    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
             STRING_CONST: const[str] = "{val}"
 
@@ -12325,7 +12325,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringlength changed V value from {222} to {cpu.v}!",
         )
-        result = bintoint(cpu.ram[cpu.pc])
+        result = cpu.ram[cpu.pc]
         expected = len(val)
         _assert(
             result == expected,
@@ -12337,9 +12337,9 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Attempt to do string length on a global string.
-    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
-            global_string: str[40] = "{val}"
+            global_string: str[256] = "{val}"
 
             def string_length() -> uint8:
                 return len(global_string)
@@ -12379,7 +12379,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringlength changed V value from {222} to {cpu.v}!",
         )
-        result = bintoint(cpu.ram[cpu.pc])
+        result = cpu.ram[cpu.pc]
         expected = len(val)
         _assert(
             result == expected,
@@ -12391,7 +12391,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Attempt to do string length on a function parameter with an intermediate variable.
-    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
             def string_length(which: const[str]) -> uint8:
                 return len(which)
@@ -12436,7 +12436,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringlength changed V value from {222} to {cpu.v}!",
         )
-        result = bintoint(cpu.ram[cpu.pc])
+        result = cpu.ram[cpu.pc]
         expected = len(val)
         _assert(
             result == expected,
@@ -12448,9 +12448,9 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Attempt to do the same thing again, but this time with a mutable local string variable.
-    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
-            def string_length(which: str[64]) -> uint8:
+            def string_length(which: str[256]) -> uint8:
                 return len(which)
 
             def caller() -> uint8:
@@ -12493,7 +12493,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringlength changed V value from {222} to {cpu.v}!",
         )
-        result = bintoint(cpu.ram[cpu.pc])
+        result = cpu.ram[cpu.pc]
         expected = len(val)
         _assert(
             result == expected,
@@ -12505,7 +12505,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Attempt to do string length on a function parameter without an intermediate variable.
-    for val in ["", "Testing 1, 2, 3!", "This song is just six words long."]:
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
             def string_length(which: const[str]) -> uint8:
                 return len(which)
@@ -12549,7 +12549,7 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
             cpu.v == 222,
             f"stringlength changed V value from {222} to {cpu.v}!",
         )
-        result = bintoint(cpu.ram[cpu.pc])
+        result = cpu.ram[cpu.pc]
         expected = len(val)
         _assert(
             result == expected,
@@ -12592,9 +12592,9 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
     count = 0
 
     # Concatenate string that is passed in via parameters.
-    for val in ["jen", "dragon", "world"]:
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
-            def say_hello(thing: const[str]) -> str[64]:
+            def say_hello(thing: const[str]) -> str[256]:
                 return "Hello, " + thing + "!"
 
             def caller() -> str:
@@ -12648,10 +12648,10 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
         count += 1
 
     # Concatenate local string and return that.
-    for val in ["jen", "dragon", "world"]:
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
             def caller() -> str:
-                local_string: str[32] = "Hello, "
+                local_string: str[256] = "Hello, "
                 local_string += {val!r}
                 local_string += "!"
                 return local_string
@@ -12704,10 +12704,10 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
         count += 1
 
     # Concatenate stress test.
-    for val in ["jen", "dragon", "world"]:
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
             def caller() -> str:
-                local_string: str[32] = {val!r}
+                local_string: str[256] = {val!r}
                 local_string = local_string + "123"
                 local_string = "456" + local_string
                 local_string = f"abc{{local_string}}def"
@@ -12762,9 +12762,9 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
         count += 1
 
     # Concatenate global string and return that.
-    for val in ["jen", "dragon", "world"]:
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
-            global_string: str[64]
+            global_string: str[256]
 
             def caller() -> const[str]:
                 global global_string
@@ -12822,12 +12822,12 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
         count += 1
 
     # Concatenate string that is returned from a function.
-    for val in ["jen", "dragon", "world"]:
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
             def who() -> const[str]:
                 return "{val}"
 
-            def say_hello() -> str[64]:
+            def say_hello() -> str[256]:
                 return "Hello, " + who() + "!"
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -12877,13 +12877,13 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
         instructions += cpu.ticks
         count += 1
 
-    for val in ["jen", "dragon", "world"]:
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
         for ending in ["?", "!", "~"]:
             sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
                 def who() -> const[str]:
                     return "{val}"
 
-                def say_hello() -> str[64]:
+                def say_hello() -> str[256]:
                     ending: char = {ending!r}
                     return "Hello, " + who() + ending
             """), settings)
@@ -12935,10 +12935,10 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
             count += 1
 
     # Write out own terrible string clone function, for shiggles.
-    for val in ["jen", "dragon", "world"]:
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
         sections = parse_and_compile_module("stringconcatenation", textwrap.dedent(f"""
             def clone(string: const[str]) -> str:
-                retval: str[16] = ""
+                retval: str[256] = ""
 
                 i: uint8
                 for i in range(len(string)):
@@ -12946,7 +12946,7 @@ def verifystringconcatenation(only: Optional[Container[str]], full: bool) -> Non
 
                 return retval
 
-            def say_hello() -> str[64]:
+            def say_hello() -> str[256]:
                 return "Hello, " + clone({val!r}) + "!"
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -13024,272 +13024,325 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
     count = 0
 
     # First, test constant evaluation in the compiler.
-    for val in ["jen", "dragon", "world"]:
-        sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-            def subscript() -> char:
-                return "{val}"[2]
-        """), settings)
-        memory = getmemory(os.linesep.join([
-            *initlines,
-            *sections.init,
-            *startlines,
-            *sections.code,
-            "main:",
-            "LOADI 111",
-            "MOV A, U",
-            "LOADI 222",
-            "MOV A, V",
-            "LOADI 123",
-            "DECPC",
-            "CALL subscript",
-            "HALT",
-            *datalines,
-            *sections.data,
-            *heaplines,
-        ]))
-        cpu = CPUCore(memory)
-        rununtilhalt(cpu)
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
+        subscripts = [2]
+        if len(val) > 5:
+            subscripts.append(5)
+        if len(val) > 50:
+            subscripts.append(50)
+        if len(val) > 140:
+            subscripts.append(140)
 
-        assertmemory("stringsubscript", memory, cpu.ram)
-        _assert(
-            cpu.a == 123,
-            f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
-        )
-        _assert(
-            cpu.u == 111,
-            f"stringsubscript changed U value from {111} to {cpu.u}!",
-        )
-        _assert(
-            cpu.v == 222,
-            f"stringsubscript changed V value from {222} to {cpu.v}!",
-        )
-        result = bintochar(cpu.ram[cpu.pc])
-        expected = val[2]
-        _assert(
-            result == expected,
-            "Failed to stringsubscript simple, "
-            + f"got {result!r} instead of {expected!r}!",
-        )
-        cycles += cpu.cycles
-        instructions += cpu.ticks
-        count += 1
+        for loc in subscripts:
+            sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
+                def subscript() -> char:
+                    return "{val}"[{loc}]
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "DECPC",
+                "CALL subscript",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
 
-    for val in ["jen", "dragon", "world"]:
-        sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-            CONST_STR: const[str] = "{val}"
+            assertmemory("stringsubscript", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringsubscript changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringsubscript changed V value from {222} to {cpu.v}!",
+            )
+            result = bintochar(cpu.ram[cpu.pc])
+            expected = val[loc]
+            _assert(
+                result == expected,
+                f"Failed to stringsubscript {val!r}[{loc}], "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
 
-            def subscript() -> char:
-                return CONST_STR[2]
-        """), settings)
-        memory = getmemory(os.linesep.join([
-            *initlines,
-            *sections.init,
-            *startlines,
-            *sections.code,
-            "main:",
-            "LOADI 111",
-            "MOV A, U",
-            "LOADI 222",
-            "MOV A, V",
-            "LOADI 123",
-            "DECPC",
-            "CALL subscript",
-            "HALT",
-            *datalines,
-            *sections.data,
-            *heaplines,
-        ]))
-        cpu = CPUCore(memory)
-        rununtilhalt(cpu)
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
+        subscripts = [2]
+        if len(val) > 5:
+            subscripts.append(5)
+        if len(val) > 50:
+            subscripts.append(50)
+        if len(val) > 140:
+            subscripts.append(140)
 
-        assertmemory("stringsubscript", memory, cpu.ram)
-        _assert(
-            cpu.a == 123,
-            f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
-        )
-        _assert(
-            cpu.u == 111,
-            f"stringsubscript changed U value from {111} to {cpu.u}!",
-        )
-        _assert(
-            cpu.v == 222,
-            f"stringsubscript changed V value from {222} to {cpu.v}!",
-        )
-        result = bintochar(cpu.ram[cpu.pc])
-        expected = val[2]
-        _assert(
-            result == expected,
-            "Failed to stringsubscript simple, "
-            + f"got {result!r} instead of {expected!r}!",
-        )
-        cycles += cpu.cycles
-        instructions += cpu.ticks
-        count += 1
+        for loc in subscripts:
+            sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
+                CONST_STR: const[str] = "{val}"
+
+                def subscript() -> char:
+                    return CONST_STR[{loc}]
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "DECPC",
+                "CALL subscript",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringsubscript", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringsubscript changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringsubscript changed V value from {222} to {cpu.v}!",
+            )
+            result = bintochar(cpu.ram[cpu.pc])
+            expected = val[loc]
+            _assert(
+                result == expected,
+                f"Failed to stringsubscript {val!r}[{loc}], "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
 
     # Now, verify non-constant global loads.
-    for val in ["jen", "dragon", "world"]:
-        sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-            global_str: str[16] = "{val}"
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
+        subscripts = [2]
+        if len(val) > 5:
+            subscripts.append(5)
+        if len(val) > 50:
+            subscripts.append(50)
+        if len(val) > 140:
+            subscripts.append(140)
 
-            def subscript() -> char:
-                return global_str[2]
-        """), settings)
-        memory = getmemory(os.linesep.join([
-            *initlines,
-            *sections.init,
-            *startlines,
-            *sections.code,
-            "main:",
-            "LOADI 111",
-            "MOV A, U",
-            "LOADI 222",
-            "MOV A, V",
-            "LOADI 123",
-            "DECPC",
-            "CALL subscript",
-            "HALT",
-            *datalines,
-            *sections.data,
-            *heaplines,
-        ]))
-        cpu = CPUCore(memory)
-        rununtilhalt(cpu)
+        for loc in subscripts:
+            sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
+                global_str: str[256] = "{val}"
 
-        assertmemory("stringsubscript", memory, cpu.ram)
-        _assert(
-            cpu.a == 123,
-            f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
-        )
-        _assert(
-            cpu.u == 111,
-            f"stringsubscript changed U value from {111} to {cpu.u}!",
-        )
-        _assert(
-            cpu.v == 222,
-            f"stringsubscript changed V value from {222} to {cpu.v}!",
-        )
-        result = bintochar(cpu.ram[cpu.pc])
-        expected = val[2]
-        _assert(
-            result == expected,
-            "Failed to stringsubscript simple, "
-            + f"got {result!r} instead of {expected!r}!",
-        )
-        cycles += cpu.cycles
-        instructions += cpu.ticks
-        count += 1
+                def subscript() -> char:
+                    return global_str[{loc}]
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "DECPC",
+                "CALL subscript",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringsubscript", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringsubscript changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringsubscript changed V value from {222} to {cpu.v}!",
+            )
+            result = bintochar(cpu.ram[cpu.pc])
+            expected = val[loc]
+            _assert(
+                result == expected,
+                f"Failed to stringsubscript {val!r}[{loc}], "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
 
     # Now, verify expression result evaluation subscript.
-    for val in ["jen", "dragon", "world"]:
-        sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-            def subscript() -> char:
-                some_str: str[16]
-                some_str = "{val}" + "!"
-                return some_str[2]
-        """), settings)
-        memory = getmemory(os.linesep.join([
-            *initlines,
-            *sections.init,
-            *startlines,
-            *sections.code,
-            *strcpylines,
-            "main:",
-            "LOADI 111",
-            "MOV A, U",
-            "LOADI 222",
-            "MOV A, V",
-            "LOADI 123",
-            "DECPC",
-            "CALL subscript",
-            "HALT",
-            *datalines,
-            *sections.data,
-            *heaplines,
-        ]))
-        cpu = CPUCore(memory)
-        rununtilhalt(cpu)
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
+        subscripts = [2]
+        if len(val) > 5:
+            subscripts.append(5)
+        if len(val) > 50:
+            subscripts.append(50)
+        if len(val) > 140:
+            subscripts.append(140)
 
-        assertmemory("stringsubscript", memory, cpu.ram)
-        _assert(
-            cpu.a == 123,
-            f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
-        )
-        _assert(
-            cpu.u == 111,
-            f"stringsubscript changed U value from {111} to {cpu.u}!",
-        )
-        _assert(
-            cpu.v == 222,
-            f"stringsubscript changed V value from {222} to {cpu.v}!",
-        )
-        result = bintochar(cpu.ram[cpu.pc])
-        expected = val[2]
-        _assert(
-            result == expected,
-            "Failed to stringsubscript simple, "
-            + f"got {result!r} instead of {expected!r}!",
-        )
-        cycles += cpu.cycles
-        instructions += cpu.ticks
-        count += 1
+        for loc in subscripts:
+            sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
+                def subscript() -> char:
+                    some_str: str[256]
+                    some_str = "{val}" + "!"
+                    return some_str[{loc}]
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "DECPC",
+                "CALL subscript",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
 
-    for val in ["jen", "dragon", "world"]:
-        sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
-            def getstr() -> const[str]:
-                return "{val}"
+            assertmemory("stringsubscript", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringsubscript changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringsubscript changed V value from {222} to {cpu.v}!",
+            )
+            result = bintochar(cpu.ram[cpu.pc])
+            expected = val[loc]
+            _assert(
+                result == expected,
+                f"Failed to stringsubscript {val!r}[{loc}], "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
 
-            def subscript() -> char:
-                return getstr()[2]
-        """), settings)
-        memory = getmemory(os.linesep.join([
-            *initlines,
-            *sections.init,
-            *startlines,
-            *sections.code,
-            *strcpylines,
-            "main:",
-            "LOADI 111",
-            "MOV A, U",
-            "LOADI 222",
-            "MOV A, V",
-            "LOADI 123",
-            "DECPC",
-            "CALL subscript",
-            "HALT",
-            *datalines,
-            *sections.data,
-            *heaplines,
-        ]))
-        cpu = CPUCore(memory)
-        rununtilhalt(cpu)
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
+        subscripts = [2]
+        if len(val) > 5:
+            subscripts.append(5)
+        if len(val) > 50:
+            subscripts.append(50)
+        if len(val) > 140:
+            subscripts.append(140)
 
-        assertmemory("stringsubscript", memory, cpu.ram)
-        _assert(
-            cpu.a == 123,
-            f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
-        )
-        _assert(
-            cpu.u == 111,
-            f"stringsubscript changed U value from {111} to {cpu.u}!",
-        )
-        _assert(
-            cpu.v == 222,
-            f"stringsubscript changed V value from {222} to {cpu.v}!",
-        )
-        result = bintochar(cpu.ram[cpu.pc])
-        expected = val[2]
-        _assert(
-            result == expected,
-            "Failed to stringsubscript simple, "
-            + f"got {result!r} instead of {expected!r}!",
-        )
-        cycles += cpu.cycles
-        instructions += cpu.ticks
-        count += 1
+        for loc in subscripts:
+            sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
+                def getstr() -> const[str]:
+                    return "{val}"
+
+                def subscript() -> char:
+                    return getstr()[{loc}]
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "DECPC",
+                "CALL subscript",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringsubscript", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringsubscript changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringsubscript changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringsubscript changed V value from {222} to {cpu.v}!",
+            )
+            result = bintochar(cpu.ram[cpu.pc])
+            expected = val[loc]
+            _assert(
+                result == expected,
+                f"Failed to stringsubscript {val!r}[{loc}], "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
 
     # Now, test variable subscripts.
-    for val in ["jen", "dragon", "world"]:
-        for loc in [0, 1, 2]:
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
+        subscripts = [0, 1, 2]
+        if len(val) > 5:
+            subscripts.append(5)
+        if len(val) > 50:
+            subscripts.append(50)
+        if len(val) > 140:
+            subscripts.append(140)
+
+        for loc in subscripts:
             sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
                 def subscript(loc: uint8) -> char:
                     return "{val}"[loc]
@@ -13332,15 +13385,23 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
             expected = val[loc]
             _assert(
                 result == expected,
-                "Failed to stringsubscript simple, "
+                f"Failed to stringsubscript {val!r}[{loc}], "
                 + f"got {result!r} instead of {expected!r}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
             count += 1
 
-    for val in ["jen", "dragon", "world"]:
-        for loc in [0, 1, 2]:
+    for val in ["jen", "dragon", "world", "A" * 127, "A" * 200]:
+        subscripts = [0, 1, 2]
+        if len(val) > 5:
+            subscripts.append(5)
+        if len(val) > 50:
+            subscripts.append(50)
+        if len(val) > 140:
+            subscripts.append(140)
+
+        for loc in subscripts:
             sections = parse_and_compile_module("stringsubscript", textwrap.dedent(f"""
                 def subscript_impl(str: const[str], loc: uint8) -> char:
                     return str[loc]
@@ -13387,7 +13448,7 @@ def verifystringsubscript(only: Optional[Container[str]], full: bool) -> None:
             expected = val[loc]
             _assert(
                 result == expected,
-                "Failed to stringsubscript simple, "
+                f"Failed to stringsubscript {val!r}[{loc}], "
                 + f"got {result!r} instead of {expected!r}!",
             )
             cycles += cpu.cycles
@@ -13474,13 +13535,13 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Now, test expression evaluation with constant slices.
-    for sliceval in [":", ":8", "4:", "4:8"]:
-        sliceable = "this is a test"
+    for sliceval in [":", ":8", "4:", "4:8", ":140", "130:", "130:140", "50:140"]:
+        sliceable = "A" * 200
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
             def getstr() -> const[str]:
                 return "{sliceable}"
 
-            def sliceme() -> str[32]:
+            def sliceme() -> str[256]:
                 return getstr()[{sliceval}]
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -13530,13 +13591,13 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Now test non-constant slice values
-    for sliceint in [0, 2, 4, 8, 16]:
-        sliceable = "this is a test"
+    for sliceint in [0, 2, 4, 8, 16, 50, 100, 150]:
+        sliceable = "A" * 200
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
             def getstr() -> const[str]:
                 return "{sliceable}"
 
-            def sliceme(loc: uint8) -> str[32]:
+            def sliceme(loc: uint8) -> str[256]:
                 return getstr()[:loc]
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -13586,13 +13647,13 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
-    for sliceint in [0, 2, 4, 8, 16]:
-        sliceable = "this is a test"
+    for sliceint in [0, 2, 4, 8, 16, 50, 100, 150]:
+        sliceable = "A" * 200
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
             def getstr() -> const[str]:
                 return "{sliceable}"
 
-            def sliceme(loc: uint8) -> str[32]:
+            def sliceme(loc: uint8) -> str[256]:
                 return getstr()[loc:]
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -13643,9 +13704,9 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Now, test slices with both a start and an end.
-    for sliceint in [0, 2, 4, 8, 16]:
+    for sliceint in [0, 2, 4, 8, 16, 50, 100, 150]:
         for extendval in [0, 1, 3, 7, 11]:
-            sliceable = "this is a test"
+            sliceable = "A" * 200
             sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
                 def getstr() -> const[str]:
                     return "{sliceable}"
@@ -13726,16 +13787,16 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
     count = 0
 
     # Verify local assignment updates.
-    for offset in [0, 2, 4, 8]:
+    for offset in [0, 2, 4, 8, 50, 100, 150]:
         for updated in ['~', '!', '*']:
-            sliceable = "this is a test"
+            sliceable = "A" * 200
             sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
-                def set_char(string: str[32], offset: uint8, val: char) -> str:
+                def set_char(string: str[256], offset: uint8, val: char) -> str:
                     string[offset] = val
                     return string
 
                 def updateme() -> str:
-                    sliceable: str[32] = {sliceable!r}
+                    sliceable: str[256] = {sliceable!r}
                     return set_char(sliceable, {offset}, {updated!r})
             """), settings)
             memory = getmemory(os.linesep.join([
@@ -13785,11 +13846,11 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
             count += 1
 
     # Verify global variable character setting.
-    for offset in [0, 2, 4, 8]:
+    for offset in [0, 2, 4, 8, 50, 100, 150]:
         for updated in ['~', '!', '*']:
-            sliceable = "this is a test"
+            sliceable = "A" * 200
             sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
-                global_var: str[32] = {sliceable!r}
+                global_var: str[256] = {sliceable!r}
 
                 def set_char(offset: uint8, val: char) -> const[str]:
                     global_var[offset] = val
