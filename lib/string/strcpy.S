@@ -64,7 +64,18 @@ _strcpy_loop:
 _strcpy_done:
     ; Restore the stack pointers by negating the number of
     ; bytes copied and adding it to the stacks.
-    NEG
+
+    ; If we copied an exactly 255 byte string, we're going to have a
+    ; count of zero here due to copying the null byte. We always have
+    ; at least one byte copied, so account for that here.
+    DEC
+
+    SHL
+    JRINC _strcpy_less_than_128
+
+    SWAP A, U
+
+    LOADI -128
     POP SPC
     SWAP PC, SPC
     ADDPC
@@ -74,6 +85,26 @@ _strcpy_done:
     POP SPC
     SWAP PC, SPC
     ADDPC
+    SWAP PC, SPC
+    PUSH SPC
+    SUBPCI 2
+
+    SWAP U, A
+
+_strcpy_less_than_128:
+    SHR
+    NEG
+    POP SPC
+    SWAP PC, SPC
+    ADDPC
+    DECPC
+    SWAP PC, SPC
+    PUSH SPC
+    ADDPCI 2
+    POP SPC
+    SWAP PC, SPC
+    ADDPC
+    DECPC
     SWAP PC, SPC
     PUSH SPC
 
@@ -164,22 +195,42 @@ _strncpy_loop:
 
 _strncpy_exit_early:
     ; Need to null-terminate the destination since we didn't do it normally.
+    INC
     SWAP A, U
     ZERO
+
+    POP SPC
+    SWAP PC, SPC
+    INCPC
+    SWAP PC, SPC
+    PUSH SPC
 
     ADDPCI 2
     POP SPC
     SWAP PC, SPC
     STORE A
+    INCPC
     SWAP PC, SPC
-    SUBPCI 4
+    PUSH SPC
+    SUBPCI 2
 
     SWAP A, U
 
 _strncpy_done:
     ; Restore the stack pointers by negating the number of
     ; bytes copied and adding it to the stacks.
-    NEG
+
+    ; If we copied an exactly 255 byte string, we're going to have a
+    ; count of zero here due to copying the null byte. We always have
+    ; at least one byte copied, so account for that here.
+    DEC
+
+    SHL
+    JRINC _strncpy_less_than_128
+
+    SWAP A, U
+
+    LOADI -128
     POP SPC
     SWAP PC, SPC
     ADDPC
@@ -189,6 +240,26 @@ _strncpy_done:
     POP SPC
     SWAP PC, SPC
     ADDPC
+    SWAP PC, SPC
+    PUSH SPC
+    SUBPCI 2
+
+    SWAP U, A
+
+_strncpy_less_than_128:
+    SHR
+    NEG
+    POP SPC
+    SWAP PC, SPC
+    ADDPC
+    DECPC
+    SWAP PC, SPC
+    PUSH SPC
+    ADDPCI 2
+    POP SPC
+    SWAP PC, SPC
+    ADDPC
+    DECPC
     SWAP PC, SPC
     PUSH SPC
 

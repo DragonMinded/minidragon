@@ -227,7 +227,7 @@ def decode(instruction: int) -> Tuple[str, List["ControlSignals"]]:
             __icache[instruction] = retval
             return retval
     else:
-        raise InvalidInstructionException("Instruction not implemented")
+        raise InvalidInstructionException(f"Instruction {hexstr(instruction, 2)} not implemented")
 
 
 class ControlSignals:

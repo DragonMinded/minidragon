@@ -82,7 +82,7 @@ _strcmp_loop:
 
     ; See if the two bytes equal, if not, then we have our answer!
     ADDI 0
-    JRINZ _strcmp_save_answer
+    JRINZ _strcmp_done
 
     ; They equal, see if we should bail (null hit, strings equal)
     ; or keep going (null not hit).
@@ -90,16 +90,26 @@ _strcmp_loop:
     ADDI 0
     JRINZ _strcmp_loop
 
-_strcmp_save_answer:
+_strcmp_done:
     ; A holds the comparison value at this point, so save it to
     ; the U register, and pop out the U register to A so we can
     ; fix up the stack pointers.
     SWAP U, A
 
-_strcmp_done:
-    ; Restore the stack pointers
-    NEG
-    ADDPCI 7
+    ; If we copied an exactly 255 byte string, we're going to have a
+    ; count of zero here due to copying the null byte. We always have
+    ; at least one byte copied, so account for that here.
+    DEC
+
+    SHL
+    JRINC _strcmp_less_than_128
+
+    PUSH V
+    SWAP A, V
+
+    LOADI -128
+
+    ADDPCI 8
     POP SPC
     SWAP PC, SPC
     ADDPC
@@ -109,6 +119,28 @@ _strcmp_done:
     POP SPC
     SWAP PC, SPC
     ADDPC
+    SWAP PC, SPC
+    PUSH SPC
+    SUBPCI 10
+
+    MOV V, A
+    POP V
+
+_strcmp_less_than_128:
+    SHR
+    NEG
+    ADDPCI 7
+    POP SPC
+    SWAP PC, SPC
+    ADDPC
+    DECPC
+    SWAP PC, SPC
+    PUSH SPC
+    ADDPCI 2
+    POP SPC
+    SWAP PC, SPC
+    ADDPC
+    DECPC
     SWAP PC, SPC
     PUSH SPC
 

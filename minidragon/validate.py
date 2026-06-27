@@ -2838,6 +2838,10 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
         "the quick brown fox jumps over the lazy dog",
         "",
         "whatever this is",
+        "A" * 127,
+        "A" * 128,
+        "A" * 200,
+        "A" * 255,
     ]:
         memory = getmemory(os.linesep.join([
             *initlines,
@@ -2846,6 +2850,10 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
             *[f".char {c!r}" for c in string],
             ".byte 0x00",
             "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "SWAP PC, SPC",
             "SETPC string",
             "SWAP PC, SPC",
@@ -2860,6 +2868,14 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             stack_input == 0x1000,
             f"strlen changed stack input from {0x1000} to {stack_input}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"strlen changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"strlen changed V value from {222} to {cpu.v}!",
         )
         _assert(
             cpu.a == len(string),
@@ -2895,6 +2911,10 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
         "the quick brown fox jumps over the lazy dog",
         "",
         "whatever this is",
+        "A" * 127,
+        "A" * 128,
+        "A" * 200,
+        "A" * 255,
     ]:
         memory = getmemory(os.linesep.join([
             *initlines,
@@ -2903,6 +2923,10 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
             *[f".char {c!r}" for c in string],
             ".byte 0x00",
             "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
             "PUSHI 0x00",
             "PUSHI 0x20",
             "SWAP PC, SPC",
@@ -2920,6 +2944,19 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
             cpu.a == 123,
             f"strcpy changed A register from 123 to {cpu.a}!",
         )
+        _assert(
+            cpu.u == 111,
+            f"strcpy changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"strcpy changed V value from {222} to {cpu.v}!",
+        )
+        _assert(
+            getstring(cpu, 0x2000) == string,
+            f"Failed to strcpy(&{string!r}, 0x2000), "
+            + f"got {getstring(cpu, 0x2000)!r} instead of {string!r}!",
+        )
         stack_source = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
         stack_dest = (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
         _assert(
@@ -2928,12 +2965,7 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             stack_dest == 0x2000,
-            f"strcpy changed stack source from {0x2000} to {stack_dest}!",
-        )
-        _assert(
-            getstring(cpu, 0x2000) == string,
-            f"Failed to strcpy(&{string!r}, 0x2000), "
-            + f"got {getstring(cpu, 0x2000)!r} instead of {string!r}!",
+            f"strcpy changed stack dest from {0x2000} to {stack_dest}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -2959,12 +2991,16 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
     cycles = 0
     instructions = 0
     count = 0
-    for amt in [0, 5, 10, 15]:
+    for amt in [0, 5, 10, 15, 127, 128, 200, 255]:
         for string in [
             "a test",
             "the quick brown fox jumps over the lazy dog",
             "",
             "whatever this is",
+            "A" * 127,
+            "A" * 128,
+            "A" * 200,
+            "A" * 255,
         ]:
             memory = getmemory(os.linesep.join([
                 *initlines,
@@ -2973,6 +3009,10 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
                 *[f".char {c!r}" for c in string],
                 ".byte 0x00",
                 "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
                 "PUSHI 0x00",
                 "PUSHI 0x20",
                 "SWAP PC, SPC",
@@ -2991,6 +3031,21 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
                 cpu.a == 123,
                 f"strncpy changed A register from 123 to {cpu.a}!",
             )
+            _assert(
+                cpu.u == 111,
+                f"strncpy changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"strncpy changed V value from {222} to {cpu.v}!",
+            )
+            expected = string[:amt]
+            actual = getstring(cpu, 0x2000)
+            _assert(
+                actual == expected,
+                f"Failed to strncpy(&{string!r}, 0x2000, {amt}), "
+                + f"got {actual!r} instead of {expected!r}!",
+            )
             stack_amt = cpu.ram[cpu.pc]
             stack_source = (cpu.ram[cpu.pc + 1] << 8) + cpu.ram[cpu.pc + 2]
             stack_dest = (cpu.ram[cpu.pc + 3] << 8) + cpu.ram[cpu.pc + 4]
@@ -3000,18 +3055,11 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
             )
             _assert(
                 stack_dest == 0x2000,
-                f"strncpy changed stack source from {0x2000} to {stack_dest}!",
+                f"strncpy changed stack dest from {0x2000} to {stack_dest}!",
             )
             _assert(
                 stack_amt == amt,
-                f"strncpy changed stack source from {0x2000} to {stack_dest}!",
-            )
-            expected = string[:amt]
-            actual = getstring(cpu, 0x2000)
-            _assert(
-                actual == expected,
-                f"Failed to strncpy(&{string!r}, 0x2000, {amt}), "
-                + f"got {actual!r} instead of {expected!r}!",
+                f"strncpy changed stack amt from {0x2000} to {stack_amt}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
@@ -3040,13 +3088,24 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
     for concatenation in [
         " and more",
         "",
+        "A" * 127,
+        "A" * 128,
+        "A" * 200,
+        "A" * 255,
     ]:
         for string in [
             "a test",
             "the quick brown fox jumps over the lazy dog",
             "",
             "whatever this is",
+            "A" * 127,
+            "A" * 128,
+            "A" * 200,
+            "A" * 255,
         ]:
+            if len(concatenation + string) > 255:
+                continue
+
             memory = getmemory(os.linesep.join([
                 *initlines,
                 ".org 0x1000",
@@ -3059,6 +3118,10 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
                 ".byte 0x00",
                 ".org 0x3000",
                 "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
                 "SWAP PC, SPC",
                 "SETPC string",
                 "SWAP PC, SPC",
@@ -3078,6 +3141,20 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
                 cpu.a == 123,
                 f"strcat changed A register from 123 to {cpu.a}!",
             )
+            _assert(
+                cpu.u == 111,
+                f"strcat changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"strcat changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                getstring(cpu, 0x2000) == (string + concatenation),
+                f"Failed to strcat(&{concatenation!r}, &{string!r}), "
+                + f"got {getstring(cpu, 0x2000)!r} "
+                + f"instead of {(string + concatenation)!r}!",
+            )
             stack_source = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
             stack_dest = (
                 (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
@@ -3089,13 +3166,7 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
             )
             _assert(
                 stack_dest == 0x2000,
-                f"strcat changed stack source from {0x2000} to {stack_dest}!",
-            )
-            _assert(
-                getstring(cpu, 0x2000) == (string + concatenation),
-                f"Failed to strcat(&{concatenation!r}, &{string!r}), "
-                + f"got {getstring(cpu, 0x2000)!r} "
-                + f"instead of {(string + concatenation)!r}!",
+                f"strcat changed stack dest from {0x2000} to {stack_dest}!",
             )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -3128,12 +3199,19 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
         "the quick brown fox jumps over the lazy dog",
         "",
         "whatever this is",
+        "A" * 127,
+        "A" * 128,
+        "A" * 200,
+        "A" * 255,
     ]:
         for second in [
             "a test",
             "the quick brown fox jumps over the lazy dog",
             "",
             "whatever this is",
+            "A" * 127,
+            "A" * 200,
+            "A" * 255,
         ]:
             memory = getmemory(os.linesep.join([
                 *initlines,
@@ -3147,6 +3225,10 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
                 ".byte 0x00",
                 ".org 0x3000",
                 "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
                 "SWAP PC, SPC",
                 "SETPC first",
                 "SWAP PC, SPC",
@@ -3169,23 +3251,30 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
                 answer = 0
             elif first > second:
                 answer = 1
+            _assert(
+                bintoint(cpu.a) == answer,
+                f"Failed to strcmp(&{first!r}, &{second!r}), "
+                + f"got {bintoint(cpu.a)} instead of {answer}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"strcmp changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"strcmp changed V value from {222} to {cpu.v}!",
+            )
             stack_second = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
             stack_first = (
                 (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
             )
             _assert(
                 stack_first == 0x1000,
-                f"strcmp changed stack source from {0x1000} "
-                + f"to {stack_first}!",
+                f"strcmp changed stack first from {0x1000} to {stack_first}!",
             )
             _assert(
                 stack_second == 0x2000,
-                f"strcmp changed stack source from {0x2000} to {stack_second}!",
-            )
-            _assert(
-                bintoint(cpu.a) == answer,
-                f"Failed to strcmp(&{first!r}, &{second!r}), "
-                + f"got {bintoint(cpu.a)} instead of {answer}!",
+                f"strcmp changed stack second from {0x2000} to {stack_second}!",
             )
         cycles += cpu.cycles
         instructions += cpu.ticks

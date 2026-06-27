@@ -86,10 +86,33 @@ _strcat_loop:
 
 _strcat_done:
     ; Restore the source stack pointer
+
+    ; If we concatenated an exactly 255 byte string, we're going to have
+    ; a count of zero here due to copying the null byte. We always have
+    ; at least one byte copied, so account for that here.
+    DEC
+
+    SHL
+    JRINC _strcat_less_than_128
+
+    SWAP A, U
+
+    LOADI -128
+    POP SPC
+    SWAP PC, SPC
+    ADDPC
+    SWAP PC, SPC
+    PUSH SPC
+
+    SWAP U, A
+
+_strcat_less_than_128:
+    SHR
     NEG
     POP SPC
     SWAP PC, SPC
     ADDPC
+    DECPC
     SWAP PC, SPC
     PUSH SPC
 
