@@ -2927,15 +2927,15 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
         )
         _assert(
             cpu.a == 123,
-            f"neg32 changed A register from 123 to {cpu.a}!",
+            f"wstrlen changed A register from 123 to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
-            f"strlen changed U value from {111} to {cpu.u}!",
+            f"wstrlen changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"strlen changed V value from {222} to {cpu.v}!",
+            f"wstrlen changed V value from {222} to {cpu.v}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -3116,6 +3116,77 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
             _assert(
                 stack_amt == amt,
                 f"strncpy changed stack amt from {0x2000} to {stack_amt}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    for amt in [0, 5, 10, 15, 127, 128, 200, 255, 400, 450]:
+        for string in [
+            "a test",
+            "the quick brown fox jumps over the lazy dog",
+            "",
+            "whatever this is",
+            "A" * 127,
+            "A" * 128,
+            "A" * 200,
+            "A" * 255,
+            "A" * 500,
+        ]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                ".org 0x1000",
+                "string:",
+                *[f".char {c!r}" for c in string],
+                ".byte 0x00",
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "PUSHI 0x00",
+                "PUSHI 0x20",
+                "SWAP PC, SPC",
+                "SETPC string",
+                "SWAP PC, SPC",
+                "PUSH SPC",
+                f"PUSHI {(amt >> 0) & 0xFF}",
+                f"PUSHI {(amt >> 8) & 0xFF}",
+                "LOADI 123",
+                "CALL wstrncpy",
+                "HALT",
+                *liblines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == 123,
+                f"wstrncpy changed A register from 123 to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"wstrncpy changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"wstrncpy changed V value from {222} to {cpu.v}!",
+            )
+            expected = string[:amt]
+            actual = getstring(cpu, 0x2000)
+            _assert(
+                actual == expected,
+                f"Failed to wstrncpy(&{string!r}, 0x2000, {amt}), "
+                + f"got {actual!r} instead of {expected!r}!",
+            )
+            stack_source = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+            stack_dest = (cpu.ram[cpu.pc + 2] << 8) + cpu.ram[cpu.pc + 3]
+            _assert(
+                stack_source == 0x1000,
+                f"wstrncpy changed stack source from {0x1000} to {stack_source}!",
+            )
+            _assert(
+                stack_dest == 0x2000,
+                f"wstrncpy changed stack dest from {0x2000} to {stack_dest}!",
             )
             cycles += cpu.cycles
             instructions += cpu.ticks
