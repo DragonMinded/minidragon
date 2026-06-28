@@ -2886,6 +2886,61 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    for string in [
+        "a test",
+        "the quick brown fox jumps over the lazy dog",
+        "",
+        "whatever this is",
+        "A" * 127,
+        "A" * 128,
+        "A" * 200,
+        "A" * 255,
+        "A" * 500,
+    ]:
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            ".org 0x1000",
+            "string:",
+            *[f".char {c!r}" for c in string],
+            ".byte 0x00",
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "SWAP PC, SPC",
+            "SETPC string",
+            "SWAP PC, SPC",
+            "PUSH SPC",
+            "LOADI 123",
+            "CALL wstrlen",
+            "HALT",
+            *liblines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        result = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
+        _assert(
+            result == len(string),
+            f"Failed to wstrlen({string!r}), "
+            + f"got {cpu.a} instead of {len(string)}",
+        )
+        _assert(
+            cpu.a == 123,
+            f"neg32 changed A register from 123 to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"strlen changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"strlen changed V value from {222} to {cpu.v}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     print(f"Average cycles for strlen: {int(cycles/count)}")
     print(f"Average instructions for strlen: {int(instructions/count)}")
 
