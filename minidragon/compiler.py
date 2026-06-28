@@ -9401,7 +9401,9 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("strcmp", RegisterCoreType("int8", "A"), [PreservedCoreType("str"), PreservedCoreType("str")]),
         FunctionPrototype("strcpy", VoidType, [PreservedCoreType("str"), PreservedCoreType("str")]),
         FunctionPrototype("strncpy", VoidType, [PreservedCoreType("str"), PreservedCoreType("str"), PreservedCoreType("uint8")]),
+        FunctionPrototype("wstrncpy", VoidType, [PreservedCoreType("str"), PreservedCoreType("str"), CoreType("uint16")]),
         FunctionPrototype("strlen", RegisterCoreType("uint8", "A"), [PreservedCoreType("str")]),
+        FunctionPrototype("wstrlen", CoreType("uint16"), [CoreType("str")]),
 
         # STDLIB string/integer conversion functions.
         FunctionPrototype("atoi8", RegisterCoreType("int8", "A"), [InOutCoreType("str")]),
