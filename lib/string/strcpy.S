@@ -14,34 +14,47 @@ strcpy:
     ;     CALL strcpy
     ;
     ; Stack layout
-    ; PC + 0 - saved U register
-    ; PC + 1 - saved A register
-    ; PC + 2 - saved SP
-    ; PC + 3 - saved SC
-    ; PC + 4 - return address
-    ; PC + 5 - return address
-    ; PC + 6 - pointer to source
-    ; PC + 7 - pointer to source
-    ; PC + 8 - pointer to destination
-    ; PC + 9 - pointer to destination
+    ; PC + 0  - copy of source pointer
+    ; PC + 1  - copy of source pointer
+    ; PC + 2  - copy of destination pointer
+    ; PC + 3  - copy of destination pointer
+    ; PC + 4  - saved A register
+    ; PC + 5  - saved SP
+    ; PC + 6  - saved SC
+    ; PC + 7  - return address
+    ; PC + 8  - return address
+    ; PC + 9  - pointer to source
+    ; PC + 10 - pointer to source
+    ; PC + 11 - pointer to destination
+    ; PC + 12 - pointer to destination
 
     ; First, save the existing registers
     PUSH SPC
     PUSH A
-    PUSH U
-    ADDPCI 6
 
-    ; Initialize the count of bytes we copied.
-    ZERO
+    ; Now, copy source and destination pointers so we can safely iterate.
+    ADDPCI 8
+    LOAD A
+    SUBPCI 9
+    STORE A
+    ADDPCI 8
+    LOAD A
+    SUBPCI 9
+    STORE A
+    ADDPCI 8
+    LOAD A
+    SUBPCI 9
+    STORE A
+    ADDPCI 8
+    LOAD A
+    SUBPCI 9
+    STORE A
 
 _strcpy_loop:
-    ; Keep track of number of bytes copied
-    INC
-
     ; Grab a byte from the source
     POP SPC
     SWAP PC, SPC
-    POP U
+    POP A
     SWAP PC, SPC
     PUSH SPC
 
@@ -49,68 +62,18 @@ _strcpy_loop:
     ADDPCI 2
     POP SPC
     SWAP PC, SPC
-    STORE U
+    STORE A
     INCPC
     SWAP PC, SPC
     PUSH SPC
     SUBPCI 2
 
     ; See if we copied the null termination
-    SWAP U, A
     ADDI 0
-    SWAP A, U
     JRINZ _strcpy_loop
 
-_strcpy_done:
-    ; Restore the stack pointers by negating the number of
-    ; bytes copied and adding it to the stacks.
-
-    ; If we copied an exactly 255 byte string, we're going to have a
-    ; count of zero here due to copying the null byte. We always have
-    ; at least one byte copied, so account for that here.
-    DEC
-
-    SHL
-    JRINC _strcpy_less_than_128
-
-    SWAP A, U
-
-    LOADI -128
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    SWAP PC, SPC
-    PUSH SPC
-    ADDPCI 2
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    SWAP PC, SPC
-    PUSH SPC
-    SUBPCI 2
-
-    SWAP U, A
-
-_strcpy_less_than_128:
-    SHR
-    NEG
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    DECPC
-    SWAP PC, SPC
-    PUSH SPC
-    ADDPCI 2
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    DECPC
-    SWAP PC, SPC
-    PUSH SPC
-
     ; Restore the shadow stack and A register
-    SUBPCI 8
-    POP U
+    ADDPCI 4
     POP A
     POP SPC
 
@@ -135,34 +98,56 @@ strncpy:
     ;     CALL strncpy
     ;
     ; Stack layout
-    ; PC + 0  - saved U register
-    ; PC + 1  - saved A register
-    ; PC + 2  - saved SP
-    ; PC + 3  - saved SC
-    ; PC + 4  - return address
-    ; PC + 5  - return address
-    ; PC + 6  - number of characters to copy
-    ; PC + 7  - pointer to source
-    ; PC + 8  - pointer to source
-    ; PC + 9  - pointer to destination
-    ; PC + 10 - pointer to destination
+    ; PC + 0  - copy of source pointer
+    ; PC + 1  - copy of source pointer
+    ; PC + 2  - copy of destination pointer
+    ; PC + 3  - copy of destination pointer
+    ; PC + 4  - saved U register
+    ; PC + 5  - saved A register
+    ; PC + 6  - saved SP
+    ; PC + 7  - saved SC
+    ; PC + 8  - return address
+    ; PC + 9  - return address
+    ; PC + 10 - number of characters to copy
+    ; PC + 11 - pointer to source
+    ; PC + 12 - pointer to source
+    ; PC + 13 - pointer to destination
+    ; PC + 14 - pointer to destination
 
     ; First, save the existing registers
     PUSH SPC
     PUSH A
     PUSH U
-    ADDPCI 7
+
+    ; Copy source and destination pointers so we can iterate safely.
+    ADDPCI 10
+    LOAD A
+    SUBPCI 11
+    STORE A
+    ADDPCI 10
+    LOAD A
+    SUBPCI 11
+    STORE A
+    ADDPCI 10
+    LOAD A
+    SUBPCI 11
+    STORE A
+    ADDPCI 10
+    LOAD A
+    SUBPCI 11
+    STORE A
 
     ; Initialize the count of bytes we copied.
     ZERO
 
 _strncpy_loop:
     ; Figure out if we copied the right number of bytes
-    DECPC
-    POP U
+    ADDPCI 10
+    LOAD U
     SWAP A, U
     XORU
     SWAP A, U
+    SUBPCI 10
     JRIZ _strncpy_exit_early
 
     ; Keep track of number of bytes copied
@@ -195,76 +180,19 @@ _strncpy_loop:
 
 _strncpy_exit_early:
     ; Need to null-terminate the destination since we didn't do it normally.
-    INC
-    SWAP A, U
     ZERO
-
-    POP SPC
-    SWAP PC, SPC
-    INCPC
-    SWAP PC, SPC
-    PUSH SPC
 
     ADDPCI 2
     POP SPC
     SWAP PC, SPC
     STORE A
-    INCPC
     SWAP PC, SPC
     PUSH SPC
     SUBPCI 2
-
-    SWAP A, U
 
 _strncpy_done:
-    ; Restore the stack pointers by negating the number of
-    ; bytes copied and adding it to the stacks.
-
-    ; If we copied an exactly 255 byte string, we're going to have a
-    ; count of zero here due to copying the null byte. We always have
-    ; at least one byte copied, so account for that here.
-    DEC
-
-    SHL
-    JRINC _strncpy_less_than_128
-
-    SWAP A, U
-
-    LOADI -128
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    SWAP PC, SPC
-    PUSH SPC
-    ADDPCI 2
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    SWAP PC, SPC
-    PUSH SPC
-    SUBPCI 2
-
-    SWAP U, A
-
-_strncpy_less_than_128:
-    SHR
-    NEG
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    DECPC
-    SWAP PC, SPC
-    PUSH SPC
-    ADDPCI 2
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    DECPC
-    SWAP PC, SPC
-    PUSH SPC
-
     ; Restore the shadow stack and A register
-    SUBPCI 9
+    ADDPCI 4
     POP U
     POP A
     POP SPC

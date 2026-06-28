@@ -15,27 +15,45 @@ strcat:
     ;     CALL strcat
     ;
     ; Stack layout
-    ; PC + 0  - pointer to end of destination
-    ; PC + 1  - pointer to end of destination
-    ; PC + 2  - saved U register
-    ; PC + 3  - saved A register
-    ; PC + 4  - saved SP
-    ; PC + 5  - saved SC
-    ; PC + 6  - return address
+    ; PC + 0  - copy of pointer to source
+    ; PC + 1  - copy of pointer to source
+    ; PC + 2  - pointer to end of destination
+    ; PC + 3  - pointer to end of destination
+    ; PC + 4  - saved A register
+    ; PC + 5  - saved SP
+    ; PC + 6  - saved SC
     ; PC + 7  - return address
-    ; PC + 8  - pointer to source
+    ; PC + 8  - return address
     ; PC + 9  - pointer to source
-    ; PC + 10 - pointer to destination
+    ; PC + 10 - pointer to source
     ; PC + 11 - pointer to destination
+    ; PC + 12 - pointer to destination
 
     ; First, save the existing registers
     PUSH SPC
     PUSH A
-    PUSH U
 
-    ; Now, advance the destination pointer until we find the
-    ; terminating null byte.
+    ; Now, save copies of the source and destination pointers so we can iterate
+    ; over them. Copy in a weird pattern so we end on the byte we need to be on
+    ; for the advance loop.
+    ADDPCI 5
+    LOAD A
+    SUBPCI 9
+    STORE A
+    ADDPCI 10
+    LOAD A
+    SUBPCI 9
+    STORE A
+    ADDPCI 11
+    LOAD A
+    SUBPCI 9
+    STORE A
     ADDPCI 8
+    LOAD A
+    SUBPCI 9
+    STORE A
+
+    ; Now, advance the destination pointer until we find the terminating null byte.
     POP SPC
     SWAP PC, SPC
 
@@ -53,72 +71,34 @@ _strcat_advance:
 
 _strcat_update_dest:
     SWAP PC, SPC
-    SUBPCI 10
     PUSH SPC
-    ADDPCI 8
+    SUBPCI 2
 
 _strcat_loop:
-    ; Keep track of number of bytes copied
-    INC
-
     ; Grab a byte from the source
     POP SPC
     SWAP PC, SPC
-    POP U
+    POP A
     SWAP PC, SPC
     PUSH SPC
 
     ; Store that byte in the destination
-    SUBPCI 8
+    ADDPCI 2
     POP SPC
     SWAP PC, SPC
-    STORE U
+    STORE A
     INCPC
     SWAP PC, SPC
     PUSH SPC
-    ADDPCI 8
+    SUBPCI 2
 
     ; See if we copied the null termination
-    SWAP U, A
     ADDI 0
-    SWAP A, U
     JRINZ _strcat_loop
 
 _strcat_done:
-    ; Restore the source stack pointer
-
-    ; If we concatenated an exactly 255 byte string, we're going to have
-    ; a count of zero here due to copying the null byte. We always have
-    ; at least one byte copied, so account for that here.
-    DEC
-
-    SHL
-    JRINC _strcat_less_than_128
-
-    SWAP A, U
-
-    LOADI -128
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    SWAP PC, SPC
-    PUSH SPC
-
-    SWAP U, A
-
-_strcat_less_than_128:
-    SHR
-    NEG
-    POP SPC
-    SWAP PC, SPC
-    ADDPC
-    DECPC
-    SWAP PC, SPC
-    PUSH SPC
-
     ; Restore the shadow stack and A register
-    SUBPCI 6
-    POP U
+    ADDPCI 4
     POP A
     POP SPC
 

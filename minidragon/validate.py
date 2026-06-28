@@ -2912,9 +2912,10 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
         "",
         "whatever this is",
         "A" * 127,
-        "A" * 128,
-        "A" * 200,
-        "A" * 255,
+        "B" * 128,
+        "C" * 200,
+        "D" * 255,
+        "E" * 500,
     ]:
         memory = getmemory(os.linesep.join([
             *initlines,
@@ -3089,9 +3090,10 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
         " and more",
         "",
         "A" * 127,
-        "A" * 128,
-        "A" * 200,
-        "A" * 255,
+        "B" * 128,
+        "C" * 200,
+        "D" * 255,
+        "E" * 500
     ]:
         for string in [
             "a test",
@@ -3099,13 +3101,11 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
             "",
             "whatever this is",
             "A" * 127,
-            "A" * 128,
-            "A" * 200,
-            "A" * 255,
+            "B" * 128,
+            "C" * 200,
+            "D" * 255,
+            "E" * 500,
         ]:
-            if len(concatenation + string) > 255:
-                continue
-
             memory = getmemory(os.linesep.join([
                 *initlines,
                 ".org 0x1000",
@@ -3201,8 +3201,10 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
         "whatever this is",
         "A" * 127,
         "A" * 128,
-        "A" * 200,
-        "A" * 255,
+        "B" * 128,
+        "C" * 200,
+        "D" * 255,
+        "E" * 500,
     ]:
         for second in [
             "a test",
@@ -3210,8 +3212,11 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
             "",
             "whatever this is",
             "A" * 127,
-            "A" * 200,
-            "A" * 255,
+            "A" * 128,
+            "B" * 128,
+            "C" * 200,
+            "D" * 255,
+            "E" * 500,
         ]:
             memory = getmemory(os.linesep.join([
                 *initlines,
