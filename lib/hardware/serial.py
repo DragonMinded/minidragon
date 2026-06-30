@@ -165,11 +165,18 @@ def serial_send(data: const[str]) -> void:
         serial_send_byte(ord(byte))
 
 
-def serial_recv(max_length: uint8 = 255, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str[256]:
+def serial_recv(
+    max_length: uint8 = 255,
+    echo_input: bool = True,
+    echo_newline: bool = False,
+    mask_input: bool = False,
+    allow_empty: bool = True,
+) -> str[256]:
     """
     Receive a string that is terminated with a newline character. That means
     the remote side hit enter. The newline character itself will not be appended
-    to the returned buffer. By default, echos the input back to the client.
+    to the returned buffer. By default, echos the input back to the client except
+    for the newline which is skipped.
     """
     accum: str[256] = ""
     length: uint8 = 0
@@ -247,6 +254,9 @@ def serial_recv(max_length: uint8 = 255, echo_input: bool = True, mask_input: bo
             length += 1
             accum[length] = "\0"
 
+    if echo_newline:
+        serial_send_byte(ord("\n"))
+
     return accum
 
 
@@ -257,8 +267,4 @@ def serial_input(prompt: const[str], max_length: uint8 = 255, echo_input: bool =
     serial connection, and then add a newline to the screen before returning.
     """
     serial_send(prompt)
-
-    retval: const[str] = serial_recv(max_length, echo_input, mask_input, allow_empty)
-    serial_send_byte(ord("\n"))
-
-    return retval
+    return serial_recv(max_length=max_length, echo_input=echo_input, echo_newline=True, mask_input=mask_input, allow_empty=allow_empty)
