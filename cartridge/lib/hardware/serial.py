@@ -49,10 +49,22 @@ def serial_send(data: const[str]) -> extern[void]: ...
 # Receive a string that is terminated with a newline character. That means
 # the remote side hit enter. The newline character itself will not be appended
 # to the returned buffer. By default, echos the input back to the client.
-def serial_recv(max_length: uint8 = 127, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> extern[str]: ...
+def serial_recv(
+    max_length: uint8 = 255,
+    echo_input: bool = True,
+    echo_newline: bool = False,
+    mask_input: bool = False,
+    allow_empty: bool = True,
+) -> extern[str[256]]: ...
 
 
 # Given a prompt string, send that prompt over serial, then read input until
 # the enter key is pressed, echoing the received characters back to the
 # serial connection, and then add a newline to the screen before returning.
-def serial_input(prompt: const[str], max_length: uint8 = 127, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> extern[str]: ...
+def serial_input(
+    prompt: const[str],
+    max_length: uint8 = 255,
+    echo_input: bool = True,
+    mask_input: bool = False,
+    allow_empty: bool = True,
+) -> extern[str[256]]: ...
