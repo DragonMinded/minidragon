@@ -5864,6 +5864,27 @@ class Compiler:
 
         return compiled
 
+    def infer_string_index_size(
+        self,
+        expr: cst.BaseExpression,
+        types: Dict[cst.CSTNode, CoreType],
+        local_consts: List[Constant],
+        context: Context,
+    ) -> int:
+        try:
+            value = self.codegen_eval(expr, local_consts, context.wrap(expr))
+        except NonConstantExpressionException:
+            value = None
+        if not isinstance(value, int):
+            value = None
+
+        if value is not None:
+            size = 1 if not bool(value & 0xFFFFFF00) else 2
+        else:
+            size = 1 if types[expr].size == 1 else 2
+
+        return size
+
     def generate_subscript_expr(
         self,
         expression: cst.Subscript,
@@ -5907,17 +5928,7 @@ class Compiler:
                 compiled += self.generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
 
             # Figure out if this is a constant offset, size the offset calculation based on that.
-            try:
-                value = self.codegen_eval(slice_or_index.value, local_consts, context.wrap(slice_or_index.value))
-            except NonConstantExpressionException:
-                value = None
-            if not isinstance(value, int):
-                value = None
-
-            if value is not None:
-                size = 1 if not bool(value & 0xFFFFFF00) else 2
-            else:
-                size = 1 if types[slice_or_index.value].size == 1 else 2
+            size = self.infer_string_index_size(slice_or_index.value, types, local_consts, context)
 
             if size == 1:
                 # Calculate the offset into the string that we're gonna need, first.
@@ -6022,6 +6033,10 @@ class Compiler:
                 if isinstance(expression.value, cst.Name):
                     same_destination = expression.value.value == destination
 
+            # Infer index sizes for correct codegen for wide strings versus normal strings.
+            beginning_size = self.infer_string_index_size(beginning, types, local_consts, context) if beginning else 0
+            ending_size = self.infer_string_index_size(ending, types, local_consts, context) if ending else 0
+
             # This is a subscript in the form of var[:] which in Python land is a copy,
             # so we can do that here.
             if not stack.initof(destination):
@@ -6069,75 +6084,108 @@ class Compiler:
             elif beginning is None and ending is not None:
                 # This can be mapped onto a simple strncpy, so we should calculate the ending value and do that.
                 ending_dest = self.expr_temp_name()
-                stack.alloc(StackVar(ending_dest, CoreType("uint8")))
-                compiled += self.generate_expr_internal(ending, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
+
+                if ending_size == 1:
+                    stack.alloc(StackVar(ending_dest, CoreType("uint8")))
+                    compiled += self.generate_expr_internal(ending, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
+                else:
+                    stack.alloc(StackVar(ending_dest, CoreType("uint16")))
+                    compiled += self.generate_expr_internal(ending, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
 
                 if same_destination:
                     if lhs_dest != destination:
                         raise Exception("Logic error, expected these to equal for optimized case to work!")
 
-                    # Instead of just using ADDPC here to increment past the bytes we don't want, we increment one at
-                    # a time. This is so we can check for an early null-terminator to make truncation memory safe.
-                    clobbers.add("A")
-                    clobbers.add("U")
-                    clobbers.add("V")
-                    clobbers.add("SPC")
+                    if ending_size == 1:
+                        # Instead of just using ADDPC here to increment past the bytes we don't want, we increment one at
+                        # a time. This is so we can check for an early null-terminator to make truncation memory safe.
+                        clobbers.add("A")
+                        clobbers.add("U")
+                        clobbers.add("SPC")
 
-                    # Get the offset value that we just calculated.
-                    compiled += self.generate_move_to(ending_dest, stack, clobbers, context)
-                    compiled.append_code("  LOAD V")
+                        # Get the offset value that we just calculated.
+                        compiled += self.generate_move_to(ending_dest, stack, clobbers, context)
+                        compiled.append_code("  LOAD A")
 
-                    # Move to the correct spot on the stack to move the pointer to the right offset.
-                    compiled += self.generate_move_to(lhs_dest, stack, clobbers, context, offset=1)
+                        # Move to the correct spot on the stack to move the pointer to the right offset.
+                        compiled += self.generate_move_to(lhs_dest, stack, clobbers, context, offset=1)
 
-                    advance_top = self.local_label_name(context, "advance_top")
-                    advance_bottom = self.local_label_name(context, "advance_bottom")
+                        advance_top = self.local_label_name(context, "advance_top")
+                        advance_bottom = self.local_label_name(context, "advance_bottom")
 
-                    # Swap over so we can check the string one byte at a time.
-                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
-                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
-                    compiled.append_code("  POP SPC")
-                    stack.move(-2)
-                    compiled.code += comment_stack(stack)
+                        # Swap over so we can check the string one byte at a time.
+                        compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                        compiled.append_code("  POP SPC")
+                        stack.move(-2)
+                        compiled.code += comment_stack(stack)
 
-                    # Loop through, checking for termination conditions. First check for end of loop by advancing enough.
-                    # Then, check if we've hit a null byte.
-                    compiled.append_code("  SWAP PC, SPC")
-                    compiled.append_code(f"{advance_top}:")
-                    compiled.append_code("  ADDI 0")
-                    compiled.append_code(f"  JRIZ {advance_bottom}")
-                    compiled.append_code("  DEC")
-                    compiled.append_code("  MOV A, U")
-                    compiled.append_code("  LOAD A")
-                    compiled.append_code("  ADDI 0")
-                    compiled.append_code(f"  JRIZ {advance_bottom}")
-                    compiled.append_code("  INCPC")
-                    compiled.append_code("  MOV U, A")
-                    compiled.append_code(f"  JRI {advance_top}")
-                    compiled.append_code(f"{advance_bottom}:")
+                        # Loop through, checking for termination conditions. First check for end of loop by advancing enough.
+                        # Then, check if we've hit a null byte.
+                        compiled.append_code("  SWAP PC, SPC")
+                        compiled.append_code(f"{advance_top}:")
+                        compiled.append_code("  ADDI 0")
+                        compiled.append_code(f"  JRIZ {advance_bottom}")
+                        compiled.append_code("  DEC")
+                        compiled.append_code("  MOV A, U")
+                        compiled.append_code("  LOAD A")
+                        compiled.append_code("  ADDI 0")
+                        compiled.append_code(f"  JRIZ {advance_bottom}")
+                        compiled.append_code("  INCPC")
+                        compiled.append_code("  MOV U, A")
+                        compiled.append_code(f"  JRI {advance_top}")
+                        compiled.append_code(f"{advance_bottom}:")
 
-                    # Swap to it, add our destination offset and then null terminate at that location.
-                    compiled.append_code("  STOREI 0")
-                    compiled.append_code("  SWAP PC, SPC")
+                        # Swap to it, add our destination offset and then null terminate at that location.
+                        compiled.append_code("  STOREI 0")
+                        compiled.append_code("  SWAP PC, SPC")
+
+                    else:
+                        compiled += self.generate_function_call_internal(
+                            create_call("wstrtrunc", [UnvalidatedName(lhs_dest), UnvalidatedName(ending_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context.wrap(expression),
+                        )
 
                 else:
-                    compiled += self.generate_function_call_internal(
-                        create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
-                        None,
-                        types,
-                        stack,
-                        clobbers,
-                        allocations,
-                        refs,
-                        local_consts,
-                        context.wrap(expression),
-                    )
+                    if ending_size == 1:
+                        compiled += self.generate_function_call_internal(
+                            create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context.wrap(expression),
+                        )
+                    else:
+                        compiled += self.generate_function_call_internal(
+                            create_call("wstrncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context.wrap(expression),
+                        )
 
                 stack.free(ending_dest)
 
             else:
                 if beginning is None:
                     raise Exception("Logic error, shouldn't be possible to get a null beginning here!")
+
+                #TODO: 16-bit here as well.
 
                 # The beginning is non-null, regardless of whether the ending is present. So, we must adjust the
                 # local base destination forward by the slice value.
@@ -6209,6 +6257,8 @@ class Compiler:
                         compiled += self.generate_expr_internal(expr, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.virtual(expr))
 
                     except NonConstantExpressionException:
+                        #TODO: 16-bit here as well.
+
                         # First, store the beginning value that we calculated so that we can subtract it later.
                         ending_dest = self.expr_temp_name()
                         stack.alloc(StackVar(ending_dest, CoreType("int8"), initialized=True))
@@ -6228,6 +6278,7 @@ class Compiler:
                         compiled.append_code("  ADD" + stack.comment(stack.location, StackOperation.LOAD))
                         compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
+                    #TODO: 16-bit here as well.
                     compiled += self.generate_function_call_internal(
                         create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
                         None,
@@ -9929,6 +9980,7 @@ def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
         FunctionPrototype("wstrncpy", VoidType, [PreservedCoreType("str"), PreservedCoreType("str"), CoreType("uint16")]),
         FunctionPrototype("strlen", RegisterCoreType("uint8", "A"), [PreservedCoreType("str")]),
         FunctionPrototype("wstrlen", CoreType("uint16"), [CoreType("str")]),
+        FunctionPrototype("wstrtrunc", VoidType, [PreservedCoreType("str"), CoreType("uint16")]),
 
         # STDLIB string/integer conversion functions.
         FunctionPrototype("atoi8", RegisterCoreType("int8", "A"), [InOutCoreType("str")]),

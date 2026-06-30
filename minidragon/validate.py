@@ -3196,6 +3196,91 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for strncpy: {int(instructions/count)}")
 
 
+def verifystrtrunc(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "strtrunc" not in only and "stringlib" not in only:
+        return
+
+    print("Verifying strtrunc...")
+
+    with open("lib/runtime/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/runtime/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        liblines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    for amt in [0, 5, 10, 15, 127, 128, 200, 255, 400, 450]:
+        for string in [
+            "",
+            "a test",
+            "the quick brown fox jumps over the lazy dog",
+            "whatever this is",
+            "A" * 127,
+            "A" * 128,
+            "A" * 200,
+            "A" * 255,
+            "A" * 500,
+        ]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                ".org 0x1000",
+                "string:",
+                *[f".char {c!r}" for c in string],
+                ".byte 0x00",
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "SWAP PC, SPC",
+                "SETPC string",
+                "SWAP PC, SPC",
+                "PUSH SPC",
+                f"PUSHI {(amt >> 0) & 0xFF}",
+                f"PUSHI {(amt >> 8) & 0xFF}",
+                "LOADI 123",
+                "CALL wstrtrunc",
+                "HALT",
+                *liblines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == 123,
+                f"wstrtrunc changed A register from 123 to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"wstrtrunc changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"wstrtrunc changed V value from {222} to {cpu.v}!",
+            )
+            expected = string[:amt]
+            actual = getstring(cpu, 0x1000)
+            _assert(
+                actual == expected,
+                f"Failed to wstrtrunc(&{string!r}, {amt}), "
+                + f"got {actual!r} instead of {expected!r}!",
+            )
+            stack_source = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+            _assert(
+                stack_source == 0x1000,
+                f"wstrtrunc changed stack source from {0x1000} to {stack_source}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for strtrunc: {int(cycles/count)}")
+    print(f"Average instructions for strtrunc: {int(instructions/count)}")
+
+
 def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "strcat" not in only and "stringlib" not in only:
         return
@@ -14144,13 +14229,13 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Now, test expression evaluation with constant slices.
-    for sliceval in [":", ":8", "4:", "4:8", ":140", "130:", "130:140", "50:140"]:
-        sliceable = "A" * 200
+    for sliceval in [":", ":8", "4:", "4:8", ":140", ":300", "130:", "300:", "130:140", "50:140", "40:300", "300:350"]:
+        sliceable = "A" * 400
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
             def getstr() -> const[str]:
                 return "{sliceable}"
 
-            def sliceme() -> str[256]:
+            def sliceme() -> str[512]:
                 return getstr()[{sliceval}]
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -14222,6 +14307,62 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
             "MOV A, V",
             f"PUSHI {sliceint}",
             "DECPC",
+            "LOADI 123",
+            "CALL sliceme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringslice", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringslice changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringslice changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringslice changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+        expected = sliceable[:sliceint]
+        _assert(
+            result == expected,
+            "Failed to stringslice simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for sliceint in [0, 2, 4, 8, 16, 50, 100, 150, 300, 350]:
+        sliceable = "A" * 400
+        sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+            def getstr() -> const[str]:
+                return "{sliceable}"
+
+            def sliceme(loc: uint16) -> str[512]:
+                return getstr()[:loc]
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {(sliceint >> 0) & 0xFF}",
+            f"PUSHI {(sliceint >> 8) & 0xFF}",
             "LOADI 123",
             "CALL sliceme",
             "HALT",
@@ -14369,6 +14510,64 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
             cycles += cpu.cycles
             instructions += cpu.ticks
             count += 1
+
+    # Now test for truncation optimization.
+    for sliceint in [0, 2, 4, 8, 16, 50, 100, 150, 300, 350]:
+        sliceable = "A" * 400
+        intsize = "uint8" if sliceint < 256 else "uint16"
+
+        sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+            def sliceme(loc: {intsize}) -> str[512]:
+                sliceable: str[512] = "{sliceable}"
+                sliceable = sliceable[:loc]
+                return sliceable
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {(sliceint >> 0) & 0xFF}",
+            f"PUSHI {(sliceint >> 8) & 0xFF}",
+            "LOADI 123",
+            "CALL sliceme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringslice", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringslice changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringslice changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringslice changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+        expected = sliceable[:sliceint]
+        _assert(
+            result == expected,
+            "Failed to stringslice simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
 
     print(f"Average cycles for stringslice: {int(cycles/count)}")
     print(f"Average instructions for stringslice: {int(instructions/count)}")
@@ -19086,6 +19285,7 @@ if __name__ == "__main__":
     verifystrlen(only, args.full)
     verifystrcpy(only, args.full)
     verifystrncpy(only, args.full)
+    verifystrtrunc(only, args.full)
     verifystrcat(only, args.full)
     verifystrcmp(only, args.full)
 

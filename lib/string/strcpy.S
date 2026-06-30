@@ -342,3 +342,119 @@ _wstrncpy_done:
 
     ; Now, return to caller
     RET
+
+wstrtrunc:
+    ; Given a stack holding a string pointer as well as the maximum number of
+    ; characters the string should have as a 16-bit integer, truncate the string
+    ; to that number of characters. If the string is already shorter, has no effect.
+    ; if the string is longer, it will be truncated to the specified size. Does not
+    ; clobber the A/U/V register nor the source/destination pointer on the stack.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to truncate a string at 0x1234 to 500 bytes, call like so:
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     PuSHI 0xF4
+    ;     PUSHI 0x01
+    ;     CALL wstrtrunc
+    ;
+    ; Stack layout after call:
+    ; PC + 0  - copy of string pointer <-- beginning of loop here, normal exit here
+    ; PC + 1  - copy of string pointer
+    ; PC + 2  - saved A register
+    ; PC + 3  - saved SP
+    ; PC + 4  - saved SC
+    ; PC + 5  - return address
+    ; PC + 6  - return address
+    ; PC + 7  - number of characters to truncate to <-- exit early
+    ; PC + 8  - number of characters to truncate to
+    ; PC + 9  - pointer to string
+    ; PC + 10 - pointer to string
+    ;
+    ; Stack layout just before return:
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - pointer to string
+    ; PC + 3 - pointer to string
+
+    ; First, save the existing registers
+    PUSH SPC
+    PUSH A
+
+    ; Copy string pointer so we can iterate safely.
+    ADDPCI 8
+    LOAD A
+    SUBPCI 9
+    STORE A
+    ADDPCI 8
+    LOAD A
+    SUBPCI 9
+    STORE A
+
+_wstrtrunc_loop_check:
+    ; Figure out if we advanced past the right number of bytes (is our countdown zero).
+    ADDPCI 8
+    LOAD A
+    DECPC
+
+    ADDI 0
+    JRINZ _wstrtrunc_loop
+
+    ; Check second byte now that we know the first is zero.
+    LOAD A
+    ADDI 0
+    JRIZ _wstrtrunc_exit_early
+
+_wstrtrunc_loop:
+    ; Decrement the number of bytes we have left to advance past to get to our truncation byte.
+    POP SPC
+    SWAP PC, SPC
+    DECPC
+    SWAP SPC, PC
+    PUSH SPC
+
+    ; Grab a byte from the string
+    SUBPCI 7
+    POP SPC
+    SWAP PC, SPC
+    POP A
+    SWAP PC, SPC
+    PUSH SPC
+
+    ; See if we encountered a null terminator, meaning the string is already short enough.
+    ADDI 0
+    SKIPIF !ZF
+    JRI _wstrtrunc_done
+    LNGJUMP _wstrtrunc_loop_check
+
+_wstrtrunc_exit_early:
+    ; Need to null-terminate to truncate the string.
+    ZERO
+
+    SUBPCI 7
+    POP SPC
+    SWAP PC, SPC
+    STORE A
+    SWAP PC, SPC
+    PUSH SPC
+
+_wstrtrunc_done:
+    ; Copy the return pointer where it needs to go.
+    ADDPCI 5
+    LOAD A
+    ADDPCI 2
+    STORE A
+    SUBPCI 1
+    LOAD A
+    ADDPCI 2
+    STORE A
+
+    ; Restore the shadow stack and A register
+    SUBPCI 6
+    POP A
+    POP SPC
+    ADDPCI 2
+
+    ; Now, return to caller
+    RET
