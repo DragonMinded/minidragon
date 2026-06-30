@@ -224,7 +224,7 @@ def serial_recv(max_length: uint8 = 255, echo_input: bool = True, mask_input: bo
             # Backspace has its own handling.
             if length:
                 length -= 1
-                accum = accum[:length]
+                accum[length] = "\0"
 
                 # Erase last letter.
                 if echo_input:
@@ -239,9 +239,13 @@ def serial_recv(max_length: uint8 = 255, echo_input: bool = True, mask_input: bo
             if echo_input:
                 serial_send_byte(ord('*') if mask_input else ord(recvd))
 
-            # Add it to our accumulator.
-            accum += recvd
+            # Add it to our accumulator. This technically has a bug where we will
+            # overwrite the 0th byte with a null if we're concatenating to the
+            # last byte in a 256 byte string. However, since we take a byte length
+            # in as our max_length, we can never get to that spot, so this is safe.
+            accum[length] = recvd
             length += 1
+            accum[length] = "\0"
 
     return accum
 
