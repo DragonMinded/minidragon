@@ -1,5 +1,4 @@
 Optimizations I should go for:
- - Ensure no strcpy when doing local += str/chr.
  - Ensure no effect when doing local = local.
  - Ensure using increment/decrement for += and -= when right side is a constant.
 
