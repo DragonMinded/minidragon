@@ -15417,6 +15417,8 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -15669,9 +15671,9 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Test strings
-    for val in ["This is a test.", "The quick brown fox jumps over the lazy dog.", ""]:
+    for val in ["", "This is a test.", "The quick brown fox jumps over the lazy dog.", "A" * 200, "A" * 400]:
         sections = parse_and_compile_module("peek", textwrap.dedent("""
-            def callable() -> str[40]:
+            def callable() -> str[500]:
                 return peek(0x1337)
         """), settings)
         memory = getmemory(os.linesep.join([
@@ -15723,58 +15725,116 @@ def verifypeek(only: Optional[Container[str]], full: bool) -> None:
         count += 1
 
     # Test strings with a maximum copy length.
-    for val in ["This is a test.", "The quick brown fox jumps over the lazy dog.", ""]:
-        sections = parse_and_compile_module("peek", textwrap.dedent("""
-            def callable() -> str[40]:
-                return peek(0x1337, 20)
-        """), settings)
-        memory = getmemory(os.linesep.join([
-            *initlines,
-            *sections.init,
-            *startlines,
-            *strcpylines,
-            *sections.code,
-            ".org 0x1337",
-            f".str {val!r}",
-            ".byte 0x00",
-            "main:",
-            "LOADI 111",
-            "MOV A, U",
-            "LOADI 222",
-            "MOV A, V",
-            "LOADI 123",
-            "SUBPCI 2",
-            "CALL callable",
-            "HALT",
-            *datalines,
-            *sections.data,
-            *heaplines,
-        ]))
-        cpu = CPUCore(memory)
-        rununtilhalt(cpu)
+    for val in ["", "This is a test.", "The quick brown fox jumps over the lazy dog.", "A" * 200, "A" * 400]:
+        for maxlen in [20, 200, 300]:
+            sections = parse_and_compile_module("peek", textwrap.dedent(f"""
+                def callable() -> str[{maxlen} + 1]:
+                    return peek(0x1337, {maxlen})
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *strcpylines,
+                *sections.code,
+                ".org 0x1337",
+                f".str {val!r}",
+                ".byte 0x00",
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "SUBPCI 2",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
 
-        _assert(
-            cpu.a == 123,
-            f"peek changed accumulator value from {123} to {cpu.a}!",
-        )
-        _assert(
-            cpu.u == 111,
-            f"peek changed U value from {111} to {cpu.u}!",
-        )
-        _assert(
-            cpu.v == 222,
-            f"peek changed V value from {222} to {cpu.v}!",
-        )
-        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
-        expected = val[:20]
-        _assert(
-            result == expected,
-            "Failed to peek at str, "
-            + f"got {result} instead of {expected}!",
-        )
-        cycles += cpu.cycles
-        instructions += cpu.ticks
-        count += 1
+            _assert(
+                cpu.a == 123,
+                f"peek changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"peek changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"peek changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+            expected = val[:maxlen]
+            _assert(
+                result == expected,
+                "Failed to peek at str, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # And test again with a maximum length, but dynamically computed as well.
+    for val in ["", "This is a test.", "The quick brown fox jumps over the lazy dog.", "A" * 200, "A" * 400]:
+        for size, maxlen in [("uint8", 20), ("uint8", 200), ("uint16", 200), ("uint16", 300)]:
+            sections = parse_and_compile_module("peek", textwrap.dedent(f"""
+                def callable() -> str[{maxlen} + 1]:
+                    var: {size} = {maxlen - 3}
+                    return peek(0x1337, var + 3)
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *strcpylines,
+                *addlines,
+                *sections.code,
+                ".org 0x1337",
+                f".str {val!r}",
+                ".byte 0x00",
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "SUBPCI 2",
+                "CALL callable",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            _assert(
+                cpu.a == 123,
+                f"peek changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"peek changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"peek changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+            expected = val[:maxlen]
+            _assert(
+                result == expected,
+                "Failed to peek at str, "
+                + f"got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
 
     print(f"Average cycles for peek: {int(cycles/count)}")
     print(f"Average instructions for peek: {int(instructions/count)}")

@@ -2976,7 +2976,9 @@ class Compiler:
                             raise Exception("Logic error, cannot find stack variable we just created!")
 
                         stack.nameloc(f"func({function_prototype.name})", src_loc, src_size, StackOperation.LOAD)
-                        compiled += self.generate_memcpy_locations(src_loc, rhs_loc, src_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A")
+                        compiled += self.generate_memcpy_locations(
+                            src_loc, rhs_loc, src_size, stack, clobbers, context, register="U" if unsafe_to_clobber else "A"
+                        )
                         stack.unnameloc(f"func({function_prototype.name})")
 
                         # Now call strcpy.
@@ -3389,21 +3391,48 @@ class Compiler:
                             stack.init(destination)
 
                         if not sentinel:
-                            length_dest = self.expr_temp_name()
-                            stack.alloc(StackVar(length_dest, CoreType("uint8")))
-                            compiled += self.generate_expr_internal(args[1].value, length_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[1].value))
+                            length_type = types[args[1].value]
 
-                            compiled += self.generate_function_call_internal(
-                                create_call("strncpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest), UnvalidatedName(length_dest)]),
-                                None,
-                                types,
-                                stack,
-                                clobbers,
-                                allocations,
-                                refs,
-                                local_consts,
-                                context,
-                            )
+                            if length_type == "int":
+                                raise Exception("Logic error, should have been inferred in peek special case!")
+
+                            elif length_type.size == 1:
+                                length_dest = self.expr_temp_name()
+                                stack.alloc(StackVar(length_dest, CoreType("uint8")))
+                                compiled += self.generate_expr_internal(
+                                    args[1].value, length_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[1].value)
+                                )
+
+                                compiled += self.generate_function_call_internal(
+                                    create_call("strncpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest), UnvalidatedName(length_dest)]),
+                                    None,
+                                    types,
+                                    stack,
+                                    clobbers,
+                                    allocations,
+                                    refs,
+                                    local_consts,
+                                    context,
+                                )
+
+                            else:
+                                length_dest = self.expr_temp_name()
+                                stack.alloc(StackVar(length_dest, CoreType("uint16")))
+                                compiled += self.generate_expr_internal(
+                                    args[1].value, length_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(args[1].value)
+                                )
+
+                                compiled += self.generate_function_call_internal(
+                                    create_call("wstrncpy", [UnvalidatedName(destination), UnvalidatedName(addr_dest), UnvalidatedName(length_dest)]),
+                                    None,
+                                    types,
+                                    stack,
+                                    clobbers,
+                                    allocations,
+                                    refs,
+                                    local_consts,
+                                    context,
+                                )
 
                             stack.free(length_dest)
 
@@ -6892,9 +6921,8 @@ class Compiler:
                 if not type_comparison_compatible(arg_inferred[arg.value], argtype.type):
                     raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter 2", context)
 
-                # Special case for functions like abs(), min() and max() where the input and output are both inferred.
-                if argtype.type.type != "int":
-                    self.infer_tree(arg_inferred, argtype.type, context)
+                # Special case since this can be any value and we need to infer properly.
+                self.infer_tree(arg_inferred, argtype.type, context)
                 inferred.update(arg_inferred)
 
                 if requested:
@@ -6903,12 +6931,48 @@ class Compiler:
                     inferred[expression] = function_prototype.return_type
 
                 return inferred
+
+            # Special case for peek, where the second parameter determines the underlying implementation.
+            elif function_prototype.name == "peek" and len(args) == 2 and len(arg_types) == 2:
+                arg = args[1]
+                argtype = arg_types[1]
+
+                if isinstance(arg.value, SentinelInteger):
+                    # Doesn't matter, we're going to ignore it anyway.
+                    arg_inferred = {arg.value: CoreType("uint8")}
+                else:
+                    # Attempt to infer the constant size.
+                    try:
+                        value = self.codegen_eval(arg.value, local_consts, context.wrap(arg.value))
+                    except NonConstantExpressionException:
+                        value = None
+                    if not isinstance(value, int):
+                        value = None
+
+                    if value is not None:
+                        size = 1 if not bool(value & 0xFFFFFF00) else 2
+                        arg_inferred = {arg.value: CoreType("uint8" if size == 1 else "uint16")}
+                    else:
+                        arg_inferred = self.infer_expr_types_impl(arg.value, stack, refs, local_consts, context.wrap(arg.value))
+
+                if not type_comparison_compatible(arg_inferred[arg.value], argtype.type):
+                    raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter 2", context)
+
+                inferred_type = arg_inferred[arg.value]
+                inferred.update(arg_inferred)
+
+                inferred[expression] = function_prototype.return_type
+                return inferred
+
             else:
                 for i, (arg, argtype) in enumerate(zip(args, arg_types)):
                     arg_inferred = self.infer_expr_types_impl(arg.value, stack, refs, local_consts, context.wrap(arg.value))
 
                     if not type_comparison_compatible(arg_inferred[arg.value], argtype.type):
-                        raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter {i + 1}", context)
+                        raise CompilerError(
+                            f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter {i + 1}",
+                            context,
+                        )
 
                     # Special case for functions like abs(), min() and max() where the input and output are both inferred.
                     if argtype.type.type != "int":
@@ -9632,7 +9696,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("int", CoreType("int"), [CoreType("any")]),
         # Allows for a named parameter if needed. We don't normally support None, but we use this as a sentinel to ignore the param in cases that shouldn't need it.
-        FunctionPrototype("peek", CoreType("any"), [CoreType("uint16"), CoreType("uint8")], ["addr", "length"], [None, SentinelInteger("0")]),
+        FunctionPrototype("peek", CoreType("any"), [CoreType("uint16"), CoreType("int")], ["addr", "length"], [None, SentinelInteger("0")]),
         # Allows for a named parameter if desired.
         FunctionPrototype("poke", VoidType, [CoreType("uint16"), CoreType("any")], ["addr", "object"]),
         # Allows for a named parameter if desired.
