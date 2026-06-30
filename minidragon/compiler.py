@@ -5906,36 +5906,81 @@ class Compiler:
                 stack.alloc(StackVar(base_dest, CoreType("str", const=True, length=destination_type.length)))
                 compiled += self.generate_expr_internal(expression.value, base_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(expression.value))
 
-            # Calculate the offset into the string that we're gonna need, first.
-            clobbers.add("A")
-            compiled += self.generate_expr_internal(slice_or_index.value, "register(A, uint8)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(slice_or_index.value))
+            # Figure out if this is a constant offset, size the offset calculation based on that.
+            try:
+                value = self.codegen_eval(slice_or_index.value, local_consts, context.wrap(slice_or_index.value))
+            except NonConstantExpressionException:
+                value = None
+            if not isinstance(value, int):
+                value = None
 
-            # We clobber the SPC to do this index lookup, and U to save the advance pointer.
-            clobbers.add("SPC")
-            clobbers.add("U")
+            if value is not None:
+                size = 1 if not bool(value & 0xFFFFFF00) else 2
+            else:
+                size = 1 if types[slice_or_index.value].size == 1 else 2
 
-            # Move to the correct spot on the stack to pop the pointer onto the SPC.
-            compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
-            compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
-            compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
-            compiled.append_code("  POP SPC")
-            stack.move(-2)
-            compiled.code += comment_stack(stack)
+            if size == 1:
+                # Calculate the offset into the string that we're gonna need, first.
+                clobbers.add("A")
+                compiled += self.generate_expr_internal(slice_or_index.value, "register(A, uint8)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(slice_or_index.value))
 
-            upper_clear = self.local_label_name(context, "upper_clear")
-            compiled.append_code("  SWAP PC, SPC")
-            compiled.append_code("  SHL")
-            compiled.append_code(f"  JRINC {upper_clear}")
-            compiled.append_code("  MOV A, U")
-            compiled.append_code("  LOADI 127")
-            compiled.append_code("  ADDPC")
-            compiled.append_code("  INCPC")
-            compiled.append_code("  MOV U, A")
-            compiled.append_code(f"{upper_clear}:")
-            compiled.append_code("  SHR")
-            compiled.append_code("  ADDPC")
-            compiled.append_code("  LOAD A")
-            compiled.append_code("  SWAP PC, SPC")
+                # We clobber the SPC to do this index lookup, and U to save the advance pointer.
+                clobbers.add("SPC")
+                clobbers.add("U")
+
+                # Move to the correct spot on the stack to pop the pointer onto the SPC.
+                compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+                upper_clear = self.local_label_name(context, "upper_clear")
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  SHL")
+                compiled.append_code(f"  JRINC {upper_clear}")
+                compiled.append_code("  MOV A, U")
+                compiled.append_code("  LOADI 127")
+                compiled.append_code("  ADDPC")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  MOV U, A")
+                compiled.append_code(f"{upper_clear}:")
+                compiled.append_code("  SHR")
+                compiled.append_code("  ADDPC")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
+            else:
+                # Calculate offset based on our base destination and the offset value.
+                compiled += self.generate_function_call_internal(
+                    create_call(
+                        "add16",
+                        [UnvalidatedName(base_dest), slice_or_index.value],
+                    ),
+                    base_dest,
+                    types,
+                    stack,
+                    clobbers,
+                    allocations,
+                    refs,
+                    local_consts,
+                    context.wrap(slice_or_index.value),
+                )
+
+                # Move to the correct spot on the stack to pop the pointer onto the SPC.
+                clobbers.add("SPC")
+                compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+                # Now load the value into the A register so we can store it.
+                clobbers.add("A")
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  LOAD A")
+                compiled.append_code("  SWAP PC, SPC")
 
             if destination is not None:
                 destination_size = stack.sizeof(destination)
