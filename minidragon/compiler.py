@@ -3044,19 +3044,35 @@ class Compiler:
 
                 if destination is None:
                     raise CompilerError("Unsupported expression without assignment", context)
+                destination_type = stack.typeof(destination)
+                if destination_type is None:
+                    raise Exception("Logic error, cannot find destination type for str() conversion!")
 
                 # String or array length calculation.
-                return self.generate_function_call_internal(
-                    create_call("strlen", [args[0].value]),
-                    destination,
-                    types,
-                    stack,
-                    clobbers,
-                    allocations,
-                    refs,
-                    local_consts,
-                    context,
-                )
+                if destination_type.size == 1:
+                    return self.generate_function_call_internal(
+                        create_call("strlen", [args[0].value]),
+                        destination,
+                        types,
+                        stack,
+                        clobbers,
+                        allocations,
+                        refs,
+                        local_consts,
+                        context,
+                    )
+                else:
+                    return self.generate_function_call_internal(
+                        create_call("wstrlen", [args[0].value]),
+                        destination,
+                        types,
+                        stack,
+                        clobbers,
+                        allocations,
+                        refs,
+                        local_consts,
+                        context,
+                    )
 
             elif function_prototype.name == "str":
                 if len(args) != 1 or len(arg_types) != 1:
@@ -9610,7 +9626,7 @@ VoidType = CoreType("void", None, const=True, extern=False, return_padding=False
 def builtin_functions() -> List[FunctionPrototype]:
     return [
         # Defined by python to have positional-only parameters, so no named params.
-        FunctionPrototype("len", RegisterCoreType("uint8", "A"), [CoreType("str")]),
+        FunctionPrototype("len", CoreType("int"), [CoreType("str")]),
         # Allows for an optional named parameter.
         FunctionPrototype("str", CoreType("str"), [CoreType("any")], ["object"]),
         # Defined by python to have positional-only parameters, so no named params.

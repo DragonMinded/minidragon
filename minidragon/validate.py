@@ -12467,6 +12467,59 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255, "A" * 500]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            STRING_CONST: const[str] = "{val}"
+
+            def string_length() -> uint16:
+                return len(STRING_CONST)
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL string_length",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     # Attempt to do string length on a global string.
     for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
@@ -12511,6 +12564,59 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
             f"stringlength changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc]
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255, "A" * 500]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            global_string: str[{len(val) + 1}] = "{val}"
+
+            def string_length() -> uint16:
+                return len(global_string)
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL string_length",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
         expected = len(val)
         _assert(
             result == expected,
@@ -12578,6 +12684,62 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255, "A" * 500]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            def string_length(which: const[str]) -> uint16:
+                return len(which)
+
+            def caller() -> uint16:
+                val: const[str] = "{val}"
+                return string_length(val)
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL caller",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     # Attempt to do the same thing again, but this time with a mutable local string variable.
     for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
@@ -12635,6 +12797,62 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255, "A" * 500]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            def string_length(which: str[256]) -> uint16:
+                return len(which)
+
+            def caller() -> uint16:
+                val: const[str] = "{val}"
+                return string_length(val)
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL caller",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     # Attempt to do string length on a function parameter without an intermediate variable.
     for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255]:
         sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
@@ -12681,6 +12899,61 @@ def verifystringlength(only: Optional[Container[str]], full: bool) -> None:
             f"stringlength changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc]
+        expected = len(val)
+        _assert(
+            result == expected,
+            "Failed to stringlength simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    for val in ["", "Testing 1, 2, 3!", "This song is just six words long.", "A" * 127, "A" * 128, "A" * 255, "A" * 500]:
+        sections = parse_and_compile_module("stringlength", textwrap.dedent(f"""
+            def string_length(which: const[str]) -> uint16:
+                return len(which)
+
+            def caller() -> uint16:
+                return string_length("{val}")
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strlenlines,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL caller",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringlength", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringlength changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringlength changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringlength changed V value from {222} to {cpu.v}!",
+        )
+        result = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
         expected = len(val)
         _assert(
             result == expected,
