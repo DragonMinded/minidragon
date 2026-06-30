@@ -72,3 +72,7 @@ cartridge_expansion: 0xd6
 strtofixed: 0xd9
 fixetostr: 0xdc
 serial_move: 0xdf
+wstrncpy: 0xe2
+wstrlen: 0xe5
+wstrtrunc: 0xe8
+wstradv: 0xeb

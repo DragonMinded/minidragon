@@ -151,6 +151,14 @@ jumptable_fixetostr:
     LNGJUMP fixedtostr
 jumptable_serial_move:
     LNGJUMP serial_move
+jumptable_wstrncpy:
+    LNGJUMP wstrncpy
+jumptable_wstrlen:
+    LNGJUMP wstrlen
+jumptable_wstrtrunc:
+    LNGJUMP wstrtrunc
+jumptable_wstradv:
+    LNGJUMP wstradv
 
     ; Now that we're done defining a jump table, resume execution here.
 jumptable_end:
