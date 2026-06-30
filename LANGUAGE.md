@@ -648,15 +648,15 @@ A library for interacting with a VT-100 terminal over a serial port attached to 
 
 ---
 
-`serial_recv(echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str`
+`serial_recv(max_length: uint8 = 255, echo_input: bool = True, echo_newline: bool = False, mask_input: bool = False, allow_empty: bool = True) -> str`
 
- > Receives a null-terminated string from the VT-100. Reads from the VT-100, swallowing escape sequences and buffering any user input until the return key is pressed. Supports erasing previously-input text using the backspace key. Also supports handling XON/XOFF style control flow in the case that the VT-100 has sent us a request to stop transmitting. By default the input that is typed will be echoed to the terminal much in the same way typing on the command-line works on a modern computer. To turn that off, set the `echo_input` parameter to `False` instead of the default `True`. To echo the mask character `*` instead of the typed character, turn on `mask_input` by setting the parameter to `True` instead of the default `False`. Note that this setting has no effect if `echo_input` is `False`. If you wish to allow empty string input (pressing enter without typing anything), you can set `allow_empty` to `True`. Otherwise, the function will only let the user continue once at least one character has been typed before pressing enter.
+ > Receives a null-terminated string from the VT-100. Reads from the VT-100, swallowing escape sequences and buffering any user input until the return key is pressed. Supports erasing previously-input text using the backspace key. Also supports handling XON/XOFF style control flow in the case that the VT-100 has sent us a request to stop transmitting. By default the input that is typed will be echoed to the terminal much in the same way typing on the command-line works on a modern computer. To turn that off, set the `echo_input` parameter to `False` instead of the default `True`. By default, the newline character will not be echoed upon pressing enter. To turn that on, set the `echo_newline` parameter to `True` instead of the default `False`. To echo the mask character `*` instead of the typed character, turn on `mask_input` by setting the parameter to `True` instead of the default `False`. Note that this setting has no effect if `echo_input` is `False`. If you wish to allow empty string input (pressing enter without typing anything), you can set `allow_empty` to `True`. Otherwise, the function will only let the user continue once at least one character has been typed before pressing enter. To constrain the length of text that you want to input, override the default `max_length` to the number of characters you want to allow before additional characters are ignored.
 
 ---
 
-`serial_input(prompt: const[str], echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:`
+`serial_input(prompt: const[str], max_length: uint8 = 255, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str`
 
- > Display the prompt string `prompt` to the VT-100 before waiting for the user to enter some text and press enter. Upon pressing enter a newline will be sent to the VT-100 to place the cursor on the next line. The optional parameters `echo_input`, `mask_input` and `allow_empty` have the same functionality and default values as in `serial_recv()`.
+ > Display the prompt string `prompt` to the VT-100 before waiting for the user to enter some text and press enter. Upon pressing enter a newline will be sent to the VT-100 to place the cursor on the next line. The optional parameters `max_length`, `echo_input`, `mask_input` and `allow_empty` have the same functionality and default values as in `serial_recv()`.
 
 ### conversion.fixed
 
