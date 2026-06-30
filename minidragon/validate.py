@@ -2858,6 +2858,9 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
             "SETPC string",
             "SWAP PC, SPC",
             "PUSH SPC",
+            "SWAP PC, SPC",
+            "SETPC 0x5678",
+            "SWAP PC, SPC",
             "CALL strlen",
             "HALT",
             *liblines,
@@ -2876,6 +2879,10 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             cpu.v == 222,
             f"strlen changed V value from {222} to {cpu.v}!",
+        )
+        _assert(
+            cpu.spc == 0x5678,
+            f"strlen changed SPC value from {hex(0x5678)} to {hex(cpu.spc)}!",
         )
         _assert(
             cpu.a == len(string),
@@ -2912,6 +2919,9 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
             "SETPC string",
             "SWAP PC, SPC",
             "PUSH SPC",
+            "SWAP PC, SPC",
+            "SETPC 0x5678",
+            "SWAP PC, SPC",
             "LOADI 123",
             "CALL wstrlen",
             "HALT",
@@ -2936,6 +2946,10 @@ def verifystrlen(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             cpu.v == 222,
             f"wstrlen changed V value from {222} to {cpu.v}!",
+        )
+        _assert(
+            cpu.spc == 0x5678,
+            f"wstrlen changed SPC value from {hex(0x5678)} to {hex(cpu.spc)}!",
         )
         cycles += cpu.cycles
         instructions += cpu.ticks
@@ -2989,6 +3003,9 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
             "SETPC string",
             "SWAP PC, SPC",
             "PUSH SPC",
+            "SWAP PC, SPC",
+            "SETPC 0x5678",
+            "SWAP PC, SPC",
             "LOADI 123",
             "CALL strcpy",
             "HALT",
@@ -3007,6 +3024,10 @@ def verifystrcpy(only: Optional[Container[str]], full: bool) -> None:
         _assert(
             cpu.v == 222,
             f"strcpy changed V value from {222} to {cpu.v}!",
+        )
+        _assert(
+            cpu.spc == 0x5678,
+            f"strcpy changed SPC value from {hex(0x5678)} to {hex(cpu.spc)}!",
         )
         _assert(
             getstring(cpu, 0x2000) == string,
@@ -3076,6 +3097,9 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
                 "SWAP PC, SPC",
                 "PUSH SPC",
                 f"PUSHI {amt}",
+                "SWAP PC, SPC",
+                "SETPC 0x5678",
+                "SWAP PC, SPC",
                 "LOADI 123",
                 "CALL strncpy",
                 "HALT",
@@ -3094,6 +3118,10 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
             _assert(
                 cpu.v == 222,
                 f"strncpy changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.spc == 0x5678,
+                f"strncpy changed SPC value from {hex(0x5678)} to {hex(cpu.spc)}!",
             )
             expected = string[:amt]
             actual = getstring(cpu, 0x2000)
@@ -3152,6 +3180,9 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
                 "PUSH SPC",
                 f"PUSHI {(amt >> 0) & 0xFF}",
                 f"PUSHI {(amt >> 8) & 0xFF}",
+                "SWAP PC, SPC",
+                "SETPC 0x5678",
+                "SWAP PC, SPC",
                 "LOADI 123",
                 "CALL wstrncpy",
                 "HALT",
@@ -3170,6 +3201,10 @@ def verifystrncpy(only: Optional[Container[str]], full: bool) -> None:
             _assert(
                 cpu.v == 222,
                 f"wstrncpy changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.spc == 0x5678,
+                f"wstrncpy changed SPC value from {hex(0x5678)} to {hex(cpu.spc)}!",
             )
             expected = string[:amt]
             actual = getstring(cpu, 0x2000)
@@ -3242,6 +3277,9 @@ def verifystrtrunc(only: Optional[Container[str]], full: bool) -> None:
                 "PUSH SPC",
                 f"PUSHI {(amt >> 0) & 0xFF}",
                 f"PUSHI {(amt >> 8) & 0xFF}",
+                "SWAP PC, SPC",
+                "SETPC 0x5678",
+                "SWAP PC, SPC",
                 "LOADI 123",
                 "CALL wstrtrunc",
                 "HALT",
@@ -3260,6 +3298,10 @@ def verifystrtrunc(only: Optional[Container[str]], full: bool) -> None:
             _assert(
                 cpu.v == 222,
                 f"wstrtrunc changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.spc == 0x5678,
+                f"wstrtrunc changed SPC value from {hex(0x5678)} to {hex(cpu.spc)}!",
             )
             expected = string[:amt]
             actual = getstring(cpu, 0x1000)
@@ -3327,6 +3369,9 @@ def verifystradv(only: Optional[Container[str]], full: bool) -> None:
                 "PUSH SPC",
                 f"PUSHI {(amt >> 0) & 0xFF}",
                 f"PUSHI {(amt >> 8) & 0xFF}",
+                "SWAP PC, SPC",
+                "SETPC 0x5678",
+                "SWAP PC, SPC",
                 "LOADI 123",
                 "CALL wstradv",
                 "HALT",
@@ -3345,6 +3390,10 @@ def verifystradv(only: Optional[Container[str]], full: bool) -> None:
             _assert(
                 cpu.v == 222,
                 f"wstradv changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.spc == 0x5678,
+                f"wstradv changed SPC value from {hex(0x5678)} to {hex(cpu.spc)}!",
             )
             expected = string[amt:]
             actual = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x1000, 0x2000)
@@ -3427,6 +3476,9 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
                 "SETPC concatenation",
                 "SWAP PC, SPC",
                 "PUSH SPC",
+                "SWAP PC, SPC",
+                "SETPC 0x5678",
+                "SWAP PC, SPC",
                 "LOADI 123",
                 "CALL strcat",
                 "HALT",
@@ -3445,6 +3497,10 @@ def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
             _assert(
                 cpu.v == 222,
                 f"strcat changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.spc == 0x5678,
+                f"strcat changed SPC value from {hex(0x5678)} to {hex(cpu.spc)}!",
             )
             _assert(
                 getstring(cpu, 0x2000) == (string + concatenation),
@@ -3539,6 +3595,9 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
                 "SETPC second",
                 "SWAP PC, SPC",
                 "PUSH SPC",
+                "SWAP PC, SPC",
+                "SETPC 0x5678",
+                "SWAP PC, SPC",
                 "CALL strcmp",
                 "HALT",
                 *liblines,
@@ -3565,6 +3624,10 @@ def verifystrcmp(only: Optional[Container[str]], full: bool) -> None:
             _assert(
                 cpu.v == 222,
                 f"strcmp changed V value from {222} to {cpu.v}!",
+            )
+            _assert(
+                cpu.spc == 0x5678,
+                f"strcmp changed SPC value from {hex(0x5678)} to {hex(cpu.spc)}!",
             )
             stack_second = (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1]
             stack_first = (
