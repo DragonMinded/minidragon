@@ -1762,7 +1762,7 @@ class TestCompiler(unittest.TestCase):
             '_test_func_other_str:',
             '  .pad 12',
             '_test_func_some_str:',
-            '  .pad 127'
+            '  .pad 12'
         ], output.data)
         self.assertTrue(len(output.init) == 0)
 
@@ -2093,7 +2093,7 @@ class TestCompiler(unittest.TestCase):
         func = textwrap.dedent("""
             def other(param: const[str]) -> extern[void]: ...
 
-            def ret() -> extern[str]: ...
+            def ret() -> extern[str[32]]: ...
 
             def func() -> void:
                 other(ret())
@@ -2143,6 +2143,6 @@ class TestCompiler(unittest.TestCase):
         ], output.code)
         self.assertEqual([
             '_test_func_builtin_expr_temp_5:',
-            '  .pad 127'
+            '  .pad 32'
         ], output.data)
         self.assertTrue(len(output.init) == 0)

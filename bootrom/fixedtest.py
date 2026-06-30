@@ -13,10 +13,10 @@ def main() -> void:
     serial_clear()
 
     # Grab a fixed point decimal number.
-    number1: const[str] = serial_input("Enter a number: ", allow_empty=False)
+    number1: const[str[32]] = serial_input("Enter a number: ", max_length=31, allow_empty=False)
     fixed1: int32 = strtofixed(number1, fracbits=12)
 
-    number2: const[str] = serial_input("Enter another number: ", allow_empty=False)
+    number2: const[str[32]] = serial_input("Enter another number: ", max_length=31, allow_empty=False)
     fixed2: int32 = strtofixed(number2, fracbits=12)
 
     approx: const[str] = fixedtostr(fixed1 + fixed2, precision=3, fracbits=12)

@@ -10,7 +10,7 @@ from .core import assemble
 from .util import comment_source, hexstr, hexval, sanitize
 
 
-MAX_STRING_LENGTH: Final[int] = 256  # Length of string including null-termination.
+MAX_STRING_LENGTH: Final[int] = 32768  # Length of string including null-termination.
 VERSION: Final[str] = "1.2.2"  # Also bump version in pyproject.toml
 
 
@@ -206,16 +206,20 @@ class CoreType:
             return_padding=self.return_padding,
         )
 
-    def nonconst_clone(self) -> "CoreType":
+    def nonconst_clone(self, length: Optional[int], recommendation: str, context: Context) -> "CoreType":
         if not self.const:
             return self
         if self.type not in {"str", "pointer"}:
             return self
 
+        real_length = self.length or length
+        if not real_length:
+            raise CompilerError(f"Cannot determine size for temporary expression storage, {recommendation}", context)
+
         return CoreType(
             self.type,
             self.pointed_type,
-            length=self.length or MAX_STRING_LENGTH,
+            length=real_length,
             const=False,
             safe_ref=False,
             extern=self.extern,
@@ -312,7 +316,7 @@ class PreservedCoreType(CoreType):
 
         return self
 
-    def nonconst_clone(self) -> "CoreType":
+    def nonconst_clone(self, length: Optional[int], recommendation: str, context: Context) -> "CoreType":
         raise Exception("Logic error, cannot have non-const PreservedCoreType!")
 
 
@@ -336,7 +340,7 @@ class InOutCoreType(CoreType):
         new_type.const = True
         return new_type
 
-    def nonconst_clone(self) -> "CoreType":
+    def nonconst_clone(self, length: Optional[int], recommendation: str, context: Context) -> "CoreType":
         if self.type not in {"str", "pointer"}:
             return self
 
@@ -368,7 +372,7 @@ class OutCoreType(CoreType):
         new_type.const = True
         return new_type
 
-    def nonconst_clone(self) -> "OutCoreType":
+    def nonconst_clone(self, length: Optional[int], recommendation: str, context: Context) -> "CoreType":
         if self.type not in {"str", "pointer"}:
             return self
 
@@ -399,7 +403,7 @@ class RegisterCoreType(CoreType):
         new_type.const = True
         return new_type
 
-    def nonconst_clone(self) -> "RegisterCoreType":
+    def nonconst_clone(self, length: Optional[int], recommendation: str, context: Context) -> "CoreType":
         if self.type not in {"str", "pointer"}:
             return self
 
@@ -423,7 +427,7 @@ class ParamReturnCoreType(CoreType):
         # This is just a pointer to a parameter value.
         return self
 
-    def nonconst_clone(self) -> "ParamReturnCoreType":
+    def nonconst_clone(self, length: Optional[int], recommendation: str, context: Context) -> "CoreType":
         # This is just a pointer to a parameter value.
         return self
 
@@ -445,7 +449,7 @@ class PaddingCoreType(CoreType):
         # This is just a padding value.
         return self
 
-    def nonconst_clone(self) -> "PaddingCoreType":
+    def nonconst_clone(self, length: Optional[int], recommendation: str, context: Context) -> "CoreType":
         # This is just a padding value.
         return self
 
@@ -2640,7 +2644,10 @@ class Compiler:
                         if is_usable:
                             stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type))
                         else:
-                            stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type.nonconst_clone()))
+                            inferred_length = self.infer_string_size(arg_in_question, stack, types, refs, local_consts, context.wrap(arg_in_question))
+                            stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type.nonconst_clone(
+                                inferred_length, "use a temporary string variable", context.wrap(arg_in_question)
+                            )))
 
                     else:
                         if not needed_arg.name:
@@ -2696,6 +2703,19 @@ class Compiler:
                         if isinstance(arg_in_question, cst.Name):
                             # We can use this directly, since there's no string copying that might occur.
                             is_usable = True
+
+                        elif isinstance(arg_in_question, cst.Call):
+                            # We might be able to use this directly, if it's a const string return. We save
+                            # a strcpy as well when doing this.
+                            call_prototype = self.get_function_prototype(
+                                arg_in_question,
+                                [*refs, *builtin_functions()],
+                                local_consts,
+                                context.wrap(arg_in_question),
+                            )
+
+                            is_usable = call_prototype.return_type.is_string and call_prototype.return_type.const
+
                         else:
                             try:
                                 self.codegen_eval(arg_in_question, local_consts, context)
@@ -2706,7 +2726,10 @@ class Compiler:
                         if is_usable:
                             stack.alloc(StackVar(expr_dest, needed_arg.type))
                         else:
-                            stack.alloc(StackVar(expr_dest, needed_arg.type.nonconst_clone()))
+                            inferred_length = self.infer_string_size(arg_in_question, stack, types, refs, local_consts, context.wrap(arg_in_question))
+                            stack.alloc(StackVar(expr_dest, needed_arg.type.nonconst_clone(
+                                inferred_length, "use a temporary string variable", context.wrap(arg_in_question)
+                            )))
 
                     else:
                         if not needed_arg.name:
@@ -4102,7 +4125,10 @@ class Compiler:
         if local_destination_storage is None:
             raise Exception("Logic error, couldn't get local storage for string!")
 
-        requested_length = dest_type.length or MAX_STRING_LENGTH
+        if not dest_type.length:
+            raise Exception("Logic error, couldn't determine string length for string local storage!")
+
+        requested_length = dest_type.length
         if local_destination_storage in allocations:
             if allocations[local_destination_storage].size < requested_length:
                 raise Exception("Logic error, re-allocation of local storage with different size!")
@@ -5817,7 +5843,7 @@ class Compiler:
                 if destination_type is None:
                     raise Exception("Logic error, could not calculate type of destination!")
             else:
-                destination_type = CoreType("str", const=True, length=MAX_STRING_LENGTH)
+                raise CompilerError("Unsupported expression without assignment", context)
 
             # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
             # However, if the expression is already a local variable we can save a few instructions by just moving to it directly.
@@ -6416,6 +6442,215 @@ class Compiler:
             stack.init(destination)
 
         return compiled
+
+    def infer_string_size(
+        self,
+        expression: cst.BaseExpression,
+        stack: Stack,
+        types: Dict[cst.CSTNode, CoreType],
+        refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+        local_consts: List[Constant],
+        context: Context,
+    ) -> Optional[int]:
+
+        # Inference helper for this function.
+        def get_const(expr: Optional[cst.BaseExpression], ctx: Context) -> object:
+            if not expr:
+                return None
+
+            try:
+                return self.codegen_eval(expr, [], ctx)
+            except NonConstantExpressionException:
+                raise Exception("Logic error, couldn't get string from SimpleString!")
+
+        if isinstance(expression, cst.Name):
+            # We return the length of any reference here if it is a string, otherwise none.
+            stack_type = stack.typeof(expression.value)
+            if stack_type is not None:
+                return (stack_type.length or None) if stack_type.is_string else None
+
+            const_type = const_by_name(local_consts, expression.value)
+            if const_type is not None:
+                return (const_type.type.length or None) if const_type.type.is_string else None
+
+            global_var = global_by_name(refs, expression.value)
+            if global_var is not None:
+                return (global_var.type.length or None) if global_var.type.is_string else None
+
+            raise CompilerError(f"Undefined variable reference to {expression.value!r}", context)
+
+        elif isinstance(expression, cst.Integer):
+            # Integers are not length-able.
+            return None
+
+        elif isinstance(expression, cst.SimpleString):
+            # This is just a string constant.
+            value = get_const(expression, context)
+            if not isinstance(value, (str, bytes)):
+                raise Exception("Logic error, didn't get string back from codegen_eval!")
+
+            return len(value) + 1
+
+        elif isinstance(expression, cst.UnaryOperation):
+            # There are no unary operations that result in strings.
+            return None
+
+        elif isinstance(expression, cst.BinaryOperation):
+            # This is either the length of the two concatenated objects, or non-inferrable.
+            left_inferred = types[expression.left]
+            right_inferred = types[expression.right]
+
+            # The only binary operation that results in a string is a concatenation operation.
+            if left_inferred.is_string and (right_inferred.is_string or right_inferred.is_char) and isinstance(expression.operator, cst.Add):
+                left_length = self.infer_string_size(expression.left, stack, types, refs, local_consts, context.wrap(expression.left))
+                right_length = self.infer_string_size(expression.right, stack, types, refs, local_consts, context.wrap(expression.right))
+
+                if not left_length:
+                    return None
+
+                if right_inferred.is_string:
+                    if not right_length:
+                        return None
+
+                    # Both account for null terminator, so take that off so we don't double-count.
+                    return left_length + right_length - 1
+
+                if right_inferred.is_char:
+                    return left_length + 1
+
+            # One wasn't a concatenatable type, or we couldn't determine the length needed.
+            return None
+
+        elif isinstance(expression, cst.Call):
+            function_prototype = self.get_function_prototype(expression, [*refs, *builtin_functions()], local_consts, context)
+
+            if not function_prototype.return_type.is_string:
+                return None
+
+            # Function can have a string length, or it can return a const.
+            return function_prototype.return_type.length or None
+
+        elif isinstance(expression, cst.Comparison):
+            # Comparisons can never be string lengths.
+            return None
+
+        elif isinstance(expression, cst.BooleanOperation):
+            # No string length for boolean operations.
+            return None
+
+        elif isinstance(expression, cst.IfExp):
+            left_length = self.infer_string_size(expression.body, stack, types, refs, local_consts, context.wrap(expression.body))
+            right_length = self.infer_string_size(expression.orelse, stack, types, refs, local_consts, context.wrap(expression.orelse))
+
+            if left_length and right_length:
+                return max(left_length, right_length)
+
+            # One wasn't inferrable.
+            return None
+
+        elif isinstance(expression, cst.Subscript):
+            array_inferred = types[expression.value]
+            if not array_inferred.is_string:
+                raise CompilerError(f"Unsupported non-string type {array_inferred.type} in subscript expression", context)
+
+            if len(expression.slice) != 1:
+                raise CompilerError("Unsupported slice count in subscript expression", context)
+            slice_or_index = expression.slice[0].slice
+
+            if isinstance(slice_or_index, cst.Index):
+                # This expression results in a character, so not inferrable.
+                return None
+
+            elif isinstance(slice_or_index, cst.Slice):
+                if slice_or_index.step is not None:
+                    raise CompilerError("Unsupported step for slice in subscript expression", context)
+
+                # It's possible that we're indexing into a constant that would otherwise not be inferrable,
+                # but if we know that the bounds are constant, then we know for sure what the destination length
+                # will need to be.
+                start_idx = get_const(slice_or_index.lower, context)
+                if not isinstance(start_idx, int):
+                    start_idx = None
+                end_idx = get_const(slice_or_index.upper, context)
+                if not isinstance(end_idx, int):
+                    end_idx = None
+
+                if end_idx is not None and start_idx is not None:
+                    possible_length = end_idx - start_idx
+                elif end_idx is not None:
+                    possible_length = end_idx
+                else:
+                    possible_length = None
+
+                inferred_length = self.infer_string_size(expression.value, stack, types, refs, local_consts, context.wrap(expression.value))
+
+                if inferred_length is None and possible_length is not None:
+                    # We know that whatever the outcome is, it'll be capped by the possible length.
+                    return possible_length + 1
+
+                if inferred_length is not None and possible_length is None:
+                    # We can only guess that it is the inferred length.
+                    return inferred_length
+
+                if inferred_length is not None and possible_length is not None:
+                    # Both are not none, so it is the minimum of the two values.
+                    return min(inferred_length, possible_length + 1)
+
+                # Can't infer the type.
+                return None
+
+            else:
+                raise Exception("Logic error, unexpected node {slice_or_index} for subscript slice!")
+
+        elif isinstance(expression, cst.FormattedString):
+            calculated_length: int = 0
+
+            for part in expression.parts:
+                if isinstance(part, cst.FormattedStringText):
+                    calculated_length += len(part.value)
+
+                elif isinstance(part, cst.FormattedStringExpression):
+                    expr_type = types[part.expression]
+
+                    if expr_type.is_bool:
+                        # Length of the word "False".
+                        calculated_length += 5
+                    elif expr_type.is_char:
+                        # Length of a single character.
+                        calculated_length += 1
+                    elif expr_type.is_integer:
+                        # Length of longest integer and a negative sign.
+                        calculated_length += len(str((2 ** 31) - 1)) + 1
+                    elif expr_type.is_string:
+                        # Length of the string itself.
+                        substr_length = self.infer_string_size(part.expression, stack, types, refs, local_consts, context.wrap(part.expression))
+                        if not substr_length:
+                            # Can't infer, could be any length.
+                            return None
+
+                        # Don't double-bookkeep the null terminator.
+                        calculated_length += (substr_length - 1)
+
+                else:
+                    raise Exception("Logic error, unexpected node in f-string!")
+
+            return calculated_length + 1
+
+        elif isinstance(expression, cst.Attribute):
+            # This could be a sys reference, determine length based on that.
+            try:
+                possible_val = self.codegen_eval(expression, local_consts, context)
+            except NonConstantExpressionException:
+                possible_val = None
+
+            if isinstance(possible_val, str):
+                return len(possible_val) + 1
+
+            # Not something we can infer.
+            return None
+
+        else:
+            raise CompilerError(f"Unsupported expression {expr_to_str(expression)}", context)
 
     def infer_expr_types(
         self,
@@ -7161,7 +7396,19 @@ class Compiler:
                             assign_type.safe_ref = True
                             stack.alloc(StackVar(assign_name, assign_type))
                         else:
-                            stack.alloc(StackVar(assign_name, assign_type.nonconst_clone()))
+                            inferred_types: Dict[cst.CSTNode, CoreType] = self.infer_expr_types(
+                                assign_value, CoreType("char"), stack, refs, local_consts, context
+                            )
+                            inferred_length = self.infer_string_size(
+                                assign_value, stack, inferred_types, refs, local_consts, context.wrap(assign_value)
+                            )
+                            stack.alloc(StackVar(assign_name, assign_type.nonconst_clone(
+                                inferred_length, "specify a length for constant string", context.wrap(assign_value)))
+                            )
+                            if inferred_length and not assign_type.length:
+                                # Save the inferred length for this constant since we determined it, so that down the line
+                                # other code that needs to infer string lengths has it available.
+                                assign_type.length = inferred_length
                             reassigned = True
 
                     else:
@@ -7652,7 +7899,11 @@ class Compiler:
                 # We need to generate a temporary string that can be used for the expression evaluation.
                 str_dest = self.expr_temp_name()
                 free_list.append(str_dest)
-                stack.alloc(StackVar(str_dest, CoreType("str", length=MAX_STRING_LENGTH), initialized=True))
+
+                inferred_length = self.infer_string_size(statement.iter, stack, itertypes, refs, local_consts, context.wrap(statement.iter))
+                if not inferred_length:
+                    raise CompilerError("Cannot determine size for temporary expression storage, use a temporary string variable", context)
+                stack.alloc(StackVar(str_dest, CoreType("str", length=inferred_length), initialized=True))
 
                 compiled += self.generate_local_storage_alloc(str_dest, stack, clobbers, allocations, context)
                 compiled += self.generate_expr_internal(
@@ -8255,9 +8506,13 @@ class Compiler:
                 if not param_type.is_array:
                     raise CompilerError(f"Non-constant string parameter{func_param.name.value} requires a length", context)
 
+                str_length = param_type.length
+                if not str_length:
+                    raise CompilerError(f"Non-constant string parameter{func_param.name.value} requires a length", context)
+
                 local_destination_storage = f"{function_name}_{func_param.name.value}_param"
                 compiled.append_data(f"{local_destination_storage}:")
-                compiled.append_data(f"  .pad {param_type.length or MAX_STRING_LENGTH}")
+                compiled.append_data(f"  .pad {str_length}")
 
             try:
                 stack.alloc(StackVar(func_param.name.value, param_type, initialized=True))

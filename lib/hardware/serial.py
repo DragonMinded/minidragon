@@ -165,7 +165,7 @@ def serial_send(data: const[str]) -> void:
         serial_send_byte(ord(byte))
 
 
-def serial_recv(max_length: uint8 = 255, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:
+def serial_recv(max_length: uint8 = 255, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str[256]:
     """
     Receive a string that is terminated with a newline character. That means
     the remote side hit enter. The newline character itself will not be appended
@@ -246,7 +246,7 @@ def serial_recv(max_length: uint8 = 255, echo_input: bool = True, mask_input: bo
     return accum
 
 
-def serial_input(prompt: const[str], max_length: uint8 = 255, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str:
+def serial_input(prompt: const[str], max_length: uint8 = 255, echo_input: bool = True, mask_input: bool = False, allow_empty: bool = True) -> str[256]:
     """
     Given a prompt string, send that prompt over serial, then read input until
     the enter key is pressed, echoing the received characters back to the

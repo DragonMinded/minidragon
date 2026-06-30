@@ -72,7 +72,7 @@ def strtofixed(val: const[str], fracbits: uint8 = 8) -> int32:
     return -converted if negative else converted
 
 
-def fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str:
+def fixedtostr(val: int32, precision: uint8, fracbits: uint8 = 8) -> str[24]:
     """
     Given an integer that represents a fixed point integer, convert that integer to a
     string using the precision requested. Optionally, provide a different fracbits
