@@ -3281,6 +3281,92 @@ def verifystrtrunc(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for strtrunc: {int(instructions/count)}")
 
 
+def verifystradv(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "stradv" not in only and "stringlib" not in only:
+        return
+
+    print("Verifying stradv...")
+
+    with open("lib/runtime/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/runtime/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        liblines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    for amt in [0, 5, 10, 15, 127, 128, 200, 255, 400, 450]:
+        for string in [
+            "",
+            "a test",
+            "the quick brown fox jumps over the lazy dog",
+            "whatever this is",
+            "A" * 127,
+            "A" * 128,
+            "A" * 200,
+            "A" * 255,
+            "A" * 500,
+        ]:
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                ".org 0x1000",
+                "string:",
+                *[f".char {c!r}" for c in string],
+                ".byte 0x00",
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "SWAP PC, SPC",
+                "SETPC string",
+                "SWAP PC, SPC",
+                "PUSH SPC",
+                f"PUSHI {(amt >> 0) & 0xFF}",
+                f"PUSHI {(amt >> 8) & 0xFF}",
+                "LOADI 123",
+                "CALL wstradv",
+                "HALT",
+                *liblines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+            _assert(
+                cpu.a == 123,
+                f"wstradv changed A register from 123 to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"wstradv changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"wstradv changed V value from {222} to {cpu.v}!",
+            )
+            expected = string[amt:]
+            actual = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0x1000, 0x2000)
+            _assert(
+                actual == expected,
+                f"Failed to wstradv(&{string!r}, {amt}), "
+                + f"got {actual!r} instead of {expected!r}!",
+            )
+            stack_source = (cpu.ram[cpu.pc + 0] << 8) + cpu.ram[cpu.pc + 1]
+            skipped = len(string) - len(string[amt:])
+            _assert(
+                stack_source == (0x1000 + skipped),
+                f"wstradv changed stack source from {(0x1000 + skipped)} to {stack_source}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for stradv: {int(cycles/count)}")
+    print(f"Average instructions for stradv: {int(instructions/count)}")
+
+
 def verifystrcat(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "strcat" not in only and "stringlib" not in only:
         return
@@ -19286,6 +19372,7 @@ if __name__ == "__main__":
     verifystrcpy(only, args.full)
     verifystrncpy(only, args.full)
     verifystrtrunc(only, args.full)
+    verifystradv(only, args.full)
     verifystrcat(only, args.full)
     verifystrcmp(only, args.full)
 

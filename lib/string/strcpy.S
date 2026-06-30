@@ -347,7 +347,7 @@ wstrtrunc:
     ; Given a stack holding a string pointer as well as the maximum number of
     ; characters the string should have as a 16-bit integer, truncate the string
     ; to that number of characters. If the string is already shorter, has no effect.
-    ; if the string is longer, it will be truncated to the specified size. Does not
+    ; If the string is longer, it will be truncated to the specified size. Does not
     ; clobber the A/U/V register nor the source/destination pointer on the stack.
     ;
     ; Safe to run out of ROM, uses initialized stack for locals only.
@@ -442,6 +442,108 @@ _wstrtrunc_exit_early:
 _wstrtrunc_done:
     ; Copy the return pointer where it needs to go.
     ADDPCI 5
+    LOAD A
+    ADDPCI 2
+    STORE A
+    SUBPCI 1
+    LOAD A
+    ADDPCI 2
+    STORE A
+
+    ; Restore the shadow stack and A register
+    SUBPCI 6
+    POP A
+    POP SPC
+    ADDPCI 2
+
+    ; Now, return to caller
+    RET
+
+wstradv:
+    ; Given a stack holding a string pointer as well as the maximum number of
+    ; characters the string to advance past as a 16-bit integer, return a pointer to
+    ; the character we advanced to in the string. If the string is shorter, instead
+    ; returns a pointer to the null byte, which behaves as if the string was
+    ; zero-length. If the string is longer, the returned pointer will point at the
+    ; position in the string that was requested. Does not clobber the A/U/V register
+    ; nor the source/destination pointer on the stack.
+    ;
+    ; Safe to run out of ROM, uses initialized stack for locals only.
+    ;
+    ; If you want to advance a string at 0x1234 by 500 bytes, call like so:
+    ;     PUSHI 0x34
+    ;     PUSHI 0x12
+    ;     PuSHI 0xF4
+    ;     PUSHI 0x01
+    ;     CALL wstradv
+    ;
+    ; Stack layout after call:
+    ; PC + 0 - saved A register
+    ; PC + 1 - saved SP
+    ; PC + 2 - saved SC
+    ; PC + 3 - return address
+    ; PC + 4 - return address
+    ; PC + 5 - number of characters to advance past
+    ; PC + 6 - number of characters to advance past
+    ; PC + 7 - pointer to string
+    ; PC + 8 - pointer to string
+    ;
+    ; Stack layout just before return:
+    ; PC + 0 - return address
+    ; PC + 1 - return address
+    ; PC + 2 - pointer to advanced string
+    ; PC + 3 - pointer to advanced string
+
+    ; First, save the existing registers
+    PUSH SPC
+    PUSH A
+
+    ; Prime the loop by sitting atop the string pointer.
+    ADDPCI 6
+
+_wstradv_loop_check:
+    ; Figure out if we advanced past the right number of bytes (is our countdown zero).
+    LOAD A
+    DECPC
+
+    ADDI 0
+    JRINZ _wstradv_loop
+
+    ; Check second byte now that we know the first is zero.
+    LOAD A
+    ADDI 0
+    JRIZ _wstradv_exit_early
+
+_wstradv_loop:
+    ; Decrement the number of bytes we have left to advance past to get to our truncation byte.
+    POP SPC
+    SWAP PC, SPC
+    DECPC
+    SWAP SPC, PC
+    PUSH SPC
+
+    ; Grab a byte from the string and advance our pointer.
+    ADDPCI 2
+    POP SPC
+    SWAP PC, SPC
+    LOAD A
+    ADDI 0
+    SKIPIF ZF
+    INCPC
+    SWAP PC, SPC
+    PUSH SPC
+    SUBPCI 1
+
+    ; See if we encountered a null terminator, meaning the string is already short enough.
+    JRINZ _wstradv_loop_check
+
+_wstradv_done:
+    ; Move to where we expect to be on the exit early case.
+    SUBPCI 1
+
+_wstradv_exit_early:
+    ; Copy the return pointer where it needs to go.
+    SUBPCI 2
     LOAD A
     ADDPCI 2
     STORE A
