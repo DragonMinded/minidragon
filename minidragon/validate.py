@@ -14255,6 +14255,10 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
+    with open("lib/math/neg.S", "r") as fp:
+        neglines = fp.readlines()
 
     cycles = 0
     instructions = 0
@@ -14427,6 +14431,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    # And do the same thing with 16-bit ending slices.
     for sliceint in [0, 2, 4, 8, 16, 50, 100, 150, 300, 350]:
         sliceable = "A" * 400
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
@@ -14483,6 +14488,7 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    # Again, but with the beginning instead of end.
     for sliceint in [0, 2, 4, 8, 16, 50, 100, 150]:
         sliceable = "A" * 200
         sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
@@ -14505,6 +14511,63 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
             "MOV A, V",
             f"PUSHI {sliceint}",
             "DECPC",
+            "LOADI 123",
+            "CALL sliceme",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        assertmemory("stringslice", memory, cpu.ram)
+        _assert(
+            cpu.a == 123,
+            f"stringslice changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"stringslice changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"stringslice changed V value from {222} to {cpu.v}!",
+        )
+        result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+        expected = sliceable[sliceint:]
+        _assert(
+            result == expected,
+            "Failed to stringslice simple, "
+            + f"got {result!r} instead of {expected!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    # And do the same thing with 16-bit ending slices.
+    for sliceint in [0, 2, 4, 8, 16, 50, 100, 150, 300, 350]:
+        sliceable = "A" * 400
+        sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+            def getstr() -> const[str]:
+                return "{sliceable}"
+
+            def sliceme(loc: uint16) -> str[512]:
+                return getstr()[loc:]
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *sections.code,
+            *strcpylines,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            f"PUSHI {(sliceint >> 0) & 0xFF}",
+            f"PUSHI {(sliceint >> 8) & 0xFF}",
             "LOADI 123",
             "CALL sliceme",
             "HALT",
@@ -14588,6 +14651,129 @@ def verifystringslice(only: Optional[Container[str]], full: bool) -> None:
             )
             result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
             expected = sliceable[sliceint:(sliceint + extendval)]
+            _assert(
+                result == expected,
+                "Failed to stringslice simple, "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Now, test 16-bit slices with both a start and an end.
+    for sliceint in [0, 8, 16, 50, 100, 150, 250, 300, 350]:
+        for extendval in [0, 1, 3, 7, 11]:
+            sliceable = "A" * 400
+            sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+                def getstr() -> const[str]:
+                    return "{sliceable}"
+
+                def sliceme(loc1: uint16, loc2: uint16) -> str[32]:
+                    return getstr()[loc1:loc2]
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                *addlines,
+                *neglines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                f"PUSHI {(sliceint >> 0) & 0xFF}",
+                f"PUSHI {(sliceint >> 8) & 0xFF}",
+                f"PUSHI {((sliceint + extendval) >> 0) & 0xFF}",
+                f"PUSHI {((sliceint + extendval) >> 8) & 0xFF}",
+                "LOADI 123",
+                "CALL sliceme",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringslice", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringslice changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringslice changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringslice changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+            expected = sliceable[sliceint:(sliceint + extendval)]
+            _assert(
+                result == expected,
+                "Failed to stringslice simple, "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Now, test mixed slice indexes.
+    for beginint in [0, 8, 16, 50, 100, 150, 200]:
+        for endint in [300, 350]:
+            sliceable = "A" * 400
+            sections = parse_and_compile_module("stringslice", textwrap.dedent(f"""
+                def getstr() -> const[str]:
+                    return "{sliceable}"
+
+                def sliceme(loc1: uint8, loc2: uint16) -> str[32]:
+                    return getstr()[loc1:loc2]
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                *addlines,
+                *neglines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                f"PUSHI {beginint}",
+                f"PUSHI {(endint >> 0) & 0xFF}",
+                f"PUSHI {(endint >> 8) & 0xFF}",
+                "LOADI 123",
+                "CALL sliceme",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringslice", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringslice changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringslice changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringslice changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+            expected = sliceable[beginint:endint]
             _assert(
                 result == expected,
                 "Failed to stringslice simple, "

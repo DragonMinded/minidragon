@@ -20,12 +20,21 @@ class CompilerSettings:
 
 
 class Context:
-    def __init__(self, module: str, settings: CompilerSettings, node: cst.CSTNode, meta: Mapping[cst.CSTNode, meta.CodeRange], extra: str = "") -> None:
+    def __init__(
+        self,
+        module: str,
+        settings: CompilerSettings,
+        node: cst.CSTNode,
+        meta: Mapping[cst.CSTNode, meta.CodeRange],
+        *,
+        extra: str = "",
+    ) -> None:
         self.module = module
         self.settings = settings
         self.node = node
         self.meta = meta
         self.extra = extra
+        self.parentline: Optional[int] = None
         self.mapping: Dict[cst.CSTNode, cst.CSTNode] = {}
 
     @property
@@ -45,15 +54,25 @@ class Context:
             modulename = modulename[:-1]
         return modulename
 
-    def wrap(self, node: cst.CSTNode, extra: str = "") -> "Context":
-        context = Context(self.module, self.settings, node, self.meta, extra)
+    def wrap(self, node: cst.CSTNode, *, extra: str = "") -> "Context":
+        context = Context(self.module, self.settings, node, self.meta, extra=extra)
         context.mapping = {x: y for x, y in self.mapping.items()}
+        if node not in self.meta:
+            if self.node in self.meta:
+                context.parentline = self.meta[self.node].start.line
+            else:
+                context.parentline = self.parentline
         return context
 
-    def virtual(self, node: cst.CSTNode, extra: str = "") -> "Context":
-        context = Context(self.module, self.settings, node, self.meta, extra)
+    def virtual(self, node: cst.CSTNode, *, extra: str = "") -> "Context":
+        context = Context(self.module, self.settings, node, self.meta, extra=extra)
         context.mapping = {x: y for x, y in self.mapping.items()}
         context.mapping[node] = self.node
+        if node not in self.meta:
+            if self.node in self.meta:
+                context.parentline = self.meta[self.node].start.line
+            else:
+                context.parentline = self.parentline
         return context
 
     def coderange(self) -> Optional[meta.CodeRange]:
@@ -75,7 +94,15 @@ class Context:
             code = code[:-1]
         codelines = code.split("\n")
         codelines = [c for c in codelines if c.strip()]
-        return f"  ; {self.module} line {self.meta[node].start.line}: {self.extra}{codelines[0]}"
+
+        if node in self.meta:
+            startline = f"line {self.meta[node].start.line}"
+        elif self.parentline is not None:
+            startline = f"line {self.parentline}"
+        else:
+            startline = "line unknown"
+
+        return f"  ; {self.module} {startline}: {self.extra}{codelines[0]}"
 
 
 class CompilerError(Exception):
@@ -6185,52 +6212,78 @@ class Compiler:
                 if beginning is None:
                     raise Exception("Logic error, shouldn't be possible to get a null beginning here!")
 
-                #TODO: 16-bit here as well.
+                beginning_dest = self.expr_temp_name()
+                beginning_allocated = False
 
                 # The beginning is non-null, regardless of whether the ending is present. So, we must adjust the
                 # local base destination forward by the slice value.
-                clobbers.add("A")
-                clobbers.add("SPC")
-                compiled += self.generate_expr_internal(beginning, "register(A, uint8)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(beginning))
+                if beginning_size == 1:
+                    clobbers.add("A")
+                    clobbers.add("SPC")
+                    compiled += self.generate_expr_internal(
+                        beginning, "register(A, uint8)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(beginning)
+                    )
 
-                # Move to the correct spot on the stack to move the pointer to the right offset.
-                compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
+                    # Move to the correct spot on the stack to move the pointer to the right offset.
+                    compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
 
-                # Instead of just using ADDPC here to increment past the bytes we don't want, we increment one at
-                # a time. This is so we can check for an early null-terminator to make start indexing memory safe
-                # just like end indexing is.
-                clobbers.add("U")
-                clobbers.add("V")
+                    # Instead of just using ADDPC here to increment past the bytes we don't want, we increment one at
+                    # a time. This is so we can check for an early null-terminator to make start indexing memory safe
+                    # just like end indexing is.
+                    clobbers.add("U")
+                    clobbers.add("V")
 
-                advance_top = self.local_label_name(context, "advance_top")
-                advance_bottom = self.local_label_name(context, "advance_bottom")
+                    advance_top = self.local_label_name(context, "advance_top")
+                    advance_bottom = self.local_label_name(context, "advance_bottom")
 
-                # Swap over so we can check the string one byte at a time.
-                compiled.append_code("  MOV A, V")
-                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
-                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
-                compiled.append_code("  POP SPC")
-                compiled.append_code("  SWAP PC, SPC")
+                    # Swap over so we can check the string one byte at a time.
+                    compiled.append_code("  MOV A, V")
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                    compiled.append_code("  POP SPC")
+                    compiled.append_code("  SWAP PC, SPC")
 
-                # Loop through, checking for termination conditions. First check for end of loop by advancing enough.
-                # Then, check if we've hit a null byte.
-                compiled.append_code(f"{advance_top}:")
-                compiled.append_code("  ADDI 0")
-                compiled.append_code(f"  JRIZ {advance_bottom}")
-                compiled.append_code("  DEC")
-                compiled.append_code("  MOV A, U")
-                compiled.append_code("  LOAD A")
-                compiled.append_code("  ADDI 0")
-                compiled.append_code(f"  JRIZ {advance_bottom}")
-                compiled.append_code("  INCPC")
-                compiled.append_code("  MOV U, A")
-                compiled.append_code(f"  JRI {advance_top}")
-                compiled.append_code(f"{advance_bottom}:")
-                compiled.append_code("  SWAP PC, SPC")
-                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.STORE))
-                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.STORE))
-                compiled.append_code("  PUSH SPC")
-                compiled.append_code("  MOV V, A")
+                    # Loop through, checking for termination conditions. First check for end of loop by advancing enough.
+                    # Then, check if we've hit a null byte.
+                    compiled.append_code(f"{advance_top}:")
+                    compiled.append_code("  ADDI 0")
+                    compiled.append_code(f"  JRIZ {advance_bottom}")
+                    compiled.append_code("  DEC")
+                    compiled.append_code("  MOV A, U")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  ADDI 0")
+                    compiled.append_code(f"  JRIZ {advance_bottom}")
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  MOV U, A")
+                    compiled.append_code(f"  JRI {advance_top}")
+                    compiled.append_code(f"{advance_bottom}:")
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.STORE))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.STORE))
+                    compiled.append_code("  PUSH SPC")
+
+                    # Now restore the contents of the A register to what we calculated it to be since we'll need it later.
+                    compiled.append_code("  MOV V, A")
+
+                else:
+                    beginning_allocated = True
+                    stack.alloc(StackVar(beginning_dest, CoreType("int16"), initialized=True))
+                    compiled += self.generate_expr_internal(
+                        beginning, beginning_dest, types, stack, clobbers, allocations, refs, local_consts, context.wrap(beginning)
+                    )
+
+                    # Advance the number of bytes that we have in the beginning variable.
+                    compiled += self.generate_function_call_internal(
+                        create_call("wstradv", [UnvalidatedName(base_dest), UnvalidatedName(beginning_dest)]),
+                        base_dest,
+                        types,
+                        stack,
+                        clobbers,
+                        allocations,
+                        refs,
+                        local_consts,
+                        context.wrap(beginning),
+                    )
 
                 if ending is None:
                     # Now, just strcpy it over.
@@ -6250,48 +6303,116 @@ class Compiler:
                     try:
                         # Attempt to do a constant unroll to avoild a bunch of nasty codegen.
                         expr = cst.BinaryOperation(left=ending, operator=cst.Subtract(), right=beginning)
-                        self.codegen_eval(expr, local_consts, context)
+                        value = self.codegen_eval(expr, local_consts, context)
+                        if not isinstance(value, int):
+                            raise Exception("Logic error, expected an integer back and already inferred types!")
+
+                        const_size = 1 if not bool(value & 0xFFFFFF00) else 2
 
                         ending_dest = self.expr_temp_name()
-                        stack.alloc(StackVar(ending_dest, CoreType("int8")))
-                        compiled += self.generate_expr_internal(expr, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.virtual(expr))
+                        stack.alloc(StackVar(ending_dest, CoreType("int8") if const_size == 1 else CoreType("int16")))
+                        compiled += self.generate_expr_internal(
+                            expr, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.virtual(expr)
+                        )
 
                     except NonConstantExpressionException:
-                        #TODO: 16-bit here as well.
+                        # Our const size is equal to our size inference here.
+                        const_size = max(beginning_size, ending_size)
 
-                        # First, store the beginning value that we calculated so that we can subtract it later.
-                        ending_dest = self.expr_temp_name()
-                        stack.alloc(StackVar(ending_dest, CoreType("int8"), initialized=True))
-                        compiled += self.generate_move_to(ending_dest, stack, clobbers, context)
-                        compiled.append_code("  NEG")
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
+                        if const_size == 1:
+                            # First, store the beginning value that we calculated so that we can subtract it later.
+                            ending_dest = self.expr_temp_name()
+                            stack.alloc(StackVar(ending_dest, CoreType("int8"), initialized=True))
+                            compiled += self.generate_move_to(ending_dest, stack, clobbers, context)
+                            compiled.append_code("  NEG")
+                            compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
-                        # This can be mapped onto a simple strncpy, so we should calculate the ending value and do that.
-                        ending_temp = self.expr_temp_name()
-                        stack.alloc(StackVar(ending_temp, CoreType("uint8")))
-                        compiled += self.generate_expr_internal(ending, ending_temp, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
-                        compiled += self.generate_move_to(ending_temp, stack, clobbers, context)
-                        compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
-                        stack.free(ending_temp)
+                            # This can be mapped onto a simple strncpy, so we should calculate the ending value and do that.
+                            ending_temp = self.expr_temp_name()
+                            stack.alloc(StackVar(ending_temp, CoreType("uint8")))
+                            compiled += self.generate_expr_internal(ending, ending_temp, types, stack, clobbers, allocations, refs, local_consts, context.wrap(ending))
+                            compiled += self.generate_move_to(ending_temp, stack, clobbers, context)
+                            compiled.append_code("  LOAD A" + stack.comment(stack.location, StackOperation.LOAD))
+                            stack.free(ending_temp)
 
-                        compiled += self.generate_move_to(ending_dest, stack, clobbers, context)
-                        compiled.append_code("  ADD" + stack.comment(stack.location, StackOperation.LOAD))
-                        compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
+                            compiled += self.generate_move_to(ending_dest, stack, clobbers, context)
+                            compiled.append_code("  ADD" + stack.comment(stack.location, StackOperation.LOAD))
+                            compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
 
-                    #TODO: 16-bit here as well.
-                    compiled += self.generate_function_call_internal(
-                        create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
-                        None,
-                        types,
-                        stack,
-                        clobbers,
-                        allocations,
-                        refs,
-                        local_consts,
-                        context.wrap(expression),
-                    )
+                        else:
+                            if not beginning_allocated:
+                                # First, if the beginning value was not stored, we need to store it now.
+                                beginning_allocated = True
+                                beginning_dest = self.expr_temp_name()
+                                stack.alloc(StackVar(beginning_dest, CoreType("int16"), initialized=True))
+                                compiled += self.generate_move_to(beginning_dest, stack, clobbers, context)
+                                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
+                                compiled += self.generate_move_to(beginning_dest, stack, clobbers, context, offset=1)
+                                compiled.append_code("  LOADI 0")
+                                compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
+
+                                # Now, need to subtract that from the ending.
+                                ending_dest = self.expr_temp_name()
+                                stack.alloc(StackVar(ending_dest, CoreType("int16"), initialized=True))
+
+                                tree = cst.BinaryOperation(
+                                    left=ending,
+                                    operator=cst.Subtract(),
+                                    right=UnvalidatedName(beginning_dest),
+                                )
+
+                                # Perform a simple subtraction of the two to get the ending dest.
+                                compiled += self.generate_expr_internal(
+                                    tree, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.virtual(tree)
+                                )
+
+                            else:
+                                if not beginning_allocated:
+                                    raise Exception("Logic error, beginning should be allocated in this case!")
+
+                                # Create a node to evaluate which is just the ending minus the beginning.
+                                tree = cst.BinaryOperation(
+                                    left=ending,
+                                    operator=cst.Subtract(),
+                                    right=UnvalidatedName(beginning_dest),
+                                )
+
+                                # Perform a simple subtraction of the two to get the ending dest.
+                                ending_dest = self.expr_temp_name()
+                                stack.alloc(StackVar(ending_dest, CoreType("int16"), initialized=True))
+                                compiled += self.generate_expr_internal(
+                                    tree, ending_dest, types, stack, clobbers, allocations, refs, local_consts, context.virtual(tree)
+                                )
+
+                    if const_size == 1:
+                        compiled += self.generate_function_call_internal(
+                            create_call("strncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context.wrap(expression),
+                        )
+                    else:
+                        compiled += self.generate_function_call_internal(
+                            create_call("wstrncpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest), UnvalidatedName(ending_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context.wrap(expression),
+                        )
 
                     stack.free(ending_dest)
+
+                if beginning_allocated:
+                    stack.free(beginning_dest)
 
             if allocated:
                 stack.free(base_dest)
