@@ -14185,10 +14185,72 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
         heaplines = fp.readlines()
     with open("lib/string/strcpy.S", "r") as fp:
         strcpylines = fp.readlines()
+    with open("lib/math/add.S", "r") as fp:
+        addlines = fp.readlines()
 
     cycles = 0
     instructions = 0
     count = 0
+
+    # Verify constant offset updates.
+    for offset in [0, 2, 4, 8, 50, 100, 150, 250, 300]:
+        for updated in ['~', '!', '*']:
+            sliceable = "A" * 400
+            sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
+                def set_char(string: str[512], val: char) -> str:
+                    string[{offset}] = val
+                    return string
+
+                def updateme() -> str:
+                    sliceable: str[512] = {sliceable!r}
+                    return set_char(sliceable, {updated!r})
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                *addlines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "SUBPCI 2",
+                "CALL updateme",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringassignment", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringassignment changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringassignment changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringassignment changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+            expected = sliceable[:offset] + updated + sliceable[(offset + 1):]
+            _assert(
+                result == expected,
+                "Failed to stringassignment simple, "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
 
     # Verify local assignment updates.
     for offset in [0, 2, 4, 8, 50, 100, 150]:
@@ -14202,6 +14264,188 @@ def verifystringassignment(only: Optional[Container[str]], full: bool) -> None:
                 def updateme() -> str:
                     sliceable: str[256] = {sliceable!r}
                     return set_char(sliceable, {offset}, {updated!r})
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "SUBPCI 2",
+                "CALL updateme",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringassignment", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringassignment changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringassignment changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringassignment changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+            expected = sliceable[:offset] + updated + sliceable[(offset + 1):]
+            _assert(
+                result == expected,
+                "Failed to stringassignment simple, "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Verify 16-bit assignment offset updates.
+    for offset in [0, 2, 4, 8, 50, 100, 150, 250, 300]:
+        for updated in ['~', '!', '*']:
+            sliceable = "A" * 400
+            sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
+                def set_char(string: str[512], offset: uint16, val: char) -> str:
+                    string[offset] = val
+                    return string
+
+                def updateme() -> str:
+                    sliceable: str[512] = {sliceable!r}
+                    return set_char(sliceable, {offset}, {updated!r})
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                *addlines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "SUBPCI 2",
+                "CALL updateme",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringassignment", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringassignment changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringassignment changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringassignment changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+            expected = sliceable[:offset] + updated + sliceable[(offset + 1):]
+            _assert(
+                result == expected,
+                "Failed to stringassignment simple, "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Verify local assignment from global variable to ensure clobbers.
+    for offset in [0, 2, 4, 8, 50, 100, 150]:
+        for updated in ['~', '!', '*']:
+            sliceable = "A" * 200
+            sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
+                GLOBAL_VAL: char = {updated!r}
+
+                def set_char(string: str[256], offset: uint8) -> str:
+                    string[offset] = GLOBAL_VAL
+                    return string
+
+                def updateme() -> str:
+                    sliceable: str[256] = {sliceable!r}
+                    return set_char(sliceable, {offset})
+            """), settings)
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *sections.init,
+                *startlines,
+                *sections.code,
+                *strcpylines,
+                "main:",
+                "LOADI 111",
+                "MOV A, U",
+                "LOADI 222",
+                "MOV A, V",
+                "LOADI 123",
+                "SUBPCI 2",
+                "CALL updateme",
+                "HALT",
+                *datalines,
+                *sections.data,
+                *heaplines,
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            assertmemory("stringassignment", memory, cpu.ram)
+            _assert(
+                cpu.a == 123,
+                f"stringassignment changed accumulator value from {123} to {cpu.a}!",
+            )
+            _assert(
+                cpu.u == 111,
+                f"stringassignment changed U value from {111} to {cpu.u}!",
+            )
+            _assert(
+                cpu.v == 222,
+                f"stringassignment changed V value from {222} to {cpu.v}!",
+            )
+            result = bintostr(cpu, (cpu.ram[cpu.pc] << 8) + cpu.ram[cpu.pc + 1], 0xC000, 0x10000)
+            expected = sliceable[:offset] + updated + sliceable[(offset + 1):]
+            _assert(
+                result == expected,
+                "Failed to stringassignment simple, "
+                + f"got {result!r} instead of {expected!r}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Verify assignment with global offset to verify clobbers.
+    for offset in [0, 2, 4, 8, 50, 100, 150]:
+        for updated in ['~', '!', '*']:
+            sliceable = "A" * 200
+            sections = parse_and_compile_module("stringassignment", textwrap.dedent(f"""
+                GLOBAL_OFFSET: uint8 = {offset}
+
+                def set_char(string: str[256], val: char) -> str:
+                    string[GLOBAL_OFFSET] = val
+                    return string
+
+                def updateme() -> str:
+                    sliceable: str[256] = {sliceable!r}
+                    return set_char(sliceable, {updated!r})
             """), settings)
             memory = getmemory(os.linesep.join([
                 *initlines,

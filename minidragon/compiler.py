@@ -6134,6 +6134,8 @@ class Compiler:
                 compiled.append_code(f"  JRI {advance_top}")
                 compiled.append_code(f"{advance_bottom}:")
                 compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.STORE))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.STORE))
                 compiled.append_code("  PUSH SPC")
                 compiled.append_code("  MOV V, A")
 
@@ -7333,14 +7335,60 @@ class Compiler:
             if not assign_types[assign_value].is_char:
                 raise CompilerError(f"Unsupported non-character assignment {assign_types[assign_value].type} in subscript assignment", context)
 
-            offset_types: Dict[cst.CSTNode, CoreType] = self.infer_expr_types(assign_offset, CoreType("uint8"), stack, refs, local_consts, context)
+            # Attempt to infer the constant size.
+            try:
+                value = self.codegen_eval(assign_offset, local_consts, context.wrap(assign_offset))
+            except NonConstantExpressionException:
+                value = None
+            if not isinstance(value, int):
+                value = None
+
+            offset_types: Dict[cst.CSTNode, CoreType]
+            if value is not None:
+                size = 1 if not bool(value & 0xFFFFFF00) else 2
+                inferred = CoreType("uint8" if size == 1 else "uint16")
+
+                offset_types = self.infer_expr_types(assign_offset, inferred, stack, refs, local_consts, context)
+            else:
+                # Assume the worst, size-wise, if we don't know the type.
+                offset_types = self.infer_expr_types(assign_offset, CoreType("uint16"), stack, refs, local_consts, context)
+
             if not offset_types[assign_offset].is_integer:
                 raise CompilerError(f"Unsupported non-integer offset {offset_types[assign_offset].type} in subscript assignment", context)
 
+            # We'll need this multiple times.
+            inferred_offset_type = offset_types[assign_offset]
+
+            # Clobbering A since we need to use it to calculate values.
+            clobbers.add("A")
+
+            # Now, calculate any clobbers in our offset calculation.
+            temp_offset = self.expr_temp_name()
+            offset_allocated = False
+
+            offset_clobbers: Set[str]
+            if inferred_offset_type.size == 1:
+                offset_clobbers = set("A")
+                self.generate_expr_internal(
+                    assign_offset, "register(A, uint8)", offset_types, stack.clone(), offset_clobbers, allocations, refs, local_consts, context.wrap(assign_offset)
+                )
+            else:
+                stack.alloc(StackVar(temp_offset, CoreType("uint16"), initialized=True))
+                offset_allocated = True
+
+                offset_clobbers = set()
+                self.generate_expr_internal(
+                    assign_offset, temp_offset, offset_types, stack.clone(), offset_clobbers, allocations, refs, local_consts, context.wrap(assign_offset)
+                )
+
+            # Now, calculate any clobbers in our value calculation.
+            value_clobbers: Set[str] = set("A")
+            self.generate_expr_internal(
+                assign_value, "register(A, char)", assign_types, stack.clone(), value_clobbers, allocations, refs, local_consts, context.wrap(assign_value)
+            )
+
             # We're going to clobber the SPC and A register to assign the value, and U to advance past 127 characters.
             clobbers.add("SPC")
-            clobbers.add("A")
-            clobbers.add("U")
 
             # Figure out if this is a global or local variable assignment.
             orig_type = stack.typeof(assign_name)
@@ -7350,6 +7398,8 @@ class Compiler:
                 # is done without initializing.
                 if global_var.type.const:
                     raise CompilerError(f"Cannot assign to variable {assign_name!r} declared const", context)
+                if not global_var.type.is_string:
+                    raise CompilerError(f"Unsupported subscript assignment to variable {assign_name!r}", context)
 
                 compiled.append_code("  SWAP PC, SPC")
                 compiled.append_code(f"  SETPC {assign_name}")
@@ -7377,29 +7427,116 @@ class Compiler:
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
 
+            temp_pointer = self.expr_temp_name()
+            pointer_allocated = False
+            if "SPC" in offset_clobbers or inferred_offset_type.size == 2:
+                # We're about to clobber what we just calculated with our offset expression, so save it.
+                stack.alloc(StackVar(temp_pointer, CoreType("uint16"), initialized=True))
+                pointer_allocated = True
+
+                compiled += self.generate_move_to(temp_pointer, stack, clobbers, context, offset=-1)
+                compiled.append_code("  NOP" + stack.comment(stack.location + 1, StackOperation.STORE))
+                compiled.append_code("  NOP" + stack.comment(stack.location + 2, StackOperation.STORE))
+                compiled.append_code("  PUSH SPC")
+                stack.move(2)
+                compiled.code += comment_stack(stack)
+
             # Now, calculate the offset we need to assign at.
-            compiled += self.generate_expr_internal(assign_offset, "register(A, uint8)", offset_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_offset))
+            if inferred_offset_type.size == 1:
+                compiled += self.generate_expr_internal(
+                    assign_offset, "register(A, uint8)", offset_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_offset)
+                )
 
-            upper_clear = self.local_label_name(context, "upper_clear")
-            compiled.append_code("  SWAP PC, SPC")
-            compiled.append_code("  SHL")
-            compiled.append_code(f"  JRINC {upper_clear}")
-            compiled.append_code("  MOV A, U")
-            compiled.append_code("  LOADI 127")
-            compiled.append_code("  ADDPC")
-            compiled.append_code("  INCPC")
-            compiled.append_code("  MOV U, A")
-            compiled.append_code(f"{upper_clear}:")
-            compiled.append_code("  SHR")
-            compiled.append_code("  ADDPC")
-            compiled.append_code("  SWAP PC, SPC")
+                if "SPC" in offset_clobbers:
+                    # Gotta pop the SPC value back again.
+                    compiled += self.generate_move_to(temp_pointer, stack, clobbers, context, offset=1)
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                    compiled.append_code("  POP SPC")
+                    stack.move(-2)
+                    compiled.code += comment_stack(stack)
 
-            # Now, calculate the character that we're assigning.
-            compiled += self.generate_expr_internal(assign_value, "register(A, char)", assign_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value))
+                # Clobbering U because we need a temporary value to hold A.
+                clobbers.add("U")
 
+                upper_clear = self.local_label_name(context, "upper_clear")
+                compiled.append_code("  SWAP PC, SPC")
+                compiled.append_code("  SHL")
+                compiled.append_code(f"  JRINC {upper_clear}")
+                compiled.append_code("  MOV A, U")
+                compiled.append_code("  LOADI 127")
+                compiled.append_code("  ADDPC")
+                compiled.append_code("  INCPC")
+                compiled.append_code("  MOV U, A")
+                compiled.append_code(f"{upper_clear}:")
+                compiled.append_code("  SHR")
+                compiled.append_code("  ADDPC")
+                compiled.append_code("  SWAP PC, SPC")
+
+            else:
+                compiled += self.generate_expr_internal(
+                    assign_offset, temp_offset, offset_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_offset)
+                )
+
+                compiled += self.generate_function_call_internal(
+                    create_call(
+                        "add16",
+                        [UnvalidatedName(temp_pointer), UnvalidatedName(temp_offset)],
+                    ),
+                    temp_pointer,
+                    offset_types,
+                    stack,
+                    clobbers,
+                    allocations,
+                    refs,
+                    local_consts,
+                    context.wrap(assign_offset),
+                )
+
+                # Gotta pop the SPC value back again.
+                compiled += self.generate_move_to(temp_pointer, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+            if "SPC" in value_clobbers:
+                # We're about to clobber the offset we just calculated, so save it.
+                if not pointer_allocated:
+                    stack.alloc(StackVar(temp_pointer, CoreType("uint16"), initialized=True))
+                    pointer_allocated = True
+
+                compiled += self.generate_move_to(temp_pointer, stack, clobbers, context, offset=-1)
+                compiled.append_code("  NOP" + stack.comment(stack.location + 1, StackOperation.STORE))
+                compiled.append_code("  NOP" + stack.comment(stack.location + 2, StackOperation.STORE))
+                compiled.append_code("  PUSH SPC")
+                stack.move(2)
+                compiled.code += comment_stack(stack)
+
+            # Now, actually calculate the value we're going to store.
+            compiled += self.generate_expr_internal(
+                assign_value, "register(A, char)", assign_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_value)
+            )
+
+            if "SPC" in value_clobbers:
+                # Gotta pop the SPC value back again.
+                compiled += self.generate_move_to(temp_pointer, stack, clobbers, context, offset=1)
+                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                compiled.append_code("  POP SPC")
+                stack.move(-2)
+                compiled.code += comment_stack(stack)
+
+            # Now, assign the value we calculated.
             compiled.append_code("  SWAP PC, SPC")
             compiled.append_code("  STORE A")
             compiled.append_code("  SWAP PC, SPC")
+
+            if pointer_allocated:
+                stack.free(temp_pointer)
+            if offset_allocated:
+                stack.free(temp_offset)
 
             return compiled
 
