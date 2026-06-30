@@ -180,7 +180,7 @@ Examples of various operations are as follows.
 
 `b: str[8] = a[3:7]`
 
- > Declares a new string `b` and then assigns it the slice of `a` starting at index 3 and ending at index 7. Supposing `a` were to hold the value "Hello, world" then after this operation `b` will now hold "lo, ". Note that string slices are memory safe just as they are in standard Python. That means that if a string is not long enough for the slice index you should expect the result of the slice to be shorter than specified. For instance, if `a` were to hold just the string "Hello" and you were to ask for the above slice, `b` would end up containing "lo. Note that slices with no beginning and slices with no end are both supported.
+ > Declares a new string `b` and then assigns it the slice of `a` starting at index 3 and ending at index 7. Supposing `a` were to hold the value "Hello, world" then after this operation `b` will now hold "lo, ". Note that string slices are memory safe just as they are in standard Python. That means that if a string is not long enough for the slice index you should expect the result of the slice to be shorter than specified. For instance, if `a` were to hold just the string "Hello" and you were to ask for the above slice, `b` would end up containing "lo". Note that slices with no beginning and slices with no end are both supported.
 
 ---
 
