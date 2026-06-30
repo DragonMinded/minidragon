@@ -6955,13 +6955,21 @@ class Compiler:
                     else:
                         arg_inferred = self.infer_expr_types_impl(arg.value, stack, refs, local_consts, context.wrap(arg.value))
 
+                        # If it happens that the above is still an int, such as calling peek with another
+                        # function directly that returns an int which needs inference, then we have to
+                        # assume the widest type here.
+                        if arg_inferred[arg.value].type == "int":
+                            arg_inferred[arg.value] = CoreType("uint16")
+
                 if not type_comparison_compatible(arg_inferred[arg.value], argtype.type):
                     raise CompilerError(f"Unsupported cast from {arg_inferred[arg.value].type} to {argtype.type.type} in function call parameter 2", context)
 
                 inferred_type = arg_inferred[arg.value]
-                inferred.update(arg_inferred)
+                self.infer_tree(arg_inferred, inferred_type, context)
 
+                inferred.update(arg_inferred)
                 inferred[expression] = function_prototype.return_type
+
                 return inferred
 
             else:
