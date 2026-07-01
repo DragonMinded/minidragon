@@ -411,8 +411,8 @@ def getRunning() -> bool:
 
 ## Compiler Intrinsics
 
-Standard Python has support for a plethora of built-in functions. MiniPy replicates support for only a limited subset of these functions. Additionally, it adds a few intrinsics of its own. All supported intrinsics are documented here. The standard Python built-ins which MiniPy supports are listed below. In general, these should behave the same as their standard Python counterparts unless documented otherwise. For standard Python documentation of these intrinsicts, please see the [Built-In Functions](https://docs.python.org/3/library/functions.html)
-documentation.
+Standard Python has support for a plethora of built-in functions as well as a few statements and built-in globals. MiniPy replicates support for only a limited subset of these. Additionally, it adds a few intrinsic functions of its own. All supported intrinsics are documented here. The standard Python built-ins which MiniPy supports are listed below. In general, these should behave the same as their standard Python counterparts unless documented otherwise. For standard Python documentation of these intrinsicts, please see the [Built-In Functions](https://docs.python.org/3/library/functions.html)
+documentation, the [Built-In Constants](https://docs.python.org/3/library/constants.html) documentation and the [Assert Statement](https://docs.python.org/3/reference/simple_stmts.html#grammar-token-python-grammar-assert_stmt) documentation.
 
 ---
 
@@ -505,6 +505,19 @@ Additionally, MiniPy specifies a few intrinsics of its own. The MiniPy specific 
 `fixed(value, fracbits=8)`
 
  > Given an integer or floating point value and an optional fractional bits, converts that value to a fixed point integer that represents the decimal approximation of the floating point value. Note that in MiniPy, fixed point integers are always 32 bits wide.
+
+---
+
+`__debug__`
+
+ > A boolean that evaluates to either `True` or `False` depending on how the file was compiled. By default, debug mode is on (just as it is in Python) and this will default to `True`. Assert statements will also be compiled into the code when debug mode is on. To disable debug mode, use the `--strip-debug-code` option when compiling your file. With this flag specified, `__debug__` will instead evaluate to `False` and assert statements will be compiled out of the resulting code. Note that you can conditionally enable or disable debug mode on a per-compilation-unit basis.
+
+---
+
+`assert condition`
+`assert condition, message`
+
+ > A statement that will cause the executing program to print out the assert message to the attached terminal and halt execution if the condition evaluates to `False` at runtime. If the condition evaluates to `True` at runtime then nothing happens. If you do not specify a message a generic message stating that the condition supplied evaluated to `False` will instead be printed. Note that assert statements print out the source file and line so they can take up a decent amount of space in your final ROM file. Using the `--strip-debug-code` option when compiling will completely strip out the assert statement including the condition evaluation and the storage space needed to store the source file and line.
 
 ## Import System
 
