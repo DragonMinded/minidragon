@@ -8703,7 +8703,8 @@ class Compiler:
             # We just use the expression from the message.
             message = statement.msg
 
-        # Now, generate the function call to the stdlib assert function.
+        # Now, generate the function call to the stdlib assert function. Use a cloned stack
+        # since this code is only conditionally executed.
         compiled += self.generate_function_call_internal(
             create_call(
                 "assert_print",
@@ -8711,7 +8712,7 @@ class Compiler:
             ),
             None,
             types,
-            stack,
+            stack.clone(),
             clobbers,
             allocations,
             refs,
