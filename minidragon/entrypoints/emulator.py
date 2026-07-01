@@ -593,7 +593,7 @@ class MiniDragonMemoryFilter(MemoryFilter):
         return None
 
 
-def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], verbose: bool) -> int:
+def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], verbose: bool, trace: Optional[str]) -> int:
     # First, fill the ROM portion with the bootROM file itself.
     with open(boot_rom, "rb") as bfp:
         data = bfp.read()
@@ -631,10 +631,19 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
     # Calculate how much time a single tick should take as a fraction of a second.
     ticktime = 1.0 / 18000.0
 
+    if trace:
+        tracefile = open(trace, "w")
+    else:
+        tracefile = None
+
     # Now, instantiate the CPU core and run until a halt instruction is encountered.
     cpu = CPUCore(memory, ram_filter)
     after = time.time()
     while True:
+        if tracefile:
+            tracefile.write(f"{hex(cpu.ip)}: {cpu.mnemonic} (A: {hex(cpu.a)}, PC: {hex(cpu.pc)}, SPC: {hex(cpu.spc)})\n")
+            tracefile.flush()
+
         if cpu.mnemonic == "HALT":
             break
 
@@ -691,9 +700,17 @@ def run() -> None:
         action="store_true",
         help="Verbose output of emulator state to stderr.",
     )
+    parser.add_argument(
+        "-t",
+        "--trace",
+        metavar="TRACEFILE",
+        type=str,
+        default=None,
+        help="Trace execution by writing to this file.",
+    )
 
     args = parser.parse_args()
-    sys.exit(main(args.file, args.cartridge, args.serial_port, args.verbose))
+    sys.exit(main(args.file, args.cartridge, args.serial_port, args.verbose, args.trace))
 
 
 if __name__ == "__main__":
