@@ -1033,7 +1033,11 @@ def str_to_expr(string: str) -> cst.BaseExpression:
     if len(statementbody) != 1:
         raise Exception("Logic error, expected a single simple statement!")
 
-    return statementbody[0]
+    exprstatement = statementbody[0]
+    if not isinstance(exprstatement, cst.Expr):
+        raise Exception("Logic error, expected expression statement!")
+
+    return exprstatement.value
 
 
 def unescape_literal(val: str) -> str:
@@ -1220,7 +1224,7 @@ class DebugBuiltinTransformer(cst.CSTTransformer):
     def __init__(self, settings: CompilerSettings) -> None:
         self.settings = settings
 
-    def leave_Name(self, original_node: cst.Name, updated_node: cst.Name) -> cst.CSTNode:
+    def leave_Name(self, original_node: cst.Name, updated_node: cst.Name) -> cst.BaseExpression:
         if updated_node.value == "__debug__":
             return cst.Name(value=str(self.settings.debug))
         return updated_node
@@ -1347,8 +1351,10 @@ class Compiler:
         # not the value of the current interpreter executing eval. So, overwrite that here using a tree walk.
         # Render out the tree so we can pass to eval().
         transformer = DebugBuiltinTransformer(self.settings)
-        expr = expr.visit(transformer)
-        code = expr_to_str(expr)
+        updated = expr.visit(transformer)
+        if not isinstance(updated, cst.BaseExpression):
+            raise Exception("Logic error, expected expression back from __debug__ replacement!")
+        code = expr_to_str(updated)
 
         # If we don't control our builtins, python will eval a bunch of stuff we don't support due to
         # its own builtins, and it will appear to work but only for constant expressions.

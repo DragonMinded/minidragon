@@ -69,7 +69,7 @@ FIXEDPOINT_CODES += $(filter %.S, ${FIXEDPOINT_SRCS})
 # Rule to convert any python file to its output init/data/code sections.
 build/%.init.S build/%.data.S build/%.code.S: %.py
 	@mkdir -p $(dir $@)
-	./compiler --production-code --lib lib/ --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
+	./compiler --strip-debug-code --lib lib/ --optimize -o build/$*.code.S -d build/$*.data.S -i build/$*.init.S $^
 
 build/bootrom_listing.S: $(STDLIB) $(RUNTIME) $(BOOTROM_JUMPTABLE) $(BOOTROM_INITS) $(BOOTROM_DATAS) $(BOOTROM_CODES)
 	@mkdir -p $(dir $@)
