@@ -625,8 +625,8 @@ class CPUCore:
 
         changes = self.changes if highlight_changes else set()
 
-        # Don't filter reads/writes here since this is only for debugging and not part of any full system emulation.
-        curmem = self.ram[ip]
+        # Filter here so even when emulating we can get the correct memory address.
+        curmem = self.__read_memory(ip)
 
         print("\n".join([
             f"IP:    {highlight(hexstr(ip, 4), 'ip', changes)}",
@@ -642,8 +642,8 @@ class CPUCore:
     @property
     def mnemonic(self) -> str:
         ip = self.data if self.last_instruction.ip_input else self.ip
-        # Don't filter reads/writes here since this is only for debugging and not part of any full system emulation.
-        return disassemble(self.ram[ip])
+        # Filter here so even when emulating we can debug properly.
+        return disassemble(self.__read_memory(ip))
 
     def dump(self, highlight_changes: bool = False) -> None:
         # Print the contents of RAM
