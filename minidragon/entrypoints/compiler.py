@@ -47,6 +47,13 @@ def main() -> None:
         default=False,
     )
     parser.add_argument(
+        "-p",
+        "--production-code",
+        action="store_true",
+        help="Compile code in production mode, stripping asserts and setting __debug__ to False",
+        default=False,
+    )
+    parser.add_argument(
         "-l",
         "--lib",
         action="append",
@@ -67,7 +74,7 @@ def main() -> None:
         help="Enable verbose error output",
     )
     args = parser.parse_args()
-    settings = CompilerSettings(optimize=args.optimize)
+    settings = CompilerSettings(optimize=args.optimize, debug=not args.production_code)
     compiler = Compiler(settings)
 
     for lib in args.lib:

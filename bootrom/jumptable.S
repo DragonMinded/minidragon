@@ -163,6 +163,8 @@ jumptable_serial_pos_row:
     LNGJUMP serial_pos_row
 jumptable_serial_pos_col:
     LNGJUMP serial_pos_col
+jumptable_assert_print:
+    LNGJUMP assert_print
 
     ; Now that we're done defining a jump table, resume execution here.
 jumptable_end:

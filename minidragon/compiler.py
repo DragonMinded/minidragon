@@ -11,12 +11,13 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 32768  # Length of string including null-termination.
-VERSION: Final[str] = "1.3.1"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.3.2"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
-    def __init__(self, *, optimize: bool = False) -> None:
+    def __init__(self, *, optimize: bool = False, debug: bool = True) -> None:
         self.optimize = optimize
+        self.debug = debug
 
 
 class Context:
@@ -103,6 +104,21 @@ class Context:
             startline = "line unknown"
 
         return f"  ; {self.module} {startline}: {self.extra}{codelines[0]}"
+
+    def location(self) -> str:
+        # Look up virtual references.
+        node = self.node
+        while node in self.mapping:
+            node = self.mapping[node]
+
+        if node in self.meta:
+            startline = f"line {self.meta[node].start.line}"
+        elif self.parentline is not None:
+            startline = f"line {self.parentline}"
+        else:
+            startline = "line unknown"
+
+        return f"{self.module} {startline}"
 
 
 class CompilerError(Exception):
@@ -533,6 +549,9 @@ class UnvalidatedName(cst.Name):
 
     def _validate(self) -> None:
         pass
+
+    def _visit_and_replace_children(self, visitor: cst.CSTVisitorT) -> "UnvalidatedName":
+        return self
 
 
 class SentinelInteger(cst.Integer):
@@ -1000,6 +1019,23 @@ def expr_to_str(expr: cst.BaseExpression) -> str:
     return code.strip()
 
 
+def str_to_expr(string: str) -> cst.BaseExpression:
+    fresh_module = cst.parse_module(f"{string!r}")
+    body = fresh_module.body
+    if len(body) != 1:
+        raise Exception("Logic error, expected a single top-level statement!")
+
+    statement = body[0]
+    if not isinstance(statement, cst.SimpleStatementLine):
+        raise Exception("Logic error, expected a single simple statement line!")
+
+    statementbody = statement.body
+    if len(statementbody) != 1:
+        raise Exception("Logic error, expected a single simple statement!")
+
+    return statementbody[0]
+
+
 def unescape_literal(val: str) -> str:
     escaping: str = ""
     retval: str = ""
@@ -1180,6 +1216,16 @@ def string_prefix(expr: cst.BaseExpression) -> str:
     return ""
 
 
+class DebugBuiltinTransformer(cst.CSTTransformer):
+    def __init__(self, settings: CompilerSettings) -> None:
+        self.settings = settings
+
+    def leave_Name(self, original_node: cst.Name, updated_node: cst.Name) -> cst.CSTNode:
+        if updated_node.value == "__debug__":
+            return cst.Name(value=str(self.settings.debug))
+        return updated_node
+
+
 class Compiler:
     def __init__(
         self,
@@ -1297,7 +1343,11 @@ class Compiler:
             if (intrinsic := self.intrinsic_eval(expr, constants, context)) is not None:
                 return intrinsic
 
+        # eval doesn't allow overwriting __debug__ but we want it to be the value of the compiler settings
+        # not the value of the current interpreter executing eval. So, overwrite that here using a tree walk.
         # Render out the tree so we can pass to eval().
+        transformer = DebugBuiltinTransformer(self.settings)
+        expr = expr.visit(transformer)
         code = expr_to_str(expr)
 
         # If we don't control our builtins, python will eval a bunch of stuff we don't support due to
@@ -8607,6 +8657,76 @@ class Compiler:
         compiled.append_code(f"  LNGJUMP {loop.exit_label}")
         return compiled
 
+    def generate_assert_statement(
+        self,
+        statement: cst.Assert,
+        stack: Stack,
+        clobbers: Set[str],
+        allocations: Dict[str, Allocation],
+        refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+        local_consts: List[Constant],
+        context: Context,
+    ) -> Sections:
+        compiled = Sections()
+
+        # First, we need to infer the expression type, so we can figure out if we need to implicitly coerce the assert value.
+        types: Dict[cst.CSTNode, CoreType] = self.infer_expr_types(statement.test, CoreType("bool"), stack, refs, local_consts, context)
+        clobbers.add("A")
+
+        if not types[statement.test].is_bool:
+            test_coerced = create_call("bool", [statement.test])
+            types[test_coerced] = CoreType("bool")
+
+            compiled += self.generate_expr_internal(
+                test_coerced, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.virtual(test_coerced).wrap(test_coerced)
+            )
+        else:
+            compiled += self.generate_expr_internal(
+                statement.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(statement.test)
+            )
+
+        # Now, we need a location to jump to if the assertion is True, to skip the assert.
+        assert_true_label = self.local_label_name(context, "assert_true")
+
+        compiled.append_code("  INV")
+        compiled.append_code(f"  LNGJUMPZ {assert_true_label}")
+
+        # Now, determine the module and line number for the assert.
+        module_and_line = context.location()
+
+        # And, determine the assert message.
+        if statement.msg is None:
+            # Format a message specifically
+            message = str_to_expr(f"{expr_to_str(statement.test)} is False")
+
+        else:
+            # We just use the expression from the message.
+            message = statement.msg
+
+        # Now, generate the function call to the stdlib assert function.
+        compiled += self.generate_function_call_internal(
+            create_call(
+                "assert_print",
+                [str_to_expr(module_and_line), message],
+            ),
+            None,
+            types,
+            stack,
+            clobbers,
+            allocations,
+            refs,
+            local_consts,
+            context,
+        )
+
+        # Finally, we halt the processor because there's nothing left to do.
+        compiled.append_code("  HALT")
+
+        # Now, have somewhere to jump to if the assert passes.
+        compiled.append_code(f"{assert_true_label}:")
+
+        return compiled
+
     def compile_chunk(
         self,
         chunk: cst.BaseSuite,
@@ -8815,8 +8935,14 @@ class Compiler:
                         last_statement_was_return = False
                         last_statement_was_continue = True
 
+                    elif isinstance(simple_statement, cst.Assert):
+                        if self.settings.debug:
+                            compiled += self.generate_assert_statement(
+                                simple_statement, stack, clobbers, allocations, refs_copy, local_consts, context.wrap(statement)
+                            )
+
                     else:
-                        raise CompilerError(f"Unsupported node to compile {simple_statement}", context)
+                        raise CompilerError(f"Unsupported simple statement node to compile {simple_statement}", context)
 
             elif isinstance(statement, cst.If):
                 if_compiled, last_statement_was_return, last_statement_was_continue = self.generate_if_statement(
@@ -8861,7 +8987,7 @@ class Compiler:
                 compiled += for_compiled
 
             else:
-                raise CompilerError(f"Unsupported node to compile {statement}", context)
+                raise CompilerError(f"Unsupported statement node to compile {statement}", context)
 
         if require_return and not last_statement_was_return:
             # Simple return by itself, doesn't update the retval.
@@ -9860,7 +9986,12 @@ class Compiler:
         parsed_module = wrapper.module
 
         compiled = Sections()
-        global_consts: List[Constant] = builtin_consts()
+        global_consts: List[Constant] = [
+            # Support for Python's very few builtin constant values.
+            *builtin_consts(),
+            # Support for __debug__ builtin which also ties to assert statements.
+            Constant("__debug__", CoreType("bool", const=True), value=self.settings.debug),
+        ]
         global_vars: List[GlobalVariable] = []
 
         for statement in parsed_module.body:
@@ -10093,6 +10224,9 @@ def builtin_consts() -> List[Constant]:
 
 def builtin_forward_refs() -> List[Union[FunctionPrototype, GlobalVariable]]:
     prototypes: List[Union[FunctionPrototype, GlobalVariable]] = [
+        # STDLIB assert helper function.
+        FunctionPrototype("assert_print", VoidType, [CoreType("str", const=True), CoreType("str", const=True)]),
+
         # STDLIB string functions.
         FunctionPrototype("strcat", VoidType, [PreservedCoreType("str"), PreservedCoreType("str")]),
         FunctionPrototype("strcmp", RegisterCoreType("int8", "A"), [PreservedCoreType("str"), PreservedCoreType("str")]),

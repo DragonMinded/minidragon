@@ -78,3 +78,4 @@ wstrtrunc: 0xe8
 wstradv: 0xeb
 serial_pos_row: 0xee
 serial_pos_col: 0xf1
+assert_print: 0xf4
