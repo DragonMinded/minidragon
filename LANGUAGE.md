@@ -480,6 +480,18 @@ documentation, the [Built-In Constants](https://docs.python.org/3/library/consta
 
  > Given one, two or three integers, returns an interator useful in `for` statements. Note that this is only supported in `for` statements since MiniPy has no support for iterables otherwise. For more details on the parameters, please see Python's [range](https://docs.python.org/3/library/functions.html#func-range) documentation.
 
+---
+
+`__debug__`
+
+ > A boolean that evaluates to either `True` or `False` depending on how the file was compiled. By default, debug mode is on (just as it is in Python) and this will default to `True`. Assert statements will also be compiled into the code when debug mode is on. To disable debug mode, use the `--strip-debug-code` option when compiling your file. With this flag specified, `__debug__` will instead evaluate to `False` and assert statements will be compiled out of the resulting code. Note that you can conditionally enable or disable debug mode on a per-compilation-unit basis.
+
+---
+
+`assert condition` and `assert condition, message`
+
+ > A statement that will cause the executing program to print out the assert message to the attached terminal and halt execution if the condition evaluates to `False` at runtime. If the condition evaluates to `True` at runtime then nothing happens. If you do not specify a message a generic message stating that the condition supplied evaluated to `False` will instead be printed. Note that assert statements print out the source file and line so they can take up a decent amount of space in your final ROM file. Using the `--strip-debug-code` option when compiling will completely strip out the assert statement including the condition evaluation and the storage space needed to store the source file and line.
+
 Additionally, MiniPy specifies a few intrinsics of its own. The MiniPy specific intrinsics are documented below.
 
 ---
@@ -505,19 +517,6 @@ Additionally, MiniPy specifies a few intrinsics of its own. The MiniPy specific 
 `fixed(value, fracbits=8)`
 
  > Given an integer or floating point value and an optional fractional bits, converts that value to a fixed point integer that represents the decimal approximation of the floating point value. Note that in MiniPy, fixed point integers are always 32 bits wide.
-
----
-
-`__debug__`
-
- > A boolean that evaluates to either `True` or `False` depending on how the file was compiled. By default, debug mode is on (just as it is in Python) and this will default to `True`. Assert statements will also be compiled into the code when debug mode is on. To disable debug mode, use the `--strip-debug-code` option when compiling your file. With this flag specified, `__debug__` will instead evaluate to `False` and assert statements will be compiled out of the resulting code. Note that you can conditionally enable or disable debug mode on a per-compilation-unit basis.
-
----
-
-`assert condition`
-`assert condition, message`
-
- > A statement that will cause the executing program to print out the assert message to the attached terminal and halt execution if the condition evaluates to `False` at runtime. If the condition evaluates to `True` at runtime then nothing happens. If you do not specify a message a generic message stating that the condition supplied evaluated to `False` will instead be printed. Note that assert statements print out the source file and line so they can take up a decent amount of space in your final ROM file. Using the `--strip-debug-code` option when compiling will completely strip out the assert statement including the condition evaluation and the storage space needed to store the source file and line.
 
 ## Import System
 
