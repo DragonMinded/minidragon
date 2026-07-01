@@ -76,3 +76,5 @@ wstrncpy: 0xe2
 wstrlen: 0xe5
 wstrtrunc: 0xe8
 wstradv: 0xeb
+serial_pos_row: 0xee
+serial_pos_col: 0xf1

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minidragon"
-version = "1.3.0"  # Also bump version in minidragon/compiler.py
+version = "1.3.1"  # Also bump version in minidragon/compiler.py
 description = "Core utilities for working with MiniDragon assembly and MiniPy source files."
 readme = "UTILS.md"
 requires-python = ">=3.8"

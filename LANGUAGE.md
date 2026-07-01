@@ -642,6 +642,24 @@ A library for interacting with a VT-100 terminal over a serial port attached to 
 
 ---
 
+`serial_move(row: uint8, col: uint8) -> void`
+
+ > Moves the cursor to the row and column specified. Note that VT-100 sees both row and column as 1-indexed, so the top left is 1, 1. Subsequent text sent to the VT-100 will appear at this cursor location.
+
+---
+
+`serial_pos_row() -> uint8`
+
+ > Returns the current cursor row position as an integer between 1 and 24 inclusive. You should expect that if you move the cursor and then read the position back that it should always be the same row unless you attempted to move the cursor out of bounds.
+
+---
+
+`serial_pos_col() -> uint8`
+
+ > Returns the current cursor column position as an integer between 1 and 80 inclusive. You should expect that if you move the cursor and then read the position back that it should always be the same column unless you attempted to move the cursor out of bounds.
+
+---
+
 `serial_send(data: const[str]) -> void`
 
  > Sends a null-terminated string to the VT-100. This could include escape sequences or any text for display. Note that this function handles polling the remote VT-100 for XON/XOFF control flow so that it does not overwhelm a remote terminal. It also swallows any incoming escape sequences sent by the terminal. It does this because in order to detect control flow bytes it must read from the remote side. If it gets an escape sequence it must read until the sequence is done otherwise code that reads after calling `serial_send()` could end up reading part of an escape sequence and corrupting user input.

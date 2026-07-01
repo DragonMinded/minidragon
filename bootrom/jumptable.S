@@ -159,6 +159,10 @@ jumptable_wstrtrunc:
     LNGJUMP wstrtrunc
 jumptable_wstradv:
     LNGJUMP wstradv
+jumptable_serial_pos_row:
+    LNGJUMP serial_pos_row
+jumptable_serial_pos_col:
+    LNGJUMP serial_pos_col
 
     ; Now that we're done defining a jump table, resume execution here.
 jumptable_end:

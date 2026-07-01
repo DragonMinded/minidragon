@@ -1,4 +1,4 @@
-serial_send_byte:
+_serial_send_byte:
   ; Stack layout just after call:
   ; PC + 0 - builtin(retptr)
   ; PC + 1 - builtin(retptr)

@@ -14,6 +14,11 @@ R6551AP_control_reg: extern[uint8]
 R6551AP_TDRE: const[uint8] = 0b00010000
 R6551AP_RDRF: const[uint8] = 0b00001000
 
+# Our cached cursor location.
+_cached_cur_row: uint8
+_cached_cur_col: uint8
+_cached_cur_valid: bool
+
 
 def serial_init() -> void:
     """
@@ -33,11 +38,23 @@ def serial_init() -> void:
     global R6551AP_control_reg
     R6551AP_control_reg = 0b00011110
 
+    # Initialize our cursor cache.
+    global _cached_cur_valid
+    _cached_cur_valid = False
 
 
-def serial_send_byte(byte: const[uint8]) -> extern[void]: ...
+def _serial_send_byte(byte: const[uint8]) -> extern[void]: ...
+    # Serial send byte implementation in assembly for speed.
+
+
+def serial_send_byte(byte: const[uint8]) -> void:
     # Send a single byte out the serial port, waiting until it is okay to send that
     # byte. This means calling this will never overrun the transmit buffer.
+    _serial_send_byte(byte)
+
+    # We might have moved the cursor, so invalidate our cache.
+    global _cached_cur_valid
+    _cached_cur_valid = False
 
 
 def serial_has_byte() -> bool:
@@ -67,12 +84,25 @@ def serial_clear() -> void:
     """
     serial_send("\033[2J\033[H\033[0m")
 
+    global _cached_cur_row
+    _cached_cur_row = 1
+
+    global _cached_cur_col
+    _cached_cur_col = 1
+
+    global _cached_cur_valid
+    _cached_cur_valid = True
+
 
 def serial_normal() -> void:
     """
     Issues a VT-100 command to set the normal text mode.
     """
     serial_send("\033[0m")
+
+    # This doesn't change the cursor, don't invalidate our cache.
+    global _cached_cur_valid
+    _cached_cur_valid = True
 
 
 def serial_bold() -> void:
@@ -81,12 +111,20 @@ def serial_bold() -> void:
     """
     serial_send("\033[1m")
 
+    # This doesn't change the cursor, don't invalidate our cache.
+    global _cached_cur_valid
+    _cached_cur_valid = True
+
 
 def serial_underline() -> void:
     """
     Issues a VT-100 command to set the underline text mode.
     """
     serial_send("\033[4m")
+
+    # This doesn't change the cursor, don't invalidate our cache.
+    global _cached_cur_valid
+    _cached_cur_valid = True
 
 
 def serial_reverse() -> void:
@@ -95,12 +133,98 @@ def serial_reverse() -> void:
     """
     serial_send("\033[7m")
 
+    # This doesn't change the cursor, don't invalidate our cache.
+    global _cached_cur_valid
+    _cached_cur_valid = True
+
+
+def serial_pos_row() -> uint8:
+    """
+    Retrieves the current row that the cursor occupies on the VT-100.
+    """
+    if not _cached_cur_valid:
+        _serial_pos_fetch()
+
+    return _cached_cur_row
+
+
+def serial_pos_col() -> uint8:
+    """
+    Retrieves the current column that the cursor occupies on the VT-100.
+    """
+    if not _cached_cur_valid:
+        _serial_pos_fetch()
+
+    return _cached_cur_col
+
+
+def _serial_pos_fetch() -> void:
+    """
+    Fetches the terminal cursor position from the connected VT-100.
+    """
+    global _cached_cur_row
+    global _cached_cur_col
+    global _cached_cur_valid
+
+    accum: str[16] = ""
+    length: uint8 = 0
+
+    serial_send("\033[6n")
+
+    while True:
+        # Wait for a byte to become available.
+        while not R6551AP_status_reg & R6551AP_RDRF:
+            pass
+
+        # Read until we get an escape back acknowledging the request.
+        recvd: char = chr(R6551AP_buffer_reg)
+        if recvd == "\033":
+            break
+
+    while True:
+        # Wait for a byte to become available.
+        while not R6551AP_status_reg & R6551AP_RDRF:
+            pass
+
+        # Read until we get a character back which signifies that we got the whole thing.
+        recvd: char = chr(R6551AP_buffer_reg)
+        accum[length] = recvd
+        length += 1
+
+        if recvd == 'R':
+            break
+
+    # Zero our the "R" which was our end of length message.
+    accum[length - 1] = '\0'
+
+    # Now, accumulate the row and column out of the response.
+    row: str[4] = ""
+    col: str[4] = ""
+    state: uint8 = 0
+    cur: char
+    for cur in accum:
+        if ord(cur) - ord('0') < 10:
+            if state == 0:
+                row += cur
+            else:
+                col += cur
+        elif cur == ';':
+            state += 1
+
+    _cached_cur_row = int(row)
+    _cached_cur_col = int(col)
+    _cached_cur_valid = True
+
 
 def serial_move(row: uint8, col: uint8) -> void:
     """
     Moves the cursor to the specified row and column. This is one-indexed, so 1, 1 would be the upper left
     of the terminal. Remember that a VT-100 has 24 rows and 80 columns.
     """
+
+    global _cached_cur_row
+    global _cached_cur_col
+    global _cached_cur_valid
 
     # Cap off our row and column, using unsigned integer wraparound to our advantage. Avoid a costly
     # comparison operation for numbers we know are safe.
@@ -111,12 +235,18 @@ def serial_move(row: uint8, col: uint8) -> void:
     if (row & 0xC0) and col > 79:
         col = 79
 
+    _cached_cur_row = row + 1
+    _cached_cur_col = col + 1
+
     # Send the escape sequence to move our cursor.
     serial_send("\033[")
     serial_send(_serial_lut(row))
-    serial_send_byte(ord(";"))
+    _serial_send_byte(ord(";"))
     serial_send(_serial_lut(col))
-    serial_send_byte(ord("H"))
+    _serial_send_byte(ord("H"))
+
+    # We know where the cursor is, so the cache is valid.
+    _cached_cur_valid = True
 
 
 def _serial_lut(val: uint8) -> extern[const[str]]: ...
@@ -162,7 +292,11 @@ def serial_send(data: const[str]) -> void:
                     if (R6551AP_buffer_reg & 0b11011111) - ord('A') < 26:
                         break
 
-        serial_send_byte(ord(byte))
+        _serial_send_byte(ord(byte))
+
+    # We might have moved the cursor, so invalidate our cache.
+    global _cached_cur_valid
+    _cached_cur_valid = False
 
 
 def serial_recv(
@@ -231,20 +365,19 @@ def serial_recv(
             # Backspace has its own handling.
             if length:
                 length -= 1
-                accum[length] = "\0"
 
                 # Erase last letter.
                 if echo_input:
-                    serial_send_byte(ord("\x08"))
-                    serial_send_byte(ord(" "))
-                    serial_send_byte(ord("\x08"))
+                    _serial_send_byte(ord("\x08"))
+                    _serial_send_byte(ord(" "))
+                    _serial_send_byte(ord("\x08"))
 
             continue
 
         if length != max_length:
             # Echo it back to the serial terminal.
             if echo_input:
-                serial_send_byte(ord('*') if mask_input else ord(recvd))
+                _serial_send_byte(ord('*') if mask_input else ord(recvd))
 
             # Add it to our accumulator. This technically has a bug where we will
             # overwrite the 0th byte with a null if we're concatenating to the
@@ -252,10 +385,17 @@ def serial_recv(
             # in as our max_length, we can never get to that spot, so this is safe.
             accum[length] = recvd
             length += 1
-            accum[length] = "\0"
+
+    # Cap of with a null character.
+    accum[length] = "\0"
 
     if echo_newline:
-        serial_send_byte(ord("\n"))
+        _serial_send_byte(ord("\n"))
+
+    if echo_input or echo_newline:
+        # We might have moved the cursor, so invalidate our cache.
+        global _cached_cur_valid
+        _cached_cur_valid = False
 
     return accum
 
