@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 32768  # Length of string including null-termination.
-VERSION: Final[str] = "1.3.3"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.3.4"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -8690,6 +8690,11 @@ class Compiler:
             compiled += self.generate_expr_internal(
                 statement.test, "register(A, bool)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(statement.test)
             )
+
+        # Now we need to add type inference for the message, because it could be a complex expression
+        # and if that's the case we need to know types for intermediate string calculations.
+        if statement.msg is not None:
+            types.update(self.infer_expr_types(statement.msg, CoreType("str", const=True), stack, refs, local_consts, context))
 
         # Now, we need a location to jump to if the assertion is True, to skip the assert.
         assert_true_label = self.local_label_name(context, "assert_true")
