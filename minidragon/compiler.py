@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 32768  # Length of string including null-termination.
-VERSION: Final[str] = "1.3.4"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.3.5"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -1005,6 +1005,22 @@ def comment_stack(stack: Stack) -> List[str]:
     return [
         f"  ; Stack location: {stack.location}",
     ]
+
+
+def integer_width(value: int) -> str:
+    if value >= -128 and value <= 127:
+        return "int8"
+    if value >= 0 and value <= 255:
+        return "uint8"
+    if value >= -32768 and value <= 32767:
+        return "int16"
+    if value >= 0 and value <= 65535:
+        return "uint16"
+    if value >= -2147483648 and value <= 2147483647:
+        return "int32"
+    if value >= 0 and value <= 4294967295:
+        return "uint32"
+    raise Exception(f"Logic error, cannot infer integer width of number {value}!")
 
 
 def expr_to_str(expr: cst.BaseExpression) -> str:
@@ -7431,9 +7447,9 @@ class Compiler:
                 possible_val = None
 
             if isinstance(possible_val, str):
-                inferred[expression] = CoreType("str", const=True)
+                inferred[expression] = CoreType("str", const=True, length=len(possible_val) + 1)
             elif isinstance(possible_val, int):
-                inferred[expression] = CoreType("int", const=True)
+                inferred[expression] = CoreType(integer_width(possible_val), const=True)
             else:
                 raise CompilerError(f"Unsupported expression {expr_to_str(expression)}", context)
             return inferred
@@ -10024,11 +10040,44 @@ class Compiler:
                         compiled += self.generate_global_variable(body, global_vars, global_consts, context.wrap(body))
                 elif isinstance(body, cst.ImportFrom):
                     is_typing_import = False
+                    is_sys_import = False
 
                     if isinstance(body.module, cst.Name) and body.module.value == "typing":
                         is_typing_import = True
+                    if isinstance(body.module, cst.Name) and body.module.value == "sys":
+                        is_sys_import = True
 
-                    if not is_typing_import:
+                    if is_sys_import:
+                        # Add sys imports that we support to the global constants.
+                        consts = SysConstant()
+                        actual_names = set()
+                        if not isinstance(body.names, cst.ImportStar):
+                            for name in body.names:
+                                if name.asname:
+                                    raise CompilerError("Import alises are not supported", context.wrap(name))
+                                if not isinstance(name.name, cst.Name):
+                                    raise CompilerError("Dotted names are not supported in import statements", context.wrap(name))
+
+                                actual_names.add(name.name.value)
+                        else:
+                            actual_names = {c for c in dir(consts) if not c.startswith("__") and not c.endswith("__")}
+
+                        for importable in actual_names:
+                            constval = getattr(consts, importable, None)
+                            if not constval:
+                                raise CompilerError(f"Module sys does not export importable {importable}", context)
+
+                            if isinstance(constval, str):
+                                valtype = "str"
+                                length = len(constval) + 1
+                            elif isinstance(constval, int):
+                                valtype = integer_width(constval)
+                                length = None
+                            else:
+                                raise Exception("Logic error, unexpected sys constant type {type(constval)}!")
+
+                            global_consts.append(Constant(importable, CoreType(valtype, length=length, const=True), value=constval))
+                    elif not is_typing_import:
                         # Attempt to resolve the imports we need to handle.
                         new_refs = self.parse_import_refs(body, context.wrap(body))
 
@@ -10130,6 +10179,8 @@ class Compiler:
         if not isinstance(body.names, cst.ImportStar):
             actual_names = set()
             for name in body.names:
+                if name.asname:
+                    raise CompilerError("Import alises are not supported", context)
                 if not isinstance(name.name, cst.Name):
                     raise CompilerError("Dotted names are not supported in import statements", context)
 
@@ -10215,7 +10266,7 @@ def builtin_functions() -> List[FunctionPrototype]:
         # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("ord", CoreType("uint8"), [CoreType("char")]),
         # Defined by python to have positional-only parameters, so no named params.
-        FunctionPrototype("hex", CoreType("str"), [CoreType("int")]),
+        FunctionPrototype("hex", CoreType("str", length=11), [CoreType("int")]),
         # Defined by python to have positional-only parameters, so no named params.
         FunctionPrototype("min", CoreType("int"), [CoreType("int"), CoreType("int")]),
         # Defined by python to have positional-only parameters, so no named params.
