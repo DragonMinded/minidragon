@@ -4481,6 +4481,230 @@ def verifyimports(only: Optional[Container[str]], full: bool) -> None:
     print(f"Average instructions for imports: {int(instructions/count)}")
 
 
+def verifydebug(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "debug" not in only and "compiler" not in only:
+        return
+
+    print("Verifying debug constant...")
+
+    with open("lib/runtime/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/runtime/start.S", "r") as fp:
+        initlines += fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    for expected in [True, False]:
+        current_settings = CompilerSettings(optimize=settings.optimize, debug=expected)
+        compiler = Compiler(current_settings)
+
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *compiler.parse_and_compile_module("debug.py", textwrap.dedent("""
+                def func() -> bool:
+                    return __debug__
+            """)).code,
+            "main:",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "DECPC",
+            "CALL func",
+            "HALT",
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"debug changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"debug changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"debug changed V value from {222} to {cpu.v}!",
+        )
+        result = bool(cpu.ram[cpu.pc + 0])
+        _assert(
+            result == expected,
+            f"Failed to debug, got {result} instead of {expected}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
+    print(f"Average cycles for debug: {int(cycles/count)}")
+    print(f"Average instructions for debug: {int(instructions/count)}")
+
+
+def verifyassert(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "assert" not in only and "compiler" not in only:
+        return
+
+    print("Verifying assert...")
+
+    with open("lib/runtime/init.S", "r") as fp:
+        initlines = fp.readlines()
+    with open("lib/runtime/start.S", "r") as fp:
+        initlines += fp.readlines()
+    with open("lib/string/strcpy.S", "r") as fp:
+        strcpylines = fp.readlines()
+
+    cycles = 0
+    instructions = 0
+    count = 0
+
+    # Test standard asserts.
+    for debugenabled in [True, False]:
+        for assertion in [True, False]:
+            current_settings = CompilerSettings(optimize=settings.optimize, debug=debugenabled)
+            compiler = Compiler(current_settings)
+
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *strcpylines,
+                *compiler.parse_and_compile_module("assert.py", textwrap.dedent(f"""
+                    assert_loc: extern[str[128]]
+
+                    def assert_print(module: const[str], printable: const[str]) -> void:
+                        global assert_loc
+                        assert_loc = printable
+
+                    def func() -> void:
+                        assert {assertion!r}, "Hit assert!"
+
+                        global assert_loc
+                        assert_loc = "Normal exit!"
+                """)).code,
+                "main:",
+                "DECPC",
+                "CALL func",
+                "HALT",
+                ".org 0x2000",
+                "assert_loc:",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            # Explicitly not checking registers here because assert halts the processor.
+            result = getstring(cpu, 0x2000)
+            if debugenabled and not assertion:
+                expected = "Hit assert!"
+            else:
+                expected = "Normal exit!"
+            _assert(
+                result == expected,
+                f"Failed to assert, got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test complex asserts with stringified message.
+    for debugenabled in [True, False]:
+        for assertion in [True, False]:
+            current_settings = CompilerSettings(optimize=settings.optimize, debug=debugenabled)
+            compiler = Compiler(current_settings)
+
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *strcpylines,
+                *compiler.parse_and_compile_module("assert.py", textwrap.dedent(f"""
+                    assert_loc: extern[str[512]]
+
+                    def assert_print(module: const[str], printable: const[str]) -> void:
+                        global assert_loc
+                        assert_loc = printable
+
+                    def func() -> void:
+                        some_val: const[uint8] = {10 if assertion else 0}
+                        assert some_val > 5
+
+                        global assert_loc
+                        assert_loc = "Normal exit!"
+                """)).code,
+                "main:",
+                "DECPC",
+                "CALL func",
+                "HALT",
+                ".org 0x2000",
+                "assert_loc:",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            # Explicitly not checking registers here because assert halts the processor.
+            result = getstring(cpu, 0x2000)
+            if debugenabled and not assertion:
+                expected = "some_val > 5 is False"
+            else:
+                expected = "Normal exit!"
+            _assert(
+                result == expected,
+                f"Failed to assert, got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    # Test complex asserts with format string outputs.
+    for debugenabled in [True, False]:
+        for assertion in [True, False]:
+            current_settings = CompilerSettings(optimize=settings.optimize, debug=debugenabled)
+            compiler = Compiler(current_settings)
+
+            memory = getmemory(os.linesep.join([
+                *initlines,
+                *strcpylines,
+                *compiler.parse_and_compile_module("assert.py", textwrap.dedent(f"""
+                    assert_loc: extern[str[128]]
+
+                    def assert_print(module: const[str], printable: const[str]) -> void:
+                        global assert_loc
+                        assert_loc = printable
+
+                    def func() -> void:
+                        some_val: const[uint8] = {10 if assertion else 0}
+                        assert some_val > 5, f"Expected {{some_val}} to be large?!"
+
+                        global assert_loc
+                        assert_loc = "Normal exit!"
+                """)).code,
+                "main:",
+                "DECPC",
+                "CALL func",
+                "HALT",
+                ".org 0x2000",
+                "assert_loc:",
+            ]))
+            cpu = CPUCore(memory)
+            rununtilhalt(cpu)
+
+            # Explicitly not checking registers here because assert halts the processor.
+            result = getstring(cpu, 0x2000)
+            if debugenabled and not assertion:
+                expected = "Expected 0 to be large?!"
+            else:
+                expected = "Normal exit!"
+            _assert(
+                result == expected,
+                f"Failed to assert, got {result} instead of {expected}!",
+            )
+            cycles += cpu.cycles
+            instructions += cpu.ticks
+            count += 1
+
+    print(f"Average cycles for assert: {int(cycles/count)}")
+    print(f"Average instructions for assert: {int(instructions/count)}")
+
+
 def verifyextern(only: Optional[Container[str]], full: bool) -> None:
     if only is not None and "extern" not in only and "compiler" not in only:
         return
@@ -19638,6 +19862,8 @@ if __name__ == "__main__":
 
     # Compiler verifications
     verifyimports(only, args.full)
+    verifydebug(only, args.full)
+    verifyassert(only, args.full)
     verifyextern(only, args.full)
     verifystaticreturn(only, args.full)
     verifyupcast(only, args.full)

@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 32768  # Length of string including null-termination.
-VERSION: Final[str] = "1.3.5"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.3.6"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -4216,7 +4216,7 @@ class Compiler:
                         raise CompilerError("Unsupported cast from {types[expr]} to {requested}", context)
                 elif requested.type in {"str"}:
                     if types[expr].type not in {"uint16", "int16"}:
-                        raise CompilerError("Unsupported cast from {types[expr]} to {requested}", context)
+                        raise CompilerError(f"Unsupported cast from {types[expr]} to {requested}", context)
 
                 # Figure out what to do based on the destination type.
                 destination_type = stack.typeof(destination)
