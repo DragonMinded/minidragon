@@ -17,45 +17,42 @@ strcmp:
     ;     CALL strmp
     ;
     ; Stack layout
-    ; PC + 0  - saved second byte
-    ; PC + 1  - saved first byte
-    ; PC + 2  - copy of pointer to second
-    ; PC + 3  - copy of pointer to second
-    ; PC + 4  - copy of pointer to first
-    ; PC + 5  - copy of pointer to first
-    ; PC + 6  - saved SP
-    ; PC + 7  - saved SC
+    ; PC + 0  - copy of pointer to second
+    ; PC + 1  - copy of pointer to second
+    ; PC + 2  - copy of pointer to first
+    ; PC + 3  - copy of pointer to first
+    ; PC + 4  - saved U register
+    ; PC + 5  - saved SP
+    ; PC + 6  - saved SC
+    ; PC + 7  - return address
     ; PC + 8  - return address
-    ; PC + 9  - return address
+    ; PC + 9  - pointer to second
     ; PC + 10 - pointer to second
-    ; PC + 11 - pointer to second
+    ; PC + 11 - pointer to first
     ; PC + 12 - pointer to first
-    ; PC + 13 - pointer to first
 
     ; First, save the existing registers.
     PUSH SPC
+    PUSH U
 
     ; Now, save copies of the source and destination pointers so we can iterate
     ; over them.
-    ADDPCI 4
+    ADDPCI 5
     LOAD A
-    SUBPCI 8
-    STORE A
-    ADDPCI 9
-    LOAD A
-    SUBPCI 8
+    SUBPCI 9
     STORE A
     ADDPCI 10
     LOAD A
-    SUBPCI 8
+    SUBPCI 9
     STORE A
-    ADDPCI 7
+    ADDPCI 11
     LOAD A
-    SUBPCI 8
+    SUBPCI 9
     STORE A
-
-    ; Prime the loop because we assume we're pointing at the second byte when entering.
-    SUBPCI 4
+    ADDPCI 8
+    LOAD A
+    SUBPCI 9
+    STORE A
 
     ; We can do an ugly hack, where we don't have to compare
     ; null bytes unless the current character of both strings match.
@@ -65,45 +62,41 @@ strcmp:
     ; depending on whether it is a null byte.
 _strcmp_loop:
     ; Grab a byte from the first
-    ADDPCI 4
     POP SPC
     SWAP PC, SPC
     POP A
     SWAP PC, SPC
     PUSH SPC
-
-    ; Store that byte in our temp buffer
-    SUBPCI 3
-    STORE A
-    ADDPCI 1
 
     ; Grab a byte from the second
+    SUBPCI 2
     POP SPC
     SWAP PC, SPC
-    POP A
+    POP U
     SWAP PC, SPC
     PUSH SPC
-
-    ; Store that byte in our second temp buffer
-    SUBPCI 2
-    STORE A
+    ADDPCI 2
 
     ; Compare the two bytes for equality.
-    CALL ucmp8
+    CMPU
 
-    ; See if the two bytes equal, if not, then we have our answer!
-    ADDI 0
-    JRINZ _strcmp_done
+    ; See if the two bytes equal, if not, then we have to set A accordingly.
+    JRINZ _strcmp_set_unequal
 
-    ; They equal, see if we should bail (null hit, strings equal)
-    ; or keep going (null not hit).
-    LOAD A
+    ; If they're equal, check for null termination.
     ADDI 0
     JRINZ _strcmp_loop
+    JRI _strcmp_done
+
+_strcmp_set_unequal:
+    LOADI -1
+    SKIPIF !CF
+    NEG
 
 _strcmp_done:
     ; Restore the SPC register and return the value we already have in A.
-    ADDPCI 6
+    ADDPCI 2
+    POP U
     POP SPC
 
     ; Now, return to caller
