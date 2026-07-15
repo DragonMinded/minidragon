@@ -8549,7 +8549,6 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Bus_1")
 		(lib_id "MiniDragon:8-bit Bus")
 		(at 354.33 208.28 0)
 		(unit 1)
@@ -8902,7 +8901,6 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Bus Output_1")
 		(lib_id "MiniDragon:8-bit Bus Output")
 		(at 354.33 161.29 0)
 		(unit 1)
@@ -9022,7 +9020,7 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Bus Output_2")
+		(lib_name "8-bit Bus Output_1")
 		(lib_id "MiniDragon:8-bit Bus Output")
 		(at 354.33 346.71 0)
 		(unit 1)
@@ -9546,6 +9544,7 @@
 		)
 	)
 	(symbol
+		(lib_name "8-bit Bus Output_2")
 		(lib_id "MiniDragon:8-bit Bus Output")
 		(at 354.33 298.45 0)
 		(unit 1)
@@ -10466,6 +10465,7 @@
 		)
 	)
 	(symbol
+		(lib_name "8-bit Bus_1")
 		(lib_id "MiniDragon:8-bit Bus")
 		(at 354.33 251.46 0)
 		(unit 1)

@@ -4129,6 +4129,7 @@
 		)
 	)
 	(symbol
+		(lib_name "8-bit Logic Buffer_1")
 		(lib_id "MiniDragon:8-bit Logic Buffer")
 		(at 53.34 82.55 0)
 		(unit 1)
@@ -4563,7 +4564,6 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Logic Buffer_1")
 		(lib_id "MiniDragon:8-bit Logic Buffer")
 		(at 53.34 34.29 0)
 		(unit 1)

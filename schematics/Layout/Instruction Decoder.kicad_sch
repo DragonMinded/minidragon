@@ -10080,6 +10080,7 @@
 		)
 	)
 	(symbol
+		(lib_name "Control Signals Mini Distributor_1")
 		(lib_id "MiniDragon:Control Signals Mini Distributor")
 		(at 232.41 48.26 0)
 		(unit 1)
@@ -10754,6 +10755,7 @@
 		)
 	)
 	(symbol
+		(lib_name "2-to-4 Selector_2")
 		(lib_id "MiniDragon:2-to-4 Selector")
 		(at 388.62 173.99 0)
 		(unit 1)
@@ -11038,7 +11040,6 @@
 		)
 	)
 	(symbol
-		(lib_name "Control Signals Mini Distributor_2")
 		(lib_id "MiniDragon:Control Signals Mini Distributor")
 		(at 232.41 95.25 0)
 		(unit 1)
@@ -11157,7 +11158,6 @@
 		)
 	)
 	(symbol
-		(lib_name "2-to-4 Selector_1")
 		(lib_id "MiniDragon:2-to-4 Selector")
 		(at 388.62 140.97 0)
 		(unit 1)
@@ -11519,7 +11519,6 @@
 		)
 	)
 	(symbol
-		(lib_name "High Current Buffer_3")
 		(lib_id "MiniDragon:High Current Buffer")
 		(at 321.31 144.78 0)
 		(unit 1)
@@ -11961,7 +11960,7 @@
 		)
 	)
 	(symbol
-		(lib_name "Control Signals Mini Distributor_1")
+		(lib_name "Control Signals Mini Distributor_2")
 		(lib_id "MiniDragon:Control Signals Mini Distributor")
 		(at 232.41 157.48 0)
 		(unit 1)
@@ -12665,7 +12664,7 @@
 		)
 	)
 	(symbol
-		(lib_name "2-to-4 Selector_2")
+		(lib_name "2-to-4 Selector_1")
 		(lib_id "MiniDragon:2-to-4 Selector")
 		(at 388.62 74.93 0)
 		(unit 1)
@@ -13374,6 +13373,7 @@
 		)
 	)
 	(symbol
+		(lib_name "High Current Buffer_3")
 		(lib_id "MiniDragon:High Current Buffer")
 		(at 353.06 48.26 0)
 		(unit 1)

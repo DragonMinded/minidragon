@@ -978,6 +978,7 @@
 		)
 	)
 	(symbol
+		(lib_name "8-bit Bus_1")
 		(lib_id "MiniDragon:8-bit Bus")
 		(at 63.5 38.1 0)
 		(unit 1)
@@ -1265,7 +1266,6 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Bus_1")
 		(lib_id "MiniDragon:8-bit Bus")
 		(at 63.5 88.9 0)
 		(unit 1)

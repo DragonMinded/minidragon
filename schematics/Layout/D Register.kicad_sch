@@ -3115,7 +3115,6 @@
 		)
 	)
 	(symbol
-		(lib_name "4-Bit Register_1")
 		(lib_id "MiniDragon:4-Bit Register")
 		(at 99.06 149.86 0)
 		(unit 1)
@@ -3282,6 +3281,7 @@
 		)
 	)
 	(symbol
+		(lib_name "8-bit Bus Output_1")
 		(lib_id "MiniDragon:8-bit Bus Output")
 		(at 168.91 86.36 0)
 		(unit 1)
@@ -3465,7 +3465,7 @@
 		)
 	)
 	(symbol
-		(lib_name "Logic Buffer_2")
+		(lib_name "Logic Buffer_1")
 		(lib_id "MiniDragon:Logic Buffer")
 		(at 100.33 57.15 0)
 		(unit 1)
@@ -3542,7 +3542,6 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Bus Output_1")
 		(lib_id "MiniDragon:8-bit Bus Output")
 		(at 168.91 137.16 0)
 		(unit 1)
@@ -3930,7 +3929,7 @@
 		)
 	)
 	(symbol
-		(lib_name "Logic Buffer_1")
+		(lib_name "Logic Buffer_2")
 		(lib_id "MiniDragon:Logic Buffer")
 		(at 100.33 35.56 0)
 		(unit 1)
@@ -4072,6 +4071,7 @@
 		)
 	)
 	(symbol
+		(lib_name "4-Bit Register_1")
 		(lib_id "MiniDragon:4-Bit Register")
 		(at 100.33 88.9 0)
 		(unit 1)

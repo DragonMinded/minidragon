@@ -1525,6 +1525,7 @@
 		)
 	)
 	(symbol
+		(lib_name "4-Bit Register_1")
 		(lib_id "MiniDragon:4-Bit Register")
 		(at 100.33 57.15 0)
 		(unit 1)
@@ -1626,7 +1627,6 @@
 		)
 	)
 	(symbol
-		(lib_name "4-Bit Register_1")
 		(lib_id "MiniDragon:4-Bit Register")
 		(at 100.33 107.95 0)
 		(unit 1)

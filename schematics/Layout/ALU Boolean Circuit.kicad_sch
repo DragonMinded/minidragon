@@ -5305,7 +5305,6 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Bus Output XOR_1")
 		(lib_id "MiniDragon:8-bit Bus Output XOR")
 		(at 142.24 276.86 0)
 		(unit 1)
@@ -6274,6 +6273,7 @@
 		)
 	)
 	(symbol
+		(lib_name "8-bit Bus Output XOR_1")
 		(lib_id "MiniDragon:8-bit Bus Output XOR")
 		(at 142.24 208.28 0)
 		(unit 1)

@@ -2802,7 +2802,6 @@
 		)
 	)
 	(symbol
-		(lib_name "8-bit Bus Output Shift_1")
 		(lib_id "MiniDragon:8-bit Bus Output Shift")
 		(at 135.89 111.76 0)
 		(unit 1)
@@ -2939,6 +2938,7 @@
 		)
 	)
 	(symbol
+		(lib_name "8-bit Bus Output Shift_1")
 		(lib_id "MiniDragon:8-bit Bus Output Shift")
 		(at 135.89 45.72 0)
 		(unit 1)

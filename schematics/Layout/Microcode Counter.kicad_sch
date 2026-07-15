@@ -3537,7 +3537,6 @@
 		)
 	)
 	(symbol
-		(lib_name "D Flip Flop_3")
 		(lib_id "MiniDragon:D Flip Flop")
 		(at 139.7 101.6 0)
 		(unit 1)
@@ -4093,7 +4092,7 @@
 		)
 	)
 	(symbol
-		(lib_name "D Flip Flop_4")
+		(lib_name "D Flip Flop_1")
 		(lib_id "MiniDragon:D Flip Flop")
 		(at 139.7 254 0)
 		(unit 1)
@@ -4248,6 +4247,7 @@
 		)
 	)
 	(symbol
+		(lib_name "Logic AND_1")
 		(lib_id "MiniDragon:Logic AND")
 		(at 177.8 222.25 0)
 		(unit 1)
@@ -4389,7 +4389,7 @@
 		)
 	)
 	(symbol
-		(lib_name "Logic AND_1")
+		(lib_name "Logic AND_2")
 		(lib_id "MiniDragon:Logic AND")
 		(at 177.8 120.65 0)
 		(unit 1)
@@ -4531,7 +4531,7 @@
 		)
 	)
 	(symbol
-		(lib_name "D Flip Flop_1")
+		(lib_name "D Flip Flop_3")
 		(lib_id "MiniDragon:D Flip Flop")
 		(at 139.7 203.2 0)
 		(unit 1)
@@ -4971,6 +4971,7 @@
 		)
 	)
 	(symbol
+		(lib_name "D Flip Flop_4")
 		(lib_id "MiniDragon:D Flip Flop")
 		(at 139.7 50.8 0)
 		(unit 1)
@@ -5125,7 +5126,6 @@
 		)
 	)
 	(symbol
-		(lib_name "Logic AND_2")
 		(lib_id "MiniDragon:Logic AND")
 		(at 177.8 171.45 0)
 		(unit 1)

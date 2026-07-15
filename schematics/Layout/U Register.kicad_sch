@@ -2025,7 +2025,6 @@
 		(uuid "fe0030f3-c1c1-4fe6-80e2-b619b79eea89")
 	)
 	(symbol
-		(lib_name "Logic Buffer_1")
 		(lib_id "MiniDragon:Logic Buffer")
 		(at 68.58 77.47 0)
 		(unit 1)
@@ -2970,6 +2969,7 @@
 		)
 	)
 	(symbol
+		(lib_name "Logic Buffer_1")
 		(lib_id "MiniDragon:Logic Buffer")
 		(at 110.49 50.8 0)
 		(unit 1)

@@ -5629,7 +5629,7 @@
 		)
 	)
 	(symbol
-		(lib_name "2-bit Bus Output Full Adder_3")
+		(lib_name "2-bit Bus Output Full Adder_5")
 		(lib_id "MiniDragon:2-bit Bus Output Full Adder")
 		(at 293.37 292.1 0)
 		(unit 1)
@@ -5727,7 +5727,7 @@
 		)
 	)
 	(symbol
-		(lib_name "2-bit Bus Output Full Adder_4")
+		(lib_name "2-bit Bus Output Full Adder_2")
 		(lib_id "MiniDragon:2-bit Bus Output Full Adder")
 		(at 293.37 139.7 0)
 		(unit 1)
@@ -6280,7 +6280,7 @@
 		)
 	)
 	(symbol
-		(lib_name "2-bit Bus Output Full Adder_5")
+		(lib_name "2-bit Bus Output Full Adder_3")
 		(lib_id "MiniDragon:2-bit Bus Output Full Adder")
 		(at 267.97 254 0)
 		(unit 1)
@@ -6378,7 +6378,7 @@
 		)
 	)
 	(symbol
-		(lib_name "2-bit Bus Output Full Adder_6")
+		(lib_name "2-bit Bus Output Full Adder_4")
 		(lib_id "MiniDragon:2-bit Bus Output Full Adder")
 		(at 293.37 215.9 0)
 		(unit 1)
@@ -6541,7 +6541,7 @@
 		)
 	)
 	(symbol
-		(lib_name "2-bit Bus Output Full Adder_7")
+		(lib_name "2-bit Bus Output Full Adder_6")
 		(lib_id "MiniDragon:2-bit Bus Output Full Adder")
 		(at 267.97 101.6 0)
 		(unit 1)
@@ -6898,7 +6898,7 @@
 		)
 	)
 	(symbol
-		(lib_name "2-bit Bus Output Full Adder_1")
+		(lib_name "2-bit Bus Output Full Adder_7")
 		(lib_id "MiniDragon:2-bit Bus Output Full Adder")
 		(at 267.97 177.8 0)
 		(unit 1)
@@ -7126,7 +7126,6 @@
 		)
 	)
 	(symbol
-		(lib_name "2-bit Bus Output Full Adder_2")
 		(lib_id "MiniDragon:2-bit Bus Output Full Adder")
 		(at 293.37 368.3 0)
 		(unit 1)
@@ -7366,6 +7365,7 @@
 		)
 	)
 	(symbol
+		(lib_name "2-bit Bus Output Full Adder_1")
 		(lib_id "MiniDragon:2-bit Bus Output Full Adder")
 		(at 267.97 330.2 0)
 		(unit 1)
