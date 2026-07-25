@@ -66,6 +66,13 @@ def main() -> None:
         default=None,
     )
     parser.add_argument(
+        "-f",
+        "--fill-byte",
+        type=str,
+        help="The byte to fill unused ROM, defaults to 0x00",
+        default="0x00",
+    )
+    parser.add_argument(
         "file",
         metavar="FILE",
         nargs="+",
@@ -75,6 +82,7 @@ def main() -> None:
     args = parser.parse_args()
     start = getint(args.origin, 16, allow_unsigned=True)
     size = getint(args.size, 16, allow_unsigned=True)
+    fill = getint(args.fill_byte, 8, allow_unsigned=True)
     lines: List[str] = []
 
     for fname in args.file:
@@ -94,7 +102,7 @@ def main() -> None:
 
     assembled = assemble(lines, labels)
 
-    memory = [0] * size
+    memory = [fill] * size
     for loc, data in assembled:
         if loc < start or loc >= (start + size):
             raise Exception(
