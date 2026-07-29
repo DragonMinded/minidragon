@@ -256,11 +256,11 @@ The boot ROM is mapped to the bottom 30KB of addressable memory. Because 30KB EE
 
 ## Build Progress
 
-As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 86% finished with the whole project.
+As I continue with both the physical and virtual implementations of MiniDragon its been useful to break down the work into more manageable tasks. A side benefit is that I get to see things moving closer to completion at a much smaller scale. As of last calculation, I am 85% finished with the whole project.
 
 ### Hardware
 
-As a whole, the hardware side of MiniDragon is 83% complete.
+As a whole, the hardware side of MiniDragon is 93% complete.
 
  - instruction decoder: 57% complete
     - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 56 instructions (55 real instructions and a microcode board for the shared load instruction step) 32 instructions are fully hooked in and the shared load step is wired up. The instruction decoder core is fully built and integrated into the physical build.
@@ -277,8 +277,8 @@ As a whole, the hardware side of MiniDragon is 83% complete.
    - I went with an adjustable 5V switching mode power supply that can supply the necessary amperage (5+ amps estimated at this point) along with a few digital readouts sprinkled across the board for fine adjustments. The circuits are fairly sensitive to core voltage being at or slightly above 4.75V so the main power supply is turned up to about 5.60V to accomodate voltage sag in the power distribution circuits.
  - debugging boards: 100% complete
    - Various debugging boards, used mostly for setting hand-selected values on various busses are designed and fabricated. They are currently in use both as tools for helping test boards during bring-up and as a simulated memory interface for board integration and system testing.
- - external boards: 0% complete
-   - The RAM/ROM board, peripheral interface board, cartridge control peripheral card and serial interface peripheral card have yet to be fully designed. I have partial designs for each board as well as a good idea of the memory map for the system. While these boards are not technically part of the MiniDragon CPU itself, they will be needed if I want to run software on the physical MiniDragon.
+ - external boards: 25% complete
+   - The RAM/ROM board has been designed, fabricated, tested and fully integrated with the MiniDragon CPU. The peripheral interface board, cartridge control peripheral card and serial interface peripheral card have yet to be fully designed. I have partial designs for each remaining board as well as a good idea of the peripheral map for the system. While these boards are not technically part of the MiniDragon CPU itself, they will be needed if I want to run software on the physical MiniDragon.
 
 ### Software
 
