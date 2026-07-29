@@ -1,5 +1,6 @@
 from ast import literal_eval
 from abc import ABC, abstractmethod
+from enum import IntEnum
 from typing import Callable, Dict, List, Optional, Set, Tuple, TypeVar
 
 from .exception import (
@@ -230,24 +231,27 @@ def decode(instruction: int) -> Tuple[str, List["ControlSignals"]]:
         raise InvalidInstructionException(f"Instruction {hexstr(instruction, 2)} not implemented")
 
 
-class ControlSignals:
-
+class ALUSource(IntEnum):
     ALU_SRC_IP = 0
     ALU_SRC_PC = 1
     ALU_SRC_A = 2
 
+
+class AddressSource(IntEnum):
     ADDRESS_SRC_IP = 0
     ADDRESS_SRC_PC = 1
 
+
+class ControlSignals:
     def __init__(
         self,
         *,
 
         # ALU signals
 
-        alu_src: Optional[int] = None,
-        carry: Optional[int] = None,
-        alu_op: Optional[int] = None,
+        alu_src: Optional[ALUSource] = None,
+        carry: Optional[CarryOp] = None,
+        alu_op: Optional[ALUOp] = None,
 
         # Data bus assertion signals
 
@@ -294,17 +298,17 @@ class ControlSignals:
 
         # Address bus assertion signals
 
-        address_src: Optional[int] = None,
+        address_src: Optional[AddressSource] = None,
 
         # Flags control signals
 
         pc_swap: Optional[bool] = None,
     ) -> None:
-        self.alu_src = alu_src if alu_src is not None else self.ALU_SRC_IP
-        self.carry = carry if carry is not None else ALU.CARRY_CLEAR
-        self.alu_op = alu_op if alu_op is not None else ALU.OPERATION_NULL
+        self.alu_src = alu_src if alu_src is not None else ALUSource.ALU_SRC_IP
+        self.carry = carry if carry is not None else CarryOp.CARRY_CLEAR
+        self.alu_op = alu_op if alu_op is not None else ALUOp.OPERATION_NULL
         self.address_src = (
-            address_src if address_src is not None else self.ADDRESS_SRC_IP
+            address_src if address_src is not None else AddressSource.ADDRESS_SRC_IP
         )
         self.ip_input = ip_input or False
         self.alu_output = alu_output or False
@@ -332,10 +336,71 @@ class ControlSignals:
         self.u_input = u_input or False
         self.v_input = v_input or False
 
+    def __repr__(self) -> str:
+        outputs: List[str] = []
+
+        outputs.append(f"address_src = {self.address_src.name}")
+        outputs.append(f"alu_src = {self.alu_src.name}")
+        outputs.append(f"alu_op = {self.alu_op.name}")
+        outputs.append(f"carry = {self.carry.name}")
+
+        if self.ip_input:
+            outputs.append("ip_input")
+        if self.alu_output:
+            outputs.append("alu_output")
+        if self.alu_low_output:
+            outputs.append("alu_low_output")
+        if self.imm_6_output:
+            outputs.append("imm_6_output")
+        if self.imm_4_output:
+            outputs.append("imm_4_output")
+        if self.z_output:
+            outputs.append("z_output")
+        if self.a_input:
+            outputs.append("a_input")
+        if self.a_output:
+            outputs.append("a_output")
+        if self.a_high_output:
+            outputs.append("a_high_output")
+        if self.b_input:
+            outputs.append("b_input")
+        if self.sram_input:
+            outputs.append("sram_input")
+        if self.sram_output:
+            outputs.append("sram_output")
+        if self.ir_input:
+            outputs.append("ir_input")
+        if self.flags_input:
+            outputs.append("flags_input")
+        if self.flags_output:
+            outputs.append("flags_output")
+        if self.pc_swap:
+            outputs.append("pc_swap")
+        if self.p_input:
+            outputs.append("p_input")
+        if self.c_input:
+            outputs.append("c_input")
+        if self.d_input:
+            outputs.append("d_input")
+        if self.d_output:
+            outputs.append("d_output")
+        if self.d_high_output:
+            outputs.append("d_high_output")
+        if self.u_output:
+            outputs.append("u_output")
+        if self.v_output:
+            outputs.append("v_output")
+        if self.u_input:
+            outputs.append("u_input")
+        if self.v_input:
+            outputs.append("v_input")
+
+        return "ControlSignals(" + ", ".join(outputs) + ")"
+
 
 def InstructionLoadControlSignals() -> ControlSignals:
     return ControlSignals(
-        address_src=ControlSignals.ADDRESS_SRC_IP,
+        address_src=AddressSource.ADDRESS_SRC_IP,
         sram_output=True,
         ir_input=True,
     )
@@ -359,8 +424,14 @@ class MemoryFilter:
         return data
 
 
-class ALU:
+class CarryOp(IntEnum):
+    # Values dictating how the carry flag should be treated.
+    CARRY_CLEAR = 0
+    CARRY_FROM_FLAGS = 1
+    CARRY_SET = 2
 
+
+class ALUOp(IntEnum):
     # No operation, output indeterminate.
     OPERATION_NULL = 0
     # Exclusive or an 8-bit value in "A" against an 8-bit value in "B".
@@ -386,15 +457,12 @@ class ALU:
     # if result would not fit in 8 bits.
     OPERATION_ADD = 7
 
-    # Values dictating how the carry flag should be treated.
-    CARRY_CLEAR = 0
-    CARRY_FROM_FLAGS = 1
-    CARRY_SET = 2
 
+class ALU:
     def __init__(
         self,
-        op: int,
-        carry_req: int,
+        op: ALUOp,
+        carry_req: CarryOp,
         a: int,
         b: int,
         carry: bool,
@@ -407,39 +475,39 @@ class ALU:
 
     @property
     def result(self) -> int:
-        if self.op == self.OPERATION_ADD:
-            if self.carry_req == ALU.CARRY_SET:
+        if self.op == ALUOp.OPERATION_ADD:
+            if self.carry_req == CarryOp.CARRY_SET:
                 carryval = 1
-            elif self.carry_req == ALU.CARRY_CLEAR:
+            elif self.carry_req == CarryOp.CARRY_CLEAR:
                 carryval = 0
-            elif self.carry_req == ALU.CARRY_FROM_FLAGS:
+            elif self.carry_req == CarryOp.CARRY_FROM_FLAGS:
                 carryval = 1 if self.carry else 0
             return (self.a + self.b + carryval) & 0xFFFF
-        if self.op == self.OPERATION_SHL:
-            if self.carry_req == ALU.CARRY_SET:
+        if self.op == ALUOp.OPERATION_SHL:
+            if self.carry_req == CarryOp.CARRY_SET:
                 carryval = (self.a >> 7) & 0x01
-            elif self.carry_req == ALU.CARRY_CLEAR:
+            elif self.carry_req == CarryOp.CARRY_CLEAR:
                 carryval = 0
-            elif self.carry_req == ALU.CARRY_FROM_FLAGS:
+            elif self.carry_req == CarryOp.CARRY_FROM_FLAGS:
                 carryval = 1 if self.carry else 0
             return ((self.a << 1) & 0xFF) | carryval
-        if self.op == self.OPERATION_SHR:
-            if self.carry_req == ALU.CARRY_SET:
+        if self.op == ALUOp.OPERATION_SHR:
+            if self.carry_req == CarryOp.CARRY_SET:
                 carryval = (self.a << 7) & 0x80
-            elif self.carry_req == ALU.CARRY_CLEAR:
+            elif self.carry_req == CarryOp.CARRY_CLEAR:
                 carryval = 0
-            elif self.carry_req == ALU.CARRY_FROM_FLAGS:
+            elif self.carry_req == CarryOp.CARRY_FROM_FLAGS:
                 carryval = 0x80 if self.carry else 0
             return ((self.a >> 1) & 0xFF) | carryval
-        if self.op == self.OPERATION_INV:
+        if self.op == ALUOp.OPERATION_INV:
             return (~self.a) & 0xFF
-        if self.op == self.OPERATION_AND:
+        if self.op == ALUOp.OPERATION_AND:
             return (self.a & self.b) & 0xFF
-        if self.op == self.OPERATION_OR:
+        if self.op == ALUOp.OPERATION_OR:
             return (self.a | self.b) & 0xFF
-        if self.op == self.OPERATION_XOR:
+        if self.op == ALUOp.OPERATION_XOR:
             return (self.a ^ self.b) & 0xFF
-        if self.op == self.OPERATION_NULL:
+        if self.op == ALUOp.OPERATION_NULL:
             return 0xFF
         raise Exception("Not implemented!")
 
@@ -447,24 +515,24 @@ class ALU:
     def carryout(self) -> bool:
         # While the ALU itself is 16-bit, flags are relative to 8-bit
         # operations.
-        if self.op == self.OPERATION_ADD:
-            if self.carry_req == ALU.CARRY_SET:
+        if self.op == ALUOp.OPERATION_ADD:
+            if self.carry_req == CarryOp.CARRY_SET:
                 carryval = 1
-            elif self.carry_req == ALU.CARRY_CLEAR:
+            elif self.carry_req == CarryOp.CARRY_CLEAR:
                 carryval = 0
-            elif self.carry_req == ALU.CARRY_FROM_FLAGS:
+            elif self.carry_req == CarryOp.CARRY_FROM_FLAGS:
                 carryval = 1 if self.carry else 0
             return ((self.a & 0xFF) + (self.b & 0xFF) + carryval) & 0x100 != 0
-        if self.op == self.OPERATION_SHL:
+        if self.op == ALUOp.OPERATION_SHL:
             return (self.a << 1) & 0x100 != 0
-        if self.op == self.OPERATION_SHR:
+        if self.op == ALUOp.OPERATION_SHR:
             return (self.a & 0b1) != 0
         if self.op in [
-            self.OPERATION_INV,
-            self.OPERATION_AND,
-            self.OPERATION_OR,
-            self.OPERATION_XOR,
-            self.OPERATION_NULL,
+            ALUOp.OPERATION_INV,
+            ALUOp.OPERATION_AND,
+            ALUOp.OPERATION_OR,
+            ALUOp.OPERATION_XOR,
+            ALUOp.OPERATION_NULL,
         ]:
             return False
         raise Exception("Not implemented!")
@@ -520,7 +588,7 @@ class CPUCore:
             self.ram += ([0] * (0x10000 - len(self.ram)))
 
         # ALU
-        self.alu = ALU(ALU.OPERATION_NULL, ALU.CARRY_CLEAR, 0, 0, False)
+        self.alu = ALU(ALUOp.OPERATION_NULL, CarryOp.CARRY_CLEAR, 0, 0, False)
 
         # Busses
         self.data = 0b1111111111111111
@@ -786,11 +854,11 @@ class CPUCore:
             self.alu.carry = (self.flags & self.FLAGS_CF) != 0
             self.alu.carry_req = instruction.carry
             self.alu.b = signextend(self.b, 7)
-            if instruction.alu_src == ControlSignals.ALU_SRC_A:
+            if instruction.alu_src == ALUSource.ALU_SRC_A:
                 self.alu.a = self.a
-            elif instruction.alu_src == ControlSignals.ALU_SRC_IP:
+            elif instruction.alu_src == ALUSource.ALU_SRC_IP:
                 self.alu.a = self.ip
-            elif instruction.alu_src == ControlSignals.ALU_SRC_PC:
+            elif instruction.alu_src == ALUSource.ALU_SRC_PC:
                 self.alu.a = (
                     ((self.p[which_pc] << 8) & 0xFF00) +
                     (self.c[which_pc] & 0xFF)
@@ -800,9 +868,9 @@ class CPUCore:
 
             # Update the address bus
             addr_bus = instruction.address_src
-            if addr_bus == ControlSignals.ADDRESS_SRC_IP:
+            if addr_bus == AddressSource.ADDRESS_SRC_IP:
                 self.address = self.ip
-            elif addr_bus == ControlSignals.ADDRESS_SRC_PC:
+            elif addr_bus == AddressSource.ADDRESS_SRC_PC:
                 self.address = (
                     ((self.p[which_pc] << 8) & 0xFF00) +
                     (self.c[which_pc] & 0xFF)
@@ -1064,9 +1132,9 @@ class JRI(BaseInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1143,9 +1211,9 @@ class ADDI(BaseInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1155,9 +1223,9 @@ class ADDI(BaseInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1212,9 +1280,9 @@ class PUSHIP(BaseInstruction):
             ),
             # Decrement PC register to get to the previous byte.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -1227,11 +1295,11 @@ class PUSHIP(BaseInstruction):
             # Add the immediate value to the current IP, store
             # the low byte in SRAM.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_input=True,
             ),
             # Now, preload the B register with negative 1 so we can decrement
@@ -1241,9 +1309,9 @@ class PUSHIP(BaseInstruction):
             ),
             # Decrement PC register to get to the previous byte.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -1256,11 +1324,11 @@ class PUSHIP(BaseInstruction):
             # Add the immediate value to the current IP, store
             # the high byte in SRAM.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_low_output=True,
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_input=True,
             ),
             # Finally, go to the next instruction.
@@ -1269,9 +1337,9 @@ class PUSHIP(BaseInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1372,14 +1440,14 @@ class ADDU(BaseALUUInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1389,9 +1457,9 @@ class ADDU(BaseALUUInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1410,14 +1478,14 @@ class ADCU(BaseALUUInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_FROM_FLAGS,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1427,9 +1495,9 @@ class ADCU(BaseALUUInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1448,14 +1516,14 @@ class ANDU(BaseALUUInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_AND,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_AND,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1465,9 +1533,9 @@ class ANDU(BaseALUUInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1486,14 +1554,14 @@ class ORU(BaseALUUInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_OR,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_OR,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1503,9 +1571,9 @@ class ORU(BaseALUUInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1524,14 +1592,14 @@ class XORU(BaseALUUInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 u_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_XOR,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_XOR,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1541,9 +1609,9 @@ class XORU(BaseALUUInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1559,17 +1627,17 @@ class ROL(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_SHL,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_SHL,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1585,17 +1653,17 @@ class ROR(BaseALUUInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_SHR,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_SHR,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1645,14 +1713,14 @@ class ADDV(BaseALUVInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1662,9 +1730,9 @@ class ADDV(BaseALUVInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1683,14 +1751,14 @@ class ADCV(BaseALUVInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_FROM_FLAGS,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1700,9 +1768,9 @@ class ADCV(BaseALUVInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1721,14 +1789,14 @@ class ANDV(BaseALUVInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_AND,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_AND,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1738,9 +1806,9 @@ class ANDV(BaseALUVInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1759,14 +1827,14 @@ class ORV(BaseALUVInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_OR,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_OR,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1776,9 +1844,9 @@ class ORV(BaseALUVInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1797,14 +1865,14 @@ class XORV(BaseALUVInstruction):
                 # This doesn't matter for non-memory operations, but we set it in
                 # the same instructions for memory versions of these, so do that
                 # here so that the microcode is as similar as possible.
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 v_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_XOR,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_XOR,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1814,9 +1882,9 @@ class XORV(BaseALUVInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1832,17 +1900,17 @@ class RCL(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_SHL,
-                carry=ALU.CARRY_FROM_FLAGS,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_SHL,
+                carry=CarryOp.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1858,17 +1926,17 @@ class RCR(BaseALUVInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_SHR,
-                carry=ALU.CARRY_FROM_FLAGS,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_SHR,
+                carry=CarryOp.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1915,14 +1983,14 @@ class ADD(BaseALUSRAMInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1932,9 +2000,9 @@ class ADD(BaseALUSRAMInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1950,14 +2018,14 @@ class ADC(BaseALUSRAMInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_FROM_FLAGS,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_FROM_FLAGS,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -1967,9 +2035,9 @@ class ADC(BaseALUSRAMInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -1985,14 +2053,14 @@ class AND(BaseALUSRAMInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_AND,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_AND,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -2002,9 +2070,9 @@ class AND(BaseALUSRAMInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2020,14 +2088,14 @@ class OR(BaseALUSRAMInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_OR,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_OR,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -2037,9 +2105,9 @@ class OR(BaseALUSRAMInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2055,14 +2123,14 @@ class XOR(BaseALUSRAMInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_XOR,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_XOR,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
@@ -2072,9 +2140,9 @@ class XOR(BaseALUSRAMInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2090,17 +2158,17 @@ class SHL(BaseALUSRAMInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_SHL,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_SHL,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2116,17 +2184,17 @@ class SHR(BaseALUSRAMInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_SHR,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_SHR,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2156,9 +2224,9 @@ class ADDPCI(BaseInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -2168,9 +2236,9 @@ class ADDPCI(BaseInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2229,9 +2297,9 @@ class SUBPCI(BaseInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -2241,9 +2309,9 @@ class SUBPCI(BaseInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2317,14 +2385,14 @@ class LOADU(BaseRegisterInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 u_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2340,14 +2408,14 @@ class STOREU(BaseRegisterInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_input=True,
                 u_output=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2363,14 +2431,14 @@ class LOADV(BaseRegisterInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 v_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2386,14 +2454,14 @@ class STOREV(BaseRegisterInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_input=True,
                 v_output=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2421,9 +2489,9 @@ class SWAPAU(BaseRegisterInstruction):
                 u_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2451,9 +2519,9 @@ class SWAPAV(BaseRegisterInstruction):
                 v_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2481,9 +2549,9 @@ class SWAPUV(BaseRegisterInstruction):
                 v_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2501,9 +2569,9 @@ class SWAPPC(BaseRegisterInstruction):
                 pc_swap=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2550,9 +2618,9 @@ class ATOP(BaseMoveInstruction):
                 a_high_output=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2572,9 +2640,9 @@ class ATOC(BaseMoveInstruction):
                 a_output=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2592,16 +2660,16 @@ class PTOA(BaseMoveInstruction):
             # To save on control signals, we are routing through the ALU.
             # We do this by adding zero to the PC and taking that output.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_low_output=True,
                 a_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2619,16 +2687,16 @@ class CTOA(BaseMoveInstruction):
             # To save on control signals, we are routing through the ALU.
             # We do this by adding zero to the PC and taking that output.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 a_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2648,9 +2716,9 @@ class ATOU(BaseMoveInstruction):
                 a_output=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2670,9 +2738,9 @@ class ATOV(BaseMoveInstruction):
                 a_output=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2692,9 +2760,9 @@ class UTOA(BaseMoveInstruction):
                 u_output=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2714,9 +2782,9 @@ class VTOA(BaseMoveInstruction):
                 v_output=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2739,16 +2807,16 @@ class INV(BaseInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_A,
-                alu_op=ALU.OPERATION_INV,
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_INV,
                 alu_output=True,
                 a_input=True,
                 flags_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2803,9 +2871,9 @@ class SKIPIF(BaseInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -2881,31 +2949,31 @@ class LNGJUMP(BaseStackInstruction):
             # First, increment the IP so we can get the address of
             # the upper byte.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
             # Store it in D register
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_IP,
+                address_src=AddressSource.ADDRESS_SRC_IP,
                 sram_output=True,
                 d_input=True,
             ),
             # Now, increment the IP again so we can get the address
             # of the lower byte.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
             # Now, output the SRAM as well as D register, inputting
             # to the IP to jump to that address.
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_IP,
+                address_src=AddressSource.ADDRESS_SRC_IP,
                 d_high_output=True,
                 sram_output=True,
                 ip_input=True,
@@ -2962,23 +3030,23 @@ class LOADI(BaseStackInstruction):
         return [
             # First, increment the IP so we can grab the value.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
             # Store it in A register
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_IP,
+                address_src=AddressSource.ADDRESS_SRC_IP,
                 sram_output=True,
                 a_input=True,
             ),
             # Now, increment once more to go to next intstruction.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -3018,9 +3086,9 @@ class ADDPC(BaseStackInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -3030,9 +3098,9 @@ class ADDPC(BaseStackInstruction):
                 b_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             )
@@ -3049,31 +3117,31 @@ class POPIP(BaseStackInstruction):
         return [
             # Store PC in D register.
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 d_input=True,
             ),
             # Increment PC register to get to the next byte.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
             ),
             # Store D + sram into IP register.
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 d_high_output=True,
                 ip_input=True,
             ),
             # Increment PC register to get to the next byte in the stack.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -3102,9 +3170,9 @@ class PUSHSPC(BaseStackInstruction):
             ),
             # Decrement PC register to get to the previous byte.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -3118,9 +3186,9 @@ class PUSHSPC(BaseStackInstruction):
             ),
             # Store value of SC in D register, routed through ALU.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 d_input=True,
             ),
@@ -3133,15 +3201,15 @@ class PUSHSPC(BaseStackInstruction):
             ),
             # Store the contents of the D register in SRAM.
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 d_output=True,
                 sram_input=True,
             ),
             # Decrement PC register to get to the previous byte.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
@@ -3155,9 +3223,9 @@ class PUSHSPC(BaseStackInstruction):
             ),
             # Store value of SP in D register, routed through ALU.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_CLEAR,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_CLEAR,
                 alu_low_output=True,
                 d_input=True,
             ),
@@ -3167,15 +3235,15 @@ class PUSHSPC(BaseStackInstruction):
             ),
             # Store the contents of the D register in SRAM.
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 d_output=True,
                 sram_input=True,
             ),
             # Finally, increment the IP register to go to the next insn.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -3192,7 +3260,7 @@ class POPSPC(BaseStackInstruction):
         return [
             # Store contents of PC in D register, swap to SPC.
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 d_input=True,
                 pc_swap=True,
@@ -3208,16 +3276,16 @@ class POPSPC(BaseStackInstruction):
             ),
             # Increment PC register to get to the next byte.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
             ),
             # Store contents of PC in D register, swap to SPC.
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 d_input=True,
                 pc_swap=True,
@@ -3233,18 +3301,18 @@ class POPSPC(BaseStackInstruction):
             ),
             # Increment PC register to get to the next byte in the stack.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_PC,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_PC,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 p_input=True,
                 c_input=True,
             ),
             # Finally, increment the IP register to go to the next insn.
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -3260,14 +3328,14 @@ class LOADA(BaseStackInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_output=True,
                 a_input=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
@@ -3283,14 +3351,14 @@ class STOREA(BaseStackInstruction):
     def signals(self) -> List["ControlSignals"]:
         return [
             ControlSignals(
-                address_src=ControlSignals.ADDRESS_SRC_PC,
+                address_src=AddressSource.ADDRESS_SRC_PC,
                 sram_input=True,
                 a_output=True,
             ),
             ControlSignals(
-                alu_src=ControlSignals.ALU_SRC_IP,
-                alu_op=ALU.OPERATION_ADD,
-                carry=ALU.CARRY_SET,
+                alu_src=ALUSource.ALU_SRC_IP,
+                alu_op=ALUOp.OPERATION_ADD,
+                carry=CarryOp.CARRY_SET,
                 alu_output=True,
                 ip_input=True,
             ),
