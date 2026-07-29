@@ -2231,16 +2231,16 @@
 		(uuid "5cafdc96-ad7e-4c86-ab10-7465b301d04e")
 	)
 	(junction
-		(at 124.46 92.71)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "619b2e3b-b040-46a0-9df0-7b606aa6662f")
-	)
-	(junction
 		(at 160.02 76.2)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "630f0ef9-2270-48e5-9a26-49a65c7e7765")
+	)
+	(junction
+		(at 99.06 251.46)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "73eaff9c-9b1a-4f37-ab1f-83bd9c689315")
 	)
 	(junction
 		(at 157.48 92.71)
@@ -2339,6 +2339,16 @@
 			(type default)
 		)
 		(uuid "121600d3-0162-4a49-9f15-96badc0d814b")
+	)
+	(wire
+		(pts
+			(xy 121.92 76.2) (xy 160.02 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "136db578-7de6-4630-97bb-911b05c8aa40")
 	)
 	(wire
 		(pts
@@ -2522,16 +2532,6 @@
 	)
 	(wire
 		(pts
-			(xy 124.46 96.52) (xy 124.46 92.71)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "462b907d-2215-4c09-8c42-72494448f6da")
-	)
-	(wire
-		(pts
 			(xy 99.06 200.66) (xy 124.46 200.66)
 		)
 		(stroke
@@ -2539,6 +2539,16 @@
 			(type default)
 		)
 		(uuid "4999c141-b74c-4f28-8cef-1520cf5b6b1b")
+	)
+	(wire
+		(pts
+			(xy 124.46 96.52) (xy 121.92 96.52)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "49a95549-f799-4ac7-91a7-a46bf20cd616")
 	)
 	(wire
 		(pts
@@ -2932,13 +2942,13 @@
 	)
 	(wire
 		(pts
-			(xy 124.46 92.71) (xy 124.46 76.2)
+			(xy 121.92 96.52) (xy 121.92 76.2)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "b13ad685-fd25-4962-90bf-087a350bc0da")
+		(uuid "b1ef8b8b-e9a3-4c97-86f7-f298d6730234")
 	)
 	(wire
 		(pts
@@ -3012,6 +3022,16 @@
 	)
 	(wire
 		(pts
+			(xy 99.06 266.7) (xy 99.06 251.46)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c7b8beb6-8239-4c56-a647-e1a3c8ad0af3")
+	)
+	(wire
+		(pts
 			(xy 121.92 45.72) (xy 124.46 45.72)
 		)
 		(stroke
@@ -3082,6 +3102,16 @@
 	)
 	(wire
 		(pts
+			(xy 101.6 266.7) (xy 99.06 266.7)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d7769a0f-0bad-4d3d-8ad4-b669001e5c35")
+	)
+	(wire
+		(pts
 			(xy 121.92 198.12) (xy 124.46 198.12)
 		)
 		(stroke
@@ -3139,16 +3169,6 @@
 			(type default)
 		)
 		(uuid "e9442087-2718-48b2-88af-883fa4e50bb7")
-	)
-	(wire
-		(pts
-			(xy 124.46 76.2) (xy 160.02 76.2)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "ec81de11-4b94-47ff-b75f-83e900ea9d4c")
 	)
 	(wire
 		(pts
@@ -3267,6 +3287,17 @@
 			(justify left)
 		)
 		(uuid "e6fe3f7f-7ed1-4d61-8616-79c40c4f3166")
+	)
+	(hierarchical_label "IRST"
+		(shape output)
+		(at 101.6 266.7 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "fb75d69f-7228-4245-831c-9ed369bd5145")
 	)
 	(symbol
 		(lib_id "MiniDragon:Logic NOT")
