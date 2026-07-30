@@ -629,7 +629,7 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
     )
 
     # Calculate how much time a single tick should take as a fraction of a second.
-    ticktime = 1.0 / 18000.0
+    ticktime = 1.0 / 21000.0
 
     if trace:
         tracefile = open(trace, "w")
