@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 32768  # Length of string including null-termination.
-VERSION: Final[str] = "1.3.6"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.3.7"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -10210,6 +10210,15 @@ class Compiler:
         prototypes: List[Union[FunctionPrototype, GlobalVariable]] = []
         names: Set[str] = set()
 
+        # We still need this here, because we could be importing from another module that uses
+        # constants in another variable definition such as a string length.
+        global_consts: List[Constant] = [
+            # Support for Python's very few builtin constant values.
+            *builtin_consts(),
+            # Support for __debug__ builtin which also ties to assert statements.
+            Constant("__debug__", CoreType("bool", const=True), value=self.settings.debug),
+        ]
+
         for statement in parsed_module.body:
             context = Context(module, CompilerSettings(optimize=False), statement, metadata)
 
@@ -10229,7 +10238,7 @@ class Compiler:
                 if isinstance(body, cst.AnnAssign):
                     if not self.is_annassign_type_definition(body):
                         global_vars: List[GlobalVariable] = []
-                        self.generate_global_variable(body, global_vars, [], context)
+                        self.generate_global_variable(body, global_vars, global_consts, context)
                         prototypes += global_vars
 
         return prototypes
