@@ -79,3 +79,7 @@ wstradv: 0xeb
 serial_pos_row: 0xee
 serial_pos_col: 0xf1
 assert_print: 0xf4
+random_step: 0xf7
+random: 0xfa
+random_int: 0xfd
+random_choice: 0x100

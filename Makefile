@@ -36,17 +36,20 @@ BOOTROM_SRCS += lib/hardware/serial.py
 BOOTROM_SRCS += lib/hardware/cartridge.S
 BOOTROM_SRCS += lib/hardware/cartridge.py
 BOOTROM_SRCS += lib/conversion/fixed.py
+BOOTROM_SRCS += lib/math/random.py
 BOOTROM_SRCS += bootrom/main.py
 
 # Hello world sources.
 HELLOWORLD_SRCS += lib/hardware/serial.S
 HELLOWORLD_SRCS += lib/hardware/serial.py
+HELLOWORLD_SRCS += lib/math/random.py
 HELLOWORLD_SRCS += bootrom/helloworld.py
 
 # Fixed point test sources.
 FIXEDPOINT_SRCS += lib/hardware/serial.S
 FIXEDPOINT_SRCS += lib/hardware/serial.py
 FIXEDPOINT_SRCS += lib/conversion/fixed.py
+FIXEDPOINT_SRCS += lib/math/random.py
 FIXEDPOINT_SRCS += bootrom/fixedtest.py
 
 # Magic rule maker for above sources to map to various files.

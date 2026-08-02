@@ -1,3 +1,6 @@
+from math.random import random_step
+
+
 # The read/write buffer for our serial chip.
 R6551AP_buffer_reg: extern[uint8]
 
@@ -318,7 +321,7 @@ def serial_recv(
     while True:
         # Wait for a byte to become available.
         while not R6551AP_status_reg & R6551AP_RDRF:
-            pass
+            random_step()
 
         # Read that byte, append it unless it's the enter key.
         recvd: char = chr(R6551AP_buffer_reg)

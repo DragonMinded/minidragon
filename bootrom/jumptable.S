@@ -165,6 +165,14 @@ jumptable_serial_pos_col:
     LNGJUMP serial_pos_col
 jumptable_assert_print:
     LNGJUMP assert_print
+jumptable_random_step:
+    LNGJUMP random_step
+jumptable_random:
+    LNGJUMP random
+jumptable_random_int:
+    LNGJUMP random_int
+jumptable_random_choice:
+    LNGJUMP random_choice
 
     ; Now that we're done defining a jump table, resume execution here.
 jumptable_end:
