@@ -250,8 +250,8 @@ class ControlSignals:
         # ALU signals
 
         alu_src: Optional[ALUSource] = None,
-        carry: Optional[CarryOp] = None,
-        alu_op: Optional[ALUOp] = None,
+        carry: Optional["CarryOp"] = None,
+        alu_op: Optional["ALUOp"] = None,
 
         # Data bus assertion signals
 
