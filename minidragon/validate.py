@@ -61,6 +61,9 @@ def getmemory(instr: str) -> List[int]:
 
 
 def rununtilhalt(cpu: CPUCore) -> None:
+    last_instructions = []
+    instructions = 0
+
     while True:
         if verbose:
             cpu.print(highlight_changes)
@@ -69,6 +72,16 @@ def rununtilhalt(cpu: CPUCore) -> None:
             print("")
         if cpu.mnemonic == "HALT":
             return
+
+        # Ensure we don't run into any NOP sleds which appear to work in
+        # test but cause issues in compiled code.
+        instructions += 1
+        last_instructions.append(cpu.mnemonic)
+        last_instructions = last_instructions[-5:]
+
+        if instructions >= 5 and all(x == "NOP" for x in last_instructions):
+            raise Exception("Hit NOP sled when executing test!")
+
         cpu.tick()
 
 
