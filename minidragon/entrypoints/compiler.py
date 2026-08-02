@@ -87,7 +87,8 @@ def main() -> None:
                 fname = os.path.abspath(fname)
                 compiler.set_working_directory(os.path.dirname(fname))
 
-                refs += compiler.parse_forward_refs(fname, fp.read())
+                parsed_refs, _ = compiler.parse_forward_refs(fname, fp.read())
+                refs += parsed_refs
 
         compiled = Sections()
         for fname in args.file:

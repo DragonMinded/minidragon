@@ -10079,15 +10079,16 @@ class Compiler:
                             global_consts.append(Constant(importable, CoreType(valtype, length=length, const=True), value=constval))
                     elif not is_typing_import:
                         # Attempt to resolve the imports we need to handle.
-                        new_refs = self.parse_import_refs(body, context.wrap(body))
+                        new_refs, new_consts = self.parse_import_refs(body, context.wrap(body))
 
                         old_names = {r.name for r in refs}
-                        new_names = {r.name for r in new_refs}
+                        new_names = {r.name for r in [*new_refs, *new_consts]}
                         common_names = old_names & new_names
                         if common_names:
                             raise CompilerError(f"Import of {', '.join(common_names)} shadows local definitions", context.wrap(body))
 
                         refs = [*refs, *new_refs]
+                        global_consts = [*global_consts, *new_consts]
                 elif isinstance(body, cst.Import):
                     for alias in body.names:
                         name_str = expr_to_str(alias.name).strip()
@@ -10137,7 +10138,7 @@ class Compiler:
     def add_library_directory(self, directory: str) -> None:
         self.__library_directory.append(directory)
 
-    def parse_import_refs(self, body: cst.ImportFrom, context: Context) -> List[Union[FunctionPrototype, GlobalVariable]]:
+    def parse_import_refs(self, body: cst.ImportFrom, context: Context) -> Tuple[List[Union[FunctionPrototype, GlobalVariable]], List[Constant]]:
         # First, figure out any relative import location.
         relative = len(body.relative)
         if relative < 1:
@@ -10173,7 +10174,12 @@ class Compiler:
         if code is None:
             raise CompilerError(f"File {path} not found when attempting import", context)
 
-        file_refs = self.parse_forward_refs(fullpath, code)
+        # Grab the actual refs from the file.
+        file_refs, file_consts = self.parse_forward_refs(fullpath, code)
+
+        # Filter out any constants or exportables that start with a dunder.
+        file_refs = [ref for ref in file_refs if ref.name[:2] != "__"]
+        file_consts = [const for const in file_consts if const.name[:2] != "__"]
 
         # Now, filter them down to what was imported.
         if not isinstance(body.names, cst.ImportStar):
@@ -10187,16 +10193,18 @@ class Compiler:
                 actual_names.add(name.name.value)
 
             actual_refs = {r.name for r in file_refs}
+            actual_consts = {c.name for c in file_consts}
             for import_name in actual_names:
-                if import_name not in actual_refs:
+                if import_name not in actual_refs and import_name not in actual_consts:
                     raise CompilerError(f"File {path} does not export importable {import_name}", context)
 
             file_refs = [f for f in file_refs if f.name in actual_names]
+            file_consts = [f for f in file_consts if f.name in actual_names]
 
         # Now, return them.
-        return file_refs
+        return file_refs, file_consts
 
-    def parse_forward_refs(self, module: str, code: str) -> List[Union[FunctionPrototype, GlobalVariable]]:
+    def parse_forward_refs(self, module: str, code: str) -> Tuple[List[Union[FunctionPrototype, GlobalVariable]], List[Constant]]:
         parsed_module = cst.parse_module(code)
 
         # Make sure we have access to line/column numbers for errors.
@@ -10241,11 +10249,26 @@ class Compiler:
                         self.generate_global_variable(body, global_vars, global_consts, context)
                         prototypes += global_vars
 
-        return prototypes
+        def __builtin(const: Constant) -> bool:
+            if const.name == "__debug__":
+                return True
+            for builtin in builtin_consts():
+                if builtin.name == const.name:
+                    return True
+            return False
+
+        # Filter out global constants that we don't want to export.
+        global_consts = [const for const in global_consts if not __builtin(const)]
+
+        return prototypes, global_consts
 
     def parse_and_compile_module(self, module: str, code: str) -> Sections:
         forward_refs: List[Union[FunctionPrototype, GlobalVariable]] = builtin_forward_refs()
-        forward_refs += self.parse_forward_refs(module, code)
+
+        # When compiling a module we don't care about constant forward refs.
+        parsed_refs, _ = self.parse_forward_refs(module, code)
+        forward_refs += parsed_refs
+
         return self.compile_module(module, code, forward_refs)
 
 

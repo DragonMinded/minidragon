@@ -496,7 +496,7 @@ class TestCompiler(unittest.TestCase):
                 return
         """)
 
-        prototypes = compiler.parse_forward_refs("__test__", func)
+        prototypes, _ = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("void", const=True))], prototypes)
 
         output = compiler.parse_and_compile_module("__test__", func)
@@ -523,7 +523,7 @@ class TestCompiler(unittest.TestCase):
                 return 15
         """)
 
-        prototypes = compiler.parse_forward_refs("__test__", func)
+        prototypes, _ = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [PaddingCoreType(1)])], prototypes)
 
         output = compiler.parse_and_compile_module("__test__", func)
@@ -561,7 +561,7 @@ class TestCompiler(unittest.TestCase):
                 return 15
         """)
 
-        prototypes = compiler.parse_forward_refs("__test__", func)
+        prototypes, _ = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"))], prototypes)
 
         output = compiler.parse_and_compile_module("__test__", func)
@@ -618,7 +618,7 @@ class TestCompiler(unittest.TestCase):
                 return param + 15
         """)
 
-        prototypes = compiler.parse_forward_refs("__test__", func)
+        prototypes, _ = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("simple", CoreType("int8"), [CoreType("int8")], ["param"], [None])], prototypes)
 
         output = compiler.parse_and_compile_module("__test__", func)
@@ -666,7 +666,7 @@ class TestCompiler(unittest.TestCase):
                 return param + SOME_CONST
         """)
 
-        prototypes = compiler.parse_forward_refs("__test__", func)
+        prototypes, _ = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("defineconst", CoreType("int8"), [CoreType("int8")], ["param"], [None])], prototypes)
 
         output = compiler.parse_and_compile_module("__test__", func)
@@ -716,7 +716,7 @@ class TestCompiler(unittest.TestCase):
                 return some_var
         """)
 
-        prototypes = compiler.parse_forward_refs("__test__", func)
+        prototypes, _ = compiler.parse_forward_refs("__test__", func)
         self.assertEqual([FunctionPrototype("defineconst", CoreType("int8"), [CoreType("int8")], ["param"], [None])], prototypes)
 
         output = compiler.parse_and_compile_module("__test__", func)
