@@ -3921,7 +3921,7 @@ class Compiler:
                 expr = args[0].value
 
                 if not types[expr].is_integer:
-                    raise CompilerError("Unsupported conversion from {types[expr].type} to character", context)
+                    raise CompilerError(f"Unsupported conversion from {types[expr].type} to character", context)
 
                 if types[expr].size == 1:
                     # Simply evaluate the expression into the destination directly, but pretend that the destination
@@ -3975,7 +3975,7 @@ class Compiler:
                 expr = args[0].value
 
                 if not types[expr].is_char:
-                    raise CompilerError("Unsupported conversion from {types[expr].type} to integer", context)
+                    raise CompilerError(f"Unsupported conversion from {types[expr].type} to integer", context)
 
                 # Figure out what to do based on the destination type.
                 destination_type = stack.typeof(destination)
@@ -4046,7 +4046,7 @@ class Compiler:
                     return compiled
 
                 elif types[expr].is_char:
-                    raise CompilerError("Unsupported conversion from {types[expr].type} to integer", context)
+                    raise CompilerError(f"Unsupported conversion from {types[expr].type} to integer", context)
 
                 elif types[expr].is_bool:
                     clobbers.add("A")
