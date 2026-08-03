@@ -578,7 +578,7 @@ class CPUCore:
 
         # Internal registers, cannot be read from or written to by
         # program code.
-        self.ip = 0
+        self._ip = 0
         self.ir = 0
         self.d = 0
 
@@ -616,6 +616,9 @@ class CPUCore:
                 return read_data & 0xFF
         return self.ram[address]
 
+    def __getitem__(self, key: int) -> int:
+        return self.__read_memory(key)
+
     @property
     def pc(self) -> int:
         pc = self.flags & self.FLAGS_PC != 0
@@ -649,10 +652,6 @@ class CPUCore:
         return sp + sc
 
     def print(self, highlight_changes: bool = False) -> None:
-        # Look up the current bus values if we're about to store on this
-        # instruction.
-        ip = self.data if self.last_instruction.ip_input else self.ip
-
         flags = (
             self.current_flags()
             if self.last_instruction.flags_input
@@ -694,10 +693,10 @@ class CPUCore:
         changes = self.changes if highlight_changes else set()
 
         # Filter here so even when emulating we can get the correct memory address.
-        curmem = self.__read_memory(ip)
+        curmem = self.__read_memory(self.ip)
 
         print("\n".join([
-            f"IP:    {highlight(hexstr(ip, 4), 'ip', changes)}",
+            f"IP:    {highlight(hexstr(self.ip, 4), 'ip', changes)}",
             f"PC:    {highlight(hexstr(pandc, 4), 'pc', changes)}",
             f"SPC:   {highlight(hexstr(spandsc, 4), 'spc', changes)}",
             f"A:     {highlight(hexstr(a, 2), 'a', changes)} (unsigned: {a}, signed: {a_dec})",
@@ -709,9 +708,16 @@ class CPUCore:
 
     @property
     def mnemonic(self) -> str:
-        ip = self.data if self.last_instruction.ip_input else self.ip
         # Filter here so even when emulating we can debug properly.
-        return disassemble(self.__read_memory(ip))
+        return disassemble(self.__read_memory(self.ip))
+
+    @property
+    def ip(self) -> int:
+        return self.data if self.last_instruction.ip_input else self._ip
+
+    @ip.setter
+    def ip(self, new: int) -> None:
+        self._ip = new
 
     def dump(self, highlight_changes: bool = False) -> None:
         # Print the contents of RAM
@@ -807,7 +813,7 @@ class CPUCore:
 
             # Load from the bus if we're told to.
             if self.last_instruction.ip_input:
-                self.ip = self.data
+                self._ip = self.data
                 self.changes.add("ip")
             if self.last_instruction.a_input:
                 self.a = self.data & 0xFF
@@ -857,7 +863,7 @@ class CPUCore:
             if instruction.alu_src == ALUSource.ALU_SRC_A:
                 self.alu.a = self.a
             elif instruction.alu_src == ALUSource.ALU_SRC_IP:
-                self.alu.a = self.ip
+                self.alu.a = self._ip
             elif instruction.alu_src == ALUSource.ALU_SRC_PC:
                 self.alu.a = (
                     ((self.p[which_pc] << 8) & 0xFF00) +
@@ -869,7 +875,7 @@ class CPUCore:
             # Update the address bus
             addr_bus = instruction.address_src
             if addr_bus == AddressSource.ADDRESS_SRC_IP:
-                self.address = self.ip
+                self.address = self._ip
             elif addr_bus == AddressSource.ADDRESS_SRC_PC:
                 self.address = (
                     ((self.p[which_pc] << 8) & 0xFF00) +

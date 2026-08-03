@@ -9,6 +9,7 @@ from io import FileIO
 from typing import Any, Final, List, Optional
 
 from ..core import CPUCore, MemoryFilter
+from ..util import getint
 
 
 ROM_LOCATION: Final[int] = 0x0000
@@ -593,7 +594,7 @@ class MiniDragonMemoryFilter(MemoryFilter):
         return None
 
 
-def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], verbose: bool, trace: Optional[str]) -> int:
+def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], verbose: bool, trace: Optional[str], functions: List[int]) -> int:
     # First, fill the ROM portion with the bootROM file itself.
     with open(boot_rom, "rb") as bfp:
         data = bfp.read()
@@ -631,6 +632,7 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
     # Calculate how much time a single tick should take as a fraction of a second.
     ticktime = 1.0 / 21000.0
 
+    tracedepth: int = 0
     if trace:
         tracefile = open(trace, "w")
     else:
@@ -640,9 +642,41 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
     cpu = CPUCore(memory, ram_filter)
     after = time.time()
     while True:
+        if not tracedepth and functions:
+            # See if we're entering a function we want traced.
+            if cpu.ip in functions:
+                tracedepth = 1
+
+        # Log the trace, either if we're asked to unconditionally, or we're inside one of the functions we're tracing.
         if tracefile:
-            tracefile.write(f"{hex(cpu.ip)}: {cpu.mnemonic} (A: {hex(cpu.a)}, PC: {hex(cpu.pc)}, SPC: {hex(cpu.spc)})\n")
-            tracefile.flush()
+            if tracedepth or not functions:
+                extra = ""
+                if cpu.mnemonic == "POPIP":
+                    # Grab the value we're about to pop to log that.
+                    val = (cpu[cpu.pc] << 8) | cpu[cpu.pc + 1]
+                    extra = f", {hex(val)} -> IP"
+                if cpu.mnemonic[:6] == "PUSHIP":
+                    # Grab the value we're about to push and log that.
+                    val = cpu.ip + int(cpu.mnemonic[6:].strip())
+                    extra = f", {hex(val)} -> [PC]"
+                if cpu.mnemonic == "LOADI":
+                    # Grab the value we're going to load into the immediate.
+                    val = cpu[cpu.ip + 1]
+                    extra = f", {hex(val)} -> A"
+                if cpu.mnemonic == "LNGJUMP":
+                    # Grab the value we're about to jump to.
+                    val = (cpu[cpu.ip + 1] << 8) | cpu[cpu.ip + 2]
+                    extra = f", {hex(val)} -> IP"
+
+                tracefile.write(f"{hex(cpu.ip)}: {cpu.mnemonic} (A: {hex(cpu.a)}, PC: {hex(cpu.pc)}, SPC: {hex(cpu.spc)}){extra}\n")
+                tracefile.flush()
+
+        # Bookkeeping for if we're tracing at a function level to ensure we stop tracing when we exit
+        # that function only.
+        if tracedepth and cpu.mnemonic[:6] == "PUSHIP":
+            tracedepth += 1
+        if tracedepth and cpu.mnemonic == "POPIP":
+            tracedepth -= 1
 
         if cpu.mnemonic == "HALT":
             break
@@ -708,9 +742,20 @@ def run() -> None:
         default=None,
         help="Trace execution by writing to this file.",
     )
+    parser.add_argument(
+        "--trace-function",
+        metavar="ADDRESS",
+        type=str,
+        action="append",
+        default=[],
+        help="Limit tracing execution to this function. Specify multiple times for multiple functions.",
+    )
 
     args = parser.parse_args()
-    sys.exit(main(args.file, args.cartridge, args.serial_port, args.verbose, args.trace))
+    funcs: List[int] = []
+    for func_str in args.trace_function:
+        funcs.append(getint(func_str, 16, allow_unsigned=True))
+    sys.exit(main(args.file, args.cartridge, args.serial_port, args.verbose, args.trace, funcs))
 
 
 if __name__ == "__main__":
