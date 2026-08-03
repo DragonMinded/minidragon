@@ -1843,7 +1843,7 @@ class Compiler:
                     for c in value:
                         compiled.append_init(f"  STOREI {c!r}")
                         compiled.append_init("  INCPC")
-                compiled.append_init("  STOREI 0x00")
+                    compiled.append_init("  STOREI 0x00")
 
                 compiled.append_data(f"  .pad {length_needed}")
 
