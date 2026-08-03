@@ -632,7 +632,8 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
     # Calculate how much time a single tick should take as a fraction of a second.
     ticktime = 1.0 / 21000.0
 
-    tracedepth: int = 0
+    tracedepth: List[int] = []
+    traceindent: int = 0
     if trace:
         tracefile = open(trace, "w")
     else:
@@ -645,7 +646,10 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
         if not tracedepth and functions:
             # See if we're entering a function we want traced.
             if cpu.ip in functions:
-                tracedepth = 1
+                tracedepth.append(cpu.ip)
+                if tracefile:
+                    tracefile.write(f"=== BEGIN TRACE {hex(cpu.ip)} ===\n")
+                    tracefile.flush()
 
         # Log the trace, either if we're asked to unconditionally, or we're inside one of the functions we're tracing.
         if tracefile:
@@ -668,15 +672,25 @@ def main(boot_rom: str, cartridge: Optional[str], serial_port: Optional[str], ve
                     val = (cpu[cpu.ip + 1] << 8) | cpu[cpu.ip + 2]
                     extra = f", {hex(val)} -> IP"
 
-                tracefile.write(f"{hex(cpu.ip)}: {cpu.mnemonic} (A: {hex(cpu.a)}, PC: {hex(cpu.pc)}, SPC: {hex(cpu.spc)}){extra}\n")
+                indent = " " * traceindent
+                tracefile.write(f"{indent}{hex(cpu.ip)}: {cpu.mnemonic} (A: {hex(cpu.a)}, PC: {hex(cpu.pc)}, SPC: {hex(cpu.spc)}){extra}\n")
                 tracefile.flush()
 
         # Bookkeeping for if we're tracing at a function level to ensure we stop tracing when we exit
         # that function only.
         if tracedepth and cpu.mnemonic[:6] == "PUSHIP":
-            tracedepth += 1
+            tracedepth.append(cpu.ip)
         if tracedepth and cpu.mnemonic == "POPIP":
-            tracedepth -= 1
+            old = tracedepth.pop()
+            if not tracedepth and tracefile:
+                tracefile.write(f"=== END TRACE {hex(old)} ===\n")
+
+        # Make sure we can indent function-level traces.
+        if tracefile and (tracedepth or not functions):
+            if cpu.mnemonic[:6] == "PUSHIP":
+                traceindent += 1
+            if cpu.mnemonic == "POPIP":
+                traceindent -= 1
 
         if cpu.mnemonic == "HALT":
             break
