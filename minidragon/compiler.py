@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 32768  # Length of string including null-termination.
-VERSION: Final[str] = "1.3.9"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.3.10"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -8408,6 +8408,20 @@ class Compiler:
                     stack.alloc(StackVar(str_dest, CoreType("str"), initialized=True))
                     compiled += self.generate_memcpy_stackvars(str_dest, iter_name, stack, clobbers, context)
                     allocated = True
+                else:
+                    # This could be a global, which we should still be able to look up.
+                    if (global_var := global_by_name(refs, iter_name)) is not None:
+                        if global_var.type.is_string:
+                            # We only clobber the A register with the macro.
+                            clobbers.add("A")
+
+                            str_dest = self.expr_temp_name()
+                            free_list.append(str_dest)
+                            stack.alloc(StackVar(str_dest, CoreType("str"), initialized=True))
+                            compiled += self.generate_move_to(str_dest, stack, clobbers, context, offset=-1)
+                            compiled.append_code(f"  PUSHADDR {global_var.name}")
+                            stack.location += 2
+                            allocated = True
 
             if not allocated:
                 # We need to generate a temporary string that can be used for the expression evaluation.
