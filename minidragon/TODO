@@ -1,6 +1,3 @@
-Bugfixes to track down:
- - Second part of if statement doesn't run in "if x == 1 or x == 2" style statements.
-
 Optimizations I should go for:
  - Ensure no effect when doing local = local.
  - Ensure using increment/decrement for += and -= when right side is a constant.

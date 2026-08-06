@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 32768  # Length of string including null-termination.
-VERSION: Final[str] = "1.3.10"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.3.11"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -9562,6 +9562,7 @@ class Compiler:
         stackop = {"ADDPCI", "INCPC", "SUBPCI", "DECPC"}
         memoryop = {"LOADI", "ADDI", "INV", "SHL", "SHR", "RCL", "RCR", "ROL", "ROR", "ZERO", "NOP", "NEG", "INC", "DEC"}
         aluop = {"INV", "NEG", "ADD", "ADC", "AND", "OR", "XOR", "ADDU", "ADCU", "ANDU", "ORU", "XORU", "ADDV", "ADCV", "ANDV", "ORV", "XORV", "SHL", "SHR", "RCL", "RCR", "ROL", "ROR"}
+        flowop = {"JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}
 
         pos = 0
         while pos < codelen:
@@ -9574,12 +9575,13 @@ class Compiler:
 
             nxt = getline(pos, offset=1)
             prv = getline(pos, offset=-1)
+            anc = getline(pos, offset=-2)
 
-            if cur == "SWAP PC, SPC" and nxt == "SWAP PC, SPC":
+            if insn(prv) != "SKIPIF" and cur == "SWAP PC, SPC" and nxt == "SWAP PC, SPC":
                 # Shouldn't ever happen, but is super easy to get rid of.
                 remove(pos, 2)
 
-            elif insn(cur) in stackop and insn(nxt) in stackop:
+            elif insn(prv) != "SKIPIF" and insn(cur) in stackop and insn(nxt) in stackop:
                 # Opportunity to combine as long as it doesn't overrun.
                 first_move = moveamt(cur)
                 second_move = moveamt(nxt)
@@ -9605,7 +9607,7 @@ class Compiler:
                 # exist because we reduced redundant store/loads with a constant load.
                 replace(pos, 2, [getline(pos, offset=1, sanitize=False), getline(pos, sanitize=False)])
 
-            elif insn(prv) == "INV" and insn(cur) in {"JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}:
+            elif insn(prv) == "INV" and insn(cur) in flowop:
                 # Strict equality/inequality checks for string/integer/characters.
                 if (
                     getline(pos, offset=-2) == "INV" and
@@ -9696,7 +9698,7 @@ class Compiler:
                 else:
                     pos = offset(pos, 1)
 
-            elif insn(cur) in {"JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"} and getline(pos, offset=-3) == "INV" and insn(getline(pos, offset=-2)) == "SKIPIF":
+            elif insn(cur) in flowop and getline(pos, offset=-3) == "INV" and insn(getline(pos, offset=-2)) == "SKIPIF":
                 # Strict equality/inequality checks for string/integer/characters.
                 if (
                     getline(pos, offset=-4) == "INV" and
@@ -9815,55 +9817,10 @@ class Compiler:
                 else:
                     pos = offset(pos, 1)
 
-            elif insn(prv) in aluop and cur == "ADDI 0":
+            elif insn(anc) != "SKIPIF" and insn(prv) in aluop and cur == "ADDI 0":
                 remove(pos)
 
-            elif cur == "ADDI 0" and nxt == "ADDI 0":
-                remove(pos, offset=1)
-
-            elif cur == "STORE A" and nxt == "LOAD A":
-                remove(pos, offset=1)
-
-            elif cur == "STORE A" and nxt == "STORE A":
-                remove(pos, offset=1)
-
-            elif cur == "STORE U" and nxt == "LOAD U":
-                remove(pos, offset=1)
-
-            elif cur == "STORE U" and nxt == "STORE U":
-                remove(pos, offset=1)
-
-            elif cur == "STORE V" and nxt == "STORE V":
-                remove(pos, offset=1)
-
-            elif cur == "STORE V" and nxt == "LOAD V":
-                remove(pos, offset=1)
-
-            elif cur == "LOAD A" and nxt == "STORE A":
-                remove(pos, offset=1)
-
-            elif cur == "LOAD A" and nxt == "LOAD A":
-                remove(pos, offset=1)
-
-            elif cur == "LOAD U" and nxt == "STORE U":
-                remove(pos, offset=1)
-
-            elif cur == "LOAD U" and nxt == "LOAD U":
-                remove(pos, offset=1)
-
-            elif cur == "LOAD V" and nxt == "STORE V":
-                remove(pos, offset=1)
-
-            elif cur == "LOAD V" and nxt == "LOAD V":
-                remove(pos, offset=1)
-
-            elif insn(cur) == "STORE" and (key := curpos(pos)) is not None and stack_counts[key] == 1:
-                remove(pos)
-
-            elif insn(cur) in {"JRI", "JRIZ", "JRINZ", "LNGJUMP", "LNGJUMPZ", "LNGJUMPNZ"} and (params(cur) + ":") == nxt:
-                remove(pos)
-
-            elif insn(prv) == "LOADI" and insn(cur) == "INV" and insn(nxt) in {"JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}:
+            elif insn(anc) != "SKIPIF" and insn(prv) == "LOADI" and insn(cur) == "INV" and insn(nxt) in flowop:
                 # This can be statically computed and is probably a "while True" check.
                 intparam = param_as_int(prv)
                 if intparam is None:
@@ -9903,7 +9860,7 @@ class Compiler:
                         raise Exception("Logic error, unrecognized instruction to replace!")
 
             elif insn(prv) == "NEG" and insn(cur) == "NEG" and insn(nxt) == "NEG":
-                if insn(getline(pos, offset=-2)) != "SKIPIF":
+                if insn(anc) != "SKIPIF":
                     # Triple negation is equivalent to a single, including flags. However,
                     # if the instruction before the first NEG is a SKIPIF, we can't skip
                     # since sometimes we wouldn't perform an ALU operation to set flags.
@@ -9914,12 +9871,12 @@ class Compiler:
                     pos = offset(pos, 1)
 
             elif insn(prv) == "INV" and insn(cur) == "INV" and insn(nxt) == "INV":
-                if insn(getline(pos, offset=-2)) != "SKIPIF":
+                if insn(anc) != "SKIPIF":
                     # Triple negation is equivalent to a single, including flags.
                     remove(pos, 2)
 
                 elif (
-                    insn(getline(pos, offset=-2)) == "SKIPIF" and
+                    insn(anc) == "SKIPIF" and
                     insn((pos_3 := getline(pos, offset=-3))) == "LOADI" and param_as_int(pos_3) in {0x00, 0xFF}
                 ):
                     param_val = param_as_int(pos_3)
@@ -9941,7 +9898,12 @@ class Compiler:
                     # Didn't remove anything, onward.
                     pos = offset(pos, 1)
 
-            elif insn(prv) == "LOADI" and insn(cur) in {"INV", "NEG"} and insn(nxt) not in {"SKIPIF", "JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}:
+            elif (
+                insn(anc) != "SKIPIF" and
+                insn(prv) == "LOADI" and
+                insn(cur) in {"INV", "NEG"} and
+                insn(nxt) not in {"SKIPIF", "JRIZ", "JRINZ", "LNGJUMPZ", "LNGJUMPNZ"}
+            ):
                 intparam = param_as_int(prv)
                 if intparam is not None:
                     if insn(cur) == "INV":
@@ -9961,7 +9923,7 @@ class Compiler:
                 else:
                     pos = offset(pos, 1)
 
-            elif insn(cur) == "LOADI" and insn(nxt) == "ADD":
+            elif insn(prv) != "SKIPIF" and insn(cur) == "LOADI" and insn(nxt) == "ADD":
                 intparam = param_as_int(cur)
                 if intparam is not None:
                     intparam = intparam & 0xFF
@@ -9974,6 +9936,58 @@ class Compiler:
                         continue
 
                 pos = offset(pos, 1)
+
+            elif insn(prv) != "SKIPIF":
+                # All of these can be removed if we aren't conditionally performing the first one.
+                # As a result of combining this if statement, this needs to be last.
+                if cur == "ADDI 0" and nxt == "ADDI 0":
+                    remove(pos, offset=1)
+
+                elif cur == "STORE A" and nxt == "LOAD A":
+                    remove(pos, offset=1)
+
+                elif cur == "STORE A" and nxt == "STORE A":
+                    remove(pos, offset=1)
+
+                elif cur == "STORE U" and nxt == "LOAD U":
+                    remove(pos, offset=1)
+
+                elif cur == "STORE U" and nxt == "STORE U":
+                    remove(pos, offset=1)
+
+                elif cur == "STORE V" and nxt == "STORE V":
+                    remove(pos, offset=1)
+
+                elif cur == "STORE V" and nxt == "LOAD V":
+                    remove(pos, offset=1)
+
+                elif cur == "LOAD A" and nxt == "STORE A":
+                    remove(pos, offset=1)
+
+                elif cur == "LOAD A" and nxt == "LOAD A":
+                    remove(pos, offset=1)
+
+                elif cur == "LOAD U" and nxt == "STORE U":
+                    remove(pos, offset=1)
+
+                elif cur == "LOAD U" and nxt == "LOAD U":
+                    remove(pos, offset=1)
+
+                elif cur == "LOAD V" and nxt == "STORE V":
+                    remove(pos, offset=1)
+
+                elif cur == "LOAD V" and nxt == "LOAD V":
+                    remove(pos, offset=1)
+
+                elif insn(cur) == "STORE" and (key := curpos(pos)) is not None and stack_counts[key] == 1:
+                    remove(pos)
+
+                elif insn(cur) in {"JRI", "JRIZ", "JRINZ", "LNGJUMP", "LNGJUMPZ", "LNGJUMPNZ"} and (params(cur) + ":") == nxt:
+                    remove(pos)
+
+                else:
+                    # Didn't remove anything, onward.
+                    pos = offset(pos, 1)
 
             else:
                 # Didn't remove anything, onward.

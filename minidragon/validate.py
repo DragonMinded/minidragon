@@ -11326,6 +11326,63 @@ def verifyifstatements(only: Optional[Container[str]], full: bool) -> None:
         instructions += cpu.ticks
         count += 1
 
+    # Now test short-circuiting behavior that was broken.
+    for input_val_chr, expected in [('a', 0), (' ', 1), ('\n', 1), ('b', 2), ('c', 3)]:
+        sections = parse_and_compile_module("ifstatements", textwrap.dedent("""
+            def orshortcircuit(var: char) -> int8:
+                if var == 'a':
+                    return 0
+                elif var == ' ' or var == '\\n':
+                    return 1
+                elif var == 'b':
+                    return 2
+
+                return 3
+        """), settings)
+        memory = getmemory(os.linesep.join([
+            *initlines,
+            *sections.init,
+            *startlines,
+            *cmplines,
+            *sections.code,
+            "main:",
+            f"PUSHI {input_val_chr!r}",
+            "LOADI 111",
+            "MOV A, U",
+            "LOADI 222",
+            "MOV A, V",
+            "LOADI 123",
+            "CALL orshortcircuit",
+            "HALT",
+            *datalines,
+            *sections.data,
+            *heaplines,
+        ]))
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+
+        _assert(
+            cpu.a == 123,
+            f"ifstatements changed accumulator value from {123} to {cpu.a}!",
+        )
+        _assert(
+            cpu.u == 111,
+            f"ifstatements changed U value from {111} to {cpu.u}!",
+        )
+        _assert(
+            cpu.v == 222,
+            f"ifstatements changed V value from {222} to {cpu.v}!",
+        )
+        result = bintoint(cpu.ram[cpu.pc])
+        _assert(
+            result == expected,
+            "Failed to ifstatements orshortcircuit, "
+            + f"got {result} instead of {expected} with input {input_val_chr!r}!",
+        )
+        cycles += cpu.cycles
+        instructions += cpu.ticks
+        count += 1
+
     print(f"Average cycles for ifstatements: {int(cycles/count)}")
     print(f"Average instructions for ifstatements: {int(instructions/count)}")
 
