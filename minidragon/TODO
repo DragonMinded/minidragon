@@ -1,6 +1,9 @@
 Optimizations I should go for:
  - Ensure no effect when doing local = local.
  - Ensure using increment/decrement for += and -= when right side is a constant.
+ - Use ADDI for 8-bit constant addition of small values.
+ - Use ADDPCI/SUBPCI for 16-bit constant addition of small values.
+ - Use ADDPC for 16-bit addition with an 8-bit signed value.
 
 Optimizations that would be nice to have:
  - load/store purpose tracking, so redundant loads/stores and moves can be tracked.
