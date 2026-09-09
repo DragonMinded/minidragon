@@ -656,6 +656,24 @@
 					(hide yes)
 				)
 			)
+			(property "Sim.Device" "NPN"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Sim.Pins" "1=E 2=B 3=C"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
 			(property "ki_keywords" "NPN Transistor"
 				(at 0 0 0)
 				(effects
@@ -2282,7 +2300,7 @@
 				)
 			)
 		)
-		(property "Value" "47nF"
+		(property "Value" "10nF"
 			(at 78.74 78.74 90)
 			(effects
 				(font
@@ -2348,7 +2366,7 @@
 				)
 			)
 		)
-		(property "Value" "47nF"
+		(property "Value" "10nF"
 			(at 53.34 78.74 90)
 			(effects
 				(font
@@ -2581,6 +2599,24 @@
 				)
 			)
 		)
+		(property "Sim.Device" "NPN"
+			(at 82.55 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Pins" "1=E 2=B 3=C"
+			(at 82.55 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "8d6724f2-b0fd-455c-8a51-21a87a6e5143")
 		)
@@ -2656,6 +2692,24 @@
 				)
 			)
 		)
+		(property "Sim.Device" "NPN"
+			(at 49.53 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Pins" "1=E 2=B 3=C"
+			(at 49.53 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "7fd8f196-2a46-46e3-b9a7-2eebe92093da")
 		)
@@ -2685,7 +2739,7 @@
 		(fields_autoplaced yes)
 		(uuid "13e2a727-5a86-43a6-b061-2fb7224808e8")
 		(property "Reference" "RV3"
-			(at 70.6121 64.8278 0)
+			(at 70.612 64.8278 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -2693,8 +2747,8 @@
 				(justify right)
 			)
 		)
-		(property "Value" "2K"
-			(at 70.6121 67.2521 0)
+		(property "Value" "50K"
+			(at 70.612 67.2521 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -2702,7 +2756,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Potentiometer_THT:Potentiometer_ACP_CA9-H5_Horizontal"
+		(property "Footprint" "Library:Minidragon Potentiometer"
 			(at 72.39 66.04 0)
 			(effects
 				(font
@@ -2757,22 +2811,22 @@
 		(fields_autoplaced yes)
 		(uuid "b147fa31-1d68-4b75-b7c9-b179e14fb153")
 		(property "Reference" "RV1"
-			(at 64.77 46.9097 90)
+			(at 64.77 46.9095 90)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Value" "20K"
-			(at 64.77 49.3339 90)
+		(property "Value" "10K"
+			(at 64.77 49.3338 90)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Footprint" "Potentiometer_THT:Potentiometer_ACP_CA9-H5_Horizontal"
+		(property "Footprint" "Library:Minidragon Potentiometer"
 			(at 64.77 52.07 0)
 			(effects
 				(font
@@ -2835,7 +2889,7 @@
 				(justify right)
 			)
 		)
-		(property "Value" "2K"
+		(property "Value" "50K"
 			(at 61.468 67.2521 0)
 			(effects
 				(font
@@ -2844,7 +2898,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Potentiometer_THT:Potentiometer_ACP_CA9-H5_Horizontal"
+		(property "Footprint" "Library:Minidragon Potentiometer"
 			(at 59.69 66.04 0)
 			(effects
 				(font
