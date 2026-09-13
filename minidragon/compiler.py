@@ -9439,10 +9439,20 @@ class Compiler:
                 # return data.
                 dedup_label = self.local_label_name(context, "return_dedup")
 
+                def replace(loc: int, val: str) -> None:
+                    old = sanitize(code[loc])
+                    if old.strip():
+                        code[loc] = code[loc].replace(old, val)
+                    else:
+                        code[loc] = val
+
                 for loc in eliminate:
-                    code[loc] = "; __REMOVEME__ removed by compiler in deduplication pass"
+                    if loc in locs:
+                        continue
+
+                    replace(loc, "NOP")
                 for loc in locs[:-1]:
-                    code[loc] = f"  LNGJUMP {dedup_label}"
+                    replace(loc, f"LNGJUMP {dedup_label}")
 
                 labelloc = locs[-1] - (length - 1)
                 code = [
@@ -9451,7 +9461,7 @@ class Compiler:
                     *code[labelloc:],
                 ]
 
-        return [c for c in code if c != "; __REMOVEME__ removed by compiler in deduplication pass"]
+        return code
 
     def optimization_pass_impl(self, code: List[str]) -> List[str]:
         codelen = len(code)
