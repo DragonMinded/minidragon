@@ -11,7 +11,7 @@ from .util import comment_source, hexstr, hexval, sanitize
 
 
 MAX_STRING_LENGTH: Final[int] = 32768  # Length of string including null-termination.
-VERSION: Final[str] = "1.3.11"  # Also bump version in pyproject.toml
+VERSION: Final[str] = "1.3.12"  # Also bump version in pyproject.toml
 
 
 class CompilerSettings:
@@ -9245,7 +9245,7 @@ class Compiler:
         compiled += chunk
 
         # Function boundary is where we optimize redundant stack moves and load/store operations.
-        compiled.code = self.optimization_pass(compiled.code, context.settings.optimize)
+        compiled.code = self.optimization_pass(context, compiled.code, context.settings.optimize)
 
         # Finally, find any comments that comment on empty blocks after optimization, and remove them.
         compiled.code = self.remove_empty_comments(compiled.code)
@@ -9374,13 +9374,14 @@ class Compiler:
 
         return code
 
-    def optimization_pass(self, code: List[str], enabled: bool) -> List[str]:
+    def optimization_pass(self, context: Context, code: List[str], enabled: bool) -> List[str]:
         # Clone this so we aren't mutating the input because that's bad form.
         code = code[:]
 
         if enabled:
-            old_code = "\n".join(code)
+            code = self.duplicate_return_pass_impl(context, code)
 
+            old_code = "\n".join(code)
             while True:
                 code = self.optimization_pass_impl(code)
                 new_code = "\n".join(code)
@@ -9395,6 +9396,62 @@ class Compiler:
         code = [strip_opt_comment(c) for c in code]
         code = [c for c in code if c.strip() != "NOP"]
         return code
+
+    def duplicate_return_pass_impl(self, context: Context, code: List[str]) -> List[str]:
+        locs: List[int] = []
+
+        for i, line in enumerate(code):
+            line = sanitize(line)
+            if line == "RET":
+                locs.append(i)
+
+        if len(locs) > 1:
+            eliminate: Set[int] = set(locs[:-1])
+            length: int = 1
+            saved: int = 1
+
+            iterating: bool = True
+            while iterating:
+                instructions: Set[str] = set()
+
+                for loc in locs:
+                    newloc = loc - length
+                    if newloc < 0:
+                        iterating = False
+                        break
+
+                    instructions.add(sanitize(code[newloc]))
+
+                if len(instructions) > 1:
+                    iterating = False
+                else:
+                    for loc in locs[:-1]:
+                        eliminate.add(loc - length)
+
+                    length += 1
+
+                    instruction = list(instructions)[0]
+                    if instruction.strip() and ":" not in instruction:
+                        saved += 1
+
+            if saved > 3:
+                # We can save space in the ROM by jumping to a single copy of the
+                # return data.
+                dedup_label = self.local_label_name(context, "return_dedup")
+
+                for loc in eliminate:
+                    code[loc] = "; __REMOVEME__ removed by compiler in deduplication pass"
+                for loc in locs[:-1]:
+                    code[loc] = f"  LNGJUMP {dedup_label}"
+
+                labelloc = locs[-1] - (length - 1)
+                code = [
+                    *code[:labelloc],
+                    f"{dedup_label}:",
+                    *code[labelloc:],
+                ]
+
+        return [c for c in code if c != "; __REMOVEME__ removed by compiler in deduplication pass"]
 
     def optimization_pass_impl(self, code: List[str]) -> List[str]:
         codelen = len(code)
@@ -9981,6 +10038,9 @@ class Compiler:
 
                 elif insn(cur) == "STORE" and (key := curpos(pos)) is not None and stack_counts[key] == 1:
                     remove(pos)
+
+                elif insn(cur) in {"JRI", "LNGJUMP", "RET"} and ":" not in nxt:
+                    remove(pos, offset=1)
 
                 elif insn(cur) in {"JRI", "JRIZ", "JRINZ", "LNGJUMP", "LNGJUMPZ", "LNGJUMPNZ"} and (params(cur) + ":") == nxt:
                     remove(pos)
