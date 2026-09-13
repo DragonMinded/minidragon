@@ -9250,6 +9250,10 @@ class Compiler:
         # Finally, find any comments that comment on empty blocks after optimization, and remove them.
         compiled.code = self.remove_empty_comments(compiled.code)
         compiled.code = self.remove_duplicate_source_comments(context, compiled.code)
+
+        # And then perform a code deduplication pass.
+        compiled.code = self.deduplicate_return_paths(context, compiled.code)
+
         compiled_preamble = compiled.preamble
         if compiled_preamble:
             compiled_preamble.append("")
@@ -9379,9 +9383,8 @@ class Compiler:
         code = code[:]
 
         if enabled:
-            code = self.duplicate_return_pass_impl(context, code)
-
             old_code = "\n".join(code)
+
             while True:
                 code = self.optimization_pass_impl(code)
                 new_code = "\n".join(code)
@@ -9394,10 +9397,10 @@ class Compiler:
             return line.split("; STACKOFF", 1)[0].rstrip()
 
         code = [strip_opt_comment(c) for c in code]
-        code = [c for c in code if c.strip() != "NOP"]
+        code = [c for c in code if sanitize(c) != "NOP"]
         return code
 
-    def duplicate_return_pass_impl(self, context: Context, code: List[str]) -> List[str]:
+    def deduplicate_return_paths(self, context: Context, code: List[str]) -> List[str]:
         locs: List[int] = []
 
         for i, line in enumerate(code):
@@ -9461,6 +9464,7 @@ class Compiler:
                     *code[labelloc:],
                 ]
 
+        code = [c for c in code if sanitize(c) != "NOP"]
         return code
 
     def optimization_pass_impl(self, code: List[str]) -> List[str]:
