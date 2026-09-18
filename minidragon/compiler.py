@@ -601,10 +601,11 @@ class FunctionPrototype:
 
 
 class GlobalVariable:
-    def __init__(self, name: str, vartype: CoreType, marked: bool = False) -> None:
+    def __init__(self, name: str, vartype: CoreType, *, marked: bool = False, value: Optional[str] = None) -> None:
         self.name = name
         self.type = vartype
         self.marked = marked
+        self.value = value
 
     def mark(self) -> None:
         self.marked = True
@@ -1724,7 +1725,7 @@ class Compiler:
             # Since this was successfully handled, add it to our constants, so future constants may reference it as well.
             if assign_type == "str":
                 # String constants are not inlined.
-                globs.append(GlobalVariable(assign_name, assign_type))
+                globs.append(GlobalVariable(assign_name, assign_type, value=value if isinstance(value, str) else None))
             else:
                 consts.append(Constant(assign_name, assign_type, value))
 
@@ -6811,7 +6812,11 @@ class Compiler:
 
             global_var = global_by_name(refs, expression.value)
             if global_var is not None:
-                return (global_var.type.length or None) if global_var.type.is_string else None
+                if global_var.type.is_string:
+                    inferred_length = (len(global_var.value) + 1) if (global_var.type.const and global_var.value is not None) else None
+                    return global_var.type.length or inferred_length or None
+                else:
+                    return None
 
             raise CompilerError(f"Undefined variable reference to {expression.value!r}", context)
 
@@ -8788,7 +8793,7 @@ class Compiler:
 
         # We need to track which global variables we know about, so that we can support local assignment over global names.
         refs_copy: List[Union[FunctionPrototype, GlobalVariable]] = [x for x in refs if isinstance(x, FunctionPrototype)]
-        globals_copy: List[GlobalVariable] = [GlobalVariable(x.name, x.type, x.marked) for x in refs if isinstance(x, GlobalVariable)]
+        globals_copy: List[GlobalVariable] = [GlobalVariable(x.name, x.type, marked=x.marked, value=x.value) for x in refs if isinstance(x, GlobalVariable)]
         refs_copy += globals_copy
 
         last_statement_was_return = False
