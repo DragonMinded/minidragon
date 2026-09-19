@@ -1868,11 +1868,11 @@ class Compiler:
 
     def generate_addpci(self, move_amt: int, reason: Optional[str] = None, prefix: Optional[str] = None) -> Sections:
         compiled = Sections()
-        while move_amt > 31:
+        while move_amt > 32:
             if prefix is not None:
                 compiled.append_code(prefix)
-            compiled.append_code("  ADDPCI 31" + comment_source(reason))
-            move_amt -= 31
+            compiled.append_code("  ADDPCI 32" + comment_source(reason))
+            move_amt -= 32
         if move_amt:
             if prefix is not None:
                 compiled.append_code(prefix)
@@ -6031,36 +6031,110 @@ class Compiler:
             size = self.infer_string_index_size(slice_or_index.value, types, local_consts, context)
 
             if size == 1:
-                # Calculate the offset into the string that we're gonna need, first.
-                clobbers.add("A")
-                compiled += self.generate_expr_internal(slice_or_index.value, "register(A, uint8)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(slice_or_index.value))
+                # First off, see if the index is constant, which we can generate much better code for.
+                try:
+                    const_val = self.codegen_eval(slice_or_index.value, local_consts, context)
+                except NonConstantExpressionException:
+                    const_val = None
 
-                # We clobber the SPC to do this index lookup, and U to save the advance pointer.
-                clobbers.add("SPC")
-                clobbers.add("U")
+                if not isinstance(const_val, int):
+                    # Calculate the offset into the string that we're gonna need, first.
+                    clobbers.add("A")
 
-                # Move to the correct spot on the stack to pop the pointer onto the SPC.
-                compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
-                compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
-                compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
-                compiled.append_code("  POP SPC")
-                stack.move(-2)
-                compiled.code += comment_stack(stack)
+                    compiled += self.generate_expr_internal(slice_or_index.value, "register(A, uint8)", types, stack, clobbers, allocations, refs, local_consts, context.wrap(slice_or_index.value))
 
-                upper_clear = self.local_label_name(context, "upper_clear")
-                compiled.append_code("  SWAP PC, SPC")
-                compiled.append_code("  SHL")
-                compiled.append_code(f"  JRINC {upper_clear}")
-                compiled.append_code("  MOV A, U")
-                compiled.append_code("  LOADI 127")
-                compiled.append_code("  ADDPC")
-                compiled.append_code("  INCPC")
-                compiled.append_code("  MOV U, A")
-                compiled.append_code(f"{upper_clear}:")
-                compiled.append_code("  SHR")
-                compiled.append_code("  ADDPC")
-                compiled.append_code("  LOAD A")
-                compiled.append_code("  SWAP PC, SPC")
+                    # We clobber the SPC to do this index lookup, and U to save the advance pointer.
+                    clobbers.add("SPC")
+                    clobbers.add("U")
+
+                    # Move to the correct spot on the stack to pop the pointer onto the SPC.
+                    compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                    compiled.append_code("  POP SPC")
+                    stack.move(-2)
+                    compiled.code += comment_stack(stack)
+
+                    upper_clear = self.local_label_name(context, "upper_clear")
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  SHL")
+                    compiled.append_code(f"  JRINC {upper_clear}")
+                    compiled.append_code("  MOV A, U")
+                    compiled.append_code("  LOADI 127")
+                    compiled.append_code("  ADDPC")
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  MOV U, A")
+                    compiled.append_code(f"{upper_clear}:")
+                    compiled.append_code("  SHR")
+                    compiled.append_code("  ADDPC")
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                else:
+                    # We always clobber the SPC no matter what.
+                    clobbers.add("SPC")
+                    clobbers.add("A")
+
+                    # Look up the variable itself.
+                    compiled += self.generate_move_to(base_dest, stack, clobbers, context, offset=1)
+                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                    compiled.append_code("  POP SPC")
+                    stack.move(-2)
+                    compiled.code += comment_stack(stack)
+
+                    # Now, use it as our memory pointer.
+                    compiled.append_code("  SWAP PC, SPC")
+
+                    # Special case if the const value is zero, we're already at the right spot.
+                    if const_val == 0:
+                        pass
+
+                    # We can do this in one ADDPCI call.
+                    elif const_val <= 32:
+                        compiled.append_code(f"  ADDPCI {const_val}")
+
+                    # We can do this in two ADDPCI calls. LOADI looks appealing but remember it is two bytes.
+                    elif const_val <= 64:
+                        compiled.append_code("  ADDPCI 32")
+                        compiled.append_code(f"  ADDPCI {const_val - 32}")
+
+                    # We can do this in a LOADI + ADDPC call, which is three bytes but two instructions.
+                    elif const_val <= 127:
+                        compiled.append_code(f"  LOADI {const_val}")
+                        compiled.append_code("  ADDPC")
+
+                    # We can do this in a LOADI + ADDPC and then an ADDPCI to squeak out the difference.
+                    elif const_val <= (127 + 32):
+                        compiled.append_code("  LOADI 127")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code(f"  ADDPCI {const_val - 127}")
+
+                    # We can do this in a LOADI + ADDPC and then a second ADDPCI to squeak out the difference.
+                    elif const_val <= (127 + 32 + 32):
+                        compiled.append_code("  LOADI 127")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code("  ADDPCI 32")
+                        compiled.append_code(f"  ADDPCI {const_val - (127 + 32)}")
+
+                    # We can do this in a pair of LOADI + ADDPC calls.
+                    elif const_val <= (127 + 127):
+                        compiled.append_code("  LOADI 127")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code(f"  LOADI {const_val - 127}")
+                        compiled.append_code("  ADDPC")
+
+                    # We need to squeak out the last bits using an ADDPCI call.
+                    else:
+                        compiled.append_code("  LOADI 127")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code(f"  ADDPCI {const_val - (127 + 127)}")
+
+                    # Finally, grab the value.
+                    compiled.append_code("  LOAD A")
+                    compiled.append_code("  SWAP PC, SPC")
+
             else:
                 # Calculate offset based on our base destination and the offset value.
                 compiled += self.generate_function_call_internal(
@@ -9669,7 +9743,7 @@ class Compiler:
                     replace(pos, 2, ["  INCPC"])
                 elif total_move == -1:
                     replace(pos, 2, ["  DECPC"])
-                elif total_move > 1 and total_move <= 31:
+                elif total_move > 1 and total_move <= 32:
                     replace(pos, 2, [f"  ADDPCI {total_move}"])
                 elif total_move < -1 and total_move >= -32:
                     replace(pos, 2, [f"  SUBPCI {-total_move}"])
@@ -10007,7 +10081,7 @@ class Compiler:
                         intparam = -(((~intparam) + 1) & 0xFF)
 
                     curstackpos = curpos(pos, offset=1)
-                    if intparam >= -32 and intparam <= 31 and curstackpos is not None:
+                    if intparam >= -32 and intparam <= 32 and curstackpos is not None:
                         replace(pos, 2, [f"  LOAD A ; STACKOFF: {curstackpos}", f"  ADDI {intparam}"])
                         continue
 
