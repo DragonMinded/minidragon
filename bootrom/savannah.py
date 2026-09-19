@@ -6,7 +6,7 @@ __BOLD: const[str] = "\033[1m"
 __NORMAL: const[str] = "\033[0m"
 
 
-def savanna_get_int(val: str[32]) -> uint16:
+def savannah_get_int(val: str[32]) -> uint16:
     if val[0] == "#":
         # Decimal number.
         val[0] = " "
@@ -39,7 +39,7 @@ def savanna_get_int(val: str[32]) -> uint16:
     return accum
 
 
-def savanna_print_help() -> void:
+def savannah_print_help() -> void:
     serial_send("Available commands:\n\n")
     serial_send(f"{__BOLD}g addr{__NORMAL}       - go to current address\n")
     serial_send(f"{__BOLD}r [addr]{__NORMAL}     - read byte at current address, optionally specifying address first\n")
@@ -50,22 +50,22 @@ def savanna_print_help() -> void:
     serial_send("Prefix any number with # for an integer, or % for a binary number.\n")
 
 
-def savanna_print_unrecognized(requested: char) -> void:
+def savannah_print_unrecognized(requested: char) -> void:
     serial_send(f"Unrecognized command '{requested}'\n")
 
 
-def savanna_goto_address(addr: str[32]) -> void:
+def savannah_goto_address(addr: str[32]) -> void:
     global __addr
-    __addr = savanna_get_int(addr)
+    __addr = savannah_get_int(addr)
 
 
-def savanna_read_byte(addr: str[32]) -> void:
+def savannah_read_byte(addr: str[32]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
     if addr:
         inc = False
-        actual = savanna_get_int(addr)
+        actual = savannah_get_int(addr)
 
     val: uint8 = peek(actual)
     if inc:
@@ -75,7 +75,7 @@ def savanna_read_byte(addr: str[32]) -> void:
     serial_send(f"{hex(actual)}: {hex(val)}\n")
 
 
-def savanna_write_byte(addr_and_val: str[32]) -> void:
+def savannah_write_byte(addr_and_val: str[32]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
@@ -98,9 +98,9 @@ def savanna_write_byte(addr_and_val: str[32]) -> void:
 
     if addr:
         inc = False
-        actual = savanna_get_int(addr)
+        actual = savannah_get_int(addr)
 
-    val_as_int: uint8 = savanna_get_int(val)
+    val_as_int: uint8 = savannah_get_int(val)
     poke(actual, val_as_int)
 
     if inc:
@@ -110,7 +110,7 @@ def savanna_write_byte(addr_and_val: str[32]) -> void:
     serial_send(f"{hex(actual)}: {hex(val_as_int)}\n")
 
 
-def savanna_dump_bytes(addr_and_amt: str[32]) -> void:
+def savannah_dump_bytes(addr_and_amt: str[32]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
@@ -133,9 +133,9 @@ def savanna_dump_bytes(addr_and_amt: str[32]) -> void:
 
     if addr:
         inc = False
-        actual = savanna_get_int(addr)
+        actual = savannah_get_int(addr)
 
-    left: uint16 = savanna_get_int(amt)
+    left: uint16 = savannah_get_int(amt)
     spent: uint8 = 0
     off1: uint8 = 8
     off2: uint8 = 8 + (16 * 3)
@@ -176,7 +176,7 @@ def savanna_dump_bytes(addr_and_amt: str[32]) -> void:
             buf = f"{hex(start)}:                                                                 \n"
 
 
-def savanna_mainloop() -> void:
+def savannah_mainloop() -> void:
     command: const[str[32]] = serial_input(f"{__BOLD}{hex(__addr)}>{__NORMAL} ", max_length=31)
 
     if not command:
@@ -184,19 +184,19 @@ def savanna_mainloop() -> void:
 
     requested: char = command[0]
     if requested == "h" or requested == "?":
-        savanna_print_help()
+        savannah_print_help()
 
     elif requested == "g":
-        savanna_goto_address(command[2:])
+        savannah_goto_address(command[2:])
 
     elif requested == "r":
-        savanna_read_byte(command[2:])
+        savannah_read_byte(command[2:])
 
     elif requested == "w":
-        savanna_write_byte(command[2:])
+        savannah_write_byte(command[2:])
 
     elif requested == "d":
-        savanna_dump_bytes(command[2:])
+        savannah_dump_bytes(command[2:])
 
     else:
-        savanna_print_unrecognized(requested)
+        savannah_print_unrecognized(requested)
