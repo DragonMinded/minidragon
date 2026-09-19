@@ -83,5 +83,6 @@ def main() -> void:
                 serial_send("No cartridge present.\n")
 
             # Busy loop in the monitor program.
+            serial_send("\nSavanna Monitor for MiniDragon\n")
             while True:
                 savanna_mainloop()

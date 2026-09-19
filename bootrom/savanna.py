@@ -44,6 +44,7 @@ def savanna_print_help() -> void:
     serial_send(f"{__BOLD}g addr{__NORMAL}       - go to current address\n")
     serial_send(f"{__BOLD}r [addr]{__NORMAL}     - read byte at current address, optionally specifying address first\n")
     serial_send(f"{__BOLD}w [addr] val{__NORMAL} - write byte at current address, optionally specifying address first\n")
+    serial_send(f"{__BOLD}d [addr] amt{__NORMAL} - dump bytes at current address, optionally specifying address first\n")
     serial_send(f"{__BOLD}h/?     {__NORMAL}     - show this help\n")
     serial_send("\nAll commands with implicit address increment the address after running.\n")
     serial_send("Prefix any number with # for an integer, or % for a binary number.\n")
@@ -109,6 +110,72 @@ def savanna_write_byte(addr_and_val: str[32]) -> void:
     serial_send(f"{hex(actual)}: {hex(val_as_int)}\n")
 
 
+def savanna_dump_bytes(addr_and_amt: str[32]) -> void:
+    inc: bool = True
+    actual: uint16 = __addr
+
+    addr: str[32] = ""
+    amt: str[32] = ""
+    seen_space: bool = False
+    ch: char
+
+    for ch in addr_and_amt:
+        if seen_space:
+            amt += ch
+        elif ch == " ":
+            seen_space = True
+        else:
+            addr += ch
+
+    if not amt:
+        amt = addr
+        addr = ""
+
+    if addr:
+        inc = False
+        actual = savanna_get_int(addr)
+
+    left: uint16 = savanna_get_int(amt)
+    spent: uint8 = 0
+    off1: uint8 = 8
+    off2: uint8 = 8 + (16 * 3)
+    start: uint16 = actual
+    buf: str[74] = f"{hex(start)}:                                                                 \n"
+
+    while left:
+        # First, read the value
+        read: uint8 = peek(actual)
+        actual += 1
+        spent += 1
+        if inc:
+            global __addr
+            __addr += 1
+
+        # Now, output the hex of the value
+        hv: str[5] = hex(read)
+        buf[off1] = hv[2]
+        off1 += 1
+        buf[off1] = hv[3]
+        off1 += 2
+
+        # Now, if the value is in ASCII range, output it
+        if read >= 0x20 and read < 0x7F:
+            buf[off2] = chr(read)
+        else:
+            buf[off2] = '.'
+        off2 += 1
+
+        # Now, output it.
+        left -= 1
+        if spent == 16 or not left:
+            serial_send(buf)
+            start += 16
+            spent = 0
+            off1 = 8
+            off2 = 8 + (16 * 3)
+            buf = f"{hex(start)}:                                                                 \n"
+
+
 def savanna_mainloop() -> void:
     command: const[str[32]] = serial_input(f"{__BOLD}{hex(__addr)}>{__NORMAL} ", max_length=31)
 
@@ -127,6 +194,9 @@ def savanna_mainloop() -> void:
 
     elif requested == "w":
         savanna_write_byte(command[2:])
+
+    elif requested == "d":
+        savanna_dump_bytes(command[2:])
 
     else:
         savanna_print_unrecognized(requested)
