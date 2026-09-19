@@ -7705,15 +7705,15 @@ class Compiler:
 
             # Attempt to infer the constant size.
             try:
-                value = self.codegen_eval(assign_offset, local_consts, context.wrap(assign_offset))
+                offset_value = self.codegen_eval(assign_offset, local_consts, context.wrap(assign_offset))
             except NonConstantExpressionException:
-                value = None
-            if not isinstance(value, int):
-                value = None
+                offset_value = None
+            if not isinstance(offset_value, int):
+                offset_value = None
 
             offset_types: Dict[cst.CSTNode, CoreType]
-            if value is not None:
-                size = 1 if not bool(value & 0xFFFFFF00) else 2
+            if offset_value is not None:
+                size = 1 if not bool(offset_value & 0xFFFFFF00) else 2
                 inferred = CoreType("uint8" if size == 1 else "uint16")
 
                 offset_types = self.infer_expr_types(assign_offset, inferred, stack, refs, local_consts, context)
@@ -7795,9 +7795,13 @@ class Compiler:
                 stack.move(-2)
                 compiled.code += comment_stack(stack)
 
+            # Now, make the below if statement simpler, we don't need this anymore if it's a 2 byte value.
+            if inferred_offset_type.size == 2:
+                offset_value = None
+
             temp_pointer = self.expr_temp_name()
             pointer_allocated = False
-            if "SPC" in offset_clobbers or inferred_offset_type.size == 2:
+            if ("SPC" in offset_clobbers and not isinstance(offset_value, int)) or inferred_offset_type.size == 2:
                 # We're about to clobber what we just calculated with our offset expression, so save it.
                 stack.alloc(StackVar(temp_pointer, CoreType("uint16"), initialized=True))
                 pointer_allocated = True
@@ -7811,35 +7815,88 @@ class Compiler:
 
             # Now, calculate the offset we need to assign at.
             if inferred_offset_type.size == 1:
-                compiled += self.generate_expr_internal(
-                    assign_offset, "register(A, uint8)", offset_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_offset)
-                )
+                if not isinstance(offset_value, int):
+                    compiled += self.generate_expr_internal(
+                        assign_offset, "register(A, uint8)", offset_types, stack, clobbers, allocations, refs, local_consts, context.wrap(assign_offset)
+                    )
 
-                if "SPC" in offset_clobbers:
-                    # Gotta pop the SPC value back again.
-                    compiled += self.generate_move_to(temp_pointer, stack, clobbers, context, offset=1)
-                    compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
-                    compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
-                    compiled.append_code("  POP SPC")
-                    stack.move(-2)
-                    compiled.code += comment_stack(stack)
+                    if "SPC" in offset_clobbers:
+                        # Gotta pop the SPC value back again.
+                        compiled += self.generate_move_to(temp_pointer, stack, clobbers, context, offset=1)
+                        compiled.append_code("  NOP" + stack.comment(stack.location, StackOperation.LOAD))
+                        compiled.append_code("  NOP" + stack.comment(stack.location - 1, StackOperation.LOAD))
+                        compiled.append_code("  POP SPC")
+                        stack.move(-2)
+                        compiled.code += comment_stack(stack)
 
-                # Clobbering U because we need a temporary value to hold A.
-                clobbers.add("U")
+                    # Clobbering U because we need a temporary value to hold A.
+                    clobbers.add("U")
 
-                upper_clear = self.local_label_name(context, "upper_clear")
-                compiled.append_code("  SWAP PC, SPC")
-                compiled.append_code("  SHL")
-                compiled.append_code(f"  JRINC {upper_clear}")
-                compiled.append_code("  MOV A, U")
-                compiled.append_code("  LOADI 127")
-                compiled.append_code("  ADDPC")
-                compiled.append_code("  INCPC")
-                compiled.append_code("  MOV U, A")
-                compiled.append_code(f"{upper_clear}:")
-                compiled.append_code("  SHR")
-                compiled.append_code("  ADDPC")
-                compiled.append_code("  SWAP PC, SPC")
+                    upper_clear = self.local_label_name(context, "upper_clear")
+                    compiled.append_code("  SWAP PC, SPC")
+                    compiled.append_code("  SHL")
+                    compiled.append_code(f"  JRINC {upper_clear}")
+                    compiled.append_code("  MOV A, U")
+                    compiled.append_code("  LOADI 127")
+                    compiled.append_code("  ADDPC")
+                    compiled.append_code("  INCPC")
+                    compiled.append_code("  MOV U, A")
+                    compiled.append_code(f"{upper_clear}:")
+                    compiled.append_code("  SHR")
+                    compiled.append_code("  ADDPC")
+                    compiled.append_code("  SWAP PC, SPC")
+
+                else:
+                    # We can skip all of the shenanigans above and just move to the right spot as an offset.
+                    compiled.append_code("  SWAP PC, SPC")
+
+                    # We're already at the correct offset for what we need to do.
+                    if offset_value == 0:
+                        pass
+
+                    # We can do this in one ADDPCI call.
+                    elif offset_value <= 32:
+                        compiled.append_code(f"  ADDPCI {offset_value}")
+
+                    # We can do this in two ADDPCI calls. LOADI looks appealing but remember it is two bytes.
+                    elif offset_value <= 64:
+                        compiled.append_code("  ADDPCI 32")
+                        compiled.append_code(f"  ADDPCI {offset_value - 32}")
+
+                    # We can do this in a LOADI + ADDPC call, which is three bytes but two instructions.
+                    elif offset_value <= 127:
+                        compiled.append_code(f"  LOADI {offset_value}")
+                        compiled.append_code("  ADDPC")
+
+                    # We can do this in a LOADI + ADDPC and then an ADDPCI to squeak out the difference.
+                    elif offset_value <= (127 + 32):
+                        compiled.append_code("  LOADI 127")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code(f"  ADDPCI {offset_value - 127}")
+
+                    # We can do this in a LOADI + ADDPC and then a second ADDPCI to squeak out the difference.
+                    elif offset_value <= (127 + 32 + 32):
+                        compiled.append_code("  LOADI 127")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code("  ADDPCI 32")
+                        compiled.append_code(f"  ADDPCI {offset_value - (127 + 32)}")
+
+                    # We can do this in a pair of LOADI + ADDPC calls.
+                    elif offset_value <= (127 + 127):
+                        compiled.append_code("  LOADI 127")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code(f"  LOADI {offset_value - 127}")
+                        compiled.append_code("  ADDPC")
+
+                    # We need to squeak out the last bits using an ADDPCI call.
+                    else:
+                        compiled.append_code("  LOADI 127")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code("  ADDPC")
+                        compiled.append_code(f"  ADDPCI {offset_value - (127 + 127)}")
+
+                    # Finally, swap back so that we're operating on the normal stack.
+                    compiled.append_code("  SWAP PC, SPC")
 
             else:
                 compiled += self.generate_expr_internal(
