@@ -4,6 +4,7 @@ from hardware.cartridge import (
     cartridge_init,
     cartridge_banks,
     cartridge_select_bank,
+    cartridge_input,
     cartridge_run,
     cartridge_title,
     cartridge_author,
@@ -14,6 +15,8 @@ from hardware.serial import (
     serial_send,
     serial_input,
 )
+
+from .savanna import savanna_mainloop
 
 
 def main() -> void:
@@ -61,8 +64,24 @@ def main() -> void:
             cartridge_run()
 
         else:
-            serial_send("No cartridge present.\n")
+            # This could be a different type of hardware cartridge instead of an
+            # executable cart. Check for that here by reading the cartridge input
+            # bits which are user-defined on executable cartridges but used as
+            # cart identifiers in non-executable cartridges.
+            carttype: uint8 = cartridge_input()
+            if carttype == 1:
+                # This is a pure RAM cartridge, useful for loading programs across serial.
+                serial_send("Expansion RAM mapped to cartridge space detected.\n")
+            elif carttype == 2:
+                # This is a SRAM/FRAM cartridge with a filesystem, useful for built-in programs.
+                serial_send("Filesystem-based cartridge detected.\n")
+            elif carttype:
+                # This is an unknown cartridge.
+                serial_send(f"Unknown cartridge type {hex(carttype)} detected.\n")
+            else:
+                # No cartridge at all present.
+                serial_send("No cartridge present.\n")
 
-            # Busy loop forever.
+            # Busy loop in the monitor program.
             while True:
-                pass
+                savanna_mainloop()
