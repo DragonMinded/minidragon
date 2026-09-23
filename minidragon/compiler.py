@@ -2656,8 +2656,9 @@ class Compiler:
                         stacksize: Optional[int] = stackvars[i].size
                         if stackloc is None or stacksize is None:
                             raise Exception("Logic error, couldn't determine stack size or location for storage tracking!")
-                        for z in range(stacksize):
-                            compiled.append_code("  NOP" + stack.comment(stackloc + z, StackOperation.LOAD))
+                        if not isinstance(param_in_question, (PaddingCoreType, RegisterCoreType)):
+                            for z in range(stacksize):
+                                compiled.append_code("  NOP" + stack.comment(stackloc + z, StackOperation.LOAD))
 
                         if not stackvars[i].initialized:
                             raise CompilerError(f"Use of uninitialized variable {stackvars[i].name!r}", context)
@@ -9606,6 +9607,25 @@ class Compiler:
     def optimization_pass_impl(self, code: List[str]) -> List[str]:
         codelen = len(code)
 
+        def stackpos(line: str) -> Optional[str]:
+            if "; STACKOFF:" in line:
+                _, pos = line.split("; STACKOFF: ", 1)
+                return pos.strip()
+            return None
+
+        stack_counts: Dict[str, int] = {
+            'builtin(retptr) + 0': 1,
+            'builtin(retptr) + 1': 1,
+            'builtin(retval) + 0': 1,
+            'builtin(retval) + 1': 1,
+            'builtin(retval) + 2': 1,
+            'builtin(retval) + 3': 1,
+        }
+        for line in code:
+            stpos = stackpos(line)
+            if stpos:
+                stack_counts[stpos] = stack_counts.get(stpos, 0) + 1
+
         def calcoffsets(pos: int, offset: int, amount: int) -> List[int]:
             # First, find the base offset based on our current pos, skipping comments.
             while offset:
@@ -9680,6 +9700,9 @@ class Compiler:
                 raise Exception("Logic error, cannot remove locations that do not exist!")
 
             for off in sorted(locs, reverse=True):
+                if (stpos := stackpos(code[off])) is not None:
+                    if stpos in stack_counts:
+                        stack_counts[stpos] = max(0, stack_counts[stpos] - 1)
                 code = code[:off] + code[(off + 1):]
             codelen -= length
 
@@ -9725,12 +9748,6 @@ class Compiler:
                 except ValueError:
                     return None
 
-        def stackpos(line: str) -> Optional[str]:
-            if "; STACKOFF:" in line:
-                _, pos = line.split("; STACKOFF: ", 1)
-                return pos.strip()
-            return None
-
         def moveamt(line: str) -> int:
             if insn(line) == "INCPC":
                 return 1
@@ -9752,19 +9769,6 @@ class Compiler:
             if param.endswith(" !CF"):
                 return param[:-4] + " !CF"
             raise Exception("Logic error, shouldn't be inverting instruction that isn't SKIPIF!")
-
-        stack_counts: Dict[str, int] = {
-            'builtin(retptr) + 0': 1,
-            'builtin(retptr) + 1': 1,
-            'builtin(retval) + 0': 1,
-            'builtin(retval) + 1': 1,
-            'builtin(retval) + 2': 1,
-            'builtin(retval) + 3': 1,
-        }
-        for line in code:
-            stpos = stackpos(line)
-            if stpos:
-                stack_counts[stpos] = stack_counts.get(stpos, 0) + 1
 
         stackop = {"ADDPCI", "INCPC", "SUBPCI", "DECPC"}
         memoryop = {"LOADI", "ADDI", "INV", "SHL", "SHR", "RCL", "RCR", "ROL", "ROR", "ZERO", "NOP", "NEG", "INC", "DEC"}
@@ -10147,46 +10151,52 @@ class Compiler:
             elif insn(prv) != "SKIPIF":
                 # All of these can be removed if we aren't conditionally performing the first one.
                 # As a result of combining this if statement, this needs to be last.
-                if cur == "ADDI 0" and nxt == "ADDI 0":
+                act = cur
+                lookback = 0
+                while act == "NOP":
+                    lookback -= 1
+                    act = getline(pos, offset=lookback)
+
+                if act == "ADDI 0" and nxt == "ADDI 0":
                     remove(pos, offset=1)
 
-                elif cur == "STORE A" and nxt == "LOAD A":
+                elif act == "STORE A" and nxt == "LOAD A":
                     remove(pos, offset=1)
 
-                elif cur == "STORE A" and nxt == "STORE A":
+                elif act == "STORE A" and nxt == "STORE A":
                     remove(pos, offset=1)
 
-                elif cur == "STORE U" and nxt == "LOAD U":
+                elif act == "STORE U" and nxt == "LOAD U":
                     remove(pos, offset=1)
 
-                elif cur == "STORE U" and nxt == "STORE U":
+                elif act == "STORE U" and nxt == "STORE U":
                     remove(pos, offset=1)
 
-                elif cur == "STORE V" and nxt == "STORE V":
+                elif act == "STORE V" and nxt == "STORE V":
                     remove(pos, offset=1)
 
-                elif cur == "STORE V" and nxt == "LOAD V":
+                elif act == "STORE V" and nxt == "LOAD V":
                     remove(pos, offset=1)
 
-                elif cur == "LOAD A" and nxt == "STORE A":
+                elif act == "LOAD A" and nxt == "STORE A":
                     remove(pos, offset=1)
 
-                elif cur == "LOAD A" and nxt == "LOAD A":
+                elif act == "LOAD A" and nxt == "LOAD A":
                     remove(pos, offset=1)
 
-                elif cur == "LOAD U" and nxt == "STORE U":
+                elif act == "LOAD U" and nxt == "STORE U":
                     remove(pos, offset=1)
 
-                elif cur == "LOAD U" and nxt == "LOAD U":
+                elif act == "LOAD U" and nxt == "LOAD U":
                     remove(pos, offset=1)
 
-                elif cur == "LOAD V" and nxt == "STORE V":
+                elif act == "LOAD V" and nxt == "STORE V":
                     remove(pos, offset=1)
 
-                elif cur == "LOAD V" and nxt == "LOAD V":
+                elif act == "LOAD V" and nxt == "LOAD V":
                     remove(pos, offset=1)
 
-                elif insn(cur) == "STORE" and (key := curpos(pos)) is not None and stack_counts[key] == 1:
+                elif insn(cur) == "STORE" and (key := curpos(pos)) is not None and stack_counts[key] <= 1:
                     remove(pos)
 
                 elif insn(cur) in {"JRI", "LNGJUMP", "RET"} and ":" not in nxt:
