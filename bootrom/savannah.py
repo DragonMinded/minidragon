@@ -9,11 +9,10 @@ __addr: uint16 = 0
 heap: extern[const[str]]
 
 
-def savannah_get_int(val: str[30]) -> uint16:
+def savannah_get_int(val: const[str[30]]) -> uint16:
     if val[0] == "#":
         # Decimal number.
-        val[0] = " "
-        return int(val)
+        return int(val[1:])
 
     if val[0] == "%":
         # Binary number.

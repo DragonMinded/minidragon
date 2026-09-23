@@ -2803,15 +2803,35 @@ class Compiler:
 
                 if needed_arg.type.is_string:
                     if needed_arg.type.const:
+                        is_usable = False
+
                         if isinstance(arg_in_question, cst.Name):
                             # We can use this directly, since there's no string copying that might occur.
                             is_usable = True
+                        elif isinstance(arg_in_question, cst.Subscript):
+                            # Assignment from another constant in the form of const[x:] is safe, because this is just
+                            # pointer advancement into another safe const.
+                            safe_global = False
+                            if isinstance(arg_in_question.value, cst.Name):
+                                possible_type = stack.typeof(arg_in_question.value.value)
+                                if possible_type and possible_type.is_string and possible_type.const:
+                                    # This is possible a valid string ref.
+                                    safe_global = True
+
+                            if safe_global and len(arg_in_question.slice) == 1:
+                                slice_or_index = arg_in_question.slice[0].slice
+                                if isinstance(slice_or_index, cst.Slice):
+                                    beginning = slice_or_index.lower
+                                    ending = slice_or_index.upper
+
+                                    if beginning and not ending:
+                                        is_usable = True
                         else:
                             try:
                                 self.codegen_eval(arg_in_question, local_consts, context)
                                 is_usable = True
                             except NonConstantExpressionException:
-                                is_usable = False
+                                pass
 
                         if is_usable:
                             stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type))
