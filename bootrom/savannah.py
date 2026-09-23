@@ -9,7 +9,7 @@ __addr: uint16 = 0
 heap: extern[const[str]]
 
 
-def savannah_get_int(val: str[32]) -> uint16:
+def savannah_get_int(val: str[30]) -> uint16:
     if val[0] == "#":
         # Decimal number.
         val[0] = " "
@@ -62,17 +62,17 @@ def savannah_print_unrecognized(requested: char) -> void:
     serial_send(f"Unrecognized command '{requested}'\n")
 
 
-def savannah_goto_address(addr: str[32]) -> void:
+def savannah_goto_address(addr: const[str[30]]) -> void:
     global __addr
     __addr = savannah_get_int(addr)
 
 
-def savannah_exec(addr: str[32]) -> void:
+def savannah_exec(addr: const[str[30]]) -> void:
     exec_loc: uint16 = savannah_get_int(addr) if addr else __addr
     memory_exec(exec_loc)
 
 
-def savannah_read_byte(addr: str[32]) -> void:
+def savannah_read_byte(addr: const[str[30]]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
@@ -88,12 +88,12 @@ def savannah_read_byte(addr: str[32]) -> void:
     serial_send(f"{hex(actual)}: {hex(val)}\n")
 
 
-def savannah_write_byte(addr_and_val: str[32]) -> void:
+def savannah_write_byte(addr_and_val: const[str[30]]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
-    addr: str[32] = ""
-    val: str[32] = ""
+    addr: str[30] = ""
+    val: str[30] = ""
     seen_space: bool = False
     ch: char
 
@@ -123,12 +123,12 @@ def savannah_write_byte(addr_and_val: str[32]) -> void:
     serial_send(f"{hex(actual)}: {hex(val_as_int)}\n")
 
 
-def savannah_dump_bytes(addr_and_amt: str[32]) -> void:
+def savannah_dump_bytes(addr_and_amt: const[str[30]]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
-    addr: str[32] = ""
-    amt: str[32] = ""
+    addr: str[30] = ""
+    amt: str[30] = ""
     seen_space: bool = False
     ch: char
 
