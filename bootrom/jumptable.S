@@ -173,6 +173,8 @@ jumptable_random_int:
     LNGJUMP random_int
 jumptable_random_choice:
     LNGJUMP random_choice
+jumptable_memory_exec:
+    LNGJUMP memory_exec
 
     ; Now that we're done defining a jump table, resume execution here.
 jumptable_end:

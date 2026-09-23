@@ -29,6 +29,9 @@ STDLIB += lib/conversion/itoa.S
 STDLIB += lib/conversion/atoi.S
 STDLIB += lib/conversion/hex.S
 
+# Memory library.
+STDLIB += lib/memory.S
+
 # Bootrom sources, including assert so it can go in the cartridge jumptable.
 BOOTROM_SRCS += lib/runtime/assert.py
 BOOTROM_SRCS += lib/hardware/serial.S
@@ -37,6 +40,7 @@ BOOTROM_SRCS += lib/hardware/cartridge.S
 BOOTROM_SRCS += lib/hardware/cartridge.py
 BOOTROM_SRCS += lib/conversion/fixed.py
 BOOTROM_SRCS += lib/math/random.py
+BOOTROM_SRCS += lib/memory.py
 BOOTROM_SRCS += bootrom/main.py
 BOOTROM_SRCS += bootrom/savannah.py
 

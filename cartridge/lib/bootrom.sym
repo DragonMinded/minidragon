@@ -83,3 +83,4 @@ random_step: 0xf7
 random: 0xfa
 random_int: 0xfd
 random_choice: 0x100
+memory_exec: 0x103

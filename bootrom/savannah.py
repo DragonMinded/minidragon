@@ -1,4 +1,5 @@
 from hardware.serial import serial_input, serial_send
+from memory import memory_exec
 
 
 __addr: uint16 = 0
@@ -47,6 +48,7 @@ def savannah_get_int(val: str[32]) -> uint16:
 def savannah_print_help() -> void:
     serial_send("Available commands:\n\n")
     serial_send(f"\033[1mg addr\033[0m       - go to current address\n")
+    serial_send(f"\033[1mx [addr]\033[0m     - execute current address, optionally specifying address first\n")
     serial_send(f"\033[1mr [addr]\033[0m     - read byte at current address, optionally specifying address first\n")
     serial_send(f"\033[1mw [addr] val\033[0m - write byte at current address, optionally specifying address first\n")
     serial_send(f"\033[1md [addr] amt\033[0m - dump bytes at current address, optionally specifying address first\n")
@@ -62,6 +64,11 @@ def savannah_print_unrecognized(requested: char) -> void:
 def savannah_goto_address(addr: str[32]) -> void:
     global __addr
     __addr = savannah_get_int(addr)
+
+
+def savannah_exec(addr: str[32]) -> void:
+    exec_loc: uint16 = savannah_get_int(addr) if addr else __addr
+    memory_exec(exec_loc)
 
 
 def savannah_read_byte(addr: str[32]) -> void:
@@ -202,6 +209,9 @@ def savannah_mainloop() -> void:
     args: const[str[30]] = command[2:]
     if requested == "g":
         savannah_goto_address(args)
+
+    elif requested == "x":
+        savannah_exec(args)
 
     elif requested == "r":
         savannah_read_byte(args)
