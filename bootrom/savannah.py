@@ -1,4 +1,4 @@
-from hardware.serial import serial_input, serial_send
+from hardware.serial import serial_clear, serial_input, serial_send
 from memory import memory_exec
 
 
@@ -52,7 +52,8 @@ def savannah_print_help() -> void:
     serial_send(f"\033[1mr [addr]\033[0m     - read byte at current address, optionally specifying address first\n")
     serial_send(f"\033[1mw [addr] val\033[0m - write byte at current address, optionally specifying address first\n")
     serial_send(f"\033[1md [addr] amt\033[0m - dump bytes at current address, optionally specifying address first\n")
-    serial_send(f"\033[1mh/?     \033[0m     - show this help\n")
+    serial_send(f"\033[1mc\033[0m            - clear the screen\n")
+    serial_send(f"\033[1mh/?\033[0m          - show this help\n")
     serial_send("\nAll commands with implicit address increment the address after running.\n")
     serial_send("Prefix any number with # for an integer, or % for a binary number.\n")
 
@@ -221,6 +222,9 @@ def savannah_mainloop() -> void:
 
     elif requested == "d":
         savannah_dump_bytes(args)
+
+    elif requested == "c":
+        serial_clear()
 
     else:
         savannah_print_unrecognized(requested)
