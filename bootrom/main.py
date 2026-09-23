@@ -46,19 +46,28 @@ def main() -> void:
 
                 serial_send(f"{bank + 1} - {title} by {author}\n")
 
+            serial_send("\nSelect program by number, or 's' to enter serial monitor\n")
+
             # Prompt for an input.
             while True:
-                selected: str[4] = serial_input("Select a program: ", max_length=3, allow_empty=False)
-                bank = int(selected)
-                if bank:
-                    if bank > banks:
-                        serial_send("Invalid selection!\n")
-                    else:
-                        # Chose a bank.
-                        bank -= 1
-                        break
+                selected: str[4] = serial_input("Selection: ", max_length=3, allow_empty=False)
+                if selected[0] == "s" and selected[1] == "\x00":
+                    # Busy loop in the monitor program.
+                    savannah_init()
+                    while True:
+                        savannah_mainloop()
+
                 else:
-                    serial_send("Invalid selection!\n")
+                    bank = int(selected)
+                    if bank:
+                        if bank > banks:
+                            serial_send("Invalid selection!\n")
+                        else:
+                            # Chose a bank.
+                            bank -= 1
+                            break
+                    else:
+                        serial_send("Invalid selection!\n")
 
             cartridge_select_bank(bank)
             cartridge_run()
