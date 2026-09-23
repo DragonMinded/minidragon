@@ -29,13 +29,16 @@ def savannah_get_int(val: str[32]) -> uint16:
     for ch in val:
         accum <<= 4
 
+        # First check if it's digits 0-9.
         possible_int: uint8 = ord(ch) - ord('0')
         if possible_int < 10:
             accum += possible_int
         else:
+            # Now check if it's characters A-F or a-f.
             possible_int = (ord(ch) & 0b11011111) - ord('A')
             if possible_int < 6:
                 accum += possible_int + 10
+
     return accum
 
 
