@@ -8322,15 +8322,15 @@ def verifyvoidfunctioncall(only: Optional[Container[str]], full: bool) -> None:
 
         _assert(
             cpu.a == 123,
-            f"globalvariablewrite changed accumulator value from {123} to {cpu.a}!",
+            f"voidfunctioncall changed accumulator value from {123} to {cpu.a}!",
         )
         _assert(
             cpu.u == 111,
-            f"globalvariablewrite changed U value from {111} to {cpu.u}!",
+            f"voidfunctioncall changed U value from {111} to {cpu.u}!",
         )
         _assert(
             cpu.v == 222,
-            f"globalvariablewrite changed V value from {222} to {cpu.v}!",
+            f"voidfunctioncall changed V value from {222} to {cpu.v}!",
         )
         result = cpu.ram[cpu.pc]
         expected = (~val) & 0xFF
@@ -10434,6 +10434,7 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
     cycles = 0
     instructions = 0
     count = 0
+    offset = 0xC003
 
     for global_width in ["int8", "int16", "int32"]:
         for val in [0, 37, -37, 42, -42]:
@@ -10477,17 +10478,17 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
                 f"globalvariablewrite changed V value from {222} to {cpu.v}!",
             )
             if global_width == "int8":
-                result = bintoint(cpu.ram[0xC000])
+                result = bintoint(cpu.ram[offset])
             elif global_width == "int16":
                 result = bintoint16(
-                    (cpu.ram[0xC000] << 8) + cpu.ram[0xC001]
+                    (cpu.ram[offset + 0] << 8) + cpu.ram[offset + 1]
                 )
             elif global_width == "int32":
                 result = bintoint32(
-                    (cpu.ram[0xC000] << 24) +
-                    (cpu.ram[0xC001] << 16) +
-                    (cpu.ram[0xC002] << 8) +
-                    cpu.ram[0xC003]
+                    (cpu.ram[offset + 0] << 24) +
+                    (cpu.ram[offset + 1] << 16) +
+                    (cpu.ram[offset + 2] << 8) +
+                    cpu.ram[offset + 3]
                 )
             else:
                 result = 0xDEADBEEF
@@ -10543,17 +10544,17 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
                 f"globalvariablewrite changed V value from {222} to {cpu.v}!",
             )
             if global_width == "uint8":
-                result = (cpu.ram[0xC000])
+                result = (cpu.ram[offset])
             elif global_width == "uint16":
                 result = (
-                    (cpu.ram[0xC000] << 8) + cpu.ram[0xC001]
+                    (cpu.ram[offset + 0] << 8) + cpu.ram[offset + 1]
                 )
             elif global_width == "uint32":
                 result = (
-                    (cpu.ram[0xC000] << 24) +
-                    (cpu.ram[0xC001] << 16) +
-                    (cpu.ram[0xC002] << 8) +
-                    cpu.ram[0xC003]
+                    (cpu.ram[offset + 0] << 24) +
+                    (cpu.ram[offset + 1] << 16) +
+                    (cpu.ram[offset + 2] << 8) +
+                    cpu.ram[offset + 3]
                 )
             else:
                 result = 0xDEADBEEF
@@ -10610,10 +10611,10 @@ def verifyglobalvariablewrite(only: Optional[Container[str]], full: bool) -> Non
         f"globalvariablewrite changed V value from {222} to {cpu.v}!",
     )
     original = (
-        (cpu.ram[0xC000] << 24) +
-        (cpu.ram[0xC001] << 16) +
-        (cpu.ram[0xC002] << 8) +
-        cpu.ram[0xC003]
+        (cpu.ram[offset + 0] << 24) +
+        (cpu.ram[offset + 1] << 16) +
+        (cpu.ram[offset + 2] << 8) +
+        cpu.ram[offset + 3]
     )
     _assert(
         original == 0x0,

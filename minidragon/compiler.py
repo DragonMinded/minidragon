@@ -2767,7 +2767,7 @@ class Compiler:
                             raise Exception("Logic error, cannot determine local string storage for unnamed parameter!")
 
                         # Initialize this variable with the local storage of the function parameter.
-                        local_destination_storage = f"{function_prototype.name}_{needed_arg.name}_param"
+                        local_destination_storage = f"_{function_prototype.name}_{needed_arg.name}_param"
                         stack_on_exit += stack.alloc(StackVar(expr_dest, needed_arg.type, initialized=True))
 
                         # We only clobber the A register with the string init macro.
@@ -2849,7 +2849,7 @@ class Compiler:
                             raise Exception("Logic error, cannot determine local string storage for unnamed parameter!")
 
                         # Initialize this variable with the local storage of the function parameter.
-                        local_destination_storage = f"{function_prototype.name}_{needed_arg.name}_param"
+                        local_destination_storage = f"_{function_prototype.name}_{needed_arg.name}_param"
                         stack.alloc(StackVar(expr_dest, needed_arg.type, initialized=True))
 
                         # We only clobber the A register with the string init macro.
@@ -9269,7 +9269,7 @@ class Compiler:
                 if not str_length:
                     raise CompilerError(f"Non-constant string parameter{func_param.name.value} requires a length", context)
 
-                local_destination_storage = f"{function_name}_{func_param.name.value}_param"
+                local_destination_storage = f"_{function_name}_{func_param.name.value}_param"
                 compiled.append_data(f"{local_destination_storage}:")
                 compiled.append_data(f"  .pad {str_length}")
 
