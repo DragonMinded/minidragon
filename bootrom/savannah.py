@@ -1,3 +1,4 @@
+from assembler import assembler_disassemble, assembler_bytes_consumed
 from hardware.serial import serial_clear, serial_input, serial_send
 from memory import memory_exec
 
@@ -46,13 +47,14 @@ def savannah_get_int(val: const[str[30]]) -> uint16:
 
 def savannah_print_help() -> void:
     serial_send("Available commands:\n\n")
-    serial_send(f"\033[1mg addr\033[0m       - go to current address\n")
-    serial_send(f"\033[1mx [addr]\033[0m     - execute current address, optionally specifying address first\n")
-    serial_send(f"\033[1mr [addr]\033[0m     - read byte at current address, optionally specifying address first\n")
-    serial_send(f"\033[1mw [addr] val\033[0m - write byte at current address, optionally specifying address first\n")
-    serial_send(f"\033[1md [addr] amt\033[0m - dump bytes at current address, optionally specifying address first\n")
-    serial_send(f"\033[1mc\033[0m            - clear the screen\n")
-    serial_send(f"\033[1mh/?\033[0m          - show this help\n")
+    serial_send(f"\033[1mg addr\033[0m         - go to current address\n")
+    serial_send(f"\033[1mx [addr]\033[0m       - execute current address, optionally specifying address first\n")
+    serial_send(f"\033[1mr [addr]\033[0m       - read byte at current address, optionally specifying address first\n")
+    serial_send(f"\033[1mw [addr] val\033[0m   - write byte at current address, optionally specifying address first\n")
+    serial_send(f"\033[1md [addr] amt\033[0m   - dump bytes at current address, optionally specifying address first\n")
+    serial_send(f"\033[1ml [[addr] amt]\033[0m - list instructions at current address, optionally specifying address first\n")
+    serial_send(f"\033[1mc\033[0m              - clear the screen\n")
+    serial_send(f"\033[1mh/?\033[0m            - show this help\n")
     serial_send("\nAll commands with implicit address increment the address after running.\n")
     serial_send("Prefix any number with # for an integer, or % for a binary number.\n")
 
@@ -188,6 +190,53 @@ def savannah_dump_bytes(addr_and_amt: const[str[30]]) -> void:
             buf = f"{hex(start)}:                                                                 \n"
 
 
+def savannah_list_instructions(addr_and_amt: const[str[30]]) -> void:
+    inc: bool = True
+    actual: uint16 = __addr
+
+    addr: str[30] = ""
+    amt: str[30] = ""
+    if addr_and_amt:
+        seen_space: bool = False
+        ch: char
+
+        for ch in addr_and_amt:
+            if seen_space:
+                amt += ch
+            elif ch == " ":
+                seen_space = True
+            else:
+                addr += ch
+
+        if not amt:
+            amt = addr
+            addr = ""
+
+        if addr:
+            inc = False
+            actual = savannah_get_int(addr)
+    else:
+        # Default to decoding one instruction
+        amt = "1"
+
+    left: uint16 = savannah_get_int(amt)
+
+    while left:
+        # First, disassemble the current address.
+        disassembly: const[str[64]] = assembler_disassemble(actual)
+        consumed: uint8 = assembler_bytes_consumed()
+        serial_send(f"{hex(actual)}: {disassembly}\n")
+
+        # Now, skip past what we disassembled.
+        actual += consumed
+        left -= 1
+
+        # And increment the global address if we should.
+        if inc:
+            global __addr
+            __addr += consumed
+
+
 def savannah_init() -> void:
     heaploc: uint16 = cast(uint16, heap)
 
@@ -221,6 +270,9 @@ def savannah_mainloop() -> void:
 
     elif requested == "d":
         savannah_dump_bytes(args)
+
+    elif requested == "l":
+        savannah_list_instructions(args)
 
     elif requested == "c":
         serial_clear()

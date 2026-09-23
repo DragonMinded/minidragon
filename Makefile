@@ -41,6 +41,7 @@ BOOTROM_SRCS += lib/hardware/cartridge.py
 BOOTROM_SRCS += lib/conversion/fixed.py
 BOOTROM_SRCS += lib/math/random.py
 BOOTROM_SRCS += lib/memory.py
+BOOTROM_SRCS += lib/assembler.py
 BOOTROM_SRCS += bootrom/main.py
 BOOTROM_SRCS += bootrom/savannah.py
 
