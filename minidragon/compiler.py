@@ -1441,6 +1441,25 @@ class Compiler:
                 # Ignore this, it's probably somebody trying to return a builtin such as cast() or str().
                 pass
 
+        if isinstance(assign_value, cst.Subscript):
+            # Assignment from another constant in the form of const[x:] is safe, because this is just
+            # pointer advancement into another safe const.
+            safe_global = False
+            if isinstance(assign_value.value, cst.Name):
+                possible_type = stack.typeof(assign_value.value.value)
+                if possible_type and possible_type.safe_ref:
+                    # This is possible a valid string ref.
+                    safe_global = True
+
+            if safe_global and len(assign_value.slice) == 1:
+                slice_or_index = assign_value.slice[0].slice
+                if isinstance(slice_or_index, cst.Slice):
+                    beginning = slice_or_index.lower
+                    ending = slice_or_index.upper
+
+                    if beginning and not ending:
+                        return True
+
         try:
             # If we can evaluate the assign value directly that means it's a safe ref. This only
             # happens for global variables, string literals, and local constants, which strings are
@@ -1454,6 +1473,46 @@ class Compiler:
             return True
         except NonConstantExpressionException:
             pass
+
+        return False
+
+    def is_const_ref(
+        self,
+        assign_value: cst.BaseExpression,
+        stack: Stack,
+        refs: Sequence[Union[FunctionPrototype, GlobalVariable]],
+        local_consts: List[Constant],
+        context: Context,
+    ) -> bool:
+        """
+        Given an expression, determine if that expression is a reference to a constant that's safe
+        to treat as a string without a strcpy.
+        """
+
+        if isinstance(assign_value, cst.Name):
+            possible_type = stack.typeof(assign_value.value)
+            if possible_type and possible_type.is_string and possible_type.const:
+                # This is being assigned from another constant variable that is constant.
+                return True
+
+        if isinstance(assign_value, cst.Subscript):
+            # Assignment from another constant in the form of const[x:] is safe, because this is just
+            # pointer advancement into another safe const.
+            safe_global = False
+            if isinstance(assign_value.value, cst.Name):
+                possible_type = stack.typeof(assign_value.value.value)
+                if possible_type and possible_type.is_string and possible_type.const:
+                    # This is possible a valid string ref.
+                    safe_global = True
+
+            if safe_global and len(assign_value.slice) == 1:
+                slice_or_index = assign_value.slice[0].slice
+                if isinstance(slice_or_index, cst.Slice):
+                    beginning = slice_or_index.lower
+                    ending = slice_or_index.upper
+
+                    if beginning and not ending:
+                        return True
 
         return False
 
@@ -6214,23 +6273,21 @@ class Compiler:
             # In the case of truncation, it's possible to avoid a strncpy and instead just insert
             # a null in the right spot. This is far faster, so it's worth detecting and doing so.
             same_destination: bool = False
+            const_source: bool = False
             beginning = slice_or_index.lower
             ending = slice_or_index.upper
             if beginning is None and ending is not None:
                 if isinstance(expression.value, cst.Name):
                     same_destination = expression.value.value == destination
 
+            if isinstance(expression.value, cst.Name):
+                source_type = stack.typeof(expression.value.value)
+                if source_type and source_type.const:
+                    const_source = True
+
             # Infer index sizes for correct codegen for wide strings versus normal strings.
             beginning_size = self.infer_string_index_size(beginning, types, local_consts, context) if beginning else 0
             ending_size = self.infer_string_index_size(ending, types, local_consts, context) if ending else 0
-
-            # This is a subscript in the form of var[:] which in Python land is a copy,
-            # so we can do that here.
-            if not stack.initof(destination):
-                compiled += self.generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
-
-                # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
-                stack.init(destination)
 
             # We copy this here, because if we don't, then the function call ends up needing to copy a ton more
             # on the stack later.
@@ -6244,6 +6301,22 @@ class Compiler:
             else:
                 # Safe to put first parameter in the top of the stack where it already is useful for math.
                 lhs_dest = destination
+
+            # This is a subscript in the form of var[:] which in Python land is a copy,
+            # so we can do that here.
+            if not stack.initof(destination):
+                needs_init = True
+                if beginning is not None and ending is None and const_source:
+                    # Don't need to init as long as the destination is const.
+                    lhs_type = stack.typeof(lhs_dest)
+                    if lhs_type and lhs_type.const:
+                        needs_init = False
+
+                if needs_init:
+                    compiled += self.generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+
+                    # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
+                    stack.init(destination)
 
             # We always end up needing the string on the left hand size, regardless of whether we're indexing or slicing into it.
             base_dest = self.expr_temp_name()
@@ -6446,18 +6519,23 @@ class Compiler:
                     )
 
                 if ending is None:
-                    # Now, just strcpy it over.
-                    compiled += self.generate_function_call_internal(
-                        create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest)]),
-                        None,
-                        types,
-                        stack,
-                        clobbers,
-                        allocations,
-                        refs,
-                        local_consts,
-                        context.wrap(expression),
-                    )
+                    lhs_dest_type = stack.typeof(lhs_dest)
+                    if lhs_dest_type and lhs_dest_type.const and const_source:
+                        # Just memcpy from base_dest to lhs_dest to avoid a strcpy, since this is a pointer calculation.
+                        compiled += self.generate_memcpy_stackvars(lhs_dest, base_dest, stack, clobbers, context)
+                    else:
+                        # Now, just strcpy it over.
+                        compiled += self.generate_function_call_internal(
+                            create_call("strcpy", [UnvalidatedName(lhs_dest), UnvalidatedName(base_dest)]),
+                            None,
+                            types,
+                            stack,
+                            clobbers,
+                            allocations,
+                            refs,
+                            local_consts,
+                            context.wrap(expression),
+                        )
 
                 else:
                     try:
@@ -8057,6 +8135,10 @@ class Compiler:
                             # This constant was initialized from a true constant (const string, global variable, another constant)
                             # so we can safely do a copy and mark it as also a safe ref.
                             assign_type.safe_ref = True
+                            stack.alloc(StackVar(assign_name, assign_type))
+                        elif self.is_const_ref(assign_value, stack, refs, local_consts, context):
+                            # This constant was initialized from a true constant (const string, global variable, another constant)
+                            # so we can safely do a copy and mark it as also a safe ref.
                             stack.alloc(StackVar(assign_name, assign_type))
                         else:
                             inferred_types: Dict[cst.CSTNode, CoreType] = self.infer_expr_types(

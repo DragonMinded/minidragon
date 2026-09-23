@@ -207,7 +207,7 @@ def savannah_mainloop() -> void:
         savannah_print_help()
         return
 
-    args: const[str[30]] = command[2:]
+    args: const[str] = command[2:]
     if requested == "g":
         savannah_goto_address(args)
 

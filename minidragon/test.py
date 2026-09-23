@@ -1542,6 +1542,99 @@ class TestCompiler(unittest.TestCase):
         self.assertTrue(len(output.data) == 0)
         self.assertTrue(len(output.init) == 0)
 
+        func = textwrap.dedent("""
+            def func() -> const[str]:
+                some_const: const[str] = "abcde"
+                other_const: const[str] = some_const[2:]
+                return other_const
+        """)
+
+        output = compiler.parse_and_compile_module("__test__", func)
+        self.assertEqual([
+            '_test_local_function_string_data_4:',
+            "  .char 'a'",
+            "  .char 'b'",
+            "  .char 'c'",
+            "  .char 'd'",
+            "  .char 'e'",
+            '  .byte 0x00',
+            '',
+            'func:',
+            '  ; Stack layout just after call:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(padding)',
+            '  ; PC + 3 - builtin(padding)',
+            '  ;',
+            '  ; Stack layout just before return:',
+            '  ; PC + 0 - builtin(retptr)',
+            '  ; PC + 1 - builtin(retptr)',
+            '  ; PC + 2 - builtin(retval)',
+            '  ; PC + 3 - builtin(retval)',
+            '  ;',
+            '  ; Save clobbered registers',
+            '  PUSH A',
+            '  PUSH SPC',
+            '  PUSH U',
+            '  PUSH V',
+            '  ; __test__ line 3: some_const: const[str] = "abcde"',
+            '  SUBPCI 2',
+            '  PUSHADDR _test_local_function_string_data_4',
+            '  ; __test__ line 4: other_const: const[str] = some_const[2:]',
+            '  LOAD A',
+            '  SUBPCI 4',
+            '  STORE A',
+            '  ADDPCI 5',
+            '  LOAD A',
+            '  SUBPCI 4',
+            '  STORE A',
+            '  LOADI 0x02',
+            '  SUBPCI 1',
+            '  MOV A, V',
+            '  POP SPC',
+            '  SWAP PC, SPC',
+            '_test_local_advance_top_5:',
+            '  ADDI 0',
+            '  JRIZ _test_local_advance_bottom_6',
+            '  DEC',
+            '  MOV A, U',
+            '  LOAD A',
+            '  ADDI 0',
+            '  JRIZ _test_local_advance_bottom_6',
+            '  INCPC',
+            '  MOV U, A',
+            '  JRI _test_local_advance_top_5',
+            '_test_local_advance_bottom_6:',
+            '  SWAP PC, SPC',
+            '  PUSH SPC',
+            '  MOV V, A',
+            '  LOAD A',
+            '  ADDPCI 2',
+            '  STORE A',
+            '  SUBPCI 1',
+            '  LOAD A',
+            '  ADDPCI 2',
+            '  STORE A',
+            '  ; __test__ line 5: other_const',
+            '  LOAD A',
+            '  ADDPCI 13',
+            '  STORE A',
+            '  SUBPCI 14',
+            '  LOAD A',
+            '  ADDPCI 13',
+            '  STORE A',
+            '  ; __test__ line 5: return other_const',
+            '  ; Restoring all clobbered registers.',
+            '  SUBPCI 7',
+            '  POP V',
+            '  POP U',
+            '  POP SPC',
+            '  POP A',
+            '  RET'
+        ], output.code)
+        self.assertTrue(len(output.data) == 0)
+        self.assertTrue(len(output.init) == 0)
+
     def test_correct_strcpy_generation(self) -> None:
         """
         Make sure that we generate a strcpy in all assignment scenarios that matter so that we don't end up
