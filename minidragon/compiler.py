@@ -2287,38 +2287,50 @@ class Compiler:
                     compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
                     compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                 elif dest_size == 2:
-                    compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
+                    spot1 = (val >> 0) & 0xFF
+                    spot2 = (val >> 8) & 0xFF
+
+                    compiled.append_code(f"  LOADI {hexval(spot1, 2)}")
                     compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  DECPC")
 
                     stack.move(1)
                     compiled.code += comment_stack(stack)
 
-                    compiled.append_code(f"  LOADI {hexval((val >> 8) & 0xFF, 2)}")
+                    if spot2 != spot1:
+                        compiled.append_code(f"  LOADI {hexval(spot2, 2)}")
                     compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                 elif dest_size == 4:
-                    compiled.append_code(f"  LOADI {hexval((val >> 0) & 0xFF, 2)}")
+                    spot1 = (val >> 0) & 0xFF
+                    spot2 = (val >> 8) & 0xFF
+                    spot3 = (val >> 16) & 0xFF
+                    spot4 = (val >> 24) & 0xFF
+
+                    compiled.append_code(f"  LOADI {hexval(spot1, 2)}")
                     compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  DECPC")
 
                     stack.move(1)
                     compiled.code += comment_stack(stack)
 
-                    compiled.append_code(f"  LOADI {hexval((val >> 8) & 0xFF, 2)}")
+                    if spot2 != spot1:
+                        compiled.append_code(f"  LOADI {hexval(spot2, 2)}")
                     compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  DECPC")
 
                     stack.move(1)
                     compiled.code += comment_stack(stack)
 
-                    compiled.append_code(f"  LOADI {hexval((val >> 16) & 0xFF, 2)}")
+                    if spot3 != spot2:
+                        compiled.append_code(f"  LOADI {hexval(spot3, 2)}")
                     compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                     compiled.append_code("  DECPC")
 
                     stack.move(1)
                     compiled.code += comment_stack(stack)
 
-                    compiled.append_code(f"  LOADI {hexval((val >> 24) & 0xFF, 2)}")
+                    if spot4 != spot3:
+                        compiled.append_code(f"  LOADI {hexval(spot4, 2)}")
                     compiled.append_code("  STORE A" + stack.comment(stack.location, StackOperation.STORE))
                 else:
                     raise CompilerError(f"Unsupported destination {destination} for const load", context)
