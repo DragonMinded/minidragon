@@ -16,7 +16,7 @@ from hardware.serial import (
     serial_input,
 )
 
-from .savannah import savannah_mainloop
+from .savannah import savannah_init, savannah_mainloop
 
 
 def main() -> void:
@@ -83,6 +83,6 @@ def main() -> void:
                 serial_send("No cartridge present.\n")
 
             # Busy loop in the monitor program.
-            serial_send("\nSavannah Monitor for MiniDragon\n")
+            savannah_init()
             while True:
                 savannah_mainloop()

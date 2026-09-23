@@ -2,8 +2,10 @@ from hardware.serial import serial_input, serial_send
 
 
 __addr: uint16 = 0
-__BOLD: const[str] = "\033[1m"
-__NORMAL: const[str] = "\033[0m"
+
+
+# Filthy trick to determine the first safe byte in RAM.
+heap: extern[const[str]]
 
 
 def savannah_get_int(val: str[32]) -> uint16:
@@ -44,11 +46,11 @@ def savannah_get_int(val: str[32]) -> uint16:
 
 def savannah_print_help() -> void:
     serial_send("Available commands:\n\n")
-    serial_send(f"{__BOLD}g addr{__NORMAL}       - go to current address\n")
-    serial_send(f"{__BOLD}r [addr]{__NORMAL}     - read byte at current address, optionally specifying address first\n")
-    serial_send(f"{__BOLD}w [addr] val{__NORMAL} - write byte at current address, optionally specifying address first\n")
-    serial_send(f"{__BOLD}d [addr] amt{__NORMAL} - dump bytes at current address, optionally specifying address first\n")
-    serial_send(f"{__BOLD}h/?     {__NORMAL}     - show this help\n")
+    serial_send(f"\033[1mg addr\033[0m       - go to current address\n")
+    serial_send(f"\033[1mr [addr]\033[0m     - read byte at current address, optionally specifying address first\n")
+    serial_send(f"\033[1mw [addr] val\033[0m - write byte at current address, optionally specifying address first\n")
+    serial_send(f"\033[1md [addr] amt\033[0m - dump bytes at current address, optionally specifying address first\n")
+    serial_send(f"\033[1mh/?     \033[0m     - show this help\n")
     serial_send("\nAll commands with implicit address increment the address after running.\n")
     serial_send("Prefix any number with # for an integer, or % for a binary number.\n")
 
@@ -179,8 +181,15 @@ def savannah_dump_bytes(addr_and_amt: str[32]) -> void:
             buf = f"{hex(start)}:                                                                 \n"
 
 
+def savannah_init() -> void:
+    heaploc: uint16 = cast(uint16, heap)
+
+    serial_send("\nSavannah Monitor for MiniDragon\n")
+    serial_send(f"Scratch RAM start at {hex(heaploc)}\n")
+
+
 def savannah_mainloop() -> void:
-    command: const[str[32]] = serial_input(f"{__BOLD}{hex(__addr)}>{__NORMAL} ", max_length=31)
+    command: const[str[32]] = serial_input(f"\033[1m{hex(__addr)}>\033[0m ", max_length=31)
 
     if not command:
         return
@@ -188,18 +197,20 @@ def savannah_mainloop() -> void:
     requested: char = command[0]
     if requested == "h" or requested == "?":
         savannah_print_help()
+        return
 
-    elif requested == "g":
-        savannah_goto_address(command[2:])
+    args: const[str[30]] = command[2:]
+    if requested == "g":
+        savannah_goto_address(args)
 
     elif requested == "r":
-        savannah_read_byte(command[2:])
+        savannah_read_byte(args)
 
     elif requested == "w":
-        savannah_write_byte(command[2:])
+        savannah_write_byte(args)
 
     elif requested == "d":
-        savannah_dump_bytes(command[2:])
+        savannah_dump_bytes(args)
 
     else:
         savannah_print_unrecognized(requested)
