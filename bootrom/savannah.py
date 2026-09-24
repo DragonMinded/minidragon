@@ -1,4 +1,13 @@
-from assembler import assembler_disassemble, assembler_bytes_consumed
+from assembler import (
+    assembler_assemble,
+    assembler_disassemble,
+    assembler_bytes_consumed,
+    assembler_parse_int,
+    ASSEMBLER_ERROR_NONE,
+    ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION,
+    ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE,
+    ASSEMBLER_ERROR_MISSING_PARAM,
+)
 from hardware.serial import serial_clear, serial_input, serial_send
 from memory import memory_exec
 
@@ -10,41 +19,6 @@ __addr: uint16 = 0
 heap: extern[const[str]]
 
 
-def savannah_get_int(val: const[str[30]]) -> uint16:
-    if val[0] == "#":
-        # Decimal number.
-        return int(val[1:])
-
-    if val[0] == "%":
-        # Binary number.
-        accum: uint16 = 0
-        ch: char
-        for ch in val:
-            accum <<= 1
-            if ch == "1":
-                accum |= 1
-
-        return accum
-
-    # Hex number
-    accum: uint16 = 0
-    ch: char
-    for ch in val:
-        accum <<= 4
-
-        # First check if it's digits 0-9.
-        possible_int: uint8 = ord(ch) - ord('0')
-        if possible_int < 10:
-            accum += possible_int
-        else:
-            # Now check if it's characters A-F or a-f.
-            possible_int = (ord(ch) & 0b11011111) - ord('A')
-            if possible_int < 6:
-                accum += possible_int + 10
-
-    return accum
-
-
 def savannah_print_help() -> void:
     serial_send("Available commands:\n\n")
     serial_send(f"\033[1mg addr\033[0m         - go to current address\n")
@@ -52,6 +26,7 @@ def savannah_print_help() -> void:
     serial_send(f"\033[1mr [addr]\033[0m       - read byte at current address, optionally specifying address first\n")
     serial_send(f"\033[1mw [addr] val\033[0m   - write byte at current address, optionally specifying address first\n")
     serial_send(f"\033[1md [addr] amt\033[0m   - dump bytes at current address, optionally specifying address first\n")
+    serial_send(f"\033[1ma instruction\033[0m  - assemble instruction at current address\n")
     serial_send(f"\033[1ml [[addr] amt]\033[0m - list instructions at current address, optionally specifying address first\n")
     serial_send(f"\033[1mc\033[0m              - clear the screen\n")
     serial_send(f"\033[1mh/?\033[0m            - show this help\n")
@@ -65,11 +40,11 @@ def savannah_print_unrecognized(requested: char) -> void:
 
 def savannah_goto_address(addr: const[str[30]]) -> void:
     global __addr
-    __addr = savannah_get_int(addr)
+    __addr = assembler_parse_int(addr)
 
 
 def savannah_exec(addr: const[str[30]]) -> void:
-    exec_loc: uint16 = savannah_get_int(addr) if addr else __addr
+    exec_loc: uint16 = assembler_parse_int(addr) if addr else __addr
     memory_exec(exec_loc)
 
 
@@ -79,7 +54,7 @@ def savannah_read_byte(addr: const[str[30]]) -> void:
 
     if addr:
         inc = False
-        actual = savannah_get_int(addr)
+        actual = assembler_parse_int(addr)
 
     val: uint8 = peek(actual)
     if inc:
@@ -112,9 +87,9 @@ def savannah_write_byte(addr_and_val: const[str[30]]) -> void:
 
     if addr:
         inc = False
-        actual = savannah_get_int(addr)
+        actual = assembler_parse_int(addr)
 
-    val_as_int: uint8 = savannah_get_int(val)
+    val_as_int: uint8 = assembler_parse_int(val)
     poke(actual, val_as_int)
 
     if inc:
@@ -147,9 +122,9 @@ def savannah_dump_bytes(addr_and_amt: const[str[30]]) -> void:
 
     if addr:
         inc = False
-        actual = savannah_get_int(addr)
+        actual = assembler_parse_int(addr)
 
-    left: uint16 = savannah_get_int(amt)
+    left: uint16 = assembler_parse_int(amt)
     spent: uint8 = 0
     off1: uint8 = 8
     off2: uint8 = 8 + (16 * 3)
@@ -190,6 +165,29 @@ def savannah_dump_bytes(addr_and_amt: const[str[30]]) -> void:
             buf = f"{hex(start)}:                                                                 \n"
 
 
+def savannah_assemble_instruction(instruction: const[str[30]]) -> void:
+    global __addr
+
+    result: uint8 = assembler_assemble(__addr, instruction)
+    __addr += assembler_bytes_consumed()
+
+    if result == ASSEMBLER_ERROR_NONE:
+        # Success!
+        serial_send("OK\n")
+    elif result == ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION:
+        # Bad instruction
+        serial_send("Unrecognized instruction\n")
+    elif result == ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE:
+        # Bad parameter for instruction
+        serial_send("Parameter out of range for instruction\n")
+    elif result == ASSEMBLER_ERROR_MISSING_PARAM:
+        # Missing parameter for instruction
+        serial_send("Parameter missing for instruction\n")
+    else:
+        # Unknown
+        serial_send("Unknown error\n")
+
+
 def savannah_list_instructions(addr_and_amt: const[str[30]]) -> void:
     inc: bool = True
     actual: uint16 = __addr
@@ -214,12 +212,12 @@ def savannah_list_instructions(addr_and_amt: const[str[30]]) -> void:
 
         if addr:
             inc = False
-            actual = savannah_get_int(addr)
+            actual = assembler_parse_int(addr)
     else:
         # Default to decoding one instruction
         amt = "1"
 
-    left: uint16 = savannah_get_int(amt)
+    left: uint16 = assembler_parse_int(amt)
 
     while left:
         # First, disassemble the current address.
@@ -270,6 +268,9 @@ def savannah_mainloop() -> void:
 
     elif requested == "d":
         savannah_dump_bytes(args)
+
+    elif requested == "a":
+        savannah_assemble_instruction(args)
 
     elif requested == "l":
         savannah_list_instructions(args)

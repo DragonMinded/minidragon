@@ -4,13 +4,303 @@ __stack_op_lut: const[str[65]] = "ADDPC\x00\x00\x00POPIP\x00\x00\x00PUSHSPC\x00P
 __reg_op_lut: const[str[65]] = "LOADU\x00\x00\x00STOREU\x00\x00LOADV\x00\x00\x00STOREV\x00\x00SWAPAU\x00\x00SWAPAV\x00\x00SWAPUV\x00\x00SWAPPC\x00\x00"
 
 
-def assembler_assemble(dst: uint16, line: const[str[64]]) -> uint8:
-    # TODO: Actually assemble something.
-    return 0
+ASSEMBLER_ERROR_NONE: const[uint8] = 0
+ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION: const[uint8] = 1
+ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE: const[uint8] = 2
+ASSEMBLER_ERROR_MISSING_PARAM: const[uint8] = 3
 
 
 def assembler_bytes_consumed() -> uint8:
     return __last_bytes_consumed
+
+
+def assembler_parse_int(val: const[str[30]]) -> uint16:
+    if val[0] == "#":
+        # Decimal number.
+        return int(val[1:])
+
+    if val[0] == "%":
+        # Binary number.
+        accum: uint16 = 0
+        ch: char
+        for ch in val:
+            accum <<= 1
+            if ch == "1":
+                accum |= 1
+
+        return accum
+
+    # Hex number
+    accum: uint16 = 0
+    ch: char
+    for ch in val:
+        accum <<= 4
+
+        # First check if it's digits 0-9.
+        possible_int: uint8 = ord(ch) - ord('0')
+        if possible_int < 10:
+            accum += possible_int
+        else:
+            # Now check if it's characters A-F or a-f.
+            possible_int = (ord(ch) & 0b11011111) - ord('A')
+            if possible_int < 6:
+                accum += possible_int + 10
+
+    return accum
+
+
+def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
+    # We need to recognize the mnemonic that is contained in the line. We do that
+    # by implementing a manually unrolled radix tree for speed, because doing a
+    # strcmp against every recognized instruction would be insanely slow.
+    chr0: char = line[0]
+    chr1: char = line[1]
+    chr2: char = line[2]
+    chr3: char = line[3]
+    chr4: char = line[4]
+    assembled: uint8 = 0
+
+    # We're going to need to update this, and default to 0 assuming the
+    # parse was invalid.
+    global __last_bytes_consumed
+    __last_bytes_consumed = 0
+
+    if chr1 == 'T' and chr2 == 'O' and chr4 == '\x00':
+        # XTOY instructions, figure out which one it is here. They're all
+        # one byte long so we can handle this in a big radix unroll.
+        if chr0 == 'A':
+            # Series of instructions here.
+            if chr3 == 'P':
+                # ATOP
+                assembled = 0b11101000
+            elif chr3 == 'C':
+                # ATOC
+                assembled = 0b11101001
+            elif chr3 == 'U':
+                # ATOU
+                assembled = 0b11101100
+            elif chr3 == 'V':
+                # ATOV
+                assembled = 0b11101101
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        elif chr3 == 'A':
+            if chr0 == 'P':
+                # PTOA
+                assembled = 0b11101010
+            elif chr0 == 'C':
+                # CTOA
+                assembled = 0b11101011
+            elif chr0 == 'U':
+                # UTOA
+                assembled = 0b11101110
+            elif chr0 == 'V':
+                # VTOA
+                assembled = 0b11101111
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        poke(dst, assembled)
+        __last_bytes_consumed = 1
+        return ASSEMBLER_ERROR_NONE
+
+    elif chr0 == 'A':
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'C':
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'I':
+        # INV instruction is the only one here.
+        if chr1 == 'N' and chr2 == 'V' and chr3 == '\x00':
+            poke(dst, 0b11110000)
+            __last_bytes_consumed = 1
+            return ASSEMBLER_ERROR_NONE
+
+    elif chr0 == 'J':
+        # Only JRI lives here.
+        if chr1 == 'R' and chr2 == 'I':
+            if chr3 != ' ':
+                return ASSEMBLER_ERROR_MISSING_PARAM
+
+            jriop: int8 = assembler_parse_int(line[4:]) - 1
+            jribounds: uint8 = jriop & 0b11100000
+
+            if jribounds != 0b11100000 and jribounds != 0b00000000:
+                return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
+
+            poke(dst, jriop & 0b00111111)
+            __last_bytes_consumed = 1
+            return ASSEMBLER_ERROR_NONE
+
+    elif chr0 == 'L':
+        # Various LOAD and LNGJUMP instructions live here.
+        if chr1 == 'O' and chr2 == 'A' and chr3 == 'D':
+            # Just grab the actual byte value for the instruction.
+            if chr4 == 'U' and line[5] == '\x00':
+                # LOADU
+                assembled = 0b11100000
+                __last_bytes_consumed = 1
+            elif chr4 == 'V' and line[5] == '\x00':
+                # LOADV
+                assembled = 0b11100010
+                __last_bytes_consumed = 1
+            elif chr4 == 'A' and line[5] == '\x00':
+                # LOADA
+                assembled = 0b11111110
+                __last_bytes_consumed = 1
+
+            # This is a special case, where we need to load immediate
+            # and that immediate goes into the next slot. So, write
+            # the instruction to the destination and increment it, and
+            # set the assembled to the parsed value
+            elif chr4 == 'I':
+                # LOADI
+                if line[5] != ' ':
+                    return ASSEMBLER_ERROR_MISSING_PARAM
+
+                __last_bytes_consumed = 2
+
+                assembled = assembler_parse_int(line[6:])
+                poke(dst, 0b11111001)
+                dst += 1
+
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+            poke(dst, assembled)
+            return ASSEMBLER_ERROR_NONE
+
+        if chr1 == 'N' and chr2 == 'G' and chr3 == 'J' and chr4 == 'U' and line[5] == 'M' and line[6] == 'P':
+            if line[7] != ' ':
+                return ASSEMBLER_ERROR_MISSING_PARAM
+
+            # LNGJUMP instruction, get the value to jump to.
+            lngjumpop: uint16 = assembler_parse_int(line[8:])
+            poke(dst, 0b11111000)
+            poke(dst + 1, lngjumpop)
+            __last_bytes_consumed = 3
+            return ASSEMBLER_ERROR_NONE
+
+    elif chr0 == 'O':
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'P':
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'R':
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'S':
+        chr5: char = line[5]
+        chr6: char = line[6]
+
+        if chr1 == 'H' and chr3 == '\x00':
+            if chr2 == 'L':
+                # SHL
+                assembled = 0b10011110
+            elif chr2 == 'R':
+                # SHL
+                assembled = 0b10011111
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+            poke(dst, assembled)
+            __last_bytes_consumed = 1
+            return ASSEMBLER_ERROR_NONE
+
+        if chr1 == 'T' and chr2 == 'O' and chr3 == 'R' and chr4 == 'E' and chr6 == '\x00':
+            if chr5 == 'U':
+                # STOREU
+                assembled = 0b11100001
+            elif chr5 == 'V':
+                # STOREV
+                assembled = 0b11100011
+            elif chr5 == 'A':
+                # STOREA
+                assembled = 0b11111111
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+            poke(dst, assembled)
+            __last_bytes_consumed = 1
+            return ASSEMBLER_ERROR_NONE
+
+        if chr1 == 'W' and chr2 == 'A' and chr3 == 'P' and chr6 == '\x00':
+            if chr4 == 'A' and chr5 == 'U':
+                #SWAPAU
+                assembled = 0b11100100
+            elif chr4 == 'A' and chr5 == 'V':
+                #SWAPAU
+                assembled = 0b11100101
+            elif chr4 == 'U' and chr5 == 'V':
+                #SWAPUV
+                assembled = 0b11100110
+            elif chr4 == 'P' and chr5 == 'C':
+                #SWAPPC
+                assembled = 0b11100111
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+            poke(dst, assembled)
+            __last_bytes_consumed = 1
+            return ASSEMBLER_ERROR_NONE
+
+        if chr1 == 'U' and chr2 == 'B' and chr3 == 'P' and chr4 == 'C' and chr5 == 'I':
+            if chr6 != ' ':
+                return ASSEMBLER_ERROR_MISSING_PARAM
+
+            # SUBPCI
+            assembled = assembler_parse_int(line[7:])
+            if not assembled:
+                return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
+
+            assembled = (~assembled) + 1
+            if assembled & 0xE0 != 0xE0:
+                return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
+
+            assembled = 0b10100000 | (assembled & 0x1F)
+            poke(dst, assembled)
+            __last_bytes_consumed = 1
+            return ASSEMBLER_ERROR_NONE
+
+        if chr1 == 'K' and chr2 == 'I' and chr3 == 'P' and chr4 == 'I' and chr5 == 'F':
+            if chr6 != ' ':
+                return ASSEMBLER_ERROR_MISSING_PARAM
+
+            # SKIPIF
+            skipifprm: const[str] = line[7:]
+            if skipifprm == "CF":
+                assembled = 0b11110010
+            elif skipifprm == "!CF":
+                assembled = 0b11110011
+            elif skipifprm == "ZF":
+                assembled = 0b11110100
+            elif skipifprm == "!ZF":
+                assembled = 0b11110101
+            else:
+                return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
+
+            poke(dst, assembled)
+            __last_bytes_consumed = 1
+            return ASSEMBLER_ERROR_NONE
+
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'U':
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'V':
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'X':
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
 
 def assembler_disassemble(src: uint16) -> str[64]:
