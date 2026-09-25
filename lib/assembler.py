@@ -1,6 +1,6 @@
 __last_bytes_consumed: uint8 = 0
 __memory_op_lut: const[str[33]] = "ATOPATOCPTOACTOAATOUATOVUTOAVTOA"
-__stack_op_lut: const[str[65]] = "ADDPC\x00\x00\x00POPIP\x00\x00\x00PUSHSPC\x00POPSPC\x00\x00LOADA\x00\x00\x00STOREA\x00\x00"
+__stack_op_lut: const[str[49]] = "ADDPC\x00\x00\x00POPIP\x00\x00\x00PUSHSPC\x00POPSPC\x00\x00LOADA\x00\x00\x00STOREA\x00\x00"
 __reg_op_lut: const[str[65]] = "LOADU\x00\x00\x00STOREU\x00\x00LOADV\x00\x00\x00STOREV\x00\x00SWAPAU\x00\x00SWAPAV\x00\x00SWAPUV\x00\x00SWAPPC\x00\x00"
 
 
