@@ -1,5 +1,4 @@
 Compare against upper/lowercase command characters in Savannah Monitor.
-Finish assembler with missing instructions.
 Add upper() and lower() functions to lib/string.py.
 Uppercase assembly param before sending to assemble.
 Add upper/lower and assembly instructions to jumptable.

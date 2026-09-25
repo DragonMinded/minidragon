@@ -109,10 +109,84 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
         return ASSEMBLER_ERROR_NONE
 
     elif chr0 == 'A':
-        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+        if chr1 == 'N' and chr2 == 'D':
+            # AND, ANDU, ANDV
+            if chr3 == '\x00':
+                assembled = 0b10011011
+            elif chr3 == 'U' and chr4 == '\x00':
+                assembled = 0b10001011
+            elif chr3 == 'V' and chr4 == '\x00':
+                assembled = 0b10010011
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-    elif chr0 == 'C':
-        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+        elif chr1 == 'D':
+            # Variety of ADD instructions.
+            if chr2 == 'D':
+                if chr3 == '\x00':
+                    # ADD
+                    assembled = 0b10011001
+                elif chr3 == 'U' and chr4 == '\x00':
+                    # ADDU
+                    assembled = 0b10001001
+                elif chr3 == 'V' and chr4 == '\x00':
+                    # ADDV
+                    assembled = 0b10010001
+                elif chr3 == 'I':
+                    # ADDI
+                    if chr4 != ' ':
+                        return ASSEMBLER_ERROR_MISSING_PARAM
+
+                    addiop: int8 = assembler_parse_int(line[5:])
+                    addibounds: uint8 = addiop & 0b11100000
+
+                    if addibounds != 0b11100000 and addibounds != 0b00000000:
+                        return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
+
+                    assembled = 0b01000000 | (addiop & 0b00111111)
+
+                elif chr3 == 'P' and chr4 == 'C':
+                    chr5: char = line[5]
+                    if chr5 == '\x00':
+                        # ADDPC
+                        assembled = 0b11111010
+                    elif chr5 == 'I':
+                        # ADDPCI
+                        if line[6] != ' ':
+                            return ASSEMBLER_ERROR_MISSING_PARAM
+
+                        addpciop: uint8 = assembler_parse_int(line[7:]) - 1
+                        if addpciop & 0b11100000:
+                            return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
+
+                        assembled = 0b11000000 | addpciop
+
+                    else:
+                        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+                else:
+                    return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+            # Variety of ADC instructions.
+            elif chr2 == 'C':
+                if chr3 == '\x00':
+                    # ADC
+                    assembled = 0b10011010
+                elif chr3 == 'U' and chr4 == '\x00':
+                    # ADCU
+                    assembled = 0b10001010
+                elif chr3 == 'V' and chr4 == '\x00':
+                    # ADCV
+                    assembled = 0b10010010
+                else:
+                    return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        poke(dst, assembled)
+        __last_bytes_consumed = 1
+        return ASSEMBLER_ERROR_NONE
 
     elif chr0 == 'I':
         # INV instruction is the only one here.
@@ -187,13 +261,86 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             return ASSEMBLER_ERROR_NONE
 
     elif chr0 == 'O':
-        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+        # OR, ORU, ORV
+        if chr1 != 'R':
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        if chr2 == '\x00':
+            assembled = 0b10011100
+        elif chr2 == 'U' and chr3 == '\x00':
+            assembled = 0b10001100
+        elif chr2 == 'V' and chr3 == '\x00':
+            assembled = 0b10010100
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        poke(dst, assembled)
+        __last_bytes_consumed = 1
+        return ASSEMBLER_ERROR_NONE
 
     elif chr0 == 'P':
-        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+        chr5: char = line[5]
+        chr6: char = line[6]
+
+        if chr1 == 'U' and chr2 == 'S' and chr3 == 'H':
+            # PUSHIP, PUSHSPC
+            if chr4 == 'I' and chr5 == 'P':
+                if chr6 != ' ':
+                    return ASSEMBLER_ERROR_MISSING_PARAM
+
+                # Need to grab parameter.
+                pushipop: int8 = assembler_parse_int(line[6:])
+                if pushipop & 0b11111000:
+                    return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
+
+                assembled = 0b10000000 | pushipop
+
+            elif chr4 == 'S' and chr5 == 'P' and chr6 == 'C' and line[7] == '\x00':
+                assembled = 0b11111100
+
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        elif chr1 == 'O' and chr2 == 'P':
+            # POPIP, POPSPC
+            if chr3 == 'I' and chr4 == 'P' and chr5 == '\x00':
+                assembled = 0b11111011
+
+            elif chr3 == 'S' and chr4 == 'P' and chr5 == 'C' and chr6 == '\x00':
+                assembled = 0b11111101
+
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        poke(dst, assembled)
+        __last_bytes_consumed = 1
+        return ASSEMBLER_ERROR_NONE
 
     elif chr0 == 'R':
-        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+        if chr3 != '\x00':
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        # ROL, ROR, RCL, RCR
+        if chr1 == 'O':
+            assembled = 0b10001110
+        elif chr1 == 'C':
+            assembled = 0b10010110
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        if chr2 == 'L':
+            pass
+        elif chr2 == 'R':
+            assembled |= 1
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        poke(dst, assembled)
+        __last_bytes_consumed = 1
+        return ASSEMBLER_ERROR_NONE
 
     elif chr0 == 'S':
         chr5: char = line[5]
@@ -291,14 +438,23 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
 
         return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-    elif chr0 == 'U':
-        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
-
-    elif chr0 == 'V':
-        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
-
     elif chr0 == 'X':
-        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+        # XOR, XORU, XORV
+        if chr1 != 'O' or chr2 != 'R':
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        if chr3 == '\x00':
+            assembled = 0b10011101
+        elif chr3 == 'U' and chr4 == '\x00':
+            assembled = 0b10001101
+        elif chr3 == 'V' and chr4 == '\x00':
+            assembled = 0b10010101
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        poke(dst, assembled)
+        __last_bytes_consumed = 1
+        return ASSEMBLER_ERROR_NONE
 
     return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
