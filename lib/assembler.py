@@ -104,10 +104,6 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-        poke(dst, assembled)
-        __last_bytes_consumed = 1
-        return ASSEMBLER_ERROR_NONE
-
     elif chr0 == 'A':
         if chr1 == 'N' and chr2 == 'D':
             # AND, ANDU, ANDV
@@ -184,16 +180,13 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-        poke(dst, assembled)
-        __last_bytes_consumed = 1
-        return ASSEMBLER_ERROR_NONE
-
     elif chr0 == 'I':
         # INV instruction is the only one here.
         if chr1 == 'N' and chr2 == 'V' and chr3 == '\x00':
-            poke(dst, 0b11110000)
-            __last_bytes_consumed = 1
-            return ASSEMBLER_ERROR_NONE
+            assembled = 0b11110000
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
     elif chr0 == 'J':
         # Only JRI lives here.
@@ -207,9 +200,10 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             if jribounds != 0b11100000 and jribounds != 0b00000000:
                 return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
 
-            poke(dst, jriop & 0b00111111)
-            __last_bytes_consumed = 1
-            return ASSEMBLER_ERROR_NONE
+            assembled = jriop & 0b00111111
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
     elif chr0 == 'L':
         # Various LOAD and LNGJUMP instructions live here.
@@ -249,7 +243,7 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             poke(dst, assembled)
             return ASSEMBLER_ERROR_NONE
 
-        if chr1 == 'N' and chr2 == 'G' and chr3 == 'J' and chr4 == 'U' and line[5] == 'M' and line[6] == 'P':
+        elif chr1 == 'N' and chr2 == 'G' and chr3 == 'J' and chr4 == 'U' and line[5] == 'M' and line[6] == 'P':
             if line[7] != ' ':
                 return ASSEMBLER_ERROR_MISSING_PARAM
 
@@ -259,6 +253,9 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             poke(dst + 1, lngjumpop)
             __last_bytes_consumed = 3
             return ASSEMBLER_ERROR_NONE
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
     elif chr0 == 'O':
         # OR, ORU, ORV
@@ -273,10 +270,6 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             assembled = 0b10010100
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
-
-        poke(dst, assembled)
-        __last_bytes_consumed = 1
-        return ASSEMBLER_ERROR_NONE
 
     elif chr0 == 'P':
         chr5: char = line[5]
@@ -315,10 +308,6 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-        poke(dst, assembled)
-        __last_bytes_consumed = 1
-        return ASSEMBLER_ERROR_NONE
-
     elif chr0 == 'R':
         if chr3 != '\x00':
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
@@ -338,10 +327,6 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-        poke(dst, assembled)
-        __last_bytes_consumed = 1
-        return ASSEMBLER_ERROR_NONE
-
     elif chr0 == 'S':
         chr5: char = line[5]
         chr6: char = line[6]
@@ -356,11 +341,7 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             else:
                 return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-            poke(dst, assembled)
-            __last_bytes_consumed = 1
-            return ASSEMBLER_ERROR_NONE
-
-        if chr1 == 'T' and chr2 == 'O' and chr3 == 'R' and chr4 == 'E' and chr6 == '\x00':
+        elif chr1 == 'T' and chr2 == 'O' and chr3 == 'R' and chr4 == 'E' and chr6 == '\x00':
             if chr5 == 'U':
                 # STOREU
                 assembled = 0b11100001
@@ -373,11 +354,7 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             else:
                 return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-            poke(dst, assembled)
-            __last_bytes_consumed = 1
-            return ASSEMBLER_ERROR_NONE
-
-        if chr1 == 'W' and chr2 == 'A' and chr3 == 'P' and chr6 == '\x00':
+        elif chr1 == 'W' and chr2 == 'A' and chr3 == 'P' and chr6 == '\x00':
             if chr4 == 'A' and chr5 == 'U':
                 #SWAPAU
                 assembled = 0b11100100
@@ -393,11 +370,7 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             else:
                 return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-            poke(dst, assembled)
-            __last_bytes_consumed = 1
-            return ASSEMBLER_ERROR_NONE
-
-        if chr1 == 'U' and chr2 == 'B' and chr3 == 'P' and chr4 == 'C' and chr5 == 'I':
+        elif chr1 == 'U' and chr2 == 'B' and chr3 == 'P' and chr4 == 'C' and chr5 == 'I':
             if chr6 != ' ':
                 return ASSEMBLER_ERROR_MISSING_PARAM
 
@@ -411,11 +384,8 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
                 return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
 
             assembled = 0b10100000 | (assembled & 0x1F)
-            poke(dst, assembled)
-            __last_bytes_consumed = 1
-            return ASSEMBLER_ERROR_NONE
 
-        if chr1 == 'K' and chr2 == 'I' and chr3 == 'P' and chr4 == 'I' and chr5 == 'F':
+        elif chr1 == 'K' and chr2 == 'I' and chr3 == 'P' and chr4 == 'I' and chr5 == 'F':
             if chr6 != ' ':
                 return ASSEMBLER_ERROR_MISSING_PARAM
 
@@ -432,11 +402,8 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             else:
                 return ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE
 
-            poke(dst, assembled)
-            __last_bytes_consumed = 1
-            return ASSEMBLER_ERROR_NONE
-
-        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
     elif chr0 == 'X':
         # XOR, XORU, XORV
@@ -452,11 +419,12 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-        poke(dst, assembled)
-        __last_bytes_consumed = 1
-        return ASSEMBLER_ERROR_NONE
+    else:
+        return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
-    return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+    poke(dst, assembled)
+    __last_bytes_consumed = 1
+    return ASSEMBLER_ERROR_NONE
 
 
 def assembler_disassemble(src: uint16) -> str[64]:
