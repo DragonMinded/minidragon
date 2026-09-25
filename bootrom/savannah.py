@@ -249,33 +249,33 @@ def savannah_mainloop() -> void:
         return
 
     requested: char = command[0]
-    if requested == "h" or requested == "?":
+    if requested == "h" or requested == 'H' or requested == "?":
         savannah_print_help()
         return
 
     args: const[str] = command[2:]
-    if requested == "g":
+    if requested == "g" or requested == 'G':
         savannah_goto_address(args)
 
-    elif requested == "x":
+    elif requested == "x" or requested == 'X':
         savannah_exec(args)
 
-    elif requested == "r":
+    elif requested == "r" or requested == 'R':
         savannah_read_byte(args)
 
-    elif requested == "w":
+    elif requested == "w" or requested == 'W':
         savannah_write_byte(args)
 
-    elif requested == "d":
+    elif requested == "d" or requested == 'D':
         savannah_dump_bytes(args)
 
-    elif requested == "a":
+    elif requested == "a" or requested == 'A':
         savannah_assemble_instruction(args)
 
-    elif requested == "l":
+    elif requested == "l" or requested == 'L':
         savannah_list_instructions(args)
 
-    elif requested == "c":
+    elif requested == "c" or requested == 'C':
         serial_clear()
 
     else:
