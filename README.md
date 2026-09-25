@@ -1,6 +1,6 @@
 # MiniDragon
 
-Schematics, hardware simulator and software files for the MiniDragon CPU. This is a from-scratch CPU that I designed and am implementing using transistors, capacitors, resistors and diodes. The goal is to make an 8-bit CPU that could be used for general-purpose computing. There are a lot of toy instruction sets floating around on the web. I chose instead to design my own, loosely based off of the PDP and 6502. It is a single accumulator design with a pair of 16-bit stack pointers and a pair of temporary 8-bit registers. Instructions are 8 bits, operands are 8 bits from memory, temporary registers or immediate, and running software can access all 16 bits of memory available to the CPU. Eventually, I want the assembled CPU along with some external RAM, ROM and a serial interface chip to be self-hosting. So, I hope to eventually have a built-in assembler or BASIC interpreter in the ROM.
+Schematics, hardware simulator and software files for the MiniDragon CPU. This is a from-scratch CPU that I designed and am implementing using transistors, capacitors, resistors and diodes. The goal is to make an 8-bit CPU that could be used for general-purpose computing. There are a lot of toy instruction sets floating around on the web. I chose instead to design my own, loosely based off of the PDP and 6502. It is a single accumulator design with a pair of 16-bit stack pointers and a pair of temporary 8-bit registers. Instructions are 8 bits, operands are 8 bits from memory, temporary registers or immediate, and running software can access all 16 bits of memory available to the CPU. Eventually, I want the assembled CPU along with some external RAM, ROM and a serial interface chip to be self-hosting. For that, the boot ROM includes a serial montor with a line assembler and disassembler.
 
 ## Layout
 
@@ -289,8 +289,8 @@ As a whole, the software side of MiniDragon is 85% complete.
  - CPU simulator: 100% completed.
  - system emulator: 100% completed.
  - stdlib: 100% completed.
- - BIOS: ~10% completed.
-   - I've decided on the R6551AP for serial support and have started work on the BIOS/boot ROM. This mostly consists of serial driver code and some VT-100 routines for basic string input and output, but also includes stdlib functions for string manipulation, fixed point conversion, integer conversion and math operations that aren't intrinsic to the CPU.
+ - BIOS: ~50% completed.
+   - I've decided on the R6551AP for serial support and have started work on the BIOS/boot ROM. This consists of serial driver code and some VT-100 routines for basic string input and output, stdlib functions for string manipulation, fixed point conversion, integer conversion and math operations that aren't intrinsic to the CPU. It also contains a serial monitor with a built in line assembler/disassembler and an executable cartridge menu.
 
 ### Eratta
 
