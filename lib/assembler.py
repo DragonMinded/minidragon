@@ -177,6 +177,9 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
                 else:
                     return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
