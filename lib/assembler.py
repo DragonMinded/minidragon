@@ -427,7 +427,7 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
     return ASSEMBLER_ERROR_NONE
 
 
-def assembler_disassemble(src: uint16) -> str[64]:
+def assembler_disassemble(src: uint16) -> str[16]:
     # We'll need to update this throughout.
     global __last_bytes_consumed
 
@@ -541,24 +541,21 @@ def assembler_disassemble(src: uint16) -> str[64]:
         regop_offset <<= 3
         regop_offset += cast(uint16, __reg_op_lut)
 
-        regop: str[8] = peek(regop_offset, 7)
-        return regop
+        return peek(regop_offset, 7)
 
     if mask == 0b11101000:
         memop_offset: uint16 = (instruction & 0b00000111)
         memop_offset <<= 2
         memop_offset += cast(uint16, __memory_op_lut)
 
-        memop: str[5] = peek(memop_offset, 4)
-        return memop
+        return peek(memop_offset, 4)
 
     if mask == 0b11111000:
         stkop_offset: uint16 = (instruction & 0b00000111) - 2
         stkop_offset <<= 3
         stkop_offset += cast(uint16, __stack_op_lut)
 
-        stkop: str[8] = peek(stkop_offset, 7)
-        return stkop
+        return peek(stkop_offset, 7)
 
     # The rest of these really can't easily be put in a LUT without wasting
     # a lot of space, so just use if statements.
