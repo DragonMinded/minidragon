@@ -3297,7 +3297,7 @@ class Compiler:
                         if (not destination_type.is_array) and destination_type.const:
                             destination_type.length = 2
 
-                        compiled += self.generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+                        compiled += self.generate_local_storage_alloc(destination, stack, clobbers, allocations, context, size_hint=2)
 
                         # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
                         stack.init(destination)
@@ -3367,7 +3367,7 @@ class Compiler:
                         if (not destination_type.is_array) and destination_type.const:
                             destination_type.length = needed_length
 
-                        compiled += self.generate_local_storage_alloc(destination, stack, clobbers, allocations, context)
+                        compiled += self.generate_local_storage_alloc(destination, stack, clobbers, allocations, context, size_hint=needed_length)
 
                         # This is initialized now, so we know that we won't have to allocate local storage for it anymore.
                         stack.init(destination)
@@ -4345,6 +4345,8 @@ class Compiler:
         clobbers: Set[str],
         allocations: Dict[str, Allocation],
         context: Context,
+        *,
+        size_hint: Optional[int] = None,
     ) -> Sections:
         compiled = Sections()
 
@@ -4362,10 +4364,10 @@ class Compiler:
         if local_destination_storage is None:
             raise Exception("Logic error, couldn't get local storage for string!")
 
-        if not dest_type.length:
+        if not dest_type.length and not size_hint:
             raise Exception("Logic error, couldn't determine string length for string local storage!")
 
-        requested_length = dest_type.length
+        requested_length = size_hint if size_hint is not None else dest_type.length
         if local_destination_storage in allocations:
             if allocations[local_destination_storage].size < requested_length:
                 raise Exception("Logic error, re-allocation of local storage with different size!")
