@@ -38,6 +38,10 @@ def savannah_print_unrecognized(requested: char) -> void:
     serial_send(f"Unrecognized command '{requested}'\n")
 
 
+def savannah_print_invalid() -> void:
+    serial_send("Invalid command format\n")
+
+
 def savannah_goto_address(addr: const[str[30]]) -> void:
     global __addr
     __addr = assembler_parse_int(addr)
@@ -246,6 +250,11 @@ def savannah_mainloop() -> void:
     command: const[str[32]] = serial_input(f"\033[1m{hex(__addr)}>\033[0m ", max_length=31)
 
     if not command:
+        return
+
+    space: char = command[1]
+    if space != '\x00' and space != ' ':
+        savannah_print_invalid()
         return
 
     requested: char = command[0]
