@@ -199,10 +199,34 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
+    elif chr0 == 'D':
+        # DECPC is just a shorthand for SUBPCI #1, but we treat it as an instruction.
+        if chr1 == 'E' and chr2 == 'C' and chr3 == 'P' and chr4 == 'C' and line[5] == '\x00':
+            assembled = 0b10111111
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'H':
+        # HALT is just a shorthand for JRI #-1, but we treat it as an instruction.
+        if chr1 == 'A' and chr2 == 'L' and chr3 == 'T' and chr4 == '\x00':
+            assembled = 0b00111111
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
     elif chr0 == 'I':
-        # INV instruction is the only one here.
-        if chr1 == 'N' and chr2 == 'V' and chr3 == '\x00':
-            assembled = 0b11110000
+        if chr1 == 'N':
+            # INV instruction is the only real one here.
+            if chr2 == 'V' and chr3 == '\x00':
+                assembled = 0b11110000
+
+            # INCPC is just a shorthand for ADDPCI #1, but we treat it as an instruction.
+            elif chr2 == 'C' and chr3 == 'P' and chr4 == 'C' and line[5] == '\x00':
+                assembled = 0b11000000
+
+            else:
+                return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
@@ -277,9 +301,13 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
 
     elif chr0 == 'N':
-        # NEG instruction is the only one here.
+        # NEG instruction is the only real instruction here.
         if chr1 == 'E' and chr2 == 'G' and chr3 == '\x00':
             assembled = 0b11110001
+
+        # NOP is just a shorthand for JRI #0, but we treat it as an instruction.
+        elif chr1 == 'O' and chr2 == 'P' and chr3 == '\x00':
+            assembled = 0b00000000
 
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
