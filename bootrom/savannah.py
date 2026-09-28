@@ -13,11 +13,67 @@ from hardware.serial import serial_clear, serial_input, serial_send
 from memory import memory_exec
 
 
+# The serial monitor's current working memory address.
 __addr: uint16 = 0
 
 
 # Filthy trick to determine the first safe byte in RAM.
 heap: extern[const[str]]
+
+
+# Parsed parameters from the below function, since we don't have objects or tuple returns.
+__parsed_addr: uint16
+__parsed_val: uint8
+
+
+def _savannah_parse_params(addr_and_val: const[str], default: uint8 = 0) -> bool:
+    global __parsed_addr
+    global __parsed_val
+
+    inc: bool = True
+    actual: uint16 = __addr
+
+    if addr_and_val:
+        addr: str[30] = ""
+        val: str[30] = ""
+        seen_space: bool = False
+        quote: char = '\x00'
+        ch: char
+
+        for ch in addr_and_val:
+            # If we've already seen a space, everything gets concatenated to the value.
+            if seen_space:
+                val += ch
+            # If we're in a quote, keep concatenating to addr until we see the same quote again.
+            elif quote:
+                addr += ch
+                if quote == ch:
+                    quote = '\x00'
+            # If we're not in a quote, enter quote state if there's a quote.
+            elif ch == '"' or ch == "'":
+                addr += ch
+                quote = ch
+            # If we're not in a quote and we find a space, move from addr accumulation to val accumulation.
+            elif ch == " ":
+                seen_space = True
+            # We haven't seen a space yet, so keep accumulating the addr.
+            else:
+                addr += ch
+
+        if not val:
+            val = addr
+            addr = ""
+
+        if addr:
+            inc = False
+            actual = assembler_parse_int(addr)
+
+        __parsed_val = assembler_parse_int(val)
+    else:
+        __parsed_val = default
+
+    __parsed_addr = actual
+    return inc
 
 
 def savannah_print_help() -> void:
@@ -70,46 +126,11 @@ def savannah_read_byte(addr: const[str]) -> void:
 
 
 def savannah_write_byte(addr_and_val: const[str]) -> void:
-    inc: bool = True
-    actual: uint16 = __addr
+    inc: bool = _savannah_parse_params(addr_and_val)
+    actual: uint16 = __parsed_addr
+    val_as_int: uint8 = __parsed_val
 
-    addr: str[30] = ""
-    val: str[30] = ""
-    seen_space: bool = False
-    quote: char = '\x00'
-    ch: char
-
-    for ch in addr_and_val:
-        # If we've already seen a space, everything gets concatenated to the value.
-        if seen_space:
-            val += ch
-        # If we're in a quote, keep concatenating to addr until we see the same quote again.
-        elif quote:
-            addr += ch
-            if quote == ch:
-                quote = '\x00'
-        # If we're not in a quote, enter quote state if there's a quote.
-        elif ch == '"' or ch == "'":
-            addr += ch
-            quote = ch
-        # If we're not in a quote and we find a space, move from addr accumulation to val accumulation.
-        elif ch == " ":
-            seen_space = True
-        # We haven't seen a space yet, so keep accumulating the addr.
-        else:
-            addr += ch
-
-    if not val:
-        val = addr
-        addr = ""
-
-    if addr:
-        inc = False
-        actual = assembler_parse_int(addr)
-
-    val_as_int: uint8 = assembler_parse_int(val)
     poke(actual, val_as_int)
-
     if inc:
         global __addr
         __addr += 1
@@ -118,44 +139,10 @@ def savannah_write_byte(addr_and_val: const[str]) -> void:
 
 
 def savannah_dump_bytes(addr_and_amt: const[str]) -> void:
-    inc: bool = True
-    actual: uint16 = __addr
+    inc: bool = _savannah_parse_params(addr_and_amt)
+    actual: uint16 = __parsed_addr
+    left: uint8 = __parsed_val
 
-    addr: str[30] = ""
-    amt: str[30] = ""
-    seen_space: bool = False
-    quote: char = '\x00'
-    ch: char
-
-    for ch in addr_and_amt:
-        # If we've already seen a space, everything gets concatenated to the amt.
-        if seen_space:
-            amt += ch
-        # If we're in a quote, keep concatenating to addr until we see the same quote again.
-        elif quote:
-            addr += ch
-            if quote == ch:
-                quote = '\x00'
-        # If we're not in a quote, enter quote state if there's a quote.
-        elif ch == '"' or ch == "'":
-            addr += ch
-            quote = ch
-        # If we're not in a quote and we find a space, move from addr accumulation to amt accumulation.
-        elif ch == " ":
-            seen_space = True
-        # We haven't seen a space yet, so keep accumulating the addr.
-        else:
-            addr += ch
-
-    if not amt:
-        amt = addr
-        addr = ""
-
-    if addr:
-        inc = False
-        actual = assembler_parse_int(addr)
-
-    left: uint16 = assembler_parse_int(amt)
     spent: uint8 = 0
     off1: uint8 = 8
     off2: uint8 = 8 + (16 * 3)
@@ -223,48 +210,9 @@ def savannah_assemble_instruction(instruction: const[str]) -> void:
 
 
 def savannah_list_instructions(addr_and_amt: const[str]) -> void:
-    inc: bool = True
-    actual: uint16 = __addr
-
-    addr: str[30] = ""
-    amt: str[30] = ""
-    if addr_and_amt:
-        seen_space: bool = False
-        quote: char = '\x00'
-        ch: char
-
-        for ch in addr_and_amt:
-            # If we've already seen a space, everything gets concatenated to the amt.
-            if seen_space:
-                amt += ch
-            # If we're in a quote, keep concatenating to addr until we see the same quote again.
-            elif quote:
-                addr += ch
-                if quote == ch:
-                    quote = '\x00'
-            # If we're not in a quote, enter quote state if there's a quote.
-            elif ch == '"' or ch == "'":
-                addr += ch
-                quote = ch
-            # If we're not in a quote and we find a space, move from addr accumulation to amt accumulation.
-            elif ch == " ":
-                seen_space = True
-            # We haven't seen a space yet, so keep accumulating the addr.
-            else:
-                addr += ch
-
-        if not amt:
-            amt = addr
-            addr = ""
-
-        if addr:
-            inc = False
-            actual = assembler_parse_int(addr)
-    else:
-        # Default to decoding one instruction
-        amt = "1"
-
-    left: uint16 = assembler_parse_int(amt)
+    inc: bool = _savannah_parse_params(addr_and_amt, default=1)
+    actual: uint16 = __parsed_addr
+    left: uint8 = __parsed_val
 
     while left:
         # First, disassemble the current address.
