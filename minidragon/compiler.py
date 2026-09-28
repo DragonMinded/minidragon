@@ -2908,6 +2908,9 @@ class Compiler:
 
                             is_usable = call_prototype.return_type.is_string and call_prototype.return_type.const
 
+                        elif self.is_const_ref(arg_in_question, stack, refs, local_consts, context):
+                            is_usable = True
+
                         else:
                             try:
                                 self.codegen_eval(arg_in_question, local_consts, context)
