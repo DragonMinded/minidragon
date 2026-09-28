@@ -213,7 +213,7 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             if chr3 != ' ':
                 return ASSEMBLER_ERROR_MISSING_PARAM
 
-            jriop: int8 = assembler_parse_int(line[4:]) - 1
+            jriop: int8 = assembler_parse_int(line[4:])
             jribounds: uint8 = jriop & 0b11100000
 
             if jribounds != 0b11100000 and jribounds != 0b00000000:
@@ -272,6 +272,14 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
             poke(dst + 1, lngjumpop)
             __last_bytes_consumed = 3
             return ASSEMBLER_ERROR_NONE
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == 'N':
+        # NEG instruction is the only one here.
+        if chr1 == 'E' and chr2 == 'G' and chr3 == '\x00':
+            assembled = 0b11110001
 
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
@@ -464,8 +472,10 @@ def assembler_disassemble(src: uint16) -> str[16]:
 
     if mask == 0b00000000:
         # JRI instruction
-        if operand:
-            return f"JRI #{operand + 1}"
+        if operand == -1:
+            return "HALT"
+        elif operand:
+            return f"JRI #{operand}"
         else:
             return "NOP"
 
@@ -580,6 +590,8 @@ def assembler_disassemble(src: uint16) -> str[16]:
     # a lot of space, so just use if statements.
     if instruction == 0b11110000 or instruction == 0b11110110:
         return "INV"
+    if instruction == 0b11110001 or instruction == 0b11110111:
+        return "NEG"
 
     if instruction == 0b11110010:
         return "SKIPIF CF"
@@ -590,5 +602,5 @@ def assembler_disassemble(src: uint16) -> str[16]:
     if instruction == 0b11110101:
         return "SKIPIF !ZF"
 
-    # The last two instructions are possibly NEG in the future, but invalid right now.
+    # Unknown instruction, we should have covered it, but have a safe fallback anyway.
     return f".byte {hex(instruction)}"
