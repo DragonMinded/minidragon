@@ -8,13 +8,14 @@ ASSEMBLER_ERROR_NONE: const[uint8] = 0
 ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION: const[uint8] = 1
 ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE: const[uint8] = 2
 ASSEMBLER_ERROR_MISSING_PARAM: const[uint8] = 3
+ASSEMBLER_ERROR_INVALID_PARAM: const[uint8] = 4
 
 
 def assembler_bytes_consumed() -> uint8:
     return __last_bytes_consumed
 
 
-def assembler_parse_int(val: const[str[30]]) -> uint16:
+def assembler_parse_int(val: const[str]) -> uint16:
     if val[0] == "#":
         # Decimal number.
         return int(val[1:])
@@ -65,7 +66,7 @@ def assembler_parse_int(val: const[str[30]]) -> uint16:
     return accum
 
 
-def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
+def assembler_assemble(dst: uint16, line: const[str]) -> uint8:
     # We need to recognize the mnemonic that is contained in the line. We do that
     # by implementing a manually unrolled radix tree for speed, because doing a
     # strcmp against every recognized instruction would be insanely slow.
@@ -116,6 +117,80 @@ def assembler_assemble(dst: uint16, line: const[str[30]]) -> uint8:
                 assembled = 0b11101111
             else:
                 return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+        else:
+            return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION
+
+    elif chr0 == '.':
+        # This is some sort of directive, we only support ".byte"/".char", ".str" and ".pad" at the moment.
+        if (chr1 == 'b' and chr2 == 'y' and chr3 == 't' and chr4 == 'e') or (chr1 == 'c' and chr2 == 'h' and chr3 == 'a' and chr4 == 'r'):
+            if line[5] != ' ':
+                return ASSEMBLER_ERROR_MISSING_PARAM
+
+            assembled = assembler_parse_int(line[6:])
+
+        elif chr1 == 'p' and chr2 == 'a' and chr3 == 'd':
+            if chr4 != ' ':
+                return ASSEMBLER_ERROR_MISSING_PARAM
+
+            padamt: uint16 = assembler_parse_int(line[5:])
+            while padamt:
+                padamt -= 1
+
+                poke(dst, 0b00000000)
+                dst += 1
+                __last_bytes_consumed += 1
+
+            return ASSEMBLER_ERROR_NONE
+
+        elif chr1 == 's' and chr2 == 't' and chr3 == 'r':
+            if chr4 != ' ':
+                return ASSEMBLER_ERROR_MISSING_PARAM
+
+            endloc: uint8 = len(line) - 1
+            if line[5] != "'" and line[5] != '"':
+                return ASSEMBLER_ERROR_INVALID_PARAM
+
+            if line[5] != line[endloc]:
+                return ASSEMBLER_ERROR_INVALID_PARAM
+
+            curloc: uint8 = 6
+            slash: bool = False
+            while curloc != endloc:
+                curchar: char = line[curloc]
+                curloc += 1
+
+                # First, handle if we're escaping a character.
+                if slash:
+                    slash = False
+
+                    if curchar == 'n':
+                        curchar = '\n'
+                    elif curchar == 'r':
+                        curchar = '\r'
+                    elif curchar == 't':
+                        curchar = '\t'
+
+                    poke(dst, ord(curchar))
+                    dst += 1
+                    __last_bytes_consumed += 1
+
+                # Then, handle if we're going to escape the next character.
+                elif ord(curchar) == 0x5C:
+                    slash = True
+
+                # Finally, just echo across.
+                else:
+                    poke(dst, ord(curchar))
+                    dst += 1
+                    __last_bytes_consumed += 1
+
+            # Make sure to zero-pad!
+            poke(dst, 0b00000000)
+            dst += 1
+            __last_bytes_consumed += 1
+
+            return ASSEMBLER_ERROR_NONE
 
         else:
             return ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION

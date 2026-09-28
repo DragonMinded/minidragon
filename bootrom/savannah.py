@@ -7,6 +7,7 @@ from assembler import (
     ASSEMBLER_ERROR_UNRECOGNIZED_INSTRUCTION,
     ASSEMBLER_ERROR_PARAM_OUT_OF_RANGE,
     ASSEMBLER_ERROR_MISSING_PARAM,
+    ASSEMBLER_ERROR_INVALID_PARAM,
 )
 from hardware.serial import serial_clear, serial_input, serial_send
 from memory import memory_exec
@@ -42,17 +43,17 @@ def savannah_print_invalid() -> void:
     serial_send("Invalid command format\n")
 
 
-def savannah_goto_address(addr: const[str[30]]) -> void:
+def savannah_goto_address(addr: const[str]) -> void:
     global __addr
     __addr = assembler_parse_int(addr)
 
 
-def savannah_exec(addr: const[str[30]]) -> void:
+def savannah_exec(addr: const[str]) -> void:
     exec_loc: uint16 = assembler_parse_int(addr) if addr else __addr
     memory_exec(exec_loc)
 
 
-def savannah_read_byte(addr: const[str[30]]) -> void:
+def savannah_read_byte(addr: const[str]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
@@ -68,7 +69,7 @@ def savannah_read_byte(addr: const[str[30]]) -> void:
     serial_send(f"{hex(actual)}: {hex(val)}\n")
 
 
-def savannah_write_byte(addr_and_val: const[str[30]]) -> void:
+def savannah_write_byte(addr_and_val: const[str]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
@@ -116,7 +117,7 @@ def savannah_write_byte(addr_and_val: const[str[30]]) -> void:
     serial_send(f"{hex(actual)}: {hex(val_as_int)}\n")
 
 
-def savannah_dump_bytes(addr_and_amt: const[str[30]]) -> void:
+def savannah_dump_bytes(addr_and_amt: const[str]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
@@ -195,7 +196,7 @@ def savannah_dump_bytes(addr_and_amt: const[str[30]]) -> void:
             buf = f"{hex(start)}:                                                                 \n"
 
 
-def savannah_assemble_instruction(instruction: const[str[30]]) -> void:
+def savannah_assemble_instruction(instruction: const[str]) -> void:
     global __addr
 
     result: uint8 = assembler_assemble(__addr, instruction)
@@ -213,12 +214,15 @@ def savannah_assemble_instruction(instruction: const[str[30]]) -> void:
     elif result == ASSEMBLER_ERROR_MISSING_PARAM:
         # Missing parameter for instruction
         serial_send("Parameter missing for instruction\n")
+    elif result == ASSEMBLER_ERROR_INVALID_PARAM:
+        # Invalid parameter for instruction
+        serial_send("Parameter invalid for instruction\n")
     else:
         # Unknown
         serial_send("Unknown error\n")
 
 
-def savannah_list_instructions(addr_and_amt: const[str[30]]) -> void:
+def savannah_list_instructions(addr_and_amt: const[str]) -> void:
     inc: bool = True
     actual: uint16 = __addr
 
@@ -264,7 +268,7 @@ def savannah_list_instructions(addr_and_amt: const[str[30]]) -> void:
 
     while left:
         # First, disassemble the current address.
-        disassembly: const[str[64]] = assembler_disassemble(actual)
+        disassembly: const[str[16]] = assembler_disassemble(actual)
         consumed: uint8 = assembler_bytes_consumed()
         serial_send(f"{hex(actual)}: {disassembly}\n")
 
@@ -286,7 +290,7 @@ def savannah_init() -> void:
 
 
 def savannah_mainloop() -> void:
-    command: const[str[32]] = serial_input(f"\033[1m{hex(__addr)}>\033[0m ", max_length=31)
+    command: const[str[71]] = serial_input(f"\033[1m{hex(__addr)}>\033[0m ", max_length=70)
 
     if not command:
         return
