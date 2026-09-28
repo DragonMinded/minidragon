@@ -30,6 +30,22 @@ def assembler_parse_int(val: const[str[30]]) -> uint16:
 
         return accum
 
+    if val[0] == "'":
+        if val[2] == "'":
+            # Character.
+            return ord(val[1])
+        else:
+            # Unknown.
+            return 0
+
+    if val[0] == '"':
+        if val[2] == '"':
+            # Character.
+            return ord(val[1])
+        else:
+            # Unknown.
+            return 0
+
     # Hex number
     accum: uint16 = 0
     ch: char

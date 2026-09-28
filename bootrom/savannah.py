@@ -75,13 +75,26 @@ def savannah_write_byte(addr_and_val: const[str[30]]) -> void:
     addr: str[30] = ""
     val: str[30] = ""
     seen_space: bool = False
+    quote: char = '\x00'
     ch: char
 
     for ch in addr_and_val:
+        # If we've already seen a space, everything gets concatenated to the value.
         if seen_space:
             val += ch
+        # If we're in a quote, keep concatenating to addr until we see the same quote again.
+        elif quote:
+            addr += ch
+            if quote == ch:
+                quote = '\x00'
+        # If we're not in a quote, enter quote state if there's a quote.
+        elif ch == '"' or ch == "'":
+            addr += ch
+            quote = ch
+        # If we're not in a quote and we find a space, move from addr accumulation to val accumulation.
         elif ch == " ":
             seen_space = True
+        # We haven't seen a space yet, so keep accumulating the addr.
         else:
             addr += ch
 
@@ -110,13 +123,26 @@ def savannah_dump_bytes(addr_and_amt: const[str[30]]) -> void:
     addr: str[30] = ""
     amt: str[30] = ""
     seen_space: bool = False
+    quote: char = '\x00'
     ch: char
 
     for ch in addr_and_amt:
+        # If we've already seen a space, everything gets concatenated to the amt.
         if seen_space:
             amt += ch
+        # If we're in a quote, keep concatenating to addr until we see the same quote again.
+        elif quote:
+            addr += ch
+            if quote == ch:
+                quote = '\x00'
+        # If we're not in a quote, enter quote state if there's a quote.
+        elif ch == '"' or ch == "'":
+            addr += ch
+            quote = ch
+        # If we're not in a quote and we find a space, move from addr accumulation to amt accumulation.
         elif ch == " ":
             seen_space = True
+        # We haven't seen a space yet, so keep accumulating the addr.
         else:
             addr += ch
 
@@ -200,13 +226,26 @@ def savannah_list_instructions(addr_and_amt: const[str[30]]) -> void:
     amt: str[30] = ""
     if addr_and_amt:
         seen_space: bool = False
+        quote: char = '\x00'
         ch: char
 
         for ch in addr_and_amt:
+            # If we've already seen a space, everything gets concatenated to the amt.
             if seen_space:
                 amt += ch
+            # If we're in a quote, keep concatenating to addr until we see the same quote again.
+            elif quote:
+                addr += ch
+                if quote == ch:
+                    quote = '\x00'
+            # If we're not in a quote, enter quote state if there's a quote.
+            elif ch == '"' or ch == "'":
+                addr += ch
+                quote = ch
+            # If we're not in a quote and we find a space, move from addr accumulation to amt accumulation.
             elif ch == " ":
                 seen_space = True
+            # We haven't seen a space yet, so keep accumulating the addr.
             else:
                 addr += ch
 

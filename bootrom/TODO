@@ -1,3 +1,6 @@
+Add NEG to assember and disassembler.
+Add macros to assembler so it matches the disassembler.
+Add .byte directive to assembler.
 Add upper() and lower() functions to lib/string.py.
 Uppercase assembly param before sending to assemble.
 Add upper/lower and assembly instructions to jumptable.
