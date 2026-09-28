@@ -147,11 +147,12 @@ def assembler_assemble(dst: uint16, line: const[str]) -> uint8:
             if chr4 != ' ':
                 return ASSEMBLER_ERROR_MISSING_PARAM
 
-            endloc: uint8 = len(line) - 1
-            if line[5] != "'" and line[5] != '"':
+            chr5: char = line[5]
+            if chr5 != "'" and chr5 != '"':
                 return ASSEMBLER_ERROR_INVALID_PARAM
 
-            if line[5] != line[endloc]:
+            endloc: uint8 = len(line) - 1
+            if chr5 != line[endloc]:
                 return ASSEMBLER_ERROR_INVALID_PARAM
 
             curloc: uint8 = 6
