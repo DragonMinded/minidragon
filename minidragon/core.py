@@ -683,11 +683,11 @@ class CPUCore:
         sc = sc & 0xFF
         spandsc = sp + sc
 
-        a = self.data if self.last_instruction.a_input else self.a
+        a = (self.data & 0xFF) if self.last_instruction.a_input else self.a
         a_dec = bintoint(a & 0xFF)
-        u = self.data if self.last_instruction.u_input else self.u
+        u = (self.data & 0xFF) if self.last_instruction.u_input else self.u
         u_dec = bintoint(u & 0xFF)
-        v = self.data if self.last_instruction.v_input else self.v
+        v = (self.data & 0xFF) if self.last_instruction.v_input else self.v
         v_dec = bintoint(v & 0xFF)
 
         changes = self.changes if highlight_changes else set()
@@ -3029,15 +3029,39 @@ class LNGJUMP(BaseStackInstruction):
                 alu_output=True,
                 ip_input=True,
             ),
-            # Now, output the SRAM as well as D register, inputting
-            # to the IP to jump to that address.
+            # Back up A in the B register since we need to use it.
+            ControlSignals(
+                a_output=True,
+                b_input=True,
+            ),
+            # Store the location of IP in the A register we backed up.
             ControlSignals(
                 address_src=AddressSource.ADDRESS_SRC_IP,
-                d_high_output=True,
                 sram_output=True,
+                a_input=True,
+            ),
+            # Now, output the A as well as D register, inputting
+            # to the IP to jump to that address. We do this because
+            # the ROM in real hardware reacts too quickly to the address
+            # change.
+            ControlSignals(
+                d_high_output=True,
+                a_output=True,
                 ip_input=True,
             ),
-
+            # Now, clear the A register so we can restore it from B.
+            ControlSignals(
+                z_output=True,
+                a_input=True,
+            ),
+            # And finally, restore A from B using a trick routing throug the ALU.
+            ControlSignals(
+                alu_src=ALUSource.ALU_SRC_A,
+                alu_op=ALUOp.OPERATION_OR,
+                carry=CarryOp.CARRY_CLEAR,
+                alu_output=True,
+                a_input=True,
+            ),
         ]
 
     def vals(

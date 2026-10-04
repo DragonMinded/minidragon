@@ -63,6 +63,7 @@ def getmemory(instr: str) -> List[int]:
 def rununtilhalt(cpu: CPUCore) -> None:
     last_instructions = []
     instructions = 0
+    halt_executed = False
 
     while True:
         if verbose:
@@ -70,8 +71,10 @@ def rununtilhalt(cpu: CPUCore) -> None:
             cpu.dump(highlight_changes)
             cpu.mark()
             print("")
+        if halt_executed:
+            break
         if cpu.mnemonic == "HALT":
-            return
+            halt_executed = True
 
         # Ensure we don't run into any NOP sleds which appear to work in
         # test but cause issues in compiled code.
@@ -444,6 +447,39 @@ def verifysubpci(only: Optional[Container[str]], full: bool) -> None:
                 disassemble(memory[0]) == f"SUBPCI {i}",
                 f"Failed to disassemble SUBPCI {i}!",
             )
+
+
+
+
+def verifylngjump(only: Optional[Container[str]], full: bool) -> None:
+    if only is not None and "lngjump" not in only and "instructions" not in only:
+        return
+
+    print("Verifying LNGJUMP...")
+    print("0% complete...")
+
+    vals = [0x0011, 0x1234, 0x5678, 0x7777, 0x1100]
+    for off, i in enumerate(vals):
+        memory = getmemory(f"""
+            LOADI 0xA5
+            LNGJUMP {hex(i)}
+            HALT
+        .org {hex(i)}
+            HALT
+        """)
+        cpu = CPUCore(memory)
+        rununtilhalt(cpu)
+        _assert(
+            cpu.ip == i,
+            f"Failed to LNGJUMP, reached address {hex(cpu.ip)} instead of {hex(i)}!",
+        )
+        _assert(
+            cpu.a == 0xA5,
+            f"LNGJUMP changed A register from {0xA5} to {cpu.a}!",
+        )
+
+        print(f"{CLEAR_LINE}{int((off * 100) / len(vals))}% complete...")
+    print(BACK_AND_CLEAR_LINE)
 
 
 def verifyshift(only: Optional[Container[str]], full: bool) -> None:
@@ -19868,6 +19904,7 @@ if __name__ == "__main__":
     verifyneg(only, args.full)
     verifyaddpci(only, args.full)
     verifysubpci(only, args.full)
+    verifylngjump(only, args.full)
     verifyshift(only, args.full)
 
     # Math library verification
