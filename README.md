@@ -260,10 +260,10 @@ As I continue with both the physical and virtual implementations of MiniDragon i
 
 ### Hardware
 
-As a whole, the hardware side of MiniDragon is 95% complete.
+As a whole, the hardware side of MiniDragon is 97% complete.
 
- - instruction decoder: 71% complete
-    - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 56 instructions (55 real instructions and a microcode board for the shared load instruction step) 40 instructions are fully hooked in and the shared load step is wired up. The instruction decoder core is fully built and integrated into the physical build.
+ - instruction decoder: 79% complete
+    - Design work and diagramming for the instruction decoder core, including microcode counting, distribution logic, demultiplexing logic and associated glue is finished. Diagramming for exact connections to various instruction ROM boards is not complete. Of the 57 instructions (56 real instructions and a microcode board for the shared load instruction step) 45 instructions are fully hooked in and the shared load step is wired up. The instruction decoder core is fully built and integrated into the physical build.
  - special registers: 100% complete
    - All design work and diagramming for necessry circuits is completed. Registers that can be read in order to perform conditional logic as well as source immediate values are completed and fully integrated onto the physical build.
  - general purpose registers: 100% complete
@@ -282,7 +282,7 @@ As a whole, the hardware side of MiniDragon is 95% complete.
 
 ### Software
 
-As a whole, the software side of MiniDragon is 85% complete.
+As a whole, the software side of MiniDragon is 92% complete.
 
  - assembler/disassembler: 100% completed.
  - compiler: 100% completed.
